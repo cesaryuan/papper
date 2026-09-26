@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from ...runtime.logging import log_debug, log_info, log_success
+from ...runtime.logging import log_debug
 from ...runtime.metadata import PmtSettings
 
 try:
@@ -41,14 +41,12 @@ try:
     from .process_table_metadata import process_table_metadata
     from .autofit_tables import autofit_tables
     from .table_text_style import process_all_tables as convert_table_text_style, ensure_table_text_style_exists
-    from .para_after_table_style import process_para_after_table_style
     from .insert_author_info import insert_author_info_to_doc
     from .clear_subfigure_table_format import clear_subfigure_table_format
     from .format_equation_layout_tables import format_equation_layout_tables
     from .docx_style import apply_docx_style_settings, format_applied_style_summary
     from .line_numbers import apply_line_number_settings
     from .page_numbers import apply_page_number_settings
-    from .where_paragraph_style import process_where_paragraph_styles
     from .reply_blue_italic_style import apply_reply_blue_italic_style
 except ImportError as e:
     print(f"Error: Failed to import processing modules: {e}")
@@ -58,7 +56,6 @@ except ImportError as e:
     print("  - process_table_metadata.py")
     print("  - autofit_tables.py")
     print("  - table_text_style.py")
-    print("  - para_after_table_style.py")
     print("  - para_equation_style.py")
     print("  - insert_author_info.py")
     print("  - clear_subfigure_table_format.py")
@@ -66,7 +63,6 @@ except ImportError as e:
     print("  - docx_style.py")
     print("  - line_numbers.py")
     print("  - page_numbers.py")
-    print("  - where_paragraph_style.py")
     print("  - reply_blue_italic_style.py")
     sys.exit(1)
 
@@ -199,14 +195,6 @@ def postprocess_docx(
             stats = convert_table_text_style(doc)
             print_debug_success(f"Converted {stats['converted']} paragraph(s) from 'Compact' to 'Table Text'")
 
-        def apply_para_after_table_style_step() -> None:
-            """Style regular body paragraphs that directly follow tables."""
-            para_after_table_count = process_para_after_table_style(doc)
-            if para_after_table_count is None:
-                print_warning("Could not ensure Para After Table style exists, skipping style conversion")
-                return
-            print_debug_success(f"Styled {para_after_table_count} paragraph(s) as 'Para After Table'")
-
         def autofit_tables_step() -> None:
             """Auto-fit regular tables while leaving equation layout tables alone."""
             fitted_count = autofit_tables(doc, center_align=True)
@@ -223,14 +211,6 @@ def postprocess_docx(
             from .para_equation_style import process_para_equation_style
 
             process_para_equation_style(doc)
-
-        def apply_where_paragraph_style_step() -> None:
-            """Style where clauses that immediately follow equations."""
-            where_count = process_where_paragraph_styles(doc)
-            if where_count is None:
-                print_warning("Could not ensure Where Paragraph style exists, skipping style conversion")
-                return
-            print_debug_success(f"Styled {where_count} paragraph(s) as 'Where Paragraph'")
 
         def apply_reply_blue_italic_style_step() -> None:
             """Apply reply-only blue formatting in one post-processing step."""
@@ -250,13 +230,11 @@ def postprocess_docx(
             ("Applying page-number metadata", apply_page_number_step),
             ("Clearing subfigure table formatting", clear_subfigure_table_format_step),
             ("Converting table text style", convert_table_text_style_step),
-            ("Applying post-table paragraph style", apply_para_after_table_style_step),
             ("Auto-fitting tables to window", autofit_tables_step),
             ("Applying equation revision metadata", process_equation_metadata_step),
             ("Applying table attribute metadata", process_table_metadata_step),
             ("Formatting equation layout tables", format_equation_layout_tables_step),
             ("Applying tab-layout equation paragraph style", apply_para_equation_style_step),
-            ("Applying where paragraph style", apply_where_paragraph_style_step),
         ]
         if reply_style_formatting:
             pipeline_steps.append(("Applying reply-only blue formatting", apply_reply_blue_italic_style_step))
@@ -298,12 +276,10 @@ Processing steps:
   - Apply page numbers from Papper settings (if configured)
   - Clear formatting for tables above 'Image Caption' paragraphs
   - Convert table text style from 'Compact' to 'Table Text'
-  - Apply 'Para After Table' style to body paragraphs after tables
   - Auto-fit tables to window width and center align
   - Apply table attributes exported by the Pandoc table metadata filter
   - Format equation layout tables
   - Apply 'Para Equation' to tab-layout equations (0.5 line after, single spacing)
-  - Apply 'Where Paragraph' style after equation paragraphs
   - Optionally apply reply-only blue formatting
 
 This script applies all post-processing steps in sequence.

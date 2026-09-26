@@ -85,6 +85,7 @@ class DoctorSettings(VerboseCommandSettings):
                         for name in (
                             "shared/normalize_chinese_numbering.lua",
                             "shared/merge_table_cells.lua",
+                            "shared/paragraph_custom_styles.lua",
                         )
                     ),
                     str(root / "pandoc" / "filters"),
@@ -93,6 +94,11 @@ class DoctorSettings(VerboseCommandSettings):
                     "papper HTML revision filter",
                     (root / "pandoc" / "filters" / "html" / "revision_table_styles.lua").exists(),
                     str(root / "pandoc" / "filters" / "html" / "revision_table_styles.lua"),
+                ),
+                (
+                    "papper HTML subfigure filter",
+                    (root / "pandoc" / "filters" / "html" / "subfigure_layout_styles.lua").exists(),
+                    str(root / "pandoc" / "filters" / "html" / "subfigure_layout_styles.lua"),
                 ),
                 (
                     "papper DOCX AST filters",

@@ -307,6 +307,10 @@ Comparison of baseline and proposed model behavior.
 </div>
 ```
 
+When `subfigGrid` is used, the HTML build marks its nested layout table and
+removes the regular table borders and cell padding from that table. Ordinary
+manuscript tables keep their normal HTML table styling.
+
 ## Marking Revisions in Red
 
 Use Pandoc custom styles to mark substantive manuscript revisions in generated DOCX and HTML files. The default reference DOCX includes a character style named `Revision Char`, and the HTML template maps the same marker to red text, so revised inline text can be written as a bracketed span:
@@ -351,6 +355,12 @@ $$ {#eq:linear-model revision=true}
 ```
 
 This revision coloring currently targets native Word equations only. If the DOCX build later converts equations to MathType OLE objects, this equation-level red coloring is not preserved.
+
+The shared Lua filter wraps a paragraph that begins with the standalone word
+`where` immediately after a display equation with `custom-style="Para Where"`.
+The reference DOCX provides that paragraph style, while the HTML template uses
+the marker to remove the body first-line indent. The filter also recognizes
+equation-layout tables when a project enables them.
 
 ## Writing Pseudocode
 

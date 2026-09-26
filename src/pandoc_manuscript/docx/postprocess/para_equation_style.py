@@ -1,7 +1,7 @@
 """Apply 'Para Equation' to top-level equations arranged with tab stops.
 
-Reuse the where-paragraph math/tab detectors, with OLE support for documents
-already converted to MathType. Inherit Body Text and set half a line after and
+Use the local OMML math/tab detectors, with OLE support for documents already
+converted to MathType. Inherit Body Text and set half a line after and
 single line spacing. Set center/right tabs from the first section's actual page
 width and margins, removing direct tabs and conflicting spacing overrides.
 
@@ -26,10 +26,21 @@ from pydantic_settings import BaseSettings, CliPositionalArg, SettingsConfigDict
 
 from ..equation_layout import equation_tab_stops_from_page_width
 from .common import get_body_text_style, open_docx, print_debug_success, print_error, print_info, save_docx
-from .where_paragraph_style import paragraph_contains_math, paragraph_has_equation_layout
 
 
 PARA_EQUATION_STYLE_NAME = "Para Equation"
+
+
+def paragraph_contains_math(paragraph: Paragraph) -> bool:
+    """Return whether a paragraph contains Word math elements."""
+    element = paragraph._p
+    return bool(element.findall(f".//{qn('m:oMath')}") or element.findall(f".//{qn('m:oMathPara')}"))
+
+
+def paragraph_has_equation_layout(paragraph: Paragraph) -> bool:
+    """Return whether a math paragraph uses Word tab stops for equation layout."""
+    element = paragraph._p
+    return bool(element.findall(f".//{qn('w:tab')}") or element.findall(f".//{qn('w:tabs')}"))
 
 
 def is_tab_equation_paragraph(paragraph: Paragraph) -> bool:

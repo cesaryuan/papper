@@ -1,0 +1,109 @@
+from pathlib import Path
+import shutil
+import subprocess
+
+import pytest
+
+
+def _render_html(markdown: str, *extra_args: str) -> str:
+    """Render Markdown through the repository HTML defaults and filters."""
+    pandoc = shutil.which("pandoc")
+    if pandoc is None:
+        pytest.skip("pandoc is not installed")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            pandoc,
+            "--defaults",
+            str(repo_root / "pandoc" / "pandoc-html.yml"),
+            *extra_args,
+            "-f",
+            "markdown",
+            "-t",
+            "html5",
+        ],
+        input=markdown,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout
+
+
+def test_html_subfigure_filter_neutralizes_only_subfigure_layout_tables() -> None:
+    """Mark crossref subfigure tables without changing regular tables."""
+    markdown = """\
+<div id="fig:subfigure-example">
+![Left panel.](a.png){#fig:subfigure-a width=49%}
+![Right panel.](b.png){#fig:subfigure-b width=49%}
+
+An example of a multi-subfigure layout.
+</div>
+
+| A | B |
+|---|---|
+| 1 | 2 |
+
+: Regular table
+"""
+
+    html = _render_html(markdown, "--metadata", "subfigGrid=true")
+
+    assert html.count('<table class="pmt-subfigure-table"') == 1
+    assert html.count("<table") == 2
+    assert "figure.subfigures .pmt-subfigure-table td" in html
+    assert "padding: 0;" in html
+
+
+def test_html_paragraph_filter_styles_where_after_equations_and_body_after_tables() -> None:
+    """Apply semantic custom styles to equation explanations and post-table body text."""
+    markdown = """\
+$$
+x = 1
+$$
+
+where $x$ is a value.
+
+A normal paragraph.
+
+where this paragraph has no preceding equation.
+"""
+
+    html = _render_html(markdown)
+
+    assert html.count('<div data-custom-style="Para Where">') == 1
+    assert '<div data-custom-style="Para Where"' in html
+    assert "[data-custom-style=\"Para Where\"] > p" in html
+    assert "<p>where this paragraph has no preceding equation.</p>" in html
+
+    table_html = _render_html("""\
+| A |
+|---|
+| 1 |
+
+The paragraph immediately after the table.
+
+A later paragraph.
+""")
+
+    assert table_html.count('<div data-custom-style="Para After Table">') == 1
+    assert '<p>The paragraph immediately after the table.</p>' in table_html
+    assert '[data-custom-style="Para After Table"] > p' in table_html
+
+
+def test_html_where_filter_recognizes_mathtype_tab_layout_equations() -> None:
+    """Style explanations after MathType equations without treating tabs as tables."""
+    markdown = """\
+::: {#eq:mathtype}
+`<w:pPr><w:tabs><w:tab w:val="center" w:leader="none" w:pos="4156" /></w:tabs></w:pPr><w:r><w:tab /></w:r>`{=openxml} $x = 1$ `<w:r><w:tab /></w:r>`{=openxml} (1)
+:::
+
+where $x$ is a value.
+"""
+
+    html = _render_html(markdown)
+
+    assert '<div data-custom-style="Para Where">' in html
+    assert '<div data-custom-style="Para Where" data-where-layout="table">' not in html

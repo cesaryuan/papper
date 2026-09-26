@@ -10,7 +10,7 @@ Apply reviewer-reply visual styling to captions, table text, and where clauses.
 
 This reply-only post-processor makes caption text and regular table text blue
 and italic so quoted manuscript additions stand out in the response document.
-It also makes the named Where Paragraph style blue without italic. Equation
+It also makes the named Para Where style blue without italic. Equation
 layout tables are skipped because they are an internal layout device, not
 user-facing data tables.
 """
@@ -22,7 +22,6 @@ from typing import Iterable, Optional
 
 from .common import open_docx, print_error, print_debug_success, save_docx
 from .autofit_tables import is_equation_layout_table
-from .where_paragraph_style import WHERE_STYLE_NAME
 
 try:
     from docx.document import Document as DocumentObject
@@ -36,6 +35,7 @@ except ImportError:
 
 REPLY_BLUE = RGBColor(0x00, 0x00, 0xFF)
 CAPTION_STYLE_MARKERS = ("Caption", "题注")
+PARA_WHERE_STYLE_NAME = "Para Where"
 
 
 def format_run_blue_italic(run) -> None:
@@ -104,9 +104,9 @@ def format_table_text(doc: DocumentObject) -> int:
 
 
 def format_where_paragraph_style(doc: DocumentObject) -> int:
-    """Make the named Where Paragraph style blue for reviewer replies."""
+    """Make the named Para Where style blue for reviewer replies."""
     try:
-        style = doc.styles[WHERE_STYLE_NAME]
+        style = doc.styles[PARA_WHERE_STYLE_NAME]
     except KeyError:
         return 0
 

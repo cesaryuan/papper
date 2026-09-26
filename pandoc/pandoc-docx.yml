@@ -20,6 +20,7 @@ filters:
   - pandoc-crossref  # Must come before citeproc
   - ${.}/filters/shared/normalize_chinese_numbering.lua
   - ${.}/filters/shared/merge_table_cells.lua
+  - ${.}/filters/shared/paragraph_custom_styles.lua
   - ${.}/filters/docx/inline_math_spacing.lua
   - citeproc
   - ${.}/filters/docx/citation_number_range_delimiter.lua

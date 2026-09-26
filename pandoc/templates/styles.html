@@ -119,6 +119,35 @@ p {
 [data-revision-columns="*"] > caption {
   color: #ee0000;
 }
+/* Keep pandoc-crossref subfigure layout tables neutral, like the DOCX cleanup. */
+figure.subfigures .pmt-subfigure-table {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+figure.subfigures .pmt-subfigure-table > tbody {
+  margin-top: 0;
+  border-top: 0;
+  border-bottom: 0;
+}
+figure.subfigures .pmt-subfigure-table td,
+figure.subfigures .pmt-subfigure-table th {
+  border: 0;
+  padding: 0;
+}
+figure.subfigures .pmt-subfigure-table figure {
+  margin: 0;
+}
+/* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
+[data-custom-style="Para Where"] > p {
+  text-indent: 0;
+}
+[data-custom-style="Para Where"][data-where-layout="table"] > p {
+  margin-top: 6pt;
+}
+[data-custom-style="Para After Table"] > p {
+  margin-top: 6pt;
+}
 ol,
 ul,
 li {
