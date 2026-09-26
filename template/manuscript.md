@@ -71,7 +71,7 @@ Add Pandoc attributes to control DOCX table properties:
 | Alignment    | Center    | Table position on page |
 | Revisions    | Row 2     | Mark changed text red  |
 
-: Table formatting properties. {#tbl:advanced-formatting cell_margin="0.10cm" cell_spacing="0pt" autofit="window" alignment="center" revision_rows="*"}
+: Table formatting properties. {#tbl:advanced-formatting cell_margin="0.10cm" cell_spacing="0pt" autofit="window" alignment="center" revision_rows="2,5"}
 
 The caption attributes above are applied to the DOCX table without appearing in the final caption.
 
