@@ -26,7 +26,7 @@ def test_html_revision_table_filter_marks_selected_rows_and_columns(tmp_path) ->
 | c1a | c1b | c1c |
 | c2a | c2b | c2c |
 
-: Columns {#tbl:columns revision_columns="2"}
+: Columns {#tbl:columns revision-columns="2;2"}
 """
 
     result = subprocess.run(

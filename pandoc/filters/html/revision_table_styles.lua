@@ -14,7 +14,10 @@ end
 -- Parse the same positive, 1-based indices accepted by the DOCX postprocessor.
 local function selected_indices(value)
   local selected = {}
-  value = tostring(value or ""):gsub("，", ","):gsub("；", ",")
+  value = tostring(value or "")
+    :gsub("，", ",")
+    :gsub("；", ",")
+    :gsub(";", ",")
   for token in value:gmatch("[^,%s]+") do
     local index = tonumber(token)
     if index and index >= 1 and index % 1 == 0 then
