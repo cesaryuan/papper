@@ -238,6 +238,17 @@ def _style_css(
     return f"{selector} {{\n" + "\n".join(declarations) + "\n}"
 
 
+def _table_cell_padding_css(style: _StyleSpec, *, label: str) -> str:
+    """Map Table Text paragraph spacing to the cell padding that HTML supports."""
+    values = {
+        "padding-top": None if style.space_before_pt is None else f"{style.space_before_pt:g}pt",
+        "padding-bottom": None if style.space_after_pt is None else f"{style.space_after_pt:g}pt",
+    }
+    declarations = [f"  /* {label} cell spacing from reference-doc/word/styles.xml */"]
+    declarations.extend(f"  {name}: {value};" for name, value in values.items() if value is not None)
+    return "table td, table th {\n" + "\n".join(declarations) + "\n}"
+
+
 def _style_key(name: str) -> str:
     """Normalize style names for semantic HTML selector mapping."""
     return "".join(name.casefold().split())
@@ -311,7 +322,14 @@ def _override_css(settings: PmtSettings) -> list[str]:
             left_indent_pt=_point_value(record.get("left_indent")),
             right_indent_pt=_point_value(record.get("right_indent")),
         )
-        rules.append(_style_css(selector, style, label=f"docxStyle.{record['style_name']} override"))
+        override_label = f"docxStyle.{record['style_name']} override"
+        if _style_key(record["style_name"]) == "tabletext":
+            rules.append(_style_css("table td, table th", style, label=override_label, include_paragraph_metrics=False))
+            rules.append(_style_css("table td p, table th p", style, label=f"{override_label} paragraphs"))
+        else:
+            rules.append(_style_css(selector, style, label=override_label))
+        if _style_key(record["style_name"]) == "tabletext":
+            rules.append(_table_cell_padding_css(style, label=override_label))
     return rules
 
 
@@ -343,7 +361,12 @@ def build_reference_style_css(styles_path: str | Path, settings: PmtSettings) ->
     for selector, key, label in mappings:
         style = styles.get(key)
         if style is not None:
-            rules.append(_style_css(selector, style, label=label))
+            if key == "table text":
+                rules.append(_style_css("table td, table th", style, label=label, include_paragraph_metrics=False))
+                rules.append(_style_css("table td p, table th p", style, label=f"{label} paragraphs"))
+                rules.append(_table_cell_padding_css(style, label=label))
+            else:
+                rules.append(_style_css(selector, style, label=label))
     rules.extend(_override_css(settings))
     return "\n\n".join(rules)
 
