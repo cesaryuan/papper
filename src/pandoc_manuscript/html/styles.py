@@ -315,20 +315,6 @@ def _override_css(settings: PmtSettings) -> list[str]:
     return rules
 
 
-def _table_text_style(styles: dict[str, _StyleSpec]) -> _StyleSpec:
-    """Model the Table Text style created by the DOCX table postprocessor."""
-    if "table text" in styles:
-        return deepcopy(styles["table text"])
-    # The reference XML does not define Table Text. The DOCX postprocessor creates
-    # it from Normal with 0.10 cm paragraph spacing and single line spacing.
-    style = deepcopy(styles.get("table text") or styles.get("normal") or _StyleSpec())
-    style.space_before_pt = 0.1 * 72.0 / 2.54
-    style.space_after_pt = 0.1 * 72.0 / 2.54
-    style.line_height = "1"
-    style.first_line_indent = "0"
-    return style
-
-
 def build_reference_style_css(styles_path: str | Path, settings: PmtSettings) -> str:
     """Build CSS from reference styles, then append higher-priority docxStyle overrides."""
     styles = _read_reference_styles(Path(styles_path))
@@ -355,8 +341,9 @@ def build_reference_style_css(styles_path: str | Path, settings: PmtSettings) ->
         )
     )
     for selector, key, label in mappings:
-        style = _table_text_style(styles) if key == "table text" else styles.get(key, _StyleSpec())
-        rules.append(_style_css(selector, style, label=label))
+        style = styles.get(key)
+        if style is not None:
+            rules.append(_style_css(selector, style, label=label))
     rules.extend(_override_css(settings))
     return "\n\n".join(rules)
 
