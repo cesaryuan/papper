@@ -20,4 +20,5 @@ filters:
   - pandoc-crossref
   - ${.}/filters/shared/normalize_chinese_numbering.lua
   - ${.}/filters/shared/merge_table_cells.lua
+  - ${.}/filters/html/revision_table_styles.lua
   - citeproc

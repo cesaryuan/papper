@@ -309,7 +309,7 @@ Comparison of baseline and proposed model behavior.
 
 ## Marking Revisions in Red
 
-Use Pandoc custom styles to mark substantive manuscript revisions in generated DOCX files. The default reference DOCX includes a character style named `Revision Char`, so revised inline text can be written as a bracketed span:
+Use Pandoc custom styles to mark substantive manuscript revisions in generated DOCX and HTML files. The default reference DOCX includes a character style named `Revision Char`, and the HTML template maps the same marker to red text, so revised inline text can be written as a bracketed span:
 
 ```markdown
 The proposed workflow improves [the adaptive sampling stage]{custom-style="Revision Char"} while keeping the original preprocessing steps unchanged.
@@ -329,7 +329,7 @@ For a modified or newly added figure, mark the caption rather than the image pat
 ![[Updated model comparison under the same evaluation protocol.]{custom-style="Revision Char"}](figures/model-comparison.png){#fig:model-comparison}
 ```
 
-For tables, use revision attributes on the table caption. Use `revision-rows="*"` for a newly added table. For a modified table, list changed or added 1-based row or column numbers with `revision-rows="..."` and `revision-columns="..."`; row numbers include the table header row.
+For tables, use revision attributes on the table caption. Use `revision-rows="*"` for a newly added table. For a modified table, list changed or added 1-based row or column numbers with `revision-rows="..."` and `revision-columns="..."`; row numbers include the table header row. DOCX and HTML builds apply these attributes to the corresponding changed cells, while `*` also colors the HTML table caption.
 
 ```markdown
 | **Method** | **Accuracy (%)** | **Runtime (s)** |

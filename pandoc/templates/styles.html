@@ -112,14 +112,11 @@ p {
 [data-custom-style="Revision Para"] {
   color: #ee0000;
 }
+/* Whole-table revision metadata also marks the table caption in DOCX. */
 [data-revision_rows="*"] > caption,
-[data-revision_rows="*"] > thead,
-[data-revision_rows="*"] > tbody,
-[data-revision_rows="*"] > tfoot,
 [data-revision_columns="*"] > caption,
-[data-revision_columns="*"] > thead,
-[data-revision_columns="*"] > tbody,
-[data-revision_columns="*"] > tfoot {
+[data-revision-rows="*"] > caption,
+[data-revision-columns="*"] > caption {
   color: #ee0000;
 }
 ol,
@@ -146,11 +143,12 @@ li {
   margin: 0.15em 0;
   line-height: 1.2;
   font-style: italic;
+  font-size: smaller;
 }
 .papper-authors .corresponding-author {
   margin-top: 0.45em;
   line-height: 1.3;
-  font-size: small;
+  font-size: smaller;
 }
 a {
   color: $if(linkcolor)$$linkcolor$$else$#1a1a1a$endif$;

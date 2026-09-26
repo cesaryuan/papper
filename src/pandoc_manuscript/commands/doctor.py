@@ -90,6 +90,11 @@ class DoctorSettings(VerboseCommandSettings):
                     str(root / "pandoc" / "filters"),
                 ),
                 (
+                    "papper HTML revision filter",
+                    (root / "pandoc" / "filters" / "html" / "revision_table_styles.lua").exists(),
+                    str(root / "pandoc" / "filters" / "html" / "revision_table_styles.lua"),
+                ),
+                (
                     "papper DOCX AST filters",
                     (root / "pandoc" / "filters" / "docx" / "inline_math_spacing.lua").exists(),
                     str(root / "pandoc" / "filters" / "docx"),
