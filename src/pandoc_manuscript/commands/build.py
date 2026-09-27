@@ -594,6 +594,7 @@ CHINESE_DOCX_STYLES = {
     "标题 1": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "小三", "bold": False},
     "标题 2": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "四号", "bold": False},
     "标题 3": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
+    "题注": {"fontSize": "五号", "bold": False},
 }
 
 
