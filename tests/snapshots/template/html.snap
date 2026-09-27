@@ -31,47 +31,33 @@
         var(--pmt-page-height) - var(--pmt-page-margin-top) - var(--pmt-page-margin-bottom)
       );
     }
-    /* The Chinese DOCX mode uses Times New Roman for Latin text, 宋体 for body
-       Chinese text, and 黑体 for headings. Font fallback applies per character. */
-    html[lang="zh-CN"],
-    html[lang="zh-cn"] {
+    /* Chinese-language HTML uses Times New Roman, 宋体 body text, and 黑体 headings. */
+    html:lang(zh) {
       font-family: "Times New Roman", "宋体", SimSun, serif;
     }
-    html[lang="zh-CN"] h1,
-    html[lang="zh-CN"] h2,
-    html[lang="zh-CN"] h3,
-    html[lang="zh-CN"] h4,
-    html[lang="zh-CN"] h5,
-    html[lang="zh-CN"] h6,
-    html[lang="zh-cn"] h1,
-    html[lang="zh-cn"] h2,
-    html[lang="zh-cn"] h3,
-    html[lang="zh-cn"] h4,
-    html[lang="zh-cn"] h5,
-    html[lang="zh-cn"] h6 {
+    html:lang(zh) h1,
+    html:lang(zh) h2,
+    html:lang(zh) h3,
+    html:lang(zh) h4,
+    html:lang(zh) h5,
+    html:lang(zh) h6 {
       font-family: "Times New Roman", "黑体", SimHei, sans-serif;
       font-weight: normal;
     }
-    html[lang="zh-CN"] h1.title,
-    html[lang="zh-cn"] h1.title,
-    html[lang="zh-CN"] p.subtitle,
-    html[lang="zh-cn"] p.subtitle {
+    html:lang(zh) h1.title,
+    html:lang(zh) p.subtitle {
       font-family: "Times New Roman", "黑体", SimHei, sans-serif;
       font-weight: normal;
     }
     /* Match the Chinese DOCX defaults: 小三=15pt, 四号=14pt, 五号=10.5pt. */
-    html[lang="zh-CN"] h1:not(.title),
-    html[lang="zh-cn"] h1:not(.title) {
+    html:lang(zh) h1:not(.title) {
       font-size: 15pt;
     }
-    html[lang="zh-CN"] h2,
-    html[lang="zh-cn"] h2 {
+    html:lang(zh) h2 {
       font-size: 14pt;
     }
-    html[lang="zh-CN"] figure figcaption,
-    html[lang="zh-cn"] figure figcaption,
-    html[lang="zh-CN"] table caption,
-    html[lang="zh-cn"] table caption {
+    html:lang(zh) figure figcaption,
+    html:lang(zh) table caption {
       font-size: 10.5pt;
       font-weight: normal;
     }
