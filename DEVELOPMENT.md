@@ -1,5 +1,28 @@
 # Development
 
+## Build snapshots
+
+The build snapshots cover the manuscript template and focused fixtures for
+citations, cross-references and metadata, using both standalone HTML and DOCX.
+DOCX snapshots list every decompressed ZIP entry: canonical XML is split at tag
+boundaries for readable diffs, while binary entries retain their SHA-256 and
+size. Refreshing snapshots is explicit; review the changes before accepting
+them.
+
+Run the checks with:
+
+```bash
+uv run pytest tests/test_build_snapshots.py -p no:cacheprovider
+```
+
+After an intentional output change, regenerate them with:
+
+```bash
+uv run pytest tests/test_build_snapshots.py -p no:cacheprovider --snapshot-update
+```
+
+The build snapshots require `pandoc` and `pandoc-crossref` on `PATH`.
+
 ## Private native submodules
 
 The `scripts/mathtype-rust` and `scripts/latex2wmf` source trees are private

@@ -276,3 +276,4 @@ src/pandoc_manuscript/mathtype/ole_helper/bin/Release/net48/MathTypeOleHelper.pd
 work/
 tests/.pytest-tmp-init/
 scripts/pandoc-server/dist-newstyle/
+.pytest-basetemp-styles/

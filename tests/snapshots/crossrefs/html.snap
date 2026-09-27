@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="pandoc 3.11">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>crossrefs</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      /* Keep the browser canvas separate from the A4 page shown below. */
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      color: #1a1a1a;
+      background-color: #f0eff5;
+      --pmt-page-width: 210mm;
+      --pmt-page-height: 297mm;
+      --pmt-page-margin-top: 1.905cm;
+      --pmt-page-margin-bottom: 1.905cm;
+      --pmt-page-margin-left: 1.905cm;
+      --pmt-page-margin-right: 1.905cm;
+      --pmt-text-width: calc(
+        var(--pmt-page-width) - var(--pmt-page-margin-left) - var(--pmt-page-margin-right)
+      );
+      --pmt-text-height: calc(
+        var(--pmt-page-height) - var(--pmt-page-margin-top) - var(--pmt-page-margin-bottom)
+      );
+    }
+    /* The Chinese DOCX mode uses Times New Roman for Latin text, 宋体 for body
+       Chinese text, and 黑体 for headings. Font fallback applies per character. */
+    html[lang="zh-CN"],
+    html[lang="zh-cn"] {
+      font-family: "Times New Roman", "宋体", SimSun, serif;
+    }
+    html[lang="zh-CN"] h1,
+    html[lang="zh-CN"] h2,
+    html[lang="zh-CN"] h3,
+    html[lang="zh-CN"] h4,
+    html[lang="zh-CN"] h5,
+    html[lang="zh-CN"] h6,
+    html[lang="zh-cn"] h1,
+    html[lang="zh-cn"] h2,
+    html[lang="zh-cn"] h3,
+    html[lang="zh-cn"] h4,
+    html[lang="zh-cn"] h5,
+    html[lang="zh-cn"] h6 {
+      font-family: "Times New Roman", "黑体", SimHei, sans-serif;
+      font-weight: normal;
+    }
+    html[lang="zh-CN"] h1.title,
+    html[lang="zh-cn"] h1.title,
+    html[lang="zh-CN"] p.subtitle,
+    html[lang="zh-cn"] p.subtitle {
+      font-family: "Times New Roman", "黑体", SimHei, sans-serif;
+      font-weight: normal;
+    }
+    /* Match the Chinese DOCX defaults: 小三=15pt, 四号=14pt, 五号=10.5pt. */
+    html[lang="zh-CN"] h1:not(.title),
+    html[lang="zh-cn"] h1:not(.title) {
+      font-size: 15pt;
+    }
+    html[lang="zh-CN"] h2,
+    html[lang="zh-cn"] h2 {
+      font-size: 14pt;
+    }
+    html[lang="zh-CN"] figure figcaption,
+    html[lang="zh-cn"] figure figcaption,
+    html[lang="zh-CN"] table caption,
+    html[lang="zh-cn"] table caption {
+      font-size: 10.5pt;
+      font-weight: normal;
+    }
+    body {
+      margin: 0;
+      max-width: none;
+      min-height: 100vh;
+      padding: 2rem 0;
+      background-color: #f0eff5;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    .pmt-page {
+      box-sizing: border-box;
+      width: var(--pmt-page-width);
+      min-height: var(--pmt-page-height);
+      margin: 0 auto;
+      padding: var(--pmt-page-margin-top) var(--pmt-page-margin-right)
+        var(--pmt-page-margin-bottom) var(--pmt-page-margin-left);
+      background-color: #fff;
+      box-shadow: 0 1px 8px rgba(35, 35, 45, 0.18);
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      .pmt-page {
+        width: 100%;
+        min-height: auto;
+        padding: 12px;
+        box-shadow: none;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        min-height: auto;
+        padding: 0;
+        background-color: white;
+        color: black;
+      }
+      .pmt-page {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        box-shadow: none;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+      text-align: justify;
+    }
+    /* Keep Pandoc's DOCX revision styles visible in standalone HTML output. */
+    [data-custom-style="Revision Char"],
+    [data-custom-style="Revision Para"] {
+      color: #ee0000;
+    }
+    /* Match DOCX whole-table revisions by coloring the HTML table caption. */
+    [data-revision_rows="*"] > caption,
+    [data-revision_columns="*"] > caption,
+    [data-revision-rows="*"] > caption,
+    [data-revision-columns="*"] > caption {
+      color: #ee0000;
+    }
+    /* Keep pandoc-crossref subfigure layout tables neutral, like the DOCX cleanup. */
+    figure.subfigures .pmt-subfigure-table {
+      margin: 0;
+      border: 0;
+      background: transparent;
+    }
+    figure.subfigures .pmt-subfigure-table > tbody {
+      margin-top: 0;
+      border-top: 0;
+      border-bottom: 0;
+    }
+    figure.subfigures .pmt-subfigure-table td,
+    figure.subfigures .pmt-subfigure-table th {
+      border: 0;
+      padding: 0;
+    }
+    figure.subfigures .pmt-subfigure-table figure {
+      margin: 0;
+    }
+    /* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
+    [data-custom-style="Para Where"] > p {
+      text-indent: 0;
+    }
+    [data-custom-style="Para Where"][data-where-layout="table"] > p {
+      margin-top: 6pt;
+    }
+    [data-custom-style="Para After Table"] > p {
+      margin-top: 6pt;
+    }
+    ol,
+    ul,
+    li {
+      text-align: justify;
+    }
+    /* Citeproc emits #refs/.csl-entry; keep the bibliography aligned with body text. */
+    #refs,
+    #refs .csl-entry,
+    .references,
+    .csl-bib-body,
+    .csl-entry {
+      text-align: justify;
+    }
+    /* Keep the generated author block compact and centered like the DOCX title area. */
+    .papper-authors {
+      text-align: center;
+    }
+    .papper-authors p {
+      text-align: center;
+    }
+    .papper-authors .affiliation {
+      margin: 0.15em 0;
+      line-height: 1.2;
+      font-style: italic;
+      font-size: smaller;
+    }
+    .papper-authors .corresponding-author {
+      margin-top: 0.45em;
+      line-height: 1.3;
+      font-size: smaller;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    figure {
+      margin: 1em auto;
+      text-align: center;
+    }
+    figure img,
+    p > img:only-child,
+    p > a > img:only-child {
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    figure figcaption,
+    table caption {
+      text-align: center;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h1 {
+      font-size: 15pt;
+    }
+    h2 {
+      font-size: 14pt;
+    }
+    h3, h4, h5, h6 {
+      font-size: 12pt;
+    }
+    h1.title {
+      font-size: 16pt;
+      font-weight: bold;
+    }
+    p.subtitle {
+      font-size: 14pt;
+      font-weight: normal;
+    }
+    h5, h6 {
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      /* Center tables through the standalone HTML stylesheet, like DOCX table alignment. */
+      margin: 1em auto;
+      border-collapse: collapse;
+      width: 100%;
+      max-width: 100%;
+      font-variant-numeric: lining-nums tabular-nums;
+      line-height: 1;
+    }
+    table tr {
+      line-height: 1;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 0.5pt solid #1a1a1a;
+      border-bottom: 1.5pt solid #1a1a1a;
+    }
+    th {
+      border-top: 1.5pt solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+      line-height: 1;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+      line-height: 1;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    /* KaTeX's bundled stylesheet enlarges formulas to 1.21em by default. */
+    .math .katex,
+    .katex {
+      font-size: inherit !important;
+    }
+  </style>
+  <style>
+  .pmt-page {
+    /* Body Text inherited from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1.5;
+    text-align: justify;
+  }
+
+  h1.title {
+    /* Title from reference-doc/word/styles.xml */
+    font-size: 16pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: bold;
+    line-height: 1.5;
+    margin-bottom: 4pt;
+    text-align: center;
+  }
+
+  p.subtitle {
+    /* Subtitle from reference-doc/word/styles.xml */
+    font-size: 14pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: bold;
+    line-height: 1.5;
+    margin-bottom: 4pt;
+    text-align: center;
+  }
+
+  .pmt-page > p {
+    /* Body Text from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1.5;
+    margin-top: 9pt;
+    margin-bottom: 9pt;
+    text-align: justify;
+  }
+
+  .pmt-page > p:first-of-type {
+    /* First Paragraph from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1.5;
+    margin-top: 9pt;
+    margin-bottom: 9pt;
+    text-align: justify;
+  }
+
+  h1 {
+    /* Heading 1 from reference-doc/word/styles.xml */
+    font-size: 14pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: bold;
+    line-height: 1.5;
+    margin-top: 18pt;
+    margin-bottom: 4pt;
+    text-align: justify;
+  }
+
+  h2 {
+    /* Heading 2 from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: bold;
+    line-height: 1.5;
+    margin-top: 8pt;
+    margin-bottom: 4pt;
+    text-align: justify;
+  }
+
+  h3 {
+    /* Heading 3 from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: bold;
+    line-height: 1.5;
+    margin-top: 8pt;
+    margin-bottom: 4pt;
+    text-align: justify;
+  }
+
+  h4 {
+    /* Heading 4 from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1.5;
+    margin-top: 4pt;
+    margin-bottom: 2pt;
+    text-align: justify;
+  }
+
+  h5 {
+    /* Heading 5 from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    line-height: 1.5;
+    margin-top: 4pt;
+    margin-bottom: 2pt;
+    text-align: justify;
+  }
+
+  h6 {
+    /* Heading 6 from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    font-style: italic;
+    color: #595959;
+    line-height: 1.5;
+    margin-top: 2pt;
+    margin-bottom: 0pt;
+    text-align: justify;
+  }
+
+  figure figcaption, table caption {
+    /* Caption from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1.5;
+    margin-bottom: 6pt;
+    text-align: center;
+  }
+
+  table caption {
+    /* Table Caption from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1.5;
+    margin-bottom: 0pt;
+    text-align: center;
+  }
+
+  figure figcaption {
+    /* Image Caption from reference-doc/word/styles.xml */
+    font-size: 12pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1.5;
+    margin-bottom: 6pt;
+    text-align: center;
+  }
+
+  table, table td, table th {
+    /* Table from reference-doc/word/styles.xml */
+    font-size: 10.5pt;
+  }
+
+  table td, table th {
+    /* Table Text from reference-doc/word/styles.xml */
+    font-size: 10.5pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1;
+    text-align: justify;
+  }
+
+  table td p, table th p {
+    /* Table Text paragraphs from reference-doc/word/styles.xml */
+    font-size: 10.5pt;
+    font-family: "Times New Roman", "宋体", SimSun, serif;
+    line-height: 1;
+    margin-top: 2.5pt;
+    margin-bottom: 2.5pt;
+    text-align: justify;
+  }
+
+  table {
+    /* Table Text cell margins and paragraph spacing from reference-doc/word/styles.xml */
+    --pmt-table-cell-margin-top: 0pt;
+    --pmt-table-cell-margin-right: 4.25pt;
+    --pmt-table-cell-margin-bottom: 0pt;
+    --pmt-table-cell-margin-left: 4.25pt;
+    --pmt-table-text-before: 2.5pt;
+    --pmt-table-text-after: 2.5pt;
+  }
+
+  table td, table th {
+    /* Combine reference cell margins, Table Text spacing, and per-table overrides. */
+    padding-top: calc(var(--pmt-table-cell-margin-top, 0pt) + var(--pmt-table-text-before, 0pt));
+    padding-right: var(--pmt-table-cell-margin-right, 0pt);
+    padding-bottom: calc(var(--pmt-table-cell-margin-bottom, 0pt) + var(--pmt-table-text-after, 0pt));
+    padding-left: var(--pmt-table-cell-margin-left, 0pt);
+  }
+  </style>
+  <script defer src="https://cdn.jsdmirror.com/npm/katex@latest/dist/katex.min.js"></script>
+  <script>document.addEventListener("DOMContentLoaded", function () {
+ var mathElements = document.getElementsByClassName("math");
+ var macros = [];
+ for (var i = 0; i < mathElements.length; i++) {
+  var texText = mathElements[i].firstChild;
+  if (mathElements[i].tagName == "SPAN") {
+   katex.render(texText.data, mathElements[i], {
+    displayMode: mathElements[i].classList.contains('display'),
+    throwOnError: false,
+    macros: macros,
+    fleqn: false
+   });
+}}});
+  </script>
+  <link rel="stylesheet" href="https://cdn.jsdmirror.com/npm/katex@latest/dist/katex.min.css">
+</head>
+<body>
+<main class="pmt-page">
+<h1 id="sec:overview">1 Cross-reference smoke case</h1>
+<p>The result is shown in Figure <a href="#fig:trend">1</a> and
+summarized in Table <a href="#tbl:values">1</a>. The model is defined by
+Equation <a href="#eq:circle">1</a>.</p>
+<figure id="fig:trend">
+<img src="figure.svg" style="width:45.0%" alt="Figure 1 A small deterministic trend figure.">
+<figcaption aria-hidden="true">Figure 1 A small deterministic trend
+figure.</figcaption>
+</figure>
+<table id="tbl:values" data-cell_margin="0.10cm" data-alignment="center" data-revision_rows="2" style="--pmt-table-cell-margin-top: 2.8346pt; --pmt-table-cell-margin-right: 2.8346pt; --pmt-table-cell-margin-bottom: 2.8346pt; --pmt-table-cell-margin-left: 2.8346pt;">
+<caption>Table 1 Cross-reference values.</caption>
+<thead>
+<tr>
+<th style="text-align: center;">Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: center;" data-custom-style="Revision Char">1</td>
+<td data-custom-style="Revision Char">baseline</td>
+</tr>
+<tr>
+<td style="text-align: center;">2</td>
+<td>candidate</td>
+</tr>
+</tbody>
+</table>
+<div data-revision="true">
+<p><span id="eq:circle"><span class="math display">
+x^2 + y^2 = r^2
+\tag{1}</span></span></p>
+</div>
+<p>The conclusion returns to Section <a href="#sec:overview">1</a>.</p>
+</main>
+</body>
+</html>

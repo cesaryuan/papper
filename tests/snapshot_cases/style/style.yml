@@ -1,0 +1,16 @@
+docxShowPageNumbers: false
+docxPageMargins:
+  top: 2cm
+  bottom: 2cm
+  left: 2.5cm
+  right: 2.5cm
+docxStyle:
+  正文文本:
+    firstLineIndentChars: 0
+    paragraphSpacing:
+      before: 6pt
+      after: 12pt
+pandocMetadata:
+  figureTitle: "Figure "
+  tableTitle: "Table "
+  titleDelim: ""
