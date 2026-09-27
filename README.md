@@ -182,7 +182,7 @@ The three-line table appearance comes from Pandoc's built-in standalone HTML
 CSS. A direct Pandoc command needs `-s`/`--standalone` to include that CSS;
 without it, Pandoc writes only an HTML fragment.
 
-Chinese DOCX builds use the bundled GB/T 7714—2015 bilingual numeric CSL by default. An explicit `csl` in manuscript metadata or `style.yml` overrides it.
+Chinese builds use the bundled GB/T 7714—2015 bilingual numeric CSL by default across DOCX, HTML, LaTeX, and JSON. An explicit `csl` in manuscript metadata or `style.yml` overrides it. Other builds use the bundled Elsevier Vancouver CSL unless overridden.
 
 ## Standout Features
 

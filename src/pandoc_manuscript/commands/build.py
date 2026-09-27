@@ -18,7 +18,7 @@ from ..runtime.metadata import (
     PmtSettings,
     load_effective_metadata,
     merge_metadata,
-    write_markdown_without_lang,
+    write_markdown_without_yaml_header,
     write_pandoc_metadata,
 )
 from ..mathtype.convert_marked_docx import convert_marked_docx
@@ -446,7 +446,7 @@ def generated_pandoc_metadata_file(
     use_mathtype: bool = False,
 ) -> Path:
     """Write only Pandoc-facing metadata, optionally syncing DOCX equation tabs."""
-    metadata = effective.pandoc_metadata
+    metadata = dict(effective.pandoc_metadata)
     tab_stops = None
     if sync_docx_layout:
         metadata = derive_docx_equation_layout(
@@ -472,11 +472,6 @@ def generated_pandoc_metadata_file(
     return metadata_file
 
 
-def default_docx_csl() -> Path:
-    """Return the bundled DOCX CSL used when project metadata does not pick one."""
-    return resource_path(DEFAULT_DOCX_CSL)
-
-
 def pandoc_filter_env(pmt_settings: PmtSettings) -> dict[str, str]:
     """Return Papper settings passed to bundled Pandoc filters via the environment."""
     delimiter = pmt_settings.citation_number_range_delimiter
@@ -495,32 +490,35 @@ def run_pandoc(
     extra_env: dict[str, str] | None = None,
     sync_docx_layout: bool = False,
     use_mathtype: bool = False,
-    input_file: str | Path | None = None,
-    default_csl: Path | None = None,
 ) -> None:
-    """Run Pandoc with original defaults so ${.} resolves beside that file."""
+    """Run Pandoc with one generated metadata source and a header-free input copy."""
     extra_args = extra_args or []
-    cmd = [
-        pandoc_command(),
-        '--defaults',
-        str(defaults_file),
-        *style_metadata_args(
-            effective,
-            sync_docx_layout=sync_docx_layout,
-            use_mathtype=use_mathtype,
-        ),
-        *csl_args(effective.pandoc_metadata, default_csl=default_csl),
-        '--output',
-        to_pandoc_path(output_file),
-        *extra_args,
-        to_pandoc_path(Path(input_file)) if input_file is not None else SETTINGS.manuscript_file,
-    ]
-    filter_env = pandoc_filter_env(effective.pmt_settings)
-    run_command(
-        cmd,
-        stream_output=True,
-        env=pandoc_tools_env({**(extra_env or {}), **filter_env}),
-    )
+    generated_input = write_markdown_without_yaml_header(SETTINGS.manuscript_file)
+    pandoc_input = generated_input or Path(SETTINGS.manuscript_file)
+    try:
+        cmd = [
+            pandoc_command(),
+            '--defaults',
+            str(defaults_file),
+            *style_metadata_args(
+                effective,
+                sync_docx_layout=sync_docx_layout,
+                use_mathtype=use_mathtype,
+            ),
+            '--output',
+            to_pandoc_path(output_file),
+            *extra_args,
+            to_pandoc_path(pandoc_input),
+        ]
+        filter_env = pandoc_filter_env(effective.pmt_settings)
+        run_command(
+            cmd,
+            stream_output=True,
+            env=pandoc_tools_env({**(extra_env or {}), **filter_env}),
+        )
+    finally:
+        if generated_input is not None:
+            generated_input.unlink(missing_ok=True)
 
 
 def reference_doc_args() -> list[str]:
@@ -573,19 +571,6 @@ def style_metadata_args(
     return ["--metadata-file", to_pandoc_path(metadata_file)]
 
 
-def csl_args(pandoc_metadata: dict[str, Any], *, default_csl: Path | None = None) -> list[str]:
-    """Return the effective --csl argument for the selected Pandoc defaults file.
-
-    Pandoc 3.10 gives a defaults-file `csl` higher precedence than later
-    `--csl` or `--metadata-file` values. Keep the DOCX default out of
-    `pandoc-docx.yml` and inject it here so manuscript/style metadata can still
-    override it.
-    """
-    csl = pandoc_metadata.get("csl")
-    if csl:
-        return ['--csl', str(csl)]
-    return ['--csl', to_pandoc_path(default_csl or default_docx_csl())]
-
 # 修改此处时记得同步修改 pandoc\templates\styles.html
 CHINESE_HEADING_FONT = {"western": "Times New Roman", "chinese": "黑体"}
 CHINESE_DOCX_STYLES = {
@@ -603,14 +588,22 @@ def is_chinese_language(language: object) -> bool:
     if not isinstance(language, str):
         return False
     normalized = language.strip().replace("_", "-").casefold()
-    return normalized in {"zh", "zhcn"} or normalized.startswith("zh-")
+    return normalized in {"zh", "zhcn", "zh-hans", "zhhans"} or normalized.startswith("zh-")
+
+
+def normalize_pandoc_language(language: object) -> object:
+    """Map Simplified Chinese aliases to Pandoc-crossref's shipped tag."""
+    if not isinstance(language, str):
+        return language
+    normalized = language.strip().replace("_", "-").casefold()
+    if normalized in {"zh-cn", "zhcn", "zh-hans", "zhhans"}:
+        return "zh-Hans"
+    return language
 
 
 def prepare_pandoc_language(
     effective: EffectiveMetadata,
     lang_override: str | None = None,
-    *,
-    remove_lang: bool = False,
 ) -> tuple[EffectiveMetadata, bool]:
     """Apply language-specific Pandoc metadata shared by DOCX and HTML builds."""
     if lang_override is not None:
@@ -622,11 +615,9 @@ def prepare_pandoc_language(
         selected_language = effective.pandoc_metadata.get("lang")
 
     pandoc_metadata = dict(effective.pandoc_metadata)
-    if remove_lang:
-        pandoc_metadata.pop("lang", None)
-
     chinese_mode = is_chinese_language(selected_language)
     if chinese_mode:
+        pandoc_metadata["lang"] = normalize_pandoc_language(selected_language)
         pandoc_metadata["chapters"] = True
         pandoc_metadata["chaptersDepth"] = 1
         pandoc_metadata["chapDelim"] = "-"
@@ -638,6 +629,10 @@ def prepare_pandoc_language(
         pandoc_metadata["secPrefix"] = "节"
         pandoc_metadata["eqnPrefix"] = "式"
         pandoc_metadata["reference-section-title"] = "参考文献"
+
+    if not pandoc_metadata.get("csl"):
+        csl = DEFAULT_CHINESE_DOCX_CSL if chinese_mode else DEFAULT_DOCX_CSL
+        pandoc_metadata["csl"] = to_pandoc_path(resource_path(csl))
 
     return (
         EffectiveMetadata(
@@ -653,11 +648,10 @@ def prepare_docx_language(
     effective: EffectiveMetadata,
     lang_override: str | None = None,
 ) -> tuple[EffectiveMetadata, bool]:
-    """Apply a one-build language mode and remove `lang` before Pandoc reads metadata."""
+    """Apply a one-build language mode before writing the unified metadata file."""
     effective, chinese_mode = prepare_pandoc_language(
         effective,
         lang_override,
-        remove_lang=True,
     )
     pandoc_metadata = effective.pandoc_metadata
     pmt_settings = effective.pmt_settings.model_copy(deep=True)
@@ -716,8 +710,8 @@ def build_docx(
     pandoc_output = docx_file
     pandoc_env = {}
     if chinese_mode:
-        # The language metadata is removed from the temporary DOCX input, so
-        # pass the selected language mode explicitly to the shared AST filter.
+        # Keep this environment flag for the shared filter's explicit mode
+        # override, while the normalized language remains in metadata.
         pandoc_env["PMT_CHINESE_MODE"] = "true"
     extra_args.extend(docx_reference_doc_args(pmt_settings))
     extra_args.extend(docx_metadata_filter_args())
@@ -747,23 +741,16 @@ def build_docx(
         pandoc_output = mathtype_marked_docx_path()
         pandoc_env["PMT_ENABLE_MATHTYPE_MARKERS"] = "true"
 
-    # Run pandoc
-    sanitized_input = write_markdown_without_lang(SETTINGS.manuscript_file)
-    try:
-        run_pandoc(
-            resource_path('pandoc/pandoc-docx.yml'),
-            pandoc_output,
-            effective,
-            extra_args=extra_args,
-            extra_env=pandoc_env,
-            sync_docx_layout=True,
-            use_mathtype=use_mathtype,
-            input_file=sanitized_input,
-            default_csl=resource_path(DEFAULT_CHINESE_DOCX_CSL) if chinese_mode else None,
-        )
-    finally:
-        if sanitized_input is not None:
-            sanitized_input.unlink(missing_ok=True)
+    # Run Pandoc with the generated metadata as the sole metadata source.
+    run_pandoc(
+        resource_path('pandoc/pandoc-docx.yml'),
+        pandoc_output,
+        effective,
+        extra_args=extra_args,
+        extra_env=pandoc_env,
+        sync_docx_layout=True,
+        use_mathtype=use_mathtype,
+    )
 
     # Post-process DOCX if enabled
     if SETTINGS.enable_docx_postprocess:
@@ -799,7 +786,7 @@ def build_latex():
     ensure_output_parent(latex_file)
 
     # Run pandoc
-    effective = load_build_metadata()
+    effective, _ = prepare_pandoc_language(load_build_metadata())
     run_pandoc(resource_path('pandoc/pandoc-latex.yml'), latex_file, effective)
 
     log_success(f"\n[OK] LaTeX created: {latex_file}")
@@ -814,7 +801,7 @@ def build_json():
 
     # Reuse the DOCX defaults because they carry the normal crossref/citeproc
     # pipeline users most often need to inspect when debugging manuscript builds.
-    effective = load_build_metadata()
+    effective, _ = prepare_pandoc_language(load_build_metadata())
     run_pandoc(
         resource_path('pandoc/pandoc-docx.yml'),
         json_file,

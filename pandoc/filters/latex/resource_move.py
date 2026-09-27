@@ -18,12 +18,17 @@ from typing import Any, Union
 import panflute as pf
 
 TARGET_DIR = "output/latex/"  # Generic output directory for LaTeX resources
+
+
 def move_resource(path: str):
+    """Copy a referenced resource while keeping absolute paths out of output names."""
     if not os.path.exists(path):
         print(f"Warning: File '{path}' does not exist.")
         return None
-    os.makedirs(os.path.dirname(f"{TARGET_DIR}/{path}"), exist_ok=True)
-    shutil.copy(path, f"{TARGET_DIR}/{path}")
+    relative_path = os.path.basename(path) if os.path.isabs(path) else path
+    target_path = os.path.join(TARGET_DIR, relative_path)
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    shutil.copy(path, target_path)
     return None
 
 

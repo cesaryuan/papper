@@ -3,9 +3,8 @@
 
 verbosity: WARNING
 standalone: true
-# Keep `csl` out of this defaults file. Pandoc 3.10 gives defaults-file `csl`
-# higher precedence than later `--csl` and `--metadata-file` overrides, so the
-# build command injects the effective DOCX CSL explicitly.
+# Keep `csl` out of this defaults file. The generated metadata file supplies the
+# effective CSL consistently for every output target.
 reference-doc: ${.}/manuscript-template/reference-doc.docx
 # Custom XML template for DOCX formatting
 template: ${.}/templates/default.xml

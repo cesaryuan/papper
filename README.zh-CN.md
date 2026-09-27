@@ -155,7 +155,7 @@ HTML 构建会强制使用适合独立 HTML 的原生行间公式设置：编号
 时需要加 `-s`/`--standalone` 才会把这段 CSS 写入文件；不加时只会输出
 HTML 片段。
 
-中文 DOCX 默认使用内置的《GB/T 7714—2015（顺序编码，双语，姓名不大写，无 URL、DOI）》CSL。稿件 metadata 或 `style.yml` 中显式设置的 `csl` 优先。
+中文构建（DOCX、HTML、LaTeX 和 JSON）默认使用内置的《GB/T 7714—2015（顺序编码，双语，姓名不大写，无 URL、DOI）》CSL。稿件 metadata 或 `style.yml` 中显式设置的 `csl` 优先。其他构建默认使用内置的 Elsevier Vancouver CSL。
 
 ## 这个项目最吸引人的地方
 
