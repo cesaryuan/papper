@@ -237,7 +237,7 @@ class PmtSettings(BaseSettings):
         serialization_alias="mathtypeSvgBackend",
     )
     mathtype_typst_math_font: str = Field(
-        default="XITS Math",
+        default="New Computer Modern Math",
         validation_alias=AliasChoices("mathtypeTypstMathFont", "mathtype-typst-math-font", "mathtype_typst_math_font"),
         serialization_alias="mathtypeTypstMathFont",
     )
