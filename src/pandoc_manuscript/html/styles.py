@@ -32,6 +32,10 @@ class _StyleSpec:
     first_line_indent: str | None = None
     left_indent_pt: float | None = None
     right_indent_pt: float | None = None
+    cell_padding_top_pt: float | None = None
+    cell_padding_right_pt: float | None = None
+    cell_padding_bottom_pt: float | None = None
+    cell_padding_left_pt: float | None = None
 
 
 def _q(name: str) -> str:
@@ -73,10 +77,25 @@ def _parse_line_height(spacing: ElementTree.Element | None) -> str | None:
     return f"{float(line) / 20.0:g}pt"
 
 
+def _read_cell_margin(tbl_pr: ElementTree.Element | None, side: str) -> float | None:
+    """Read one table cell margin in Word twips, preserving explicit zero values."""
+    cell_margins = None if tbl_pr is None else tbl_pr.find(_q("tblCellMar"))
+    margin = None if cell_margins is None else cell_margins.find(_q(side))
+    if margin is None:
+        return None
+    margin_type = (_value(margin, "type") or "dxa").casefold()
+    if margin_type == "nil":
+        return 0.0
+    if margin_type != "dxa":
+        return None
+    return _points(_value(margin, "w"))
+
+
 def _read_direct_style(style: ElementTree.Element) -> _StyleSpec:
     """Read only properties explicitly declared by one XML style element."""
     p_pr = style.find(_q("pPr"))
     r_pr = style.find(_q("rPr"))
+    tbl_pr = style.find(_q("tblPr"))
     spacing = None if p_pr is None else p_pr.find(_q("spacing"))
     indentation = None if p_pr is None else p_pr.find(_q("ind"))
     fonts = None if r_pr is None else r_pr.find(_q("rFonts"))
@@ -116,6 +135,10 @@ def _read_direct_style(style: ElementTree.Element) -> _StyleSpec:
         first_line_indent=first_line,
         left_indent_pt=_points(_value(indentation, "left")),
         right_indent_pt=_points(_value(indentation, "right")),
+        cell_padding_top_pt=_read_cell_margin(tbl_pr, "top"),
+        cell_padding_right_pt=_read_cell_margin(tbl_pr, "right"),
+        cell_padding_bottom_pt=_read_cell_margin(tbl_pr, "bottom"),
+        cell_padding_left_pt=_read_cell_margin(tbl_pr, "left"),
     )
 
 
@@ -238,13 +261,30 @@ def _style_css(
     return f"{selector} {{\n" + "\n".join(declarations) + "\n}"
 
 
-def _table_cell_padding_css(style: _StyleSpec, *, label: str) -> str:
-    """Map Table Text paragraph spacing to the cell padding that HTML supports."""
+def _table_cell_padding_css(
+    table_style: _StyleSpec | None,
+    paragraph_style: _StyleSpec,
+    *,
+    label: str,
+) -> str:
+    """Combine Table cell margins and Table Text spacing into HTML padding."""
+    table_style = table_style or _StyleSpec()
+
+    def combined(table_margin: float | None, paragraph_spacing: float | None) -> str | None:
+        """Add Word table-cell and paragraph spacing when either is declared."""
+        if table_margin is None and paragraph_spacing is None:
+            return None
+        return f"{(table_margin or 0.0) + (paragraph_spacing or 0.0):g}pt"
+
+    # Pandoc usually places cell text directly under td/th, so fold Table Text's
+    # paragraph spacing into padding while retaining margins for nested paragraphs.
     values = {
-        "padding-top": None if style.space_before_pt is None else f"{style.space_before_pt:g}pt",
-        "padding-bottom": None if style.space_after_pt is None else f"{style.space_after_pt:g}pt",
+        "padding-top": combined(table_style.cell_padding_top_pt, paragraph_style.space_before_pt),
+        "padding-right": combined(table_style.cell_padding_right_pt, None),
+        "padding-bottom": combined(table_style.cell_padding_bottom_pt, paragraph_style.space_after_pt),
+        "padding-left": combined(table_style.cell_padding_left_pt, None),
     }
-    declarations = [f"  /* {label} cell spacing from reference-doc/word/styles.xml */"]
+    declarations = [f"  /* {label} cell margins and paragraph spacing from reference-doc/word/styles.xml */"]
     declarations.extend(f"  {name}: {value};" for name, value in values.items() if value is not None)
     return "table td, table th {\n" + "\n".join(declarations) + "\n}"
 
@@ -261,7 +301,7 @@ def _point_value(value: object) -> float | None:
     return float(getattr(value, "pt", value))
 
 
-def _override_css(settings: PmtSettings) -> list[str]:
+def _override_css(settings: PmtSettings, table_style: _StyleSpec | None) -> list[str]:
     """Render configured docxStyle fields after reference defaults."""
     normalized = normalize_docx_style_settings(settings) or []
     selectors = {
@@ -329,7 +369,7 @@ def _override_css(settings: PmtSettings) -> list[str]:
         else:
             rules.append(_style_css(selector, style, label=override_label))
         if _style_key(record["style_name"]) == "tabletext":
-            rules.append(_table_cell_padding_css(style, label=override_label))
+            rules.append(_table_cell_padding_css(table_style, style, label=override_label))
     return rules
 
 
@@ -364,10 +404,10 @@ def build_reference_style_css(styles_path: str | Path, settings: PmtSettings) ->
             if key == "table text":
                 rules.append(_style_css("table td, table th", style, label=label, include_paragraph_metrics=False))
                 rules.append(_style_css("table td p, table th p", style, label=f"{label} paragraphs"))
-                rules.append(_table_cell_padding_css(style, label=label))
+                rules.append(_table_cell_padding_css(styles.get("table"), style, label=label))
             else:
                 rules.append(_style_css(selector, style, label=label))
-    rules.extend(_override_css(settings))
+    rules.extend(_override_css(settings, styles.get("table")))
     return "\n\n".join(rules)
 
 
