@@ -107,6 +107,11 @@ def build_html(
     html_file = manuscript_output_file(SETTINGS.html_dir, "html")
     ensure_output_parent(html_file)
     effective, chinese_mode = prepare_pandoc_language(load_build_metadata())
+    # Pandoc derives the page title from the temporary header-free input
+    # filename when a manuscript has no explicit title; keep the title stable
+    # without adding a visible title block to the document body.
+    if not effective.pandoc_metadata.get("title") and not effective.pandoc_metadata.get("pagetitle"):
+        effective.pandoc_metadata["pagetitle"] = SETTINGS.project_name
     effective.pandoc_metadata.update(HTML_EQUATION_METADATA)
     append_reference_style_block(
         effective,
