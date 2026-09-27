@@ -30,7 +30,7 @@ submodules. A source checkout therefore requires GitHub read access to both
 repositories:
 
 ```bash
-git clone --recurse-submodules https://github.com/cesaryuan/pandoc-manuscript-template.git
+git clone --recurse-submodules https://github.com/cesaryuan/papper.git
 ```
 
 For an existing checkout, initialize or refresh them with:

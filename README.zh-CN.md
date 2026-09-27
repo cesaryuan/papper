@@ -110,17 +110,6 @@ papper init my-paper
 uv tool upgrade papper
 ```
 
-### 从旧包名升级
-
-PyPI 会把 `papper` 视为一个新项目。若之前安装的是 `pandoc-manuscript-template`，先卸载旧工具，再安装 Papper：
-
-```bash
-uv tool uninstall pandoc-manuscript-template
-uv tool install papper
-```
-
-`pmt` 命令仍作为兼容别名提供。已有论文项目继续使用 `.pmt` 工作目录和 `PMT_*` 配置。
-
 ## 典型工作流
 
 ```bash

@@ -135,17 +135,6 @@ After each `papper` invocation, Papper reads its cached PyPI update status and p
 uv tool upgrade papper
 ```
 
-### Upgrade from the previous package name
-
-PyPI treats `papper` as a new project name. To move an existing tool installation from `pandoc-manuscript-template`, remove the old tool and install Papper:
-
-```bash
-uv tool uninstall pandoc-manuscript-template
-uv tool install papper
-```
-
-The `pmt` command remains available as a compatibility alias. Existing manuscript projects keep their `.pmt` working directory and `PMT_*` settings.
-
 ## Typical Workflow
 
 ```bash

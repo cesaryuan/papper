@@ -61,9 +61,9 @@ papper = "pandoc_manuscript.cli:main"
 pmt = "pandoc_manuscript.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/cesaryuan/pandoc-manuscript-template"
-Repository = "https://github.com/cesaryuan/pandoc-manuscript-template"
-Issues = "https://github.com/cesaryuan/pandoc-manuscript-template/issues"
+Homepage = "https://github.com/cesaryuan/papper"
+Repository = "https://github.com/cesaryuan/papper"
+Issues = "https://github.com/cesaryuan/papper/issues"
 
 [build-system]
 requires = ["hatchling"]
