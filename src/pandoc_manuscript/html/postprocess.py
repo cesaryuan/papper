@@ -8,6 +8,7 @@ from typing import Any
 from ..runtime.logging import log_debug, log_success
 from .common import load_html_document, render_html_document, save_html_document
 from .insert_author_info import insert_author_info
+from .table_cell_margins import apply_html_table_cell_margins
 
 
 def postprocess_html(
@@ -59,3 +60,6 @@ def _postprocess_document(
             f"[HTML] Authors: {authors}, Affiliations: {affiliations}, "
             f"Footnote: {'yes' if footnote else 'no'}"
         )
+    table_margin_count = apply_html_table_cell_margins(document)
+    if table_margin_count:
+        log_debug(f"[HTML] Applied cell-margin attributes to {table_margin_count} table(s)")

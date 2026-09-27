@@ -270,23 +270,35 @@ def _table_cell_padding_css(
     """Combine Table cell margins and Table Text spacing into HTML padding."""
     table_style = table_style or _StyleSpec()
 
-    def combined(table_margin: float | None, paragraph_spacing: float | None) -> str | None:
-        """Add Word table-cell and paragraph spacing when either is declared."""
-        if table_margin is None and paragraph_spacing is None:
-            return None
-        return f"{(table_margin or 0.0) + (paragraph_spacing or 0.0):g}pt"
-
     # Pandoc usually places cell text directly under td/th, so fold Table Text's
     # paragraph spacing into padding while retaining margins for nested paragraphs.
-    values = {
-        "padding-top": combined(table_style.cell_padding_top_pt, paragraph_style.space_before_pt),
-        "padding-right": combined(table_style.cell_padding_right_pt, None),
-        "padding-bottom": combined(table_style.cell_padding_bottom_pt, paragraph_style.space_after_pt),
-        "padding-left": combined(table_style.cell_padding_left_pt, None),
+    variables = {
+        "--pmt-table-cell-margin-top": table_style.cell_padding_top_pt,
+        "--pmt-table-cell-margin-right": table_style.cell_padding_right_pt,
+        "--pmt-table-cell-margin-bottom": table_style.cell_padding_bottom_pt,
+        "--pmt-table-cell-margin-left": table_style.cell_padding_left_pt,
+        "--pmt-table-text-before": paragraph_style.space_before_pt,
+        "--pmt-table-text-after": paragraph_style.space_after_pt,
     }
-    declarations = [f"  /* {label} cell margins and paragraph spacing from reference-doc/word/styles.xml */"]
-    declarations.extend(f"  {name}: {value};" for name, value in values.items() if value is not None)
-    return "table td, table th {\n" + "\n".join(declarations) + "\n}"
+    variable_declarations = [f"  /* {label} cell margins and paragraph spacing from reference-doc/word/styles.xml */"]
+    variable_declarations.extend(
+        f"  {name}: {(value or 0.0):g}pt;" for name, value in variables.items()
+    )
+    cell_declarations = [
+        "  /* Combine reference cell margins, Table Text spacing, and per-table overrides. */",
+        "  padding-top: calc(var(--pmt-table-cell-margin-top, 0pt) + var(--pmt-table-text-before, 0pt));",
+        "  padding-right: var(--pmt-table-cell-margin-right, 0pt);",
+        "  padding-bottom: calc(var(--pmt-table-cell-margin-bottom, 0pt) + var(--pmt-table-text-after, 0pt));",
+        "  padding-left: var(--pmt-table-cell-margin-left, 0pt);",
+    ]
+    return (
+        "table {\n"
+        + "\n".join(variable_declarations)
+        + "\n}\n\n"
+        + "table td, table th {\n"
+        + "\n".join(cell_declarations)
+        + "\n}"
+    )
 
 
 def _style_key(name: str) -> str:
