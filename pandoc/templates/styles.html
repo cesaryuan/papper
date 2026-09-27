@@ -40,7 +40,30 @@ html[lang="zh-cn"] h3,
 html[lang="zh-cn"] h4,
 html[lang="zh-cn"] h5,
 html[lang="zh-cn"] h6 {
-  font-family: $if(mainfont)$$mainfont$$else$"Times New Roman", "黑体", SimHei, sans-serif$endif$;
+  font-family: "Times New Roman", "黑体", SimHei, sans-serif;
+  font-weight: normal;
+}
+html[lang="zh-CN"] h1.title,
+html[lang="zh-cn"] h1.title,
+html[lang="zh-CN"] p.subtitle,
+html[lang="zh-cn"] p.subtitle {
+  font-family: "Times New Roman", "黑体", SimHei, sans-serif;
+  font-weight: normal;
+}
+/* Match the Chinese DOCX defaults: 小三=15pt, 四号=14pt, 五号=10.5pt. */
+html[lang="zh-CN"] h1:not(.title),
+html[lang="zh-cn"] h1:not(.title) {
+  font-size: 15pt;
+}
+html[lang="zh-CN"] h2,
+html[lang="zh-cn"] h2 {
+  font-size: 14pt;
+}
+html[lang="zh-CN"] figure figcaption,
+html[lang="zh-cn"] figure figcaption,
+html[lang="zh-CN"] table caption,
+html[lang="zh-cn"] table caption {
+  font-size: 10.5pt;
   font-weight: normal;
 }
 body {

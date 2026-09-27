@@ -586,7 +586,7 @@ def csl_args(pandoc_metadata: dict[str, Any], *, default_csl: Path | None = None
         return ['--csl', str(csl)]
     return ['--csl', to_pandoc_path(default_csl or default_docx_csl())]
 
-
+# 修改此处时记得同步修改 pandoc\templates\styles.html
 CHINESE_HEADING_FONT = {"western": "Times New Roman", "chinese": "黑体"}
 CHINESE_DOCX_STYLES = {
     "标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
