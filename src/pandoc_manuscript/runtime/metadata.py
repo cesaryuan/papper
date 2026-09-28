@@ -76,6 +76,17 @@ DEFAULT_PANDOC_METADATA_ZHCN: dict[str, Any] = {
     "csl": "pandoc/csl/GB-T-7714—2015（顺序编码，双语，姓名不大写，无URL、DOI）.csl",
 }
 
+# Shared Chinese typography defaults consumed by both DOCX and HTML builders.
+CHINESE_HEADING_FONT = {"western": "Times New Roman", "chinese": "黑体"}
+CHINESE_DOCX_STYLES = {
+    "标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
+    "副标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
+    "标题 1": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "小三", "bold": False},
+    "标题 2": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "四号", "bold": False},
+    "标题 3": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
+    "题注": {"fontSize": "五号", "bold": False},
+}
+
 
 def default_pandoc_metadata() -> dict[str, Any]:
     """Return an independent copy of Papper's built-in Pandoc metadata defaults."""

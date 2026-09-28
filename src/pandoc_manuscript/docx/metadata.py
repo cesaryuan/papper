@@ -7,6 +7,7 @@ from pathlib import Path
 from ..runtime.logging import log_debug
 from ..runtime.metadata import (
     EffectiveMetadata,
+    CHINESE_DOCX_STYLES,
     PmtSettings,
     is_chinese_language,
     merge_metadata,
@@ -14,19 +15,6 @@ from ..runtime.metadata import (
 )
 from ..runtime.paths import PMT_WORK_DIR
 from .equation_layout import derive_docx_equation_layout, sync_eqn_block_template_with_page_margins
-
-
-# Keep this mapping beside DOCX consumers because HTML and LaTeX do not apply
-# Word style names or Word line-number behavior.
-CHINESE_HEADING_FONT = {"western": "Times New Roman", "chinese": "黑体"}
-CHINESE_DOCX_STYLES = {
-    "标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
-    "副标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
-    "标题 1": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "小三", "bold": False},
-    "标题 2": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "四号", "bold": False},
-    "标题 3": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
-    "题注": {"fontSize": "五号", "bold": False},
-}
 
 
 def derive_docx_pandoc_metadata(
