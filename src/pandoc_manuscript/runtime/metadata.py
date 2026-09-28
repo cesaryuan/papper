@@ -175,7 +175,6 @@ def _split_style_mapping(
     *,
     source: Path,
     section: str = "style.yml",
-    include_pandoc_defaults: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
     """Split one style mapping into Papper fields, Pandoc metadata, and reply overrides."""
     pmt_values: dict[str, Any] = {}
@@ -230,9 +229,7 @@ def _split_style_mapping(
             f"Move these keys under pandocMetadata.{conflict_note}"
         )
 
-    pandoc_metadata = default_pandoc_metadata() if include_pandoc_defaults else {}
-    pandoc_metadata = merge_metadata(pandoc_metadata, legacy_pandoc)
-    pmt_values["pandocMetadata"] = merge_metadata(pandoc_metadata, explicit_pandoc)
+    pmt_values["pandocMetadata"] = merge_metadata(legacy_pandoc, explicit_pandoc)
     pmt_values["reply"] = reply
     return pmt_values, pmt_values["pandocMetadata"], reply
 
@@ -252,7 +249,6 @@ class ReplySettings(BaseModel):
             raw,
             source=source,
             section="reply",
-            include_pandoc_defaults=False,
         )
         pmt_values = {
             key: value
@@ -374,7 +370,7 @@ class PmtSettings(BaseSettings):
         serialization_alias="docxStyle",
     )
     pandoc_metadata: dict[str, Any] = Field(
-        default_factory=default_pandoc_metadata,
+        default_factory=dict,
         alias="pandocMetadata",
     )
     reply: ReplySettings | None = None
@@ -442,13 +438,8 @@ class PmtSettings(BaseSettings):
         return self
 
     @classmethod
-    def load(
-        cls,
-        style_path: str | Path,
-        *,
-        include_pandoc_defaults: bool = True,
-    ) -> "PmtSettings":
-        """Load one style file, optionally deferring language defaults."""
+    def load(cls, style_path: str | Path) -> "PmtSettings":
+        """Load only explicit settings and metadata from one style file."""
         path = Path(style_path)
         try:
             source = YamlConfigSettingsSource(cls, yaml_file=path, yaml_file_encoding="utf-8")
@@ -458,7 +449,6 @@ class PmtSettings(BaseSettings):
             pmt_values, _, reply = _split_style_mapping(
                 raw,
                 source=path,
-                include_pandoc_defaults=include_pandoc_defaults,
             )
             pmt_values["reply"] = ReplySettings.from_mapping(reply, path) if reply is not None else None
             settings = cls.model_validate(pmt_values)
@@ -580,7 +570,7 @@ def load_effective_metadata(
     # Keep only values explicitly supplied by style.yml here. Language-aware
     # defaults are selected below after the manuscript language is known.
     settings = (
-        PmtSettings.load(style, include_pandoc_defaults=False)
+        PmtSettings.load(style)
         if style_exists
         else PmtSettings.model_validate({})
     )
@@ -601,7 +591,7 @@ def load_effective_metadata(
             f"[WARN] Ignoring deprecated manuscript metadata `citation-number-range-delimiter` in {manuscript_path}. "
             "Configure top-level style.yml `citationNumberRangeDelimiter` instead."
         )
-    style_metadata = dict(settings.pandoc_metadata) if style_exists else {}
+    style_metadata = dict(settings.pandoc_metadata)
     explicit_metadata = merge_metadata(style_metadata, manuscript_metadata)
     # An empty CSL is not an override; preserve the previous fallback behavior.
     if not explicit_metadata.get("csl"):
@@ -623,18 +613,6 @@ def load_effective_metadata(
         pandoc_metadata=pandoc_metadata,
         has_yaml_header=has_header,
     )
-
-
-def load_pmt_settings_files(style_files: list[str | Path] | None = None) -> PmtSettings:
-    """Load and recursively overlay Papper settings from standalone style files."""
-    merged: dict[str, Any] = {}
-    for style_file in style_files or []:
-        path = Path(style_file)
-        if not path.exists():
-            raise FileNotFoundError(f"Style file not found: {path}")
-        settings = PmtSettings.load(path)
-        merged = merge_metadata(merged, settings.to_mapping(exclude_unset=True))
-    return PmtSettings.model_validate(merged)
 
 
 def load_metadata_files(metadata_files: list[str | Path] | None = None) -> dict[str, Any]:

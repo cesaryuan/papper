@@ -1,30 +1,11 @@
-#!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#   "python-docx>=1.1.0",
-#   "pyyaml>=6.0",
-# ]
-# ///
 """Apply DOCX line-number settings from merged YAML metadata."""
 
-import argparse
-import sys
-from pathlib import Path
 from typing import Any
 
-try:
-    from docx.document import Document as DocumentObject
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn
-except ImportError as e:
-    print(f"Error: Missing dependency: {e}")
-    print("Install with: pip install python-docx pyyaml")
-    sys.exit(1)
-
-from ...runtime.metadata import PmtSettings, load_pmt_settings_files
-from .common import open_docx, print_debug, print_debug_success, print_warning, save_docx, validate_existing_file
-
+from docx.document import Document as DocumentObject
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from ...runtime.metadata import PmtSettings
 
 DEFAULT_RESTART = "continuous"
 RESTART_ALIASES = {
@@ -128,56 +109,3 @@ def apply_line_number_settings(doc: DocumentObject, settings: PmtSettings) -> di
         "restart": restart,
         "sections": apply_line_numbers(doc, restart),
     }
-
-
-def process_file(
-    docx_path: str,
-    md_path: str,
-    save: bool = True,
-    metadata_files: list[str | Path] | None = None,
-) -> dict[str, Any] | None:
-    """Process a DOCX file using typed docxShowLineNumbers settings."""
-    doc, docx_file = open_docx(docx_path)
-    if doc is None or docx_file is None:
-        return None
-    md_file = validate_existing_file(md_path, "Markdown file")
-    if md_file is None:
-        return None
-
-    settings = load_pmt_settings_files(metadata_files)
-    result = apply_line_number_settings(doc, settings)
-    if result is None:
-        print_debug("No enabled docxShowLineNumbers setting found, skipping")
-        return None
-
-    if save:
-        save_docx(doc, docx_file)
-    print_debug_success(f"Applied line numbers: restart={result['restart']}, sections={result['sections']}")
-    return result
-
-
-def main() -> None:
-    """Main entry point for command-line usage."""
-    parser = argparse.ArgumentParser(description="Apply DOCX line-number settings from merged YAML metadata")
-    parser.add_argument("docx_path", help="Path to the DOCX file to process")
-    parser.add_argument("md_path", nargs="?", default="manuscript.md", help="Path to the markdown manuscript")
-    parser.add_argument(
-        "--metadata-file",
-        action="append",
-        default=[],
-        help="YAML metadata file to merge before manuscript metadata",
-    )
-    parser.add_argument("--no-save", action="store_true", help="Do not save changes")
-    args = parser.parse_args()
-
-    result = process_file(
-        args.docx_path,
-        args.md_path,
-        save=not args.no_save,
-        metadata_files=args.metadata_file,
-    )
-    sys.exit(0 if result is not None else 1)
-
-
-if __name__ == "__main__":
-    main()

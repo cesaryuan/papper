@@ -5,7 +5,6 @@ import yaml
 
 from pandoc_manuscript.runtime import metadata as metadata_module
 from pandoc_manuscript.runtime.metadata import (
-    DEFAULT_PANDOC_METADATA,
     PmtSettings,
     load_effective_metadata,
     write_pandoc_metadata,
@@ -32,7 +31,7 @@ pandocMetadata:
     assert settings.docx_style == {"Body Text": {"firstLineIndentChars": 2}}
     assert settings.pandoc_metadata["figureTitle"] == "Figure"
     assert settings.pandoc_metadata["custom-list"] == ["一", "two"]
-    assert settings.pandoc_metadata["linkReferences"] is True
+    assert "linkReferences" not in settings.pandoc_metadata
     assert "mathtype" not in settings.pandoc_metadata
     assert "docxStyle" not in settings.pandoc_metadata
 
@@ -68,12 +67,16 @@ Body
     assert effective.pandoc_metadata["nested"] == {"left": "manuscript", "right": "keep"}
 
 
-def test_builtin_pandoc_metadata_defaults_apply_without_style_file() -> None:
-    """Keep cross-reference and citation behavior when style metadata is omitted."""
-    settings = PmtSettings.model_validate({})
+def test_builtin_pandoc_metadata_defaults_apply_without_style_file(tmp_path: Path) -> None:
+    """Keep cross-reference defaults when style metadata is omitted."""
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text("---\ntitle: Example\n---\nBody\n", encoding="utf-8")
+    effective = load_effective_metadata(manuscript, None)
 
-    assert settings.pandoc_metadata == DEFAULT_PANDOC_METADATA
-    assert settings.pandoc_metadata is not DEFAULT_PANDOC_METADATA
+    assert effective.pmt_settings.pandoc_metadata == {}
+    assert effective.pandoc_metadata["title"] == "Example"
+    assert effective.pandoc_metadata["figureTitle"] == "Figure "
+    assert effective.pandoc_metadata["linkReferences"] is True
 
 
 def test_empty_style_metadata_keeps_defaults_and_allows_overrides(tmp_path: Path) -> None:
@@ -83,12 +86,17 @@ def test_empty_style_metadata_keeps_defaults_and_allows_overrides(tmp_path: Path
         "pandocMetadata:\n  figureTitle: 'Fig. '\n  sectionsDepth: 2\n",
         encoding="utf-8",
     )
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text("---\ntitle: Example\n---\nBody\n", encoding="utf-8")
 
     settings = PmtSettings.load(style)
+    effective = load_effective_metadata(manuscript, style)
 
     assert settings.pandoc_metadata["figureTitle"] == "Fig. "
     assert settings.pandoc_metadata["sectionsDepth"] == 2
-    assert settings.pandoc_metadata["tableTitle"] == "Table "
+    assert "tableTitle" not in settings.pandoc_metadata
+    assert effective.pandoc_metadata["figureTitle"] == "Fig. "
+    assert effective.pandoc_metadata["tableTitle"] == "Table "
 
 
 def test_reply_overrides_both_domains_before_reply_header(tmp_path: Path) -> None:
@@ -159,7 +167,7 @@ def test_legacy_flat_pandoc_metadata_warns_and_nested_value_wins(
 
     assert settings.pandoc_metadata["figureTitle"] == "New"
     assert settings.pandoc_metadata["custom"] == "old"
-    assert settings.pandoc_metadata["linkReferences"] is True
+    assert "linkReferences" not in settings.pandoc_metadata
     assert len(warnings) == 1
     assert "custom" in warnings[0]
     assert "figureTitle" in warnings[0]

@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#   "python-docx>=1.1.0",
-#   "pyyaml>=6.0",
-# ]
-# ///
 """
 Apply DOCX paragraph style settings from merged YAML metadata.
 
@@ -31,34 +23,22 @@ Supported metadata:
           after: 6pt
 """
 
-import argparse
 import re
-import sys
-from pathlib import Path
 from typing import Any
 
-try:
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.document import Document as DocumentObject
-    from docx.oxml.ns import qn
-    from docx.shared import Cm, Inches, Mm, Pt, RGBColor
-    from docx.styles.style import _ParagraphStyle
-except ImportError as e:
-    print(f"Error: Missing dependency: {e}")
-    print("Install with: pip install python-docx pyyaml")
-    sys.exit(1)
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.document import Document as DocumentObject
+from docx.oxml.ns import qn
+from docx.shared import Cm, Inches, Mm, Pt, RGBColor
+from docx.styles.style import _ParagraphStyle
 
 from .common import (
     get_or_add_child,
-    open_docx,
-    print_debug_success,
     print_warning,
-    save_docx,
     set_style_first_line_indent_chars as set_common_style_first_line_indent_chars,
-    validate_existing_file,
 )
 
-from ...runtime.metadata import PmtSettings, load_pmt_settings_files
+from ...runtime.metadata import PmtSettings
 
 
 ALIGNMENT_VALUES = {
@@ -599,59 +579,3 @@ def apply_docx_style_settings(doc: DocumentObject, settings: PmtSettings) -> dic
         "applied": applied_styles,
         "skipped": skipped_styles,
     }
-
-
-def process_file(
-    docx_path: str,
-    md_path: str,
-    save: bool = True,
-    metadata_files: list[str | Path] | None = None,
-) -> dict[str, Any] | None:
-    """Process a DOCX file using merged docxStyle metadata."""
-    doc, docx_file = open_docx(docx_path)
-    if doc is None or docx_file is None:
-        return None
-    md_file = validate_existing_file(md_path, "Markdown file")
-    if md_file is None:
-        return None
-
-    settings = load_pmt_settings_files(metadata_files)
-    result = apply_docx_style_settings(doc, settings)
-    if result is None:
-        print_warning("No docxStyle metadata found, skipping")
-        return None
-
-    if save:
-        save_docx(doc, docx_file)
-    for applied in result["applied"]:
-        print_debug_success(format_applied_style_summary(applied))
-    return result
-
-
-def main() -> None:
-    """Main entry point for command-line usage."""
-    parser = argparse.ArgumentParser(
-        description="Apply DOCX paragraph style settings from merged YAML metadata"
-    )
-    parser.add_argument("docx_path", help="Path to the DOCX file to process")
-    parser.add_argument("md_path", nargs="?", default="manuscript.md", help="Path to the markdown manuscript")
-    parser.add_argument(
-        "--metadata-file",
-        action="append",
-        default=[],
-        help="YAML metadata file to merge before manuscript metadata",
-    )
-    parser.add_argument("--no-save", action="store_true", help="Do not save changes")
-    args = parser.parse_args()
-
-    result = process_file(
-        args.docx_path,
-        args.md_path,
-        save=not args.no_save,
-        metadata_files=args.metadata_file,
-    )
-    sys.exit(0 if result is not None else 1)
-
-
-if __name__ == "__main__":
-    main()
