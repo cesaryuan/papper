@@ -179,6 +179,11 @@ manuscript YAML in that order. Explicit values for captions, cross-reference
 prefixes, bibliography titles, and `csl` therefore take priority over the
 language defaults. For DOCX, `--lang zh-cn` selects Chinese defaults for that
 build even when the manuscript declares another language.
+Chinese DOCX and HTML builds render section headings and section references
+with dotted numbers such as `3.1`, while figures, tables, and equations retain
+chapter numbers such as `3-1`. The JSON AST carries the resolved reference
+text. LaTeX output keeps native `\ref` commands, whose displayed numbers are
+determined when the TeX document is compiled.
 
 ## Standout Features
 

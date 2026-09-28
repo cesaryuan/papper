@@ -1,7 +1,9 @@
--- Normalize nested Chinese numbering before writer-specific rendering.
---
--- Headings and section references have the same semantic representation for
--- DOCX, HTML, and LaTeX, so this belongs in the Pandoc AST pipeline.
+-- Normalize Chinese section numbering in the Pandoc AST.
+-- Enabled by PMT_CHINESE_MODE or Chinese `lang`; otherwise leaves the AST unchanged.
+-- In level 2+ headings, change a leading nested number such as `3-1` to `3.1`.
+-- In paragraphs, plain blocks, and line blocks, change `节 3-1` to `节 3.1`,
+-- including linked references and non-breaking spaces. Figure, table, and
+-- equation numbers such as `3-1` are left unchanged.
 
 local enabled = false
 
@@ -32,7 +34,11 @@ end
 
 -- Normalize a section reference while preserving its surrounding text.
 local function normalize_section_reference(text)
-  return text:gsub("(节%s+)(%d+[%d%-]*%-%d+)", function(prefix, number)
+  -- Without links, crossref keeps the non-breaking space and number in one Str.
+  local normalized = text:gsub("(节\194\160)(%d+[%d%-]*%-%d+)", function(prefix, number)
+    return prefix .. normalize_nested_number(number)
+  end)
+  return normalized:gsub("(节%s+)(%d+[%d%-]*%-%d+)", function(prefix, number)
     return prefix .. normalize_nested_number(number)
   end)
 end
@@ -55,6 +61,43 @@ local function normalize_header_inlines(inlines)
   return inlines
 end
 
+-- Pandoc-crossref may place a non-breaking space in a separate Str.
+local function is_section_separator(inline)
+  if inline == nil then
+    return false
+  end
+  if inline.t == "Space" then
+    return true
+  end
+  if inline.t ~= "Str" then
+    return false
+  end
+  local without_nbsp = inline.text:gsub("\194\160", "")
+  return without_nbsp:match("^%s*$") ~= nil
+end
+
+-- Match a section prefix even when crossref keeps the non-breaking space in it.
+local function ends_with_section_prefix(text)
+  local with_spaces = text:gsub("\194\160", " ")
+  return with_spaces:match("节%s*$") ~= nil
+end
+
+-- Convert a section number inside plain text or a cross-reference link.
+local function normalize_section_number_inline(inline)
+  if inline == nil then
+    return
+  end
+  if inline.t == "Str" then
+    inline.text = normalize_nested_number(inline.text)
+  elseif inline.t == "Link" then
+    for _, child in ipairs(inline.content) do
+      if child.t == "Str" then
+        child.text = normalize_nested_number(child.text)
+      end
+    end
+  end
+end
+
 -- Normalize section references in ordinary block inline content.
 local function normalize_body_inlines(inlines)
   for index, inline in ipairs(inlines) do
@@ -64,13 +107,13 @@ local function normalize_body_inlines(inlines)
       inline.content = normalize_body_inlines(inline.content)
     end
 
-    -- Markdown tokenizes `节 1-2` as Str, Space, Str.
-    if inline.t == "Str" and inline.text:match("节$") ~= nil then
-      local separator = inlines[index + 1]
-      local number = inlines[index + 2]
-      if separator ~= nil and separator.t == "Space" and number ~= nil and number.t == "Str" then
-        number.text = normalize_nested_number(number.text)
+    -- Crossref can attach a non-breaking space to `节` before the linked number.
+    if inline.t == "Str" and ends_with_section_prefix(inline.text) then
+      local number_index = index + 1
+      if is_section_separator(inlines[number_index]) then
+        number_index = number_index + 1
       end
+      normalize_section_number_inline(inlines[number_index])
     end
   end
   return inlines

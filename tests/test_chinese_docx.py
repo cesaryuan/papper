@@ -115,6 +115,24 @@ def test_chinese_docx_build_numbers_figures_tables_and_formats_headings(
         assert fonts.get(qn("w:eastAsiaTheme")) is None, name
 
 
+def test_chinese_section_reference_uses_dots_without_links(tmp_path: Path) -> None:
+    """Keep dotted section references when crossref emits plain text instead of links."""
+    if not shutil.which("pandoc") or not shutil.which("pandoc-crossref"):
+        pytest.skip("Pandoc and pandoc-crossref are required for the DOCX contract")
+    (tmp_path / "paper.md").write_text(
+        "---\nlang: zh-CN\n---\n\n# 第一章\n\n## 第一节 {#sec:section}\n\n参见 [@sec:section]。\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "style.yml").write_text(
+        "pandocMetadata:\n  linkReferences: false\n",
+        encoding="utf-8",
+    )
+
+    _, output = run_docx_build(tmp_path, [])
+    text = "\n".join(paragraph.text for paragraph in Document(output).paragraphs)
+    assert re.search(r"节\s+1\.1", text)
+
+
 @pytest.mark.parametrize(
     ("font_family", "western", "chinese"),
     [

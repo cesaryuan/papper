@@ -75,33 +75,29 @@ reply:
 # 本节会作为 metadata 传给 Pandoc、pandoc-crossref 和 citeproc。
 # 请将稿件特有的元数据保留在 manuscript.md 中。构建时，稿件 YAML 头部中定义的值会覆盖这些默认值。
 # 可用值参考 https://pandoc.org/MANUAL.html https://lierdakil.github.io/pandoc-crossref/
-pandocMetadata:
-  # Pandoc-crossref 交叉引用设置
+# pandocMetadata:
   ## 题注前缀格式：{figureTitle} {number}{titleDelim} {caption}
-  figureTitle: "Figure "
-  tableTitle: "Table "
-  titleDelim: ""
+  # figureTitle: "Figure"
+  # tableTitle: "Table"
+  # titleDelim: ""
+
   ## 项目交叉引用格式
-  figPrefix: "Figure"
-  tblPrefix: "Table"
-  secPrefix: "Section"
-  eqnPrefix: "Equation"
+  # figPrefix: "Figure"
+  # tblPrefix: "Table"
+  # secPrefix: "Section"
+  # eqnPrefix: "Equation"
 
   ## 章节编号和自动标签选项
-  linkReferences: true        # 将引用转换为超链接
-  autoSectionLabels: true     # 自动为章节标签添加 "sec:" 前缀
-  autoEqnLabels: true         # 为所有行间公式编号
-  numberSections: true        # 为章节编号，如 1.1、1.2 等
-  sectionsDepth: 3            # 章节编号深度
-  subfigGrid: true            # 支持子图网格布局
-  subfigureChildTemplate: ($$i$$) $$t$$
-  subfigureTemplate: $$figureTitle$$ $$i$$$$titleDelim$$ $$t$$
+  # linkReferences: true        # 将引用转换为超链接
+  # autoSectionLabels: true     # 自动为章节标签添加 "sec:" 前缀
+  # autoEqnLabels: true         # 为所有行间公式编号
+  # numberSections: true        # 为章节编号，如 1.1、1.2 等
+  # sectionsDepth: 3            # 章节编号深度
 
-  # 参考文献选项
-  # 中文 DOCX 构建时自动使用“参考文献”
-  reference-section-title: References
-  link-citations: true
-  # 引文样式语言（CSL）文件
-  # 默认：一般 DOCX 使用 Vancouver；中文 DOCX 使用内置 GB/T 7714—2015（顺序编码，双语）
-  # 可从 https://www.zotero.org/styles 下载 CSL 文件
+  ## 参考文献章节标题
+  # reference-section-title: References
+
+  ## 引文样式语言（CSL）文件
+  ## 默认：一般 DOCX 使用 Vancouver；中文 DOCX 使用内置 GB/T 7714—2015（顺序编码，双语）
+  ## 可从 https://www.zotero.org/styles 下载 CSL 文件
   # csl: path/to/your.csl

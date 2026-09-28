@@ -66,3 +66,14 @@ def test_build_output_matches_snapshot(
     )
     snapshot_path = SNAPSHOT_ROOT / case_name / f"{target}.snap"
     assert_snapshot(actual, snapshot_path, update=snapshot_update)
+
+
+def test_chinese_crossref_docx_matches_snapshot(tmp_path: Path, snapshot_update: bool) -> None:
+    """Capture dotted Chinese section references alongside chapter-numbered content."""
+    case_dir = tmp_path / "chinese_crossrefs"
+    shutil.copytree(ROOT / "tests" / "snapshot_cases" / "chinese_crossrefs", case_dir)
+    output = tmp_path / "chinese_crossrefs.docx"
+    build_case(case_dir, "chinese_crossrefs.md", "docx", output)
+    actual = canonical_docx(output, repository_root=ROOT)
+    snapshot_path = SNAPSHOT_ROOT / "chinese_crossrefs" / "docx.snap"
+    assert_snapshot(actual, snapshot_path, update=snapshot_update)
