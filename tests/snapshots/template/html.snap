@@ -574,23 +574,6 @@
   }
 
   h1 {
-    /* docxStyle.Heading 1 override from reference-doc/word/styles.xml */
-    font-size: 12pt;
-  }
-
-  h2 {
-    /* docxStyle.Heading 2 override from reference-doc/word/styles.xml */
-    font-size: 12pt;
-  }
-
-  .pmt-page > p, .pmt-page > p:first-of-type {
-    /* docxStyle.Body Text override from reference-doc/word/styles.xml */
-    margin-top: 0pt;
-    margin-bottom: 0pt;
-    text-indent: 2em;
-  }
-
-  h1 {
     /* docxStyle.标题 1 override from reference-doc/word/styles.xml */
     font-size: 12pt;
   }

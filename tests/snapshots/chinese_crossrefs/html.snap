@@ -18,10 +18,10 @@
       background-color: #f0eff5;
       --pmt-page-width: 210mm;
       --pmt-page-height: 297mm;
-      --pmt-page-margin-top: 1.905cm;
-      --pmt-page-margin-bottom: 1.905cm;
-      --pmt-page-margin-left: 1.905cm;
-      --pmt-page-margin-right: 1.905cm;
+      --pmt-page-margin-top: 72pt;
+      --pmt-page-margin-bottom: 72pt;
+      --pmt-page-margin-left: 89.8583pt;
+      --pmt-page-margin-right: 89.8583pt;
       --pmt-text-width: calc(
         var(--pmt-page-width) - var(--pmt-page-margin-left) - var(--pmt-page-margin-right)
       );
@@ -559,7 +559,7 @@
 
   h2 {
     /* docxStyle.标题 2 override from reference-doc/word/styles.xml */
-    font-size: 14pt;
+    font-size: 12pt;
     font-family: "Times New Roman", "黑体", SimSun, serif;
     font-weight: normal;
   }
