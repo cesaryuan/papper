@@ -551,6 +551,23 @@
     padding-bottom: calc(var(--pmt-table-cell-margin-bottom, 0pt) + var(--pmt-table-text-after, 0pt));
     padding-left: var(--pmt-table-cell-margin-left, 0pt);
   }
+
+  h1 {
+    /* docxStyle.Heading 1 override from reference-doc/word/styles.xml */
+    font-size: 12pt;
+  }
+
+  h2 {
+    /* docxStyle.Heading 2 override from reference-doc/word/styles.xml */
+    font-size: 12pt;
+  }
+
+  .pmt-page > p, .pmt-page > p:first-of-type {
+    /* docxStyle.Body Text override from reference-doc/word/styles.xml */
+    margin-top: 0pt;
+    margin-bottom: 0pt;
+    text-indent: 2em;
+  }
   </style>
   <script defer src="https://cdn.jsdmirror.com/npm/katex@latest/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {

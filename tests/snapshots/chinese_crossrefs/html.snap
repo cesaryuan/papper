@@ -537,6 +537,44 @@
     padding-bottom: calc(var(--pmt-table-cell-margin-bottom, 0pt) + var(--pmt-table-text-after, 0pt));
     padding-left: var(--pmt-table-cell-margin-left, 0pt);
   }
+
+  h1.title {
+    /* docxStyle.标题 override from reference-doc/word/styles.xml */
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: normal;
+  }
+
+  p.subtitle {
+    /* docxStyle.副标题 override from reference-doc/word/styles.xml */
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: normal;
+  }
+
+  h1 {
+    /* docxStyle.标题 1 override from reference-doc/word/styles.xml */
+    font-size: 15pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: normal;
+  }
+
+  h2 {
+    /* docxStyle.标题 2 override from reference-doc/word/styles.xml */
+    font-size: 14pt;
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: normal;
+  }
+
+  h3 {
+    /* docxStyle.标题 3 override from reference-doc/word/styles.xml */
+    font-family: "Times New Roman", "黑体", SimSun, serif;
+    font-weight: normal;
+  }
+
+  figure figcaption, table caption {
+    /* docxStyle.题注 override from reference-doc/word/styles.xml */
+    font-size: 10.5pt;
+    font-weight: normal;
+  }
   </style>
   <script defer src="https://cdn.jsdmirror.com/npm/katex@latest/dist/katex.min.js"></script>
   <script>document.addEventListener("DOMContentLoaded", function () {

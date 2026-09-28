@@ -65,18 +65,18 @@ DEFAULT_PANDOC_METADATA_ZHCN: dict[str, Any] = {
     "chapters": True,
     "chaptersDepth": 1,
     "chapDelim": "-",
-    "figureTitle": "图 ",
-    "tableTitle": "表 ",
+    "figureTitle": "图",
+    "tableTitle": "表",
     "figPrefix": "图",
     "tblPrefix": "表",
-    "titleDelim": " ",
+    "titleDelim": "",
     "secPrefix": "节",
     "eqnPrefix": "式",
     "reference-section-title": "参考文献",
     "csl": "pandoc/csl/GB-T-7714—2015（顺序编码，双语，姓名不大写，无URL、DOI）.csl",
 }
 
-# Shared Chinese typography defaults consumed by both DOCX and HTML builders.
+# Chinese style defaults are shared by DOCX post-processing and HTML CSS.
 CHINESE_HEADING_FONT = {"western": "Times New Roman", "chinese": "黑体"}
 CHINESE_DOCX_STYLES = {
     "标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
@@ -85,6 +85,17 @@ CHINESE_DOCX_STYLES = {
     "标题 2": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "四号", "bold": False},
     "标题 3": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
     "题注": {"fontSize": "五号", "bold": False},
+}
+
+# English style names map to the same manuscript defaults used by the
+# reference DOCX and the generated HTML CSS.
+ENGLISH_DOCX_STYLES = {
+    "Heading 1": {"fontSize": "小四"},
+    "Heading 2": {"fontSize": "小四"},
+    "Body Text": {
+        "firstLineIndentChars": 2,
+        "paragraphSpacing": {"before": "0pt", "after": "0pt"},
+    },
 }
 
 
@@ -619,6 +630,11 @@ def load_effective_metadata(
     if lang_override is not None or is_chinese_language(selected_language):
         # Pandoc-crossref ships zh-Hans rather than the common zh-CN alias.
         pandoc_metadata["lang"] = normalize_pandoc_language(selected_language)
+    # Apply language-appropriate defaults at the shared boundary so DOCX and
+    # HTML see the same effective style settings. Explicit style.yml values
+    # always take priority over these defaults.
+    default_docx_styles = CHINESE_DOCX_STYLES if is_chinese_language(selected_language) else ENGLISH_DOCX_STYLES
+    settings.docx_style = merge_metadata(default_docx_styles, settings.docx_style or {})
     return EffectiveMetadata(
         pmt_settings=settings,
         pandoc_metadata=pandoc_metadata,

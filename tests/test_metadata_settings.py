@@ -79,6 +79,23 @@ def test_builtin_pandoc_metadata_defaults_apply_without_style_file(tmp_path: Pat
     assert effective.pandoc_metadata["linkReferences"] is True
 
 
+def test_english_docx_style_defaults_apply_to_effective_settings(tmp_path: Path) -> None:
+    """Apply English DOCX style defaults when no Chinese language is selected."""
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text("---\ntitle: Example\n---\nBody\n", encoding="utf-8")
+
+    effective = load_effective_metadata(manuscript, style_path=None)
+
+    assert effective.pmt_settings.docx_style == {
+        "Heading 1": {"fontSize": "小四"},
+        "Heading 2": {"fontSize": "小四"},
+        "Body Text": {
+            "firstLineIndentChars": 2,
+            "paragraphSpacing": {"before": "0pt", "after": "0pt"},
+        },
+    }
+
+
 def test_empty_style_metadata_keeps_defaults_and_allows_overrides(tmp_path: Path) -> None:
     """Apply explicit style values after the built-in Pandoc defaults."""
     style = tmp_path / "style.yml"
@@ -130,7 +147,13 @@ Reply
     effective = load_effective_metadata(reply, style, reply=True)
 
     assert effective.pmt_settings.docx_style == {
-        "Body Text": {"firstLineIndentChars": 0, "alignment": "left"}
+        "Heading 1": {"fontSize": "小四"},
+        "Heading 2": {"fontSize": "小四"},
+        "Body Text": {
+            "firstLineIndentChars": 0,
+            "paragraphSpacing": {"before": "0pt", "after": "0pt"},
+            "alignment": "left",
+        },
     }
     assert effective.pandoc_metadata["reference-section-title"] == "Final References"
     assert effective.pandoc_metadata["nested"] == {"base": True, "reply": True}

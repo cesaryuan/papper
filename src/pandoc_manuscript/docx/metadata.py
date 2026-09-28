@@ -7,10 +7,8 @@ from pathlib import Path
 from ..runtime.logging import log_debug
 from ..runtime.metadata import (
     EffectiveMetadata,
-    CHINESE_DOCX_STYLES,
     PmtSettings,
     is_chinese_language,
-    merge_metadata,
     write_pandoc_metadata,
 )
 from ..runtime.paths import PMT_WORK_DIR
@@ -59,7 +57,7 @@ def write_docx_pandoc_metadata(
 def prepare_docx_metadata(
     effective: EffectiveMetadata,
 ) -> EffectiveMetadata:
-    """Apply DOCX-only Chinese style defaults after shared metadata loads."""
+    """Apply DOCX-only Chinese line-number defaults after shared metadata loads."""
     chinese_mode = is_chinese_language(effective.pandoc_metadata.get("lang"))
     pmt_settings: PmtSettings = effective.pmt_settings.model_copy(deep=True)
     if chinese_mode:
@@ -70,12 +68,6 @@ def prepare_docx_metadata(
             or pmt_settings.docx_show_line_numbers == "连续"
         ):
             pmt_settings.docx_show_line_numbers = False
-        # User style entries override only the Chinese defaults they mention.
-        pmt_settings.docx_style = merge_metadata(
-            CHINESE_DOCX_STYLES,
-            pmt_settings.docx_style or {},
-        )
-
     return EffectiveMetadata(
         pmt_settings=pmt_settings,
         pandoc_metadata=effective.pandoc_metadata,
