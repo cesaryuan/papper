@@ -146,6 +146,8 @@ HTML 片段。
 
 中文构建（DOCX、HTML、LaTeX 和 JSON）默认使用内置的《GB/T 7714—2015（顺序编码，双语，姓名不大写，无 URL、DOI）》CSL。稿件 metadata 或 `style.yml` 中显式设置的 `csl` 优先。其他构建默认使用内置的 Elsevier Vancouver CSL。
 
+Papper 读取 `style.yml` 和稿件 YAML 头部后，根据构建语言生成 Pandoc 默认元数据，再依次合并 `style.yml:pandocMetadata` 和稿件 YAML。题注、交叉引用前缀、参考文献标题及 `csl` 的显式设置均高于语言默认值。构建 DOCX 时，`--lang zh-cn` 可以为本次构建选择中文默认值，即使稿件声明了其他语言。
+
 ## 这个项目最吸引人的地方
 
 ### 1. Markdown 真的适合写和改

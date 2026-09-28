@@ -12,6 +12,7 @@ from ...docx.equation_layout import derive_docx_equation_layout, sync_eqn_block_
 from ...runtime.logging import log_debug, log_warning
 from ...runtime.metadata import EffectiveMetadata, PmtSettings, load_effective_metadata, write_pandoc_metadata
 from ...runtime.paths import PMT_REPLY_PROBE_DIR
+from ...runtime.resources import template_root
 from ..common import suppress_known_external_warnings
 from ..setup import pandoc_command, pandoc_tools_env
 from . import line_source as reply_line_source
@@ -84,6 +85,7 @@ def load_reply_metadata(reply: Path, style: Path) -> EffectiveMetadata:
         style,
         allow_missing_header=True,
         reply=True,
+        csl_resolver=lambda relative: (template_root() / relative).as_posix(),
     )
 
 

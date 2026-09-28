@@ -173,6 +173,13 @@ without it, Pandoc writes only an HTML fragment.
 
 Chinese builds use the bundled GB/T 7714—2015 bilingual numeric CSL by default across DOCX, HTML, LaTeX, and JSON. An explicit `csl` in manuscript metadata or `style.yml` overrides it. Other builds use the bundled Elsevier Vancouver CSL unless overridden.
 
+Papper selects language-specific Pandoc defaults after reading `style.yml` and
+the manuscript YAML header. It then overlays `style.yml:pandocMetadata` and the
+manuscript YAML in that order. Explicit values for captions, cross-reference
+prefixes, bibliography titles, and `csl` therefore take priority over the
+language defaults. For DOCX, `--lang zh-cn` selects Chinese defaults for that
+build even when the manuscript declares another language.
+
 ## Standout Features
 
 ### 1. Markdown that stays pleasant to edit

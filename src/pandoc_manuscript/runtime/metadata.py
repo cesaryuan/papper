@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 import tempfile
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import yaml
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -54,12 +54,64 @@ DEFAULT_PANDOC_METADATA: dict[str, Any] = {
     "subfigureTemplate": "$$figureTitle$$ $$i$$$$titleDelim$$ $$t$$",
     "reference-section-title": "References",
     "link-citations": True,
+    "csl": "pandoc/csl/elsevier-vancouver.csl",
+}
+
+# Chinese builds replace only the language-sensitive Pandoc defaults below.
+# Keeping this mapping separate makes the language policy reviewable without
+# mixing it into DOCX or HTML command orchestration.
+DEFAULT_PANDOC_METADATA_ZHCN: dict[str, Any] = {
+    "lang": "zh-Hans",
+    "chapters": True,
+    "chaptersDepth": 1,
+    "chapDelim": "-",
+    "figureTitle": "图 ",
+    "tableTitle": "表 ",
+    "figPrefix": "图",
+    "tblPrefix": "表",
+    "titleDelim": " ",
+    "secPrefix": "节",
+    "eqnPrefix": "式",
+    "reference-section-title": "参考文献",
+    "csl": "pandoc/csl/GB-T-7714—2015（顺序编码，双语，姓名不大写，无URL、DOI）.csl",
 }
 
 
 def default_pandoc_metadata() -> dict[str, Any]:
     """Return an independent copy of Papper's built-in Pandoc metadata defaults."""
     return dict(DEFAULT_PANDOC_METADATA)
+
+
+def is_chinese_language(language: object) -> bool:
+    """Return whether a Pandoc language tag identifies Chinese text."""
+    if not isinstance(language, str):
+        return False
+    normalized = language.strip().replace("_", "-").casefold()
+    return normalized in {"zh", "zhcn", "zh-hans", "zhhans"} or normalized.startswith("zh-")
+
+
+def normalize_pandoc_language(language: object) -> object:
+    """Map Simplified Chinese aliases to Pandoc-crossref's shipped tag."""
+    if not isinstance(language, str):
+        return language
+    normalized = language.strip().replace("_", "-").casefold()
+    if normalized in {"zh-cn", "zhcn", "zh-hans", "zhhans"}:
+        return "zh-Hans"
+    return language
+
+
+def build_default_pandoc_metadata(
+    language: object = None,
+    *,
+    csl_resolver: Callable[[str], str] | None = None,
+) -> dict[str, Any]:
+    """Build language-aware Pandoc defaults and resolve the bundled CSL path."""
+    defaults = default_pandoc_metadata()
+    if is_chinese_language(language):
+        defaults = merge_metadata(defaults, DEFAULT_PANDOC_METADATA_ZHCN)
+    if csl_resolver is not None:
+        defaults["csl"] = csl_resolver(defaults["csl"])
+    return defaults
 
 
 PMT_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
@@ -390,15 +442,24 @@ class PmtSettings(BaseSettings):
         return self
 
     @classmethod
-    def load(cls, style_path: str | Path) -> "PmtSettings":
-        """Load one style file without enabling BaseSettings environment sources."""
+    def load(
+        cls,
+        style_path: str | Path,
+        *,
+        include_pandoc_defaults: bool = True,
+    ) -> "PmtSettings":
+        """Load one style file, optionally deferring language defaults."""
         path = Path(style_path)
         try:
             source = YamlConfigSettingsSource(cls, yaml_file=path, yaml_file_encoding="utf-8")
             raw = source()
             if not isinstance(raw, dict):
                 raise ValueError("YAML root must be a mapping")
-            pmt_values, _, reply = _split_style_mapping(raw, source=path)
+            pmt_values, _, reply = _split_style_mapping(
+                raw,
+                source=path,
+                include_pandoc_defaults=include_pandoc_defaults,
+            )
             pmt_values["reply"] = ReplySettings.from_mapping(reply, path) if reply is not None else None
             settings = cls.model_validate(pmt_values)
             font = settings.mathtype_typst_math_font
@@ -510,10 +571,19 @@ def load_effective_metadata(
     *,
     allow_missing_header: bool = False,
     reply: bool = False,
+    lang_override: str | None = None,
+    csl_resolver: Callable[[str], str] | None = None,
 ) -> EffectiveMetadata:
-    """Load separated Papper settings and effective Pandoc metadata once."""
+    """Select language defaults, then overlay style and manuscript metadata."""
     style = Path(style_path) if style_path is not None else None
-    settings = PmtSettings.load(style) if style is not None and style.exists() else PmtSettings.model_validate({})
+    style_exists = style is not None and style.exists()
+    # Keep only values explicitly supplied by style.yml here. Language-aware
+    # defaults are selected below after the manuscript language is known.
+    settings = (
+        PmtSettings.load(style, include_pandoc_defaults=False)
+        if style_exists
+        else PmtSettings.model_validate({})
+    )
     if reply:
         settings = settings.for_reply(style or "style.yml")
     try:
@@ -531,9 +601,26 @@ def load_effective_metadata(
             f"[WARN] Ignoring deprecated manuscript metadata `citation-number-range-delimiter` in {manuscript_path}. "
             "Configure top-level style.yml `citationNumberRangeDelimiter` instead."
         )
+    style_metadata = dict(settings.pandoc_metadata) if style_exists else {}
+    explicit_metadata = merge_metadata(style_metadata, manuscript_metadata)
+    # An empty CSL is not an override; preserve the previous fallback behavior.
+    if not explicit_metadata.get("csl"):
+        explicit_metadata.pop("csl", None)
+    selected_language = lang_override if lang_override is not None else explicit_metadata.get("lang")
+    if lang_override is not None:
+        normalized_override = lang_override.strip().replace("_", "-").casefold()
+        if normalized_override not in {"zh-cn", "zhcn"}:
+            raise ValueError("Only `--lang zh-cn` and `--lang zhcn` are currently supported for builds.")
+    pandoc_metadata = merge_metadata(
+        build_default_pandoc_metadata(selected_language, csl_resolver=csl_resolver),
+        explicit_metadata,
+    )
+    if lang_override is not None or is_chinese_language(selected_language):
+        # Pandoc-crossref ships zh-Hans rather than the common zh-CN alias.
+        pandoc_metadata["lang"] = normalize_pandoc_language(selected_language)
     return EffectiveMetadata(
         pmt_settings=settings,
-        pandoc_metadata=merge_metadata(settings.pandoc_metadata, manuscript_metadata),
+        pandoc_metadata=pandoc_metadata,
         has_yaml_header=has_header,
     )
 

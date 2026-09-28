@@ -148,14 +148,20 @@ def test_docx_style_font_and_bold_work_without_language_mode(
     assert all(section._sectPr.find(qn("w:lnNumType")) is not None for section in doc.sections)
 
 
-def test_explicit_csl_overrides_chinese_docx_default(tmp_path: Path) -> None:
-    """Keep a manuscript CSL override when Chinese DOCX mode selects its default."""
+@pytest.mark.parametrize("csl_source", ["manuscript", "style"])
+def test_explicit_csl_overrides_chinese_docx_default(tmp_path: Path, csl_source: str) -> None:
+    """Keep manuscript and style CSL overrides when Chinese defaults apply."""
     if not shutil.which("pandoc") or not shutil.which("pandoc-crossref"):
         pytest.skip("Pandoc and pandoc-crossref are required for the DOCX contract")
     csl = Path(__file__).resolve().parents[1] / "pandoc" / "csl" / "elsevier-vancouver.csl"
+    if csl_source == "style":
+        (tmp_path / "style.yml").write_text(
+            f"pandocMetadata:\n  csl: '{csl.as_posix()}'\n",
+            encoding="utf-8",
+        )
+    manuscript_csl = f"csl: '{csl.as_posix()}'\n" if csl_source == "manuscript" else ""
     (tmp_path / "paper.md").write_text(
-        "---\n"
-        f"csl: '{csl.as_posix()}'\n"
+        "---\n" + manuscript_csl +
         "references:\n"
         "  - id: sample\n"
         "    type: article-journal\n"
@@ -170,6 +176,46 @@ def test_explicit_csl_overrides_chinese_docx_default(tmp_path: Path) -> None:
 
     text = "\n".join(paragraph.text for paragraph in Document(output).paragraphs)
     assert "10.1234/pmt-csl-override" in text
+
+
+def test_chinese_build_preserves_explicit_crossref_metadata(tmp_path: Path) -> None:
+    """Render manuscript cross-reference choices above Chinese language defaults."""
+    if not shutil.which("pandoc") or not shutil.which("pandoc-crossref"):
+        pytest.skip("Pandoc and pandoc-crossref are required for the DOCX contract")
+    (tmp_path / "figure.png").write_bytes(PNG_PIXEL)
+    (tmp_path / "paper.md").write_text(
+        "---\n"
+        "lang: zh-CN\n"
+        "figureTitle: 'Fig. '\n"
+        "figPrefix: Fig.\n"
+        "---\n\n"
+        "参见 @fig:one。\n\n"
+        "![测试图](figure.png){#fig:one}\n",
+        encoding="utf-8",
+    )
+
+    _, output = run_docx_build(tmp_path, [])
+
+    text = "\n".join(paragraph.text for paragraph in Document(output).paragraphs)
+    assert "Fig. 1 测试图" in text
+
+
+def test_chinese_docx_preserves_explicit_heading_style(tmp_path: Path) -> None:
+    """Apply user DOCX style choices after Chinese heading defaults."""
+    if not shutil.which("pandoc") or not shutil.which("pandoc-crossref"):
+        pytest.skip("Pandoc and pandoc-crossref are required for the DOCX contract")
+    (tmp_path / "paper.md").write_text("# 标题\n\n正文。\n", encoding="utf-8")
+    (tmp_path / "style.yml").write_text(
+        "pandocMetadata:\n  lang: zh-CN\n"
+        "docxStyle:\n  标题 1: {fontSize: 四号, bold: true}\n",
+        encoding="utf-8",
+    )
+
+    _, output = run_docx_build(tmp_path, [])
+
+    heading = Document(output).styles["Heading 1"]
+    assert heading.font.size.pt == 14
+    assert heading.font.bold is True
 
 
 def test_chinese_docx_can_explicitly_enable_line_numbers(tmp_path: Path) -> None:

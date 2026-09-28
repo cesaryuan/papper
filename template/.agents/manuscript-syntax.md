@@ -530,6 +530,12 @@ overrides `style.yml:pandocMetadata`, but it does not override Papper-owned top-
 settings. The optional `reply:` section can override both Papper settings and its own
 `reply.pandocMetadata` for `papper build-reply`.
 
+Papper chooses the built-in Pandoc defaults from the effective language first,
+then overlays `style.yml:pandocMetadata` and manuscript YAML. This lets explicit
+caption labels, cross-reference prefixes, bibliography titles, and CSL paths
+override either language's defaults. DOCX `--lang zh-cn` selects Chinese defaults
+for one build while preserving explicit non-language metadata.
+
 Older projects may still keep Pandoc keys at the top level of `style.yml`. Papper
 continues to load those keys and prints a deprecation warning, but new and updated
 projects should move them under `pandocMetadata`. Papper never rewrites the source
@@ -644,6 +650,8 @@ step changes nested heading numbers and `节 3-1` references to dotted notation
 without changing the figure/table numbering. `标题 1` uses 小三 (15 pt), and
 `标题 2` uses 四号 (14 pt). Chinese DOCX builds hide line numbers by default;
 set `docxShowLineNumbers: true` in `style.yml` to show continuous line numbers.
+Explicit `docxStyle` entries in `style.yml` override the corresponding Chinese
+DOCX style defaults.
 If the command
 line option is omitted, `pandocMetadata.lang` from the manuscript or style file
 selects the language mode. Papper removes `lang` from the metadata passed to

@@ -5,7 +5,6 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pandoc_manuscript.commands import build
 from pandoc_manuscript.commands.build_reply import resolve as reply_resolve
 from pandoc_manuscript.docx.equation_layout import (
     MATHTYPE_TAB_EQN_BLOCK_TEMPLATE,
@@ -14,6 +13,7 @@ from pandoc_manuscript.docx.equation_layout import (
     equation_tab_stops_from_settings,
     sync_eqn_block_template_with_page_margins,
 )
+from pandoc_manuscript.docx.metadata import write_docx_pandoc_metadata
 from pandoc_manuscript.runtime.metadata import EffectiveMetadata, PmtSettings
 
 
@@ -73,7 +73,6 @@ def test_docx_equation_layout_follows_active_mathtype_backend() -> None:
 def test_build_writes_adjusted_docx_metadata_file(tmp_path, monkeypatch) -> None:
     """Pass Pandoc a generated metadata file with margin-synced equation tabs."""
     monkeypatch.chdir(tmp_path)
-    Path("style.yml").write_text("placeholder: true\n", encoding="utf-8")
 
     effective = EffectiveMetadata(
         pmt_settings=PmtSettings.model_validate(
@@ -82,15 +81,13 @@ def test_build_writes_adjusted_docx_metadata_file(tmp_path, monkeypatch) -> None
         pandoc_metadata={"eqnBlockTemplate": EQN_TEMPLATE},
         has_yaml_header=True,
     )
-    args = build.style_metadata_args(
+    metadata_file = write_docx_pandoc_metadata(
         effective,
-        sync_docx_layout=True,
         use_mathtype=True,
     )
 
-    metadata = yaml.safe_load(Path(args[1]).read_text(encoding="utf-8"))
-    assert args[0] == "--metadata-file"
-    assert Path(args[1]).parts[:3] == (".pmt", "work", "metadata")
+    metadata = yaml.safe_load(metadata_file.read_text(encoding="utf-8"))
+    assert metadata_file.parts[:3] == (".pmt", "work", "metadata")
     assert 'w:pos="4156"' in metadata["eqnBlockTemplate"]
     assert 'w:pos="8312"' in metadata["eqnBlockTemplate"]
 

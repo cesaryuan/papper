@@ -10,6 +10,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pandoc_manuscript.commands import build, build_reply as reply_build
+from pandoc_manuscript.docx import build as docx_build
+from pandoc_manuscript.docx.svg_filters import python_filter_wrapper
 from pandoc_manuscript.mathtype import ole_parts
 from pandoc_manuscript.runtime import resources
 from pandoc_manuscript.runtime.metadata import PmtSettings
@@ -41,7 +43,9 @@ def test_svg_to_png_cache_uses_pmt_cache(monkeypatch) -> None:
     """Route SVG rasterization artifacts away from final output directories."""
     monkeypatch.setattr(build.SETTINGS, "manuscript_file", "manuscript.md")
 
-    env = build.docx_svg_to_png_filter_env(PmtSettings.model_validate({}))
+    env = docx_build.docx_svg_to_png_filter_env(
+        build.SETTINGS.manuscript_file, PmtSettings.model_validate({})
+    )
 
     assert Path(env["PMT_SVG_TO_PNG_DIR"]) == (Path.cwd() / PMT_CACHE_DIR / "svg-png").resolve()
     assert env["PMT_SVG_TO_PNG_CONVERT_ALL"] == "false"
@@ -118,7 +122,9 @@ def test_svg_embed_cache_uses_pmt_cache(monkeypatch) -> None:
     """Route self-contained SVG cache files away from final output directories."""
     monkeypatch.setattr(build.SETTINGS, "manuscript_file", "manuscript.md")
 
-    env = build.docx_svg_embed_images_filter_env(PmtSettings.model_validate({}))
+    env = docx_build.docx_svg_embed_images_filter_env(
+        build.SETTINGS.manuscript_file, PmtSettings.model_validate({})
+    )
 
     assert Path(env["PMT_SVG_EMBED_DIR"]) == (Path.cwd() / PMT_SVG_EMBED_CACHE_DIR).resolve()
     assert env["PMT_SVG_EMBED_IMAGES"] == "true"
@@ -128,7 +134,8 @@ def test_svg_embed_env_keeps_global_embedding_switch(monkeypatch) -> None:
     """Pass the global SVG child-image embedding switch to the DOCX filter."""
     monkeypatch.setattr(build.SETTINGS, "manuscript_file", "manuscript.md")
 
-    env = build.docx_svg_embed_images_filter_env(
+    env = docx_build.docx_svg_embed_images_filter_env(
+        build.SETTINGS.manuscript_file,
         PmtSettings.model_validate({"docxEmbedSvgImages": True})
     )
 
@@ -139,7 +146,8 @@ def test_svg_embed_env_disables_embedding_when_global_png_conversion_is_enabled(
     """Keep full SVG rasterization from doing redundant child-image embedding first."""
     monkeypatch.setattr(build.SETTINGS, "manuscript_file", "manuscript.md")
 
-    env = build.docx_svg_embed_images_filter_env(
+    env = docx_build.docx_svg_embed_images_filter_env(
+        build.SETTINGS.manuscript_file,
         PmtSettings.model_validate(
             {"docxEmbedSvgImages": True, "docxConvertSvgToPng": True}
         )
@@ -180,7 +188,8 @@ def test_svg_to_png_env_keeps_global_conversion_switch(monkeypatch) -> None:
     """Pass the global SVG rasterization switch to the shared DOCX filter."""
     monkeypatch.setattr(build.SETTINGS, "manuscript_file", "manuscript.md")
 
-    env = build.docx_svg_to_png_filter_env(
+    env = docx_build.docx_svg_to_png_filter_env(
+        build.SETTINGS.manuscript_file,
         PmtSettings.model_validate({"docxConvertSvgToPng": True})
     )
 
@@ -191,7 +200,8 @@ def test_svg_to_png_env_passes_width_control(monkeypatch) -> None:
     """Pass the optional SVG-to-PNG output width to the shared DOCX filter."""
     monkeypatch.setattr(build.SETTINGS, "manuscript_file", "manuscript.md")
 
-    env = build.docx_svg_to_png_filter_env(
+    env = docx_build.docx_svg_to_png_filter_env(
+        build.SETTINGS.manuscript_file,
         PmtSettings.model_validate({"docxSvgToPngWidth": 1600})
     )
 
@@ -220,7 +230,7 @@ def test_python_filter_launcher_path(monkeypatch, tmp_path) -> None:
     filter_path.write_text("print('ok')\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
-    wrapper = build.python_filter_wrapper(filter_path, "sample_filter")
+    wrapper = python_filter_wrapper(filter_path, "sample_filter")
 
     if os.name == "nt":
         assert wrapper == filter_path.resolve()

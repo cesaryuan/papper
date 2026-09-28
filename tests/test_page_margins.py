@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pandoc_manuscript.commands import build
 from pandoc_manuscript.commands.build_reply import output as reply_output
+from pandoc_manuscript.docx import build as docx_build
 from pandoc_manuscript.docx.page_margins import (
     apply_page_margin_settings,
     normalize_page_margins,
@@ -97,10 +98,13 @@ def test_build_reference_doc_args_uses_margin_adjusted_reference(tmp_path: Path,
     monkeypatch.setattr(build.SETTINGS, "reference_doc", str(source))
     monkeypatch.setattr(build.SETTINGS, "project_name", "paper")
 
-    args = build.docx_reference_doc_args(
+    args = docx_build.docx_reference_doc_args(
+        build.SETTINGS,
         PmtSettings.model_validate(
             {"docxPageMargins": {"left": "3.17cm", "right": "3.17cm"}}
-        )
+        ),
+        build.resource_path,
+        build.to_pandoc_path,
     )
 
     assert args[0] == "--reference-doc"

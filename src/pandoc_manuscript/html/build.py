@@ -93,7 +93,6 @@ def build_html(
         ensure_output_parent,
         load_build_metadata,
         manuscript_output_file,
-        prepare_pandoc_language,
         resource_path,
         pandoc_filter_env,
         style_metadata_args,
@@ -106,7 +105,7 @@ def build_html(
     log_info("\n[HTML] Building HTML...\n")
     html_file = manuscript_output_file(SETTINGS.html_dir, "html")
     ensure_output_parent(html_file)
-    effective, chinese_mode = prepare_pandoc_language(load_build_metadata())
+    effective = load_build_metadata()
     # Pandoc derives the page title from the temporary header-free input
     # filename when a manuscript has no explicit title; keep the title stable
     # without adding a visible title block to the document body.
@@ -128,8 +127,6 @@ def build_html(
         f"left={effective.pandoc_metadata['html-page-margin-left']}, "
         f"right={effective.pandoc_metadata['html-page-margin-right']}"
     )
-    if chinese_mode:
-        log_info("[HTML] Chinese language metadata enabled")
     source_dir = Path(SETTINGS.manuscript_file).resolve().parent
     resource_path_option = os.pathsep.join((str(source_dir), str(Path.cwd())))
     if start_server:
