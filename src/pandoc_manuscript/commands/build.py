@@ -63,6 +63,7 @@ class BuildSettings(BaseSettings):
     html_dir: str = "output/html"
     json_dir: str = "output/json"
     output_file: str | None = None
+    resource_path: str | None = None
     enable_docx_postprocess: bool = True
     mathtype_work_dir: str = pmt_path(PMT_MATHTYPE_WORK_DIR)
     reference_doc: str | None = None
@@ -90,6 +91,10 @@ class BuildCommandSettings(VerboseCommandSettings):
         default=None,
         validation_alias=AliasChoices("o", "output-file"),
         description="Exact output file path for DOCX, LaTeX, HTML, and JSON builds.",
+    )
+    resource_path: str | None = Field(
+        default=None,
+        description="Raw value passed to Pandoc's --resource-path option.",
     )
     mathtype: bool | None = Field(
         default=None,
@@ -134,6 +139,7 @@ class BuildCommandSettings(VerboseCommandSettings):
                 markdown=self.markdown,
                 manuscript_option=self.manuscript_option,
                 output_file=self.output_file,
+                resource_path=self.resource_path,
                 reference_doc=self.reference_doc,
                 mathtype=self.mathtype,
                 lang=self.lang,
@@ -335,7 +341,14 @@ def run_pandoc(
             if metadata_file is not None
             else style_metadata_args(effective)
         )
-        resource_paths = manuscript_resource_paths()
+        resource_path_args = (
+            ["--resource-path", SETTINGS.resource_path]
+            if SETTINGS.resource_path is not None
+            else [
+                "--resource-path",
+                os.pathsep.join(to_pandoc_path(path) for path in manuscript_resource_paths()),
+            ]
+        )
         cmd = [
             pandoc_command(),
             '--defaults',
@@ -343,8 +356,7 @@ def run_pandoc(
             *metadata_args,
             '--output',
             to_pandoc_path(output_file),
-            '--resource-path',
-            os.pathsep.join(to_pandoc_path(path) for path in resource_paths),
+            *resource_path_args,
             *extra_args,
             to_pandoc_path(pandoc_input),
         ]
@@ -434,6 +446,7 @@ def run_build_command(
     markdown: str | None = None,
     manuscript_option: str | None = None,
     output_file: str | None = None,
+    resource_path: str | None = None,
     reference_doc: str | None = None,
     warn_hat_order: bool = True,
     mathtype: bool | None = None,
@@ -445,6 +458,7 @@ def run_build_command(
 ) -> int:
     """Run the selected manuscript build target with direct settings values."""
     configure_output_file(None)
+    SETTINGS.resource_path = resource_path
     if target not in {"docx", "latex", "html", "json"}:
         raise ValueError(f"Unsupported build target: {target}")
     if output_file and target not in {"docx", "latex", "html", "json"}:

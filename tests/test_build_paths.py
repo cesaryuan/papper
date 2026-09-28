@@ -39,6 +39,34 @@ def test_generated_work_and_cache_paths_are_under_pmt() -> None:
         assert path.parts[0] == PMT_DIR.name
 
 
+def test_build_resource_path_is_forwarded_without_normalization(tmp_path, monkeypatch) -> None:
+    """Forward an explicit resource path string to Pandoc exactly as entered."""
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text("Body\n", encoding="utf-8")
+    captured: list[list[str]] = []
+    monkeypatch.setattr(build, "run_command", lambda command, **_: captured.append(command))
+    monkeypatch.setattr(build, "pandoc_command", lambda: "pandoc")
+    monkeypatch.setattr(build, "pandoc_tools_env", lambda env=None: env or {})
+    monkeypatch.setattr(build, "write_markdown_without_yaml_header", lambda _: None)
+    monkeypatch.setattr(build, "style_metadata_args", lambda _: [])
+    monkeypatch.setattr(build.SETTINGS, "manuscript_file", str(manuscript))
+    monkeypatch.setattr(build.SETTINGS, "resource_path", r"C:\raw;../with spaces")
+
+    build.run_pandoc(
+        Path("defaults.yml"),
+        tmp_path / "out.docx",
+        build.EffectiveMetadata(
+            pmt_settings=build.PmtSettings.model_validate({}),
+            pandoc_metadata={},
+            has_yaml_header=False,
+        ),
+    )
+
+    command = captured[0]
+    index = command.index("--resource-path")
+    assert command[index + 1] == r"C:\raw;../with spaces"
+
+
 def test_svg_to_png_cache_uses_pmt_cache(monkeypatch) -> None:
     """Route SVG rasterization artifacts away from final output directories."""
     monkeypatch.setattr(build.SETTINGS, "manuscript_file", "manuscript.md")

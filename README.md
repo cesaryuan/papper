@@ -156,6 +156,9 @@ papper build docx paper.md -o build/paper.docx
 # Build one standalone HTML file with embedded resources
 papper build html -o build/paper.html
 
+# Pass a raw Pandoc resource path value through unchanged
+papper build html --resource-path 'assets;shared-assets'
+
 # Build a reviewer reply
 papper build-reply reply.md --reply-manuscript manuscript.md -o output/docx/reply.docx
 ```
@@ -414,3 +417,8 @@ For each build, Pandoc resource lookup is passed explicitly in this order:
 2. the current working directory.
 
 The same order is used for `style.yml`. If both directories contain that file, Papper merges them and the Markdown directory has higher priority. Relative assets named by metadata, such as `csl`, are resolved with the same lookup order.
+
+`papper build` also accepts `--resource-path`. Its value is passed to Pandoc
+unchanged as the value of one `--resource-path` option. Supplying it replaces
+Papper's automatic Markdown-directory and working-directory resource path for
+that build.

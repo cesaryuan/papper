@@ -128,7 +128,11 @@ def build_html(
         f"left={effective.pandoc_metadata['html-page-margin-left']}, "
         f"right={effective.pandoc_metadata['html-page-margin-right']}"
     )
-    resource_path_option = os.pathsep.join(str(path) for path in manuscript_resource_paths())
+    resource_path_option = (
+        SETTINGS.resource_path
+        if SETTINGS.resource_path is not None
+        else os.pathsep.join(str(path) for path in manuscript_resource_paths())
+    )
     if start_server:
         server_config = write_pmt_server_config(
             project_dir=Path.cwd(),
