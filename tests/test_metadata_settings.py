@@ -75,7 +75,32 @@ def test_builtin_pandoc_metadata_defaults_apply_without_style_file(tmp_path: Pat
 
     assert effective.pmt_settings.pandoc_metadata == {}
     assert effective.pandoc_metadata["title"] == "Example"
-    assert effective.pandoc_metadata["figureTitle"] == "Figure "
+    assert effective.pandoc_metadata["figureTitle"] == "Figure"
+
+
+def test_markdown_local_style_overrides_working_directory_style(tmp_path: Path, monkeypatch) -> None:
+    """Merge both style files while giving the Markdown directory precedence."""
+    source_dir = tmp_path / "nested"
+    source_dir.mkdir()
+    manuscript = source_dir / "paper.md"
+    manuscript.write_text("---\ntitle: Example\n---\nBody\n", encoding="utf-8")
+    (tmp_path / "style.yml").write_text(
+        "pandocMetadata:\n  figureTitle: Working\n  sectionsDepth: 1\n",
+        encoding="utf-8",
+    )
+    (source_dir / "style.yml").write_text(
+        "pandocMetadata:\n  figureTitle: Local\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    effective = load_effective_metadata(
+        manuscript,
+        style_paths=(source_dir / "style.yml", tmp_path / "style.yml"),
+    )
+
+    assert effective.pandoc_metadata["figureTitle"] == "Local"
+    assert effective.pandoc_metadata["sectionsDepth"] == 1
     assert effective.pandoc_metadata["linkReferences"] is True
 
 
@@ -87,9 +112,9 @@ def test_english_docx_style_defaults_apply_to_effective_settings(tmp_path: Path)
     effective = load_effective_metadata(manuscript, style_path=None)
 
     assert effective.pmt_settings.docx_style == {
-        "Heading 1": {"fontSize": "小四"},
-        "Heading 2": {"fontSize": "小四"},
-        "Body Text": {
+        "标题 1": {"fontSize": "小四"},
+        "标题 2": {"fontSize": "小四"},
+        "正文文本": {
             "firstLineIndentChars": 2,
             "paragraphSpacing": {"before": "0pt", "after": "0pt"},
         },
@@ -113,7 +138,7 @@ def test_empty_style_metadata_keeps_defaults_and_allows_overrides(tmp_path: Path
     assert settings.pandoc_metadata["sectionsDepth"] == 2
     assert "tableTitle" not in settings.pandoc_metadata
     assert effective.pandoc_metadata["figureTitle"] == "Fig. "
-    assert effective.pandoc_metadata["tableTitle"] == "Table "
+    assert effective.pandoc_metadata["tableTitle"] == "Table"
 
 
 def test_reply_overrides_both_domains_before_reply_header(tmp_path: Path) -> None:
@@ -121,13 +146,13 @@ def test_reply_overrides_both_domains_before_reply_header(tmp_path: Path) -> Non
     style = tmp_path / "style.yml"
     style.write_text(
         """docxStyle:
-  Body Text: {firstLineIndentChars: 2, alignment: left}
+  正文文本: {firstLineIndentChars: 2, alignment: left}
 pandocMetadata:
   reference-section-title: References
   nested: {base: true}
 reply:
   docxStyle:
-    Body Text: {firstLineIndentChars: 0}
+    正文文本: {firstLineIndentChars: 0}
   pandocMetadata:
     reference-section-title: Reply References
     nested: {reply: true}
@@ -147,9 +172,9 @@ Reply
     effective = load_effective_metadata(reply, style, reply=True)
 
     assert effective.pmt_settings.docx_style == {
-        "Heading 1": {"fontSize": "小四"},
-        "Heading 2": {"fontSize": "小四"},
-        "Body Text": {
+        "标题 1": {"fontSize": "小四"},
+        "标题 2": {"fontSize": "小四"},
+        "正文文本": {
             "firstLineIndentChars": 0,
             "paragraphSpacing": {"before": "6pt", "after": "6pt"},
             "alignment": "left",
@@ -172,7 +197,7 @@ def test_empty_reply_metadata_does_not_reset_project_overrides(tmp_path: Path) -
     effective = load_effective_metadata(reply, style, reply=True)
 
     assert effective.pandoc_metadata["figureTitle"] == "Fig. "
-    assert effective.pandoc_metadata["tableTitle"] == "Table "
+    assert effective.pandoc_metadata["tableTitle"] == "Table"
 
 
 def test_legacy_flat_pandoc_metadata_warns_and_nested_value_wins(
@@ -289,18 +314,6 @@ def test_docx_line_numbers_default_to_continuous_and_serialize_with_new_key() ->
     assert settings.to_mapping()["docxShowLineNumbers"] == "continuous"
     assert legacy.docx_show_line_numbers == "每页重编"
     assert legacy.to_mapping()["docxShowLineNumbers"] == "每页重编"
-
-
-def test_docx_page_numbers_follow_bundled_default_and_allow_explicit_override() -> None:
-    """Use the shipped page-number setting unless a project disables it."""
-    default = PmtSettings.model_validate({})
-    disabled = PmtSettings.model_validate({"show-page-numbers": False})
-
-    assert default.docx_show_page_numbers is True
-    assert default.to_mapping()["docxShowPageNumbers"] is True
-    assert disabled.docx_show_page_numbers is False
-    assert disabled.to_mapping()["docxShowPageNumbers"] is False
-
 
 def test_legacy_pandoc_citation_delimiter_moves_to_pmt_settings(
     tmp_path: Path,

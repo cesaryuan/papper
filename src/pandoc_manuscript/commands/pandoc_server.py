@@ -109,6 +109,7 @@ def write_pmt_server_config(
     project_dir: Path,
     pandoc_args: list[str],
     pandoc_metadata: dict[str, object],
+    resource_paths: list[Path] | None = None,
 ) -> Path:
     """Write the project-bound conversion settings consumed by the PMT server."""
     PMT_DIR.mkdir(parents=True, exist_ok=True)
@@ -119,6 +120,7 @@ def write_pmt_server_config(
                 "project_dir": str(project_dir.resolve()),
                 "pandoc_args": pandoc_args,
                 "pandoc_metadata": pandoc_metadata,
+                "resource_paths": [str(path.resolve()) for path in (resource_paths or [])],
             },
             indent=2,
             ensure_ascii=False,

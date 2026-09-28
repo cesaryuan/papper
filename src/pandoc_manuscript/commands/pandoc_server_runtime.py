@@ -64,6 +64,7 @@ class ProjectAssetCache:
         "--include-in-header",
         "--include-before-body",
         "--include-after-body",
+        "--resource-path",
     }
     _REFERENCE_PATTERN = re.compile(
         r"!\[[^\]]*\]\(([^)\s]+)|(?:src|href)=[\"']([^\"']+)[\"']",
@@ -89,6 +90,13 @@ class ProjectAssetCache:
     def _paths(self) -> tuple[Path, ...]:
         """Collect defaults, templates, CSL, bibliography, and filter files."""
         project_dir = Path(self._config["project_dir"]).resolve()
+        resource_roots = tuple(
+            Path(item).resolve()
+            for item in self._config.get("resource_paths", [])
+            if isinstance(item, str) and item.strip()
+        )
+        if not resource_roots:
+            resource_roots = (project_dir,)
         args = [str(item) for item in self._config.get("pandoc_args", [])]
         values: list[Path] = []
         defaults_files: list[Path] = []
@@ -109,6 +117,7 @@ class ProjectAssetCache:
                     resolved = self._resolve(item, project_dir)
                     if resolved is not None:
                         values.append(resolved)
+        values.extend(resource_roots)
 
         # Defaults files name filters/templates relative to their own directory.
         for defaults_path in defaults_files:
@@ -312,10 +321,7 @@ class PandocWorker:
     def convert(self, input_path: Path, *, mode: str = "exact") -> ConversionResult:
         """Convert one project Markdown file with exact or fast-preview semantics."""
         started = time.perf_counter()
-        project_dir = Path(self._config["project_dir"]).resolve()
         source = input_path.resolve()
-        if source != project_dir and project_dir not in source.parents:
-            raise ValueError(f"Markdown path must stay inside the PMT project: {source}")
         asset_started = time.perf_counter()
         asset_digest = self._assets.refresh()
         source_digest = self._assets.source_digest(source)

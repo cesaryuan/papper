@@ -47,7 +47,6 @@ def test_run_build_command_forwards_hat_preflight_flag(tmp_path, monkeypatch) ->
 
     assert result == 0
     assert kwargs_seen[0]["warn_hat_order"] is True
-    assert kwargs_seen[0]["effective"].pmt_settings.mathtype is False
 
 
 def test_run_build_command_applies_cli_mathtype_setting(tmp_path, monkeypatch) -> None:

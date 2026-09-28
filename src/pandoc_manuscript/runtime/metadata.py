@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 import re
 import tempfile
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Sequence
 
 import yaml
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -543,15 +543,37 @@ def load_effective_metadata(
     manuscript_path: str | Path,
     style_path: str | Path | None = "style.yml",
     *,
+    style_paths: Sequence[str | Path] | None = None,
     allow_missing_header: bool = False,
     reply: bool = False,
     lang_override: str | None = None,
     csl_resolver: Callable[[str], str] | None = None,
 ) -> EffectiveMetadata:
     """Select bundled YAML defaults, then overlay project and manuscript metadata."""
-    style = Path(style_path) if style_path is not None else None
-    style_exists = style is not None and style.exists()
-    project_settings = PmtSettings.load(style) if style_exists else None
+    candidate_styles = (
+        [Path(item) for item in style_paths]
+        if style_paths is not None
+        else ([Path(style_path)] if style_path is not None else [])
+    )
+    # Merge from the lowest-priority source first.  The caller lists the
+    # Markdown directory before the working directory, so reverse that order
+    # to keep the Markdown-local style as the final override.
+    existing_styles = [path for path in reversed(candidate_styles) if path.exists()]
+    project_settings: PmtSettings | None = None
+    for style in existing_styles:
+        current = PmtSettings.load(style)
+        if project_settings is None:
+            project_settings = current
+            continue
+        merged_mapping = merge_metadata(
+            project_settings.to_mapping(exclude_unset=True),
+            current.to_mapping(exclude_unset=True),
+        )
+        merged_mapping["pandocMetadata"] = merge_metadata(
+            project_settings.pandoc_metadata,
+            current.pandoc_metadata,
+        )
+        project_settings = PmtSettings.model_validate(merged_mapping)
     try:
         manuscript_metadata = parse_yaml_header(manuscript_path)
         has_header = True

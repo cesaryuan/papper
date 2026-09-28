@@ -93,6 +93,7 @@ def build_html(
         ensure_output_parent,
         load_build_metadata,
         manuscript_output_file,
+        manuscript_resource_paths,
         resource_path,
         pandoc_filter_env,
         style_metadata_args,
@@ -127,8 +128,7 @@ def build_html(
         f"left={effective.pandoc_metadata['html-page-margin-left']}, "
         f"right={effective.pandoc_metadata['html-page-margin-right']}"
     )
-    source_dir = Path(SETTINGS.manuscript_file).resolve().parent
-    resource_path_option = os.pathsep.join((str(source_dir), str(Path.cwd())))
+    resource_path_option = os.pathsep.join(str(path) for path in manuscript_resource_paths())
     if start_server:
         server_config = write_pmt_server_config(
             project_dir=Path.cwd(),
@@ -140,6 +140,7 @@ def build_html(
                 resource_path_option,
             ],
             pandoc_metadata=effective.pandoc_metadata,
+            resource_paths=list(manuscript_resource_paths()),
         )
         ensure_pandoc_server(
             host=server_host,
@@ -152,7 +153,6 @@ def build_html(
         resource_path("pandoc/pandoc-html.yml"),
         html_file,
         effective,
-        extra_args=["--resource-path", resource_path_option],
     )
     postprocess_html(
         html_file,

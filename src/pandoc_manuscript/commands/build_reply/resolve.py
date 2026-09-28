@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from ...docx.equation_layout import derive_docx_equation_layout, sync_eqn_block_template_with_page_margins
 from ...runtime.logging import log_debug, log_warning
@@ -78,15 +79,40 @@ def to_pandoc_path(path: Path) -> str:
     return path.as_posix()
 
 
-def load_reply_metadata(reply: Path, style: Path) -> EffectiveMetadata:
+def style_paths_for_markdown(markdown: str | Path, style_name: str = "style.yml") -> tuple[Path, ...]:
+    """Return Markdown-local and working-directory style files in priority order."""
+    source_style = Path(markdown).resolve().parent / style_name
+    working_style = Path.cwd().resolve() / style_name
+    return tuple(path for path in dict.fromkeys((source_style, working_style)) if path.is_file())
+
+
+def load_reply_metadata(reply: Path, style: Path | Sequence[str | Path]) -> EffectiveMetadata:
     """Load reply-specific Papper settings and effective Pandoc metadata once."""
     return load_effective_metadata(
         reply,
-        style,
+        style_paths=style if not isinstance(style, (str, Path)) else (style,),
         allow_missing_header=True,
         reply=True,
-        csl_resolver=lambda relative: (template_root() / relative).as_posix(),
+        csl_resolver=lambda relative: _reply_asset_path(reply, relative).as_posix(),
     )
+
+
+def _reply_asset_path(reply: Path, relative: str) -> Path:
+    """Resolve reply-relative assets before falling back to packaged resources."""
+    candidate = Path(relative)
+    if candidate.is_absolute():
+        return candidate
+    for root in (reply.resolve().parent, Path.cwd().resolve()):
+        resolved = root / candidate
+        if resolved.exists():
+            return resolved
+    return template_root() / candidate
+
+
+def reply_resource_path(reply: Path) -> str:
+    """Return Markdown-first resource roots for reply-side Pandoc probes."""
+    roots = tuple(dict.fromkeys((reply.resolve().parent, Path.cwd().resolve())))
+    return os.pathsep.join(to_pandoc_path(root) for root in roots)
 
 
 def write_reply_style_metadata_file(
@@ -303,6 +329,8 @@ def resolve_reference_map(
         pandoc_command(),
         "--metadata-file",
         str(style),
+        "--resource-path",
+        reply_resource_path(manuscript),
         "-f",
         from_format,
         "-t",
@@ -345,6 +373,8 @@ def resolve_citation_map(
         pandoc_command(),
         "--metadata-file",
         str(style),
+        "--resource-path",
+        reply_resource_path(manuscript),
         "-f",
         from_format,
         "-t",
@@ -392,6 +422,8 @@ def resolve_citation_cluster_map(
         pandoc_command(),
         "--metadata-file",
         str(style),
+        "--resource-path",
+        reply_resource_path(manuscript),
         "-f",
         from_format,
         "-t",

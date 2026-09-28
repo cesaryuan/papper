@@ -16,8 +16,8 @@ from .settings import (
     DEFAULT_REPLY_FROM_FORMAT,
     DEFAULT_REPLY_LINE_SOURCE,
     DEFAULT_REPLY_MANUSCRIPT_FILE,
-    DEFAULT_STYLE_FILE,
 )
+from .resolve import style_paths_for_markdown
 
 
 def checked_markdown_path(markdown_path: str | Path) -> Path:
@@ -28,6 +28,18 @@ def checked_markdown_path(markdown_path: str | Path) -> Path:
     if not path.is_file():
         raise ValueError(f"Reply markdown path is not a file: {path}")
     return path
+
+
+def resolve_reply_companion(reply: Path, value: str | None, default: str) -> Path:
+    """Resolve reply companion files beside the reply before checking cwd."""
+    candidate = Path(value or default)
+    if candidate.is_absolute():
+        return candidate
+    for root in (reply.resolve().parent, Path.cwd().resolve()):
+        resolved = root / candidate
+        if resolved.exists():
+            return resolved
+    return candidate
 
 
 def run_build_reply_command(
@@ -45,8 +57,9 @@ def run_build_reply_command(
     try:
         output = reply_output_path(reply, output_file)
         output_format = reply_output_format(output)
-        manuscript = Path(reply_manuscript or DEFAULT_REPLY_MANUSCRIPT_FILE)
-        line_source = Path(manuscript_line_source or DEFAULT_REPLY_LINE_SOURCE)
+        style_paths = style_paths_for_markdown(reply)
+        manuscript = resolve_reply_companion(reply, reply_manuscript, DEFAULT_REPLY_MANUSCRIPT_FILE)
+        line_source = resolve_reply_companion(reply, manuscript_line_source, DEFAULT_REPLY_LINE_SOURCE)
         active_from_format = from_format or DEFAULT_REPLY_FROM_FORMAT
         if output_format == "txt":
             log_info("\n[TXT] Building reviewer reply TXT...\n")
@@ -55,7 +68,7 @@ def run_build_reply_command(
                 manuscript=manuscript,
                 manuscript_line_source=line_source,
                 output=output,
-                style=Path(DEFAULT_STYLE_FILE),
+                style=style_paths,
                 from_format=active_from_format,
             )
         else:
@@ -66,7 +79,7 @@ def run_build_reply_command(
                 manuscript_line_source=line_source,
                 output=output,
                 reference_doc=reply_reference_doc_path(reference_doc),
-                style=Path(DEFAULT_STYLE_FILE),
+                style=style_paths,
                 from_format=active_from_format,
             )
         return 0

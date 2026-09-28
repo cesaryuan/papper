@@ -8,6 +8,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path
+from collections.abc import Sequence
 from ...runtime.logging import log_info, log_success, log_warning, log_debug
 from ...runtime.metadata import PmtSettings
 from ...runtime.paths import PMT_MATHTYPE_WORK_DIR, PMT_REPLY_PROBE_DIR, PMT_REPLY_WORK_DIR
@@ -31,7 +32,6 @@ from . import resolve as reply_resolve
 from .settings import (
     DEFAULT_OUTPUT_DIR,
     DEFAULT_REPLY_OUTPUT_FILE,
-    DEFAULT_STYLE_FILE,
 )
 
 
@@ -146,7 +146,7 @@ def resolved_reply_path(reply: Path) -> Path:
 
 def reply_resource_path(reply: Path) -> str:
     """Return Pandoc resource search paths that preserve reply-relative assets."""
-    candidates = [Path("."), reply.parent]
+    candidates = [reply.resolve().parent, Path.cwd().resolve()]
     unique: list[Path] = []
     for candidate in candidates:
         if candidate not in unique:
@@ -191,7 +191,7 @@ def build_reply_docx(
     manuscript_line_source: Path,
     output: Path,
     reference_doc: Path,
-    style: Path,
+    style: Path | Sequence[str | Path],
     from_format: str,
     *,
     warn_hat_order: bool = True,
@@ -297,7 +297,7 @@ def build_reply_txt(
     manuscript: Path,
     manuscript_line_source: Path,
     output: Path,
-    style: Path,
+    style: Path | Sequence[str | Path],
     from_format: str,
 ) -> None:
     """Build a reviewer-reply TXT file with resolved manuscript placeholders."""

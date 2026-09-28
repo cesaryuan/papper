@@ -12,7 +12,7 @@ from pydantic_settings import SettingsConfigDict
 from ..runtime.logging import log_error, log_info, log_success, log_warning
 from ..runtime.paths import PMT_DIR, PMT_WORK_DIR
 from .build import DEFAULT_OUTPUT_DIR
-from .common import VerboseCommandSettings, project_directory
+from .common import VerboseCommandSettings
 
 
 def is_relative_to(path: Path, parent: Path) -> bool:
@@ -83,20 +83,13 @@ class CleanSettings(VerboseCommandSettings):
         validation_alias=AliasChoices("o", "output-dir"),
         description="Base output directory.",
     )
-    project_dir: Path = Field(default=Path("."), description="Manuscript project directory.")
-
     def run(self) -> int:
         """Run the clean target."""
-        project_dir = self.project_dir.resolve()
-        if not project_dir.exists():
-            raise FileNotFoundError(f"Project directory not found: {project_dir}")
-
         try:
-            with project_directory(project_dir):
-                if self.target == "distclean":
-                    distclean(self.output_dir)
-                else:
-                    clean(self.output_dir)
+            if self.target == "distclean":
+                distclean(self.output_dir)
+            else:
+                clean(self.output_dir)
             return 0
         except KeyboardInterrupt:
             log_warning("\n\n[WARN] Clean interrupted by user.")

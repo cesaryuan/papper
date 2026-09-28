@@ -23,7 +23,8 @@ def test_setup_command_runs_in_project_directory(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(setup_command_impl, "setup_pandoc_tools", fake_setup_pandoc_tools)
 
-    result = cli.SetupSettings(project_dir=tmp_path, force=True).run()
+    monkeypatch.chdir(tmp_path)
+    result = cli.SetupSettings(force=True).run()
 
     assert result == 0
     assert calls == [(tmp_path.resolve(), True)]

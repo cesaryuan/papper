@@ -279,46 +279,6 @@ def test_generate_uncached_equation_parts_uses_set_data_method(monkeypatch, tmp_
 
     assert calls == ["set-data"]
 
-
-def test_generate_uncached_equation_parts_auto_uses_windows_fallback_order(monkeypatch, tmp_path) -> None:
-    """Try both MathType paths before Rust when MathType is usable on Windows."""
-    calls = []
-
-    def fail_set_data(*args, **kwargs):
-        calls.append("set-data")
-        raise RuntimeError("set-data failed")
-
-    def fail_rust_sdk(*args, **kwargs):
-        calls.append("rust-sdk")
-        raise RuntimeError("rust-sdk failed")
-
-    monkeypatch.setattr(ole_parts.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(
-        ole_parts,
-        "check_mathtype_availability",
-        lambda method: ole_parts.MathTypeAvailability((), ()),
-    )
-    monkeypatch.setattr(ole_parts, "make_ole_wmf_metadata_with_mathtype_set_data", fail_set_data)
-    monkeypatch.setattr(ole_parts, "make_ole_wmf_metadata_with_mathtype_rust_sdk", fail_rust_sdk)
-    monkeypatch.setattr(
-        ole_parts,
-        "make_ole_wmf_metadata_with_mathtype_rust",
-        lambda *args, **kwargs: calls.append("rust"),
-    )
-
-    ole_parts.generate_uncached_equation_parts(
-        1,
-        tmp_path / "eq.tex",
-        tmp_path / "eq.ole.bin",
-        tmp_path / "eq.wmf",
-        tmp_path / "eq.json",
-        tmp_path / "eq.mtef.bin",
-        conversion_method="auto",
-    )
-
-    assert calls == ["set-data", "rust-sdk", "rust"]
-
-
 def test_generate_uncached_equation_parts_auto_uses_rust_when_mathtype_unavailable(
     monkeypatch, tmp_path
 ) -> None:

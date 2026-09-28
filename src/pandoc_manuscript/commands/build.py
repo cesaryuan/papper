@@ -27,7 +27,7 @@ from ..runtime.resources import package_resource_path, template_root
 from ..html.build import build_html
 from .pandoc_server import DEFAULT_SERVER_HOST, DEFAULT_SERVER_PORT
 from .setup import pandoc_command, pandoc_tools_env
-from .common import VerboseCommandSettings, project_directory, run_streaming_command
+from .common import VerboseCommandSettings, run_streaming_command
 
 # ============================================================================
 # SETTINGS
@@ -99,7 +99,6 @@ class BuildCommandSettings(VerboseCommandSettings):
         default=None,
         description="One-build language mode for DOCX (zh-cn or zhcn).",
     )
-    project_dir: Path = Field(default=Path("."), description="Manuscript project directory.")
     reference_doc: CliSuppress[str | None] = Field(
         default=None,
         description="Override the bundled DOCX reference document.",
@@ -129,26 +128,21 @@ class BuildCommandSettings(VerboseCommandSettings):
 
     def run(self) -> int:
         """Run the selected build target."""
-        project_dir = self.project_dir.resolve()
-        if not project_dir.exists():
-            raise FileNotFoundError(f"Project directory not found: {project_dir}")
-
-        with project_directory(project_dir):
-            return int(
-                run_build_command(
-                    target=self.target,
-                    markdown=self.markdown,
-                    manuscript_option=self.manuscript_option,
-                    output_file=self.output_file,
-                    reference_doc=self.reference_doc,
-                    mathtype=self.mathtype,
-                    lang=self.lang,
-                    start_server=self.start_server,
-                    server_host=self.server_host,
-                    server_port=self.server_port,
-                    server_command=self.server_command,
-                )
+        return int(
+            run_build_command(
+                target=self.target,
+                markdown=self.markdown,
+                manuscript_option=self.manuscript_option,
+                output_file=self.output_file,
+                reference_doc=self.reference_doc,
+                mathtype=self.mathtype,
+                lang=self.lang,
+                start_server=self.start_server,
+                server_host=self.server_host,
+                server_port=self.server_port,
+                server_command=self.server_command,
             )
+        )
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -195,13 +189,25 @@ def resource_path(path: str | Path) -> Path:
     return template_root() / path
 
 
+def manuscript_asset_path(path: str | Path) -> Path:
+    """Resolve a relative manuscript asset beside Markdown, then beside cwd."""
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate
+    for root in manuscript_resource_paths():
+        resolved = root / candidate
+        if resolved.exists():
+            return resolved
+    return resource_path(candidate)
+
+
 def configure_manuscript(markdown_path: str | Path, derive_project_name: bool = False) -> None:
     """Configure the runtime markdown input and validate that it exists.
 
     derive_project_name is used for command-line markdown overrides so a custom
     input such as paper.md writes paper.docx/paper.tex instead of manuscript.*.
     """
-    path = Path(markdown_path)
+    path = Path(markdown_path).resolve()
     if not path.exists():
         raise FileNotFoundError(f"Markdown file not found: {path}")
     if not path.is_file():
@@ -255,29 +261,35 @@ def ensure_output_parent(output_file: Path) -> None:
 
 
 def should_use_style_metadata_file() -> bool:
-    """Return True when the configured style metadata file exists for this build."""
-    style_file = Path(SETTINGS.style_file)
-    if not style_file.exists():
-        log_info(f"[INFO] Style metadata file not found, skipping: {style_file}")
+    """Return True when any Markdown or working-directory style file exists."""
+    style_files = manuscript_style_paths()
+    if not style_files:
+        log_info("[INFO] Style metadata file not found, skipping: style.yml")
         return False
     return True
 
 
 def style_metadata_files() -> list[str]:
     """Return existing style metadata files in the same order Pandoc receives them."""
-    if not should_use_style_metadata_file():
-        return []
-    return [SETTINGS.style_file]
+    return [to_pandoc_path(path) for path in manuscript_style_paths()]
+
+
+def manuscript_style_paths() -> tuple[Path, ...]:
+    """Find style.yml beside the Markdown first, then in the working directory."""
+    source_dir = Path(SETTINGS.manuscript_file).resolve().parent
+    working_dir = Path.cwd().resolve()
+    candidates = (source_dir / SETTINGS.style_file, working_dir / SETTINGS.style_file)
+    return tuple(path for path in dict.fromkeys(candidates) if path.is_file())
 
 
 def load_build_metadata(lang_override: str | None = None) -> EffectiveMetadata:
     """Load separated Papper settings and effective Pandoc metadata once."""
     effective = load_effective_metadata(
         SETTINGS.manuscript_file,
-        SETTINGS.style_file if should_use_style_metadata_file() else None,
+        style_paths=manuscript_style_paths(),
         allow_missing_header=True,
         lang_override=lang_override,
-        csl_resolver=lambda relative: to_pandoc_path(resource_path(relative)),
+        csl_resolver=lambda relative: to_pandoc_path(manuscript_asset_path(relative)),
     )
     if not effective.has_yaml_header:
         # Reply-style documents may omit manuscript YAML; keep style.yml defaults.
@@ -323,6 +335,7 @@ def run_pandoc(
             if metadata_file is not None
             else style_metadata_args(effective)
         )
+        resource_paths = manuscript_resource_paths()
         cmd = [
             pandoc_command(),
             '--defaults',
@@ -330,6 +343,8 @@ def run_pandoc(
             *metadata_args,
             '--output',
             to_pandoc_path(output_file),
+            '--resource-path',
+            os.pathsep.join(to_pandoc_path(path) for path in resource_paths),
             *extra_args,
             to_pandoc_path(pandoc_input),
         ]
@@ -342,6 +357,13 @@ def run_pandoc(
     finally:
         if generated_input is not None:
             generated_input.unlink(missing_ok=True)
+
+
+def manuscript_resource_paths() -> tuple[Path, ...]:
+    """Return resource roots in Markdown-first, working-directory order."""
+    source_dir = Path(SETTINGS.manuscript_file).resolve().parent
+    working_dir = Path.cwd().resolve()
+    return tuple(dict.fromkeys((source_dir, working_dir)))
 
 
 def style_metadata_args(

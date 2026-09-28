@@ -263,7 +263,7 @@ papper build html --start-server
 ```
 
 The command checks `http://127.0.0.1:3030/version`, reuses a responsive PMT
-server, or starts the project-bound PMT runtime. An explicit generic server can
+server, or starts the working-directory-bound PMT runtime. An explicit generic server can
 still be selected with `PMT_PANDOC_SERVER_COMMAND`. The endpoint is printed in the build log and
 supports the official `/`, `/batch`, and `/version` API. State is recorded in
 `.pmt/pandoc-server.json` and output in `.pmt/pandoc-server.log`.
@@ -399,3 +399,18 @@ unavailable on that computer for the remainder of the current build and uses Rus
 for subsequent formulas. A successful set-data conversion or a different failure
 resets the consecutive counter. If all selected backends fail for a formula, its
 original Word equation is retained. Failed conversions are not cached.
+
+### Markdown in a subdirectory
+
+Papper does not use a `--project-dir` option. Run commands from the directory that should receive generated output, and pass a Markdown path when the source is elsewhere:
+
+```powershell
+papper build docx .\chapters\paper.md
+```
+
+For each build, Pandoc resource lookup is passed explicitly in this order:
+
+1. the directory containing the Markdown file;
+2. the current working directory.
+
+The same order is used for `style.yml`. If both directories contain that file, Papper merges them and the Markdown directory has higher priority. Relative assets named by metadata, such as `csl`, are resolved with the same lookup order.

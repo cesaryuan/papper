@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from pydantic import AliasChoices, Field
 from pydantic_settings import CliPositionalArg, CliSuppress, SettingsConfigDict
 
-from ..common import VerboseCommandSettings, project_directory
+from ..common import VerboseCommandSettings
 
 
 DEFAULT_OUTPUT_DIR = "output"
@@ -33,7 +31,6 @@ class BuildReplySettings(VerboseCommandSettings):
     model_config = BUILD_REPLY_CLI_CONFIG
 
     markdown: CliPositionalArg[str] = Field(description="Reply markdown file.")
-    project_dir: Path = Field(default=Path("."), description="Manuscript project directory.")
     reply_manuscript: str | None = Field(
         default=DEFAULT_REPLY_MANUSCRIPT_FILE,
         description="Manuscript source used to resolve reply references.",
@@ -60,16 +57,11 @@ class BuildReplySettings(VerboseCommandSettings):
         """Run the standalone reply build target."""
         from .command import run_build_reply_command
 
-        project_dir = self.project_dir.resolve()
-        if not project_dir.exists():
-            raise FileNotFoundError(f"Project directory not found: {project_dir}")
-
-        with project_directory(project_dir):
-            return run_build_reply_command(
-                markdown=self.markdown,
-                reply_manuscript=self.reply_manuscript,
-                manuscript_line_source=self.manuscript_line_source,
-                from_format=self.from_format,
-                reference_doc=self.reference_doc,
-                output_file=self.output_file,
-            )
+        return run_build_reply_command(
+            markdown=self.markdown,
+            reply_manuscript=self.reply_manuscript,
+            manuscript_line_source=self.manuscript_line_source,
+            from_format=self.from_format,
+            reference_doc=self.reference_doc,
+            output_file=self.output_file,
+        )

@@ -48,11 +48,9 @@ class DoctorSettings(VerboseCommandSettings):
 
     model_config = SettingsConfigDict(cli_kebab_case=True, cli_implicit_flags=True)
 
-    project_dir: Path = Path(".")
-
     def run(self) -> int:
         """Check the local environment and current manuscript project."""
-        project_dir = self.project_dir.resolve()
+        project_dir = Path.cwd().resolve()
         root = template_root()
         checks: list[tuple[str, bool, str]] = []
 

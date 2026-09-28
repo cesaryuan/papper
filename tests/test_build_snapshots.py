@@ -39,10 +39,8 @@ def build_case(case_dir: Path, markdown: str, target: str, output: Path) -> None
         "papper",
         "build",
         target,
-        "--project-dir",
-        str(case_dir),
         "-m",
-        markdown,
+        str(case_dir / markdown),
         "-o",
         str(output),
     ]
