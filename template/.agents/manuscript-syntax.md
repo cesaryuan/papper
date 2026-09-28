@@ -530,6 +530,10 @@ overrides `style.yml:pandocMetadata`, but it does not override Papper-owned top-
 settings. The optional `reply:` section can override both Papper settings and its own
 `reply.pandocMetadata` for `papper build-reply`.
 
+The bundled English and Chinese style YAML files provide build defaults.
+A new project's `style.yml` starts with only `pandocMetadata: {}` so it can
+override either language without pinning values from the other language.
+
 Papper chooses the built-in Pandoc defaults from the effective language first,
 then overlays `style.yml:pandocMetadata` and manuscript YAML. This lets explicit
 caption labels, cross-reference prefixes, bibliography titles, and CSL paths

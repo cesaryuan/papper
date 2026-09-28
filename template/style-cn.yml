@@ -38,7 +38,7 @@ docxConvertSvgToPng: false
 
 # 常规 DOCX 默认连续行号，中文 DOCX 默认不显示。中文需连续行号请显式设置为 true。
 # 也可用 '每页重编' 或 '每节重编' 指定重新编号方式。
-docxShowLineNumbers: true
+docxShowLineNumbers: false
 
 # 控制 DOCX 页脚中的自动页码。true 会使用 page number 字符样式插入页码，false 会移除页码。
 # 不设置时保留 reference DOCX 中原有的页脚内容。
@@ -53,55 +53,82 @@ docxPageMargins:
 
 # DOCX 段落样式格式（后处理时按精确的样式名称应用）
 docxStyle:
-  标题 1: { fontSize: 小四 }
-  标题 2: { fontSize: 小四 }
-  正文文本:
-    firstLineIndentChars: 2
-    paragraphSpacing:
-      before: 0pt
-      after: 0pt
+  标题:
+    fontFamily:
+      western: Times New Roman
+      chinese: 黑体
+    bold: false
+  副标题:
+    fontFamily:
+      western: Times New Roman
+      chinese: 黑体
+    bold: false
+  标题 1: 
+    fontSize: 小三
+    fontFamily:
+      western: Times New Roman
+      chinese: 黑体
+    bold: false
+  标题 2: 
+    fontSize: 小四
+    fontFamily:
+      western: Times New Roman
+      chinese: 黑体
+    bold: false
+  标题 3:
+    fontFamily:
+      western: Times New Roman
+      chinese: 黑体
+    bold: false
+  题注:
+    fontSize: 五号
+    bold: false
 
 # 审稿回复输出的覆盖配置。`papper build reply` 会将上方的顶层元数据与本节合并，
 # 并在生成回复时优先采用本节中的值。
-reply:
-  docxStyle:
-    正文文本:
-      firstLineIndentChars: 0
-      paragraphSpacing:
-        before: 6pt
-        after: 6pt
-  pandocMetadata: {}
+# reply:
+#   docxStyle:
+#     正文文本:
+#       firstLineIndentChars: 0
+#       paragraphSpacing:
+#         before: 6pt
+#         after: 6pt
+#   pandocMetadata: {}
 
 # 本节会作为 metadata 传给 Pandoc、pandoc-crossref 和 citeproc。
 # 请将稿件特有的元数据保留在 manuscript.md 中。构建时，稿件 YAML 头部中定义的值会覆盖这些默认值。
 # 可用值参考 https://pandoc.org/MANUAL.html https://lierdakil.github.io/pandoc-crossref/
 pandocMetadata:
-  # 题注前缀格式：{figureTitle} {number}{titleDelim} {caption}
-  figureTitle: "Figure"
-  tableTitle: "Table"
+  lang: zh-Hans
+  ## 题注前缀格式：{figureTitle} {number}{titleDelim} {caption}
+  figureTitle: "图"
+  tableTitle: "表"
   titleDelim: ""
 
-  # 项目交叉引用格式
-  figPrefix: "Figure"
-  tblPrefix: "Table"
-  secPrefix: "Section"
-  eqnPrefix: "Equation"
+  ## 项目交叉引用格式
+  figPrefix: "图"
+  tblPrefix: "表"
+  secPrefix: "节"
+  eqnPrefix: "式"
 
-  # 章节编号和自动标签选项
+  ## 章节编号和自动标签选项
   linkReferences: true        # 将引用转换为超链接
   autoSectionLabels: true     # 自动为章节标签添加 "sec:" 前缀
   autoEqnLabels: true         # 为所有行间公式编号
   numberSections: true        # 为章节编号，如 1.1、1.2 等
   sectionsDepth: 3            # 章节编号深度
+  chapters: True
+  chaptersDepth: 1
+  chapDelim: "-"
   subfigGrid: true            # 支持子图网格布局
   subfigureChildTemplate: ($$i$$) $$t$$
   subfigureTemplate: $$figureTitle$$ $$i$$$$titleDelim$$ $$t$$
 
-  # 参考文献章节标题
-  reference-section-title: References
+  ## 参考文献章节标题
+  reference-section-title: 参考文献
   link-citations: true
 
-  # 引文样式语言（CSL）文件
-  # 默认：一般 DOCX 使用 Vancouver；中文 DOCX 使用内置 GB/T 7714—2015（顺序编码，双语）
-  # 可从 https://www.zotero.org/styles 下载 CSL 文件
-  csl: pandoc/csl/elsevier-vancouver.csl
+  ## 引文样式语言（CSL）文件
+  ## 默认：一般 DOCX 使用 Vancouver；中文 DOCX 使用内置 GB/T 7714—2015（顺序编码，双语）
+  ## 可从 https://www.zotero.org/styles 下载 CSL 文件
+  csl: pandoc/csl/GB-T-7714—2015（顺序编码，双语，姓名不大写，无URL、DOI）.csl

@@ -71,5 +71,7 @@ def iter_project_template_entries(lang: str | None = None) -> Iterable[tuple[str
         ("CLAUDE.md", "CLAUDE.md"),
         (manuscript_source, "manuscript.md"),
         (reply_source, "reply_to_reviewers.md"),
-        ("style.yml", "style.yml"),
+        # A project starts with overrides only, so switching manuscript language
+        # does not let copied English defaults shadow bundled Chinese defaults.
+        ("style-project.yml", "style.yml"),
     )

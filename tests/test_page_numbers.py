@@ -33,7 +33,7 @@ def test_docx_page_numbers_are_unchanged_when_not_configured() -> None:
     """Preserve custom reference-DOCX footer behavior until the setting is explicit."""
     doc = Document()
 
-    assert apply_page_number_settings(doc, PmtSettings.model_validate({})) is None
+    assert apply_page_number_settings(doc, PmtSettings.model_validate({"docxShowPageNumbers": None})) is None
     assert footer_page_instructions(doc) == []
 
 

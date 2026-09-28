@@ -151,7 +151,7 @@ Reply
         "Heading 2": {"fontSize": "小四"},
         "Body Text": {
             "firstLineIndentChars": 0,
-            "paragraphSpacing": {"before": "0pt", "after": "0pt"},
+            "paragraphSpacing": {"before": "6pt", "after": "6pt"},
             "alignment": "left",
         },
     }
@@ -247,7 +247,7 @@ def test_environment_variables_do_not_override_style_settings(
 
     effective = load_effective_metadata(manuscript, style_path=None)
 
-    assert effective.pmt_settings.mathtype is False
+    assert effective.pmt_settings.mathtype is True
 
 
 def test_pmt_settings_validate_nested_mappings_and_svg_controls() -> None:
@@ -291,15 +291,15 @@ def test_docx_line_numbers_default_to_continuous_and_serialize_with_new_key() ->
     assert legacy.to_mapping()["docxShowLineNumbers"] == "每页重编"
 
 
-def test_docx_page_numbers_are_optional_and_serialize_when_configured() -> None:
-    """Keep reference-DOCX footers unchanged unless page-number metadata is set."""
+def test_docx_page_numbers_follow_bundled_default_and_allow_explicit_override() -> None:
+    """Use the shipped page-number setting unless a project disables it."""
     default = PmtSettings.model_validate({})
-    enabled = PmtSettings.model_validate({"show-page-numbers": True})
+    disabled = PmtSettings.model_validate({"show-page-numbers": False})
 
-    assert default.docx_show_page_numbers is None
-    assert "docxShowPageNumbers" not in default.to_mapping()
-    assert enabled.docx_show_page_numbers is True
-    assert enabled.to_mapping()["docxShowPageNumbers"] is True
+    assert default.docx_show_page_numbers is True
+    assert default.to_mapping()["docxShowPageNumbers"] is True
+    assert disabled.docx_show_page_numbers is False
+    assert disabled.to_mapping()["docxShowPageNumbers"] is False
 
 
 def test_legacy_pandoc_citation_delimiter_moves_to_pmt_settings(

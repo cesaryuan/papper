@@ -147,6 +147,7 @@ HTML 片段。
 中文构建（DOCX、HTML、LaTeX 和 JSON）默认使用内置的《GB/T 7714—2015（顺序编码，双语，姓名不大写，无 URL、DOI）》CSL。稿件 metadata 或 `style.yml` 中显式设置的 `csl` 优先。其他构建默认使用内置的 Elsevier Vancouver CSL。
 
 Papper 读取 `style.yml` 和稿件 YAML 头部后，根据构建语言生成 Pandoc 默认元数据，再依次合并 `style.yml:pandocMetadata` 和稿件 YAML。题注、交叉引用前缀、参考文献标题及 `csl` 的显式设置均高于语言默认值。构建 DOCX 时，`--lang zh-cn` 可以为本次构建选择中文默认值，即使稿件声明了其他语言。
+随包发布的 `template/style.yml` 和 `template/style-cn.yml` 分别提供英文、中文构建默认值。`papper init` 生成的项目 `style.yml` 只用于覆盖需要调整的值；未填写的值取自当前构建语言对应的随包 YAML。
 中文 DOCX 和 HTML 输出的章节标题与章节交叉引用使用点号编号，例如 `3.1`；图、表和公式使用按章节的横杠编号，例如 `3-1`。JSON AST 保留解析后的引用文本。LaTeX 源码保留原生 `\ref`，显示的编号由 TeX 编译阶段决定。
 
 ## 这个项目最吸引人的地方

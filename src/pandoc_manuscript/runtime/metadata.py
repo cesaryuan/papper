@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 import re
 import tempfile
@@ -18,6 +20,7 @@ from pydantic_settings import (
 )
 
 from .logging import log_warning
+from .resources import project_template_root
 
 
 class MissingYamlFrontMatterError(ValueError):
@@ -36,72 +39,39 @@ def merge_metadata(base: dict[str, Any], override: dict[str, Any]) -> dict[str, 
     return merged
 
 
-DEFAULT_PANDOC_METADATA: dict[str, Any] = {
-    "figureTitle": "Figure ",
-    "tableTitle": "Table ",
-    "titleDelim": "",
-    "figPrefix": "Figure",
-    "tblPrefix": "Table",
-    "secPrefix": "Section",
-    "eqnPrefix": "Equation",
-    "linkReferences": True,
-    "autoSectionLabels": True,
-    "autoEqnLabels": True,
-    "numberSections": True,
-    "sectionsDepth": 3,
-    "subfigGrid": True,
-    "subfigureChildTemplate": "($$i$$) $$t$$",
-    "subfigureTemplate": "$$figureTitle$$ $$i$$$$titleDelim$$ $$t$$",
-    "reference-section-title": "References",
-    "link-citations": True,
-    "csl": "pandoc/csl/elsevier-vancouver.csl",
-}
+@lru_cache(maxsize=2)
+def bundled_style_path(chinese: bool) -> Path:
+    """Locate the packaged language default used by manuscript builds."""
+    name = "style-cn.yml" if chinese else "style.yml"
+    path = project_template_root() / name
+    if not path.is_file():
+        raise FileNotFoundError(f"Bundled style defaults not found: {path}")
+    return path
 
-# Chinese builds replace only the language-sensitive Pandoc defaults below.
-# Keeping this mapping separate makes the language policy reviewable without
-# mixing it into DOCX or HTML command orchestration.
-DEFAULT_PANDOC_METADATA_ZHCN: dict[str, Any] = {
-    "lang": "zh-Hans",
-    "chapters": True,
-    "chaptersDepth": 1,
-    "chapDelim": "-",
-    "figureTitle": "图",
-    "tableTitle": "表",
-    "figPrefix": "图",
-    "tblPrefix": "表",
-    "titleDelim": "",
-    "secPrefix": "节",
-    "eqnPrefix": "式",
-    "reference-section-title": "参考文献",
-    "csl": "pandoc/csl/GB-T-7714—2015（顺序编码，双语，姓名不大写，无URL、DOI）.csl",
-}
 
-# Chinese style defaults are shared by DOCX post-processing and HTML CSS.
-CHINESE_HEADING_FONT = {"western": "Times New Roman", "chinese": "黑体"}
-CHINESE_DOCX_STYLES = {
-    "标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
-    "副标题": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
-    "标题 1": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "小三", "bold": False},
-    "标题 2": {"fontFamily": CHINESE_HEADING_FONT, "fontSize": "四号", "bold": False},
-    "标题 3": {"fontFamily": CHINESE_HEADING_FONT, "bold": False},
-    "题注": {"fontSize": "五号", "bold": False},
-}
-
-# English style names map to the same manuscript defaults used by the
-# reference DOCX and the generated HTML CSS.
-ENGLISH_DOCX_STYLES = {
-    "Heading 1": {"fontSize": "小四"},
-    "Heading 2": {"fontSize": "小四"},
-    "Body Text": {
-        "firstLineIndentChars": 2,
-        "paragraphSpacing": {"before": "0pt", "after": "0pt"},
-    },
-}
+def _bundled_style_mapping(chinese: bool) -> dict[str, Any]:
+    """Read one packaged style YAML as a validated top-level mapping."""
+    raw = yaml.safe_load(bundled_style_path(chinese).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("Bundled style defaults must be a YAML mapping")
+    return raw
 
 
 def default_pandoc_metadata() -> dict[str, Any]:
-    """Return an independent copy of Papper's built-in Pandoc metadata defaults."""
-    return dict(DEFAULT_PANDOC_METADATA)
+    """Return an independent copy of the packaged English Pandoc defaults."""
+    return deepcopy(_bundled_style_mapping(False).get("pandocMetadata", {}))
+
+
+def build_default_pandoc_metadata(
+    language: object = None,
+    *,
+    csl_resolver: Callable[[str], str] | None = None,
+) -> dict[str, Any]:
+    """Return packaged language defaults and optionally resolve their CSL path."""
+    defaults = deepcopy(_bundled_style_mapping(is_chinese_language(language)).get("pandocMetadata", {}))
+    if csl_resolver is not None and defaults.get("csl"):
+        defaults["csl"] = csl_resolver(defaults["csl"])
+    return defaults
 
 
 def is_chinese_language(language: object) -> bool:
@@ -112,6 +82,12 @@ def is_chinese_language(language: object) -> bool:
     return normalized in {"zh", "zhcn", "zh-hans", "zhhans"} or normalized.startswith("zh-")
 
 
+DEFAULT_PANDOC_METADATA = default_pandoc_metadata()
+DEFAULT_PANDOC_METADATA_ZHCN = build_default_pandoc_metadata("zh-Hans")
+ENGLISH_DOCX_STYLES = deepcopy(_bundled_style_mapping(False).get("docxStyle", {}))
+CHINESE_DOCX_STYLES = deepcopy(_bundled_style_mapping(True).get("docxStyle", {}))
+
+
 def normalize_pandoc_language(language: object) -> object:
     """Map Simplified Chinese aliases to Pandoc-crossref's shipped tag."""
     if not isinstance(language, str):
@@ -120,20 +96,6 @@ def normalize_pandoc_language(language: object) -> object:
     if normalized in {"zh-cn", "zhcn", "zh-hans", "zhhans"}:
         return "zh-Hans"
     return language
-
-
-def build_default_pandoc_metadata(
-    language: object = None,
-    *,
-    csl_resolver: Callable[[str], str] | None = None,
-) -> dict[str, Any]:
-    """Build language-aware Pandoc defaults and resolve the bundled CSL path."""
-    defaults = default_pandoc_metadata()
-    if is_chinese_language(language):
-        defaults = merge_metadata(defaults, DEFAULT_PANDOC_METADATA_ZHCN)
-    if csl_resolver is not None:
-        defaults["csl"] = csl_resolver(defaults["csl"])
-    return defaults
 
 
 PMT_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
@@ -586,18 +548,10 @@ def load_effective_metadata(
     lang_override: str | None = None,
     csl_resolver: Callable[[str], str] | None = None,
 ) -> EffectiveMetadata:
-    """Select language defaults, then overlay style and manuscript metadata."""
+    """Select bundled YAML defaults, then overlay project and manuscript metadata."""
     style = Path(style_path) if style_path is not None else None
     style_exists = style is not None and style.exists()
-    # Keep only values explicitly supplied by style.yml here. Language-aware
-    # defaults are selected below after the manuscript language is known.
-    settings = (
-        PmtSettings.load(style)
-        if style_exists
-        else PmtSettings.model_validate({})
-    )
-    if reply:
-        settings = settings.for_reply(style or "style.yml")
+    project_settings = PmtSettings.load(style) if style_exists else None
     try:
         manuscript_metadata = parse_yaml_header(manuscript_path)
         has_header = True
@@ -613,28 +567,39 @@ def load_effective_metadata(
             f"[WARN] Ignoring deprecated manuscript metadata `citation-number-range-delimiter` in {manuscript_path}. "
             "Configure top-level style.yml `citationNumberRangeDelimiter` instead."
         )
-    style_metadata = dict(settings.pandoc_metadata)
-    explicit_metadata = merge_metadata(style_metadata, manuscript_metadata)
+    project_pandoc_metadata = dict(project_settings.pandoc_metadata) if project_settings else {}
+    metadata_overrides = merge_metadata(project_pandoc_metadata, manuscript_metadata)
     # An empty CSL is not an override; preserve the previous fallback behavior.
-    if not explicit_metadata.get("csl"):
-        explicit_metadata.pop("csl", None)
-    selected_language = lang_override if lang_override is not None else explicit_metadata.get("lang")
+    if not metadata_overrides.get("csl"):
+        metadata_overrides.pop("csl", None)
+        project_pandoc_metadata.pop("csl", None)
+    selected_language = lang_override if lang_override is not None else metadata_overrides.get("lang")
     if lang_override is not None:
         normalized_override = lang_override.strip().replace("_", "-").casefold()
         if normalized_override not in {"zh-cn", "zhcn"}:
             raise ValueError("Only `--lang zh-cn` and `--lang zhcn` are currently supported for builds.")
-    pandoc_metadata = merge_metadata(
-        build_default_pandoc_metadata(selected_language, csl_resolver=csl_resolver),
-        explicit_metadata,
-    )
+    defaults = PmtSettings.load(bundled_style_path(is_chinese_language(selected_language)))
+    settings_mapping = defaults.to_mapping(exclude_unset=True)
+    pandoc_defaults = dict(defaults.pandoc_metadata)
+    bundled_csl = pandoc_defaults.get("csl")
+    if project_settings is not None:
+        settings_mapping = merge_metadata(settings_mapping, project_settings.to_mapping(exclude_unset=True))
+        pandoc_defaults = merge_metadata(pandoc_defaults, project_pandoc_metadata)
+    if reply:
+        # Reply overrides follow the project's base settings, even when the
+        # project style is missing and the bundled reply defaults apply alone.
+        for source in (defaults, project_settings):
+            if source is not None and source.reply is not None:
+                settings_mapping = merge_metadata(settings_mapping, source.reply.pmt_overrides)
+                pandoc_defaults = merge_metadata(pandoc_defaults, source.reply.pandoc_metadata)
+    settings = PmtSettings.model_validate(settings_mapping)
+    pandoc_metadata = merge_metadata(pandoc_defaults, metadata_overrides)
+    if csl_resolver is not None and bundled_csl and pandoc_metadata.get("csl") == bundled_csl:
+        # Initialized projects copy the bundled YAML, including its relative CSL.
+        pandoc_metadata["csl"] = csl_resolver(bundled_csl)
     if lang_override is not None or is_chinese_language(selected_language):
         # Pandoc-crossref ships zh-Hans rather than the common zh-CN alias.
         pandoc_metadata["lang"] = normalize_pandoc_language(selected_language)
-    # Apply language-appropriate defaults at the shared boundary so DOCX and
-    # HTML see the same effective style settings. Explicit style.yml values
-    # always take priority over these defaults.
-    default_docx_styles = CHINESE_DOCX_STYLES if is_chinese_language(selected_language) else ENGLISH_DOCX_STYLES
-    settings.docx_style = merge_metadata(default_docx_styles, settings.docx_style or {})
     return EffectiveMetadata(
         pmt_settings=settings,
         pandoc_metadata=pandoc_metadata,

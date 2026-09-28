@@ -179,6 +179,10 @@ manuscript YAML in that order. Explicit values for captions, cross-reference
 prefixes, bibliography titles, and `csl` therefore take priority over the
 language defaults. For DOCX, `--lang zh-cn` selects Chinese defaults for that
 build even when the manuscript declares another language.
+The bundled `template/style.yml` and `template/style-cn.yml` provide the
+English and Chinese build defaults. `papper init` creates a small project
+`style.yml` for overrides; values omitted there come from the YAML selected
+for the build language.
 Chinese DOCX and HTML builds render section headings and section references
 with dotted numbers such as `3.1`, while figures, tables, and equations retain
 chapter numbers such as `3-1`. The JSON AST carries the resolved reference

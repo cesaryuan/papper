@@ -306,6 +306,50 @@ def _style_key(name: str) -> str:
     return "".join(name.casefold().split())
 
 
+def _style_alias_keys(name: str) -> tuple[str, ...]:
+    """Return normalized English and Chinese aliases for one built-in style."""
+    key = _style_key(name)
+    aliases = {key}
+    fixed_aliases = {
+        "title": "标题",
+        "标题": "title",
+        "subtitle": "副标题",
+        "副标题": "subtitle",
+        "bodytext": "正文文本",
+        "正文文本": "bodytext",
+        "normal": "正文",
+        "正文": "normal",
+        "caption": "题注",
+        "题注": "caption",
+        "tablecaption": "表格题注",
+        "表格题注": "tablecaption",
+        "imagecaption": "图片题注",
+        "图片题注": "imagecaption",
+        "tabletext": "表格文字",
+        "表格文字": "tabletext",
+        "table": "表格",
+        "表格": "table",
+        "firstparagraph": "首段",
+        "首段": "firstparagraph",
+    }
+    if key in fixed_aliases:
+        aliases.add(fixed_aliases[key])
+    for level in range(1, 10):
+        if key in {f"heading{level}", f"标题{level}"}:
+            aliases.update({f"heading{level}", f"标题{level}"})
+    return tuple(aliases)
+
+
+def _find_style(styles: dict[str, _StyleSpec], name: str) -> _StyleSpec | None:
+    """Find a reference style by either its English or Chinese built-in name."""
+    normalized = {_style_key(key): value for key, value in styles.items()}
+    for alias in _style_alias_keys(name):
+        style = normalized.get(alias)
+        if style is not None:
+            return style
+    return None
+
+
 def _point_value(value: object) -> float | None:
     """Read points from python-docx length values used by normalized settings."""
     if value is None:
@@ -401,7 +445,7 @@ def build_reference_style_css(styles_path: str | Path, settings: PmtSettings) ->
         ("table td, table th, table td p, table th p", "table text", "Table Text"),
     ]
     rules: list[str] = []
-    body_style = styles.get("body text", _StyleSpec())
+    body_style = _find_style(styles, "Body Text") or _StyleSpec()
     rules.append(
         _style_css(
             ".pmt-page",
@@ -411,15 +455,15 @@ def build_reference_style_css(styles_path: str | Path, settings: PmtSettings) ->
         )
     )
     for selector, key, label in mappings:
-        style = styles.get(key)
+        style = _find_style(styles, key)
         if style is not None:
             if key == "table text":
                 rules.append(_style_css("table td, table th", style, label=label, include_paragraph_metrics=False))
                 rules.append(_style_css("table td p, table th p", style, label=f"{label} paragraphs"))
-                rules.append(_table_cell_padding_css(styles.get("table"), style, label=label))
+                rules.append(_table_cell_padding_css(_find_style(styles, "Table"), style, label=label))
             else:
                 rules.append(_style_css(selector, style, label=label))
-    rules.extend(_override_css(settings, styles.get("table")))
+    rules.extend(_override_css(settings, _find_style(styles, "Table")))
     return "\n\n".join(rules)
 
 

@@ -9,6 +9,7 @@ from pandoc_manuscript import cli
 from pandoc_manuscript.commands import init as init_command
 from pandoc_manuscript.cli import InitSettings
 from pandoc_manuscript.commands.setup import ResolvedTool
+from pandoc_manuscript.runtime.metadata import load_effective_metadata
 
 
 def test_init_copies_packaged_agents_directory(tmp_path) -> None:
@@ -55,6 +56,19 @@ def test_init_cli_accepts_lang_zh_cn(tmp_path, monkeypatch) -> None:
 
     assert cli.main(["init", str(target), "--lang", "zh-cn"]) == 0
     assert "# 引言" in (target / "manuscript.md").read_text(encoding="utf-8")
+
+
+def test_init_project_style_does_not_override_language_defaults(tmp_path) -> None:
+    """Keep an initialized project's style file from pinning English defaults."""
+    target = tmp_path / "paper"
+    InitSettings(directory=str(target)).run()
+    manuscript = target / "manuscript.md"
+    manuscript.write_text("---\nlang: zh-CN\n---\n正文\n", encoding="utf-8")
+
+    effective = load_effective_metadata(manuscript, target / "style.yml")
+
+    assert effective.pandoc_metadata["figureTitle"] == "图"
+    assert effective.pmt_settings.docx_style["标题 2"]["fontSize"] == "小四"
 
 
 def test_init_rejects_unsupported_language(tmp_path) -> None:

@@ -104,7 +104,7 @@ def test_chinese_docx_build_numbers_figures_tables_and_formats_headings(
     assert "参考文献" in text
     assert all(section._sectPr.find(qn("w:lnNumType")) is None for section in doc.sections)
     assert doc.styles["Heading 1"].font.size.pt == 15
-    assert doc.styles["Heading 2"].font.size.pt == 14
+    assert doc.styles["Heading 2"].font.size.pt == 12
     for name in ("Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3"):
         style = doc.styles[name]
         assert style.font.bold is False, name
