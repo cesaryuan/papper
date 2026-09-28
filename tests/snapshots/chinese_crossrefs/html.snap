@@ -355,7 +355,27 @@
     .katex {
       font-size: inherit !important;
     }
-  </style>
+    /* CSS for citations */
+    div.csl-bib-body { }
+    div.csl-entry {
+      clear: both;
+      margin-bottom: 0em;
+    }
+    .hanging-indent div.csl-entry {
+      margin-left:2em;
+      text-indent:-2em;
+    }
+    div.csl-left-margin {
+      min-width:2em;
+      float:left;
+    }
+    div.csl-right-inline {
+      margin-left:2em;
+      padding-left:1em;
+    }
+    div.csl-indent {
+      margin-left: 2em;
+    }  </style>
   <style>
   .pmt-page {
     /* Body Text inherited from reference-doc/word/styles.xml */
@@ -603,6 +623,7 @@
 <h1 id="sec:第三章">3 第三章</h1>
 <h2 id="sec:section">3.1 第一节</h2>
 <p>参见节 <a href="#sec:section">3.1</a>、图 <a href="#fig:sample">3-1</a>、表 <a href="#tbl:sample">3-1</a>和式 <a href="#eq:sample">3-1</a>。</p>
+<p>已有研究讨论了桥梁健康监测中的数字孪生方法<span class="citation" data-cites="zhang2024 li2023"><sup>[<a href="#ref-zhang2024" role="doc-biblioref">1</a>,<a href="#ref-li2023" role="doc-biblioref">2</a>]</sup></span>。</p>
 <figure id="fig:sample">
 <img src="figure.svg" alt="图 3-1 测试图">
 <figcaption aria-hidden="true">图 3-1 测试图</figcaption>
@@ -626,6 +647,19 @@
 <p><span id="eq:sample"><span class="math display">
 E = mc^2
 \tag{3-1}</span></span></p>
+</div>
+<h1 class="unnumbered" id="bibliography">参考文献</h1>
+<div id="refs" class="references csl-bib-body" data-entry-spacing="0" role="list">
+<div id="ref-zhang2024" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[1] </div>
+<div class="csl-right-inline">张伟，王芳. 桥梁健康监测数字孪生方法研究[J].
+土木工程学报，2024，57（3）：12-20.</div>
+</div>
+<div id="ref-li2023" class="csl-entry" role="listitem">
+<div class="csl-left-margin">[2] </div>
+<div class="csl-right-inline">李强. 面向结构状态评估的多源数据融合方法[J].
+工程力学，2023，40（8）：101-109.</div>
+</div>
 </div>
 </main>
 </body>
