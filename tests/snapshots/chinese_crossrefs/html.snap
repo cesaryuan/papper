@@ -602,7 +602,7 @@
 <h1 id="sec:第二章">2 第二章</h1>
 <h1 id="sec:第三章">3 第三章</h1>
 <h2 id="sec:section">3.1 第一节</h2>
-<p>参见 节 <a href="#sec:section">3.1</a>、图 <a href="#fig:sample">3-1</a>、表 <a href="#tbl:sample">3-1</a> 和 式 <a href="#eq:sample">3-1</a>。</p>
+<p>参见节 <a href="#sec:section">3.1</a>、图 <a href="#fig:sample">3-1</a>、表 <a href="#tbl:sample">3-1</a>和式 <a href="#eq:sample">3-1</a>。</p>
 <figure id="fig:sample">
 <img src="figure.svg" alt="图 3-1 测试图">
 <figcaption aria-hidden="true">图 3-1 测试图</figcaption>

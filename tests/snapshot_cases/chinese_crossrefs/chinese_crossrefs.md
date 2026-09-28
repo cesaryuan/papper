@@ -11,7 +11,7 @@ title: 中文章节引用
 
 ## 第一节 {#sec:section}
 
-参见 [@sec:section]、[@fig:sample]、[@tbl:sample] 和 [@eq:sample]。
+参见[@sec:section]、[@fig:sample]、[@tbl:sample]和[@eq:sample]。
 
 ![测试图](figure.svg){#fig:sample}
 
