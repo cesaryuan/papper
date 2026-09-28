@@ -17,6 +17,10 @@ CASES = {
     "template": (ROOT / "template", "manuscript.md"),
     "references": (ROOT / "tests" / "snapshot_cases" / "references", "references.md"),
     "crossrefs": (ROOT / "tests" / "snapshot_cases" / "crossrefs", "crossrefs.md"),
+    "chinese_crossrefs": (
+        ROOT / "tests" / "snapshot_cases" / "chinese_crossrefs",
+        "chinese_crossrefs.md",
+    ),
     "metadata": (ROOT / "tests" / "snapshot_cases" / "metadata", "metadata.md"),
     "style": (ROOT / "tests" / "snapshot_cases" / "style", "style.md"),
 }
@@ -55,8 +59,13 @@ def test_build_output_matches_snapshot(
     tmp_path: Path,
     snapshot_update: bool,
 ) -> None:
-    """Keep each public build target stable for the complete and focused fixtures."""
+    """Keep both public build targets stable for every snapshot fixture."""
     case_dir, markdown = CASES[case_name]
+    if case_name == "chinese_crossrefs":
+        # This fixture was built from a copy to keep generated files out of its source.
+        copied_case_dir = tmp_path / case_name
+        shutil.copytree(case_dir, copied_case_dir)
+        case_dir = copied_case_dir
     output = tmp_path / f"{case_name}.{target}"
     build_case(case_dir, markdown, target, output)
     actual = (
@@ -65,15 +74,4 @@ def test_build_output_matches_snapshot(
         else canonical_docx(output, repository_root=ROOT)
     )
     snapshot_path = SNAPSHOT_ROOT / case_name / f"{target}.snap"
-    assert_snapshot(actual, snapshot_path, update=snapshot_update)
-
-
-def test_chinese_crossref_docx_matches_snapshot(tmp_path: Path, snapshot_update: bool) -> None:
-    """Capture dotted Chinese section references alongside chapter-numbered content."""
-    case_dir = tmp_path / "chinese_crossrefs"
-    shutil.copytree(ROOT / "tests" / "snapshot_cases" / "chinese_crossrefs", case_dir)
-    output = tmp_path / "chinese_crossrefs.docx"
-    build_case(case_dir, "chinese_crossrefs.md", "docx", output)
-    actual = canonical_docx(output, repository_root=ROOT)
-    snapshot_path = SNAPSHOT_ROOT / "chinese_crossrefs" / "docx.snap"
     assert_snapshot(actual, snapshot_path, update=snapshot_update)
