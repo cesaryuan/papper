@@ -14,14 +14,14 @@ from pydantic_settings import (
 )
 
 from ..runtime.resources import iter_project_template_entries, project_template_root
-from ..runtime.paths import PMT_DIR
 from .setup import setup_pandoc_tools
 from .common import VerboseCommandSettings, log, project_directory
 
 
 IGNORE_NAMES = {
     ".git",
-    PMT_DIR.name,
+    ".papper",
+    ".pmt",
     ".pandoc-cache",
     ".venv",
     "__pycache__",
@@ -125,7 +125,7 @@ class InitSettings(VerboseCommandSettings):
         default=False,
         description="Merge packaged agent guidance into existing AGENTS.md and .agents entries.",
     )
-    setup: bool = Field(default=False, description="Download project-local Pandoc tools after init.")
+    setup: bool = Field(default=False, description="Download user-scoped Pandoc tools after init.")
     lang: str | None = Field(
         default=None,
         description="Template language. Use zh-cn for Chinese manuscript and reviewer-reply templates.",

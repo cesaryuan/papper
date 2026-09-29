@@ -15,12 +15,23 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from ..runtime.logging import log_info, log_warning
-from ..runtime.paths import PMT_DIR
+from ..runtime.paths import project_state_dir
 
 
-SERVER_STATE_FILE = PMT_DIR / "pandoc-server.json"
-SERVER_LOG_FILE = PMT_DIR / "pandoc-server.log"
-SERVER_CONFIG_FILE = PMT_DIR / "pandoc-server-config.json"
+
+def server_state_file() -> Path:
+    """Return the current project's persisted server connection details."""
+    return project_state_dir() / "pandoc-server.json"
+
+
+def server_log_file() -> Path:
+    """Return the current project's server log path."""
+    return project_state_dir() / "pandoc-server.log"
+
+
+def server_config_file() -> Path:
+    """Return the current project's server configuration path."""
+    return project_state_dir() / "pandoc-server-config.json"
 DEFAULT_SERVER_HOST = "127.0.0.1"
 DEFAULT_SERVER_PORT = 3030
 
@@ -46,7 +57,7 @@ class PandocServerInfo:
 def _read_state() -> PandocServerInfo | None:
     """Read a valid server state file, discarding malformed stale state."""
     try:
-        raw = json.loads(SERVER_STATE_FILE.read_text(encoding="utf-8"))
+        raw = json.loads(server_state_file().read_text(encoding="utf-8"))
         return PandocServerInfo(
             host=str(raw["host"]),
             port=int(raw["port"]),
@@ -62,10 +73,11 @@ def _read_state() -> PandocServerInfo | None:
 
 def _write_state(info: PandocServerInfo) -> None:
     """Write server state atomically enough for a single local project."""
-    PMT_DIR.mkdir(parents=True, exist_ok=True)
-    temporary = SERVER_STATE_FILE.with_suffix(".tmp")
+    target = server_state_file()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(".tmp")
     temporary.write_text(json.dumps(asdict(info), indent=2), encoding="utf-8")
-    temporary.replace(SERVER_STATE_FILE)
+    temporary.replace(target)
 
 
 def _pid_is_running(pid: int) -> bool:
@@ -112,8 +124,9 @@ def write_pmt_server_config(
     resource_paths: list[Path] | None = None,
 ) -> Path:
     """Write the project-bound conversion settings consumed by the PMT server."""
-    PMT_DIR.mkdir(parents=True, exist_ok=True)
-    temporary = SERVER_CONFIG_FILE.with_suffix(".tmp")
+    target = server_config_file()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(".tmp")
     temporary.write_text(
         json.dumps(
             {
@@ -128,8 +141,8 @@ def write_pmt_server_config(
         ),
         encoding="utf-8",
     )
-    temporary.replace(SERVER_CONFIG_FILE)
-    return SERVER_CONFIG_FILE
+    temporary.replace(target)
+    return target
 
 
 def _resolve_command(command: str | None, config_path: Path | None) -> tuple[list[str], bool]:
@@ -181,21 +194,21 @@ def ensure_pandoc_server(
             log_info(f"[Pandoc server] Reusing {existing.base_url} (pid {existing.pid})")
             return existing
         if not _pid_is_running(existing.pid):
-            SERVER_STATE_FILE.unlink(missing_ok=True)
+            server_state_file().unlink(missing_ok=True)
         else:
             log_warning(
                 f"[WARN] Pandoc server state exists at {existing.base_url}, but /version did not respond."
             )
     elif existing and existing.host == host and existing.port == port and not config_matches:
         _stop_pid(existing.pid)
-        SERVER_STATE_FILE.unlink(missing_ok=True)
+        server_state_file().unlink(missing_ok=True)
 
     command_parts, is_pmt_runtime = _resolve_command(command, config_path)
     full_command = [*command_parts, "--port", str(port)]
     if is_pmt_runtime:
         full_command.extend(["--host", host])
-    PMT_DIR.mkdir(parents=True, exist_ok=True)
-    log_handle = SERVER_LOG_FILE.open("a", encoding="utf-8")
+    server_log_file().parent.mkdir(parents=True, exist_ok=True)
+    log_handle = server_log_file().open("a", encoding="utf-8")
     creationflags = 0
     if os.name == "nt":
         creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
@@ -237,7 +250,7 @@ def ensure_pandoc_server(
         process.terminate()
     raise RuntimeError(
         f"Pandoc server did not become ready at http://{host}:{port}. "
-        f"See {SERVER_LOG_FILE} for its output."
+        f"See {server_log_file()} for its output."
     )
 
 

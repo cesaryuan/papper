@@ -3,9 +3,9 @@
 from . import line_source, output, resolve, settings
 from .command import checked_markdown_path, run_build_reply_command
 from .line_source import (
-    LINE_SOURCE_CACHE_DIR,
-    LINE_SOURCE_DOCX_DIR,
-    LINE_SOURCE_PDF_DIR,
+    line_source_cache_dir,
+    line_source_docx_dir,
+    line_source_pdf_dir,
     build_markdown_line_source_docx,
     build_pdf_search_text,
     docx_line_source_pdf_cache_key,
@@ -24,7 +24,6 @@ from .line_source import (
     word_com_registration_status,
 )
 from .output import (
-    REPLY_PROBE_DIR,
     build_reply_docx,
     build_reply_txt,
     reply_output_format,
@@ -47,6 +46,7 @@ from .resolve import (
     resolve_citation_map,
     resolve_reference_map,
     resolve_reply_markdown,
+    reply_probe_dir,
     write_reply_style_metadata_file,
 )
 from .settings import (
@@ -71,10 +71,10 @@ __all__ = [
     "DEFAULT_REPLY_MANUSCRIPT_FILE",
     "DEFAULT_REPLY_OUTPUT_FILE",
     "DEFAULT_STYLE_FILE",
-    "LINE_SOURCE_CACHE_DIR",
-    "LINE_SOURCE_DOCX_DIR",
-    "LINE_SOURCE_PDF_DIR",
-    "REPLY_PROBE_DIR",
+    "line_source_cache_dir",
+    "line_source_docx_dir",
+    "line_source_pdf_dir",
+    "reply_probe_dir",
     "build_markdown_line_source_docx",
     "build_pdf_search_text",
     "build_reply_docx",

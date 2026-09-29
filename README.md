@@ -38,7 +38,7 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 - **One-command project bootstrap**: `papper init` creates a reusable paper workspace with manuscript files, style metadata, references, and agent guidance.
 - **Submission-oriented post-processing**: Papper applies format-specific cleanup and formatting after Pandoc runs.
 - **Reviewer reply support**: build response letters as DOCX or TXT, while resolving manuscript references and citations.
-- **Managed Pandoc tools**: if `pandoc` or `pandoc-crossref` are missing, Papper can install project-local copies under `.pmt/tools`.
+- **Managed Pandoc tools**: if `pandoc` or `pandoc-crossref` are missing, Papper can install user-scoped copies under `~/.papper/tools`.
 - **Optional HTML, LaTeX, and JSON output**: keep a Markdown-centered workflow without giving up other export targets.
 
 ## What You Get
@@ -64,12 +64,21 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 Install these tools first:
 
 1. `uv` for running the CLI and Python environment
-2. `pandoc` 3.0+ and `pandoc-crossref`
+2. `pandoc` 3.11+ and `pandoc-crossref`
 3. For line-number source workflows, Windows requires Microsoft Word; other platforms can use `soffice`.
 4. Optional: MathType on Windows only if you select `rust-sdk`, `set-data`, `auto`, or `both`; the default `rust` path is self-contained
 
-Papper requires Pandoc 3.8 or newer. Older or unusable `pandoc` executables on `PATH`
-are ignored; Papper downloads a managed project-local copy into `.pmt/tools` instead.
+Papper requires Pandoc 3.11 or newer. Older or unusable `pandoc` executables on `PATH`
+are ignored; Papper automatically runs the managed setup and downloads a shared copy into
+`~/.papper/tools` instead. The same copy is reused by every Papper project for this user.
+Reusable caches and persistent build state live under
+`~/.papper/projects/<project-id>/cache` and `~/.papper/projects/<project-id>/work`.
+The project ID is derived from its absolute directory, so projects cannot overwrite
+each other's state. One-build intermediates such as MathType OLE/WMF previews and
+line-source conversion files use the system temporary directory and are removed
+when the Papper process exits. `papper clean` clears the current project's work;
+`papper distclean` also clears its cache. Existing project-local `.pmt` or `.papper`
+directories are not migrated or deleted automatically.
 Missing or unusable `pandoc-crossref` executables are also installed automatically.
 Downloads and executable installation use temporary files followed by atomic
 replacement, so an interrupted build can be rerun. Invalid cached archives are
@@ -269,7 +278,8 @@ The command checks `http://127.0.0.1:3030/version`, reuses a responsive PMT
 server, or starts the working-directory-bound PMT runtime. An explicit generic server can
 still be selected with `PMT_PANDOC_SERVER_COMMAND`. The endpoint is printed in the build log and
 supports the official `/`, `/batch`, and `/version` API. State is recorded in
-`.pmt/pandoc-server.json` and output in `.pmt/pandoc-server.log`.
+`~/.papper/projects/<project-id>/pandoc-server.json` and output in the sibling
+`pandoc-server.log`.
 
 The server is an integration service for repeated Markdown conversions. It
 loads the current project's PMT defaults and metadata, and uses the same
@@ -289,7 +299,7 @@ available, build it into the project-managed tool directory with:
 
 ```powershell
 Push-Location .\scripts\pandoc-server
-cabal install . --installdir ..\..\.pmt\tools\bin --overwrite-policy=always
+cabal install . --installdir "$HOME\.papper\tools\bin" --overwrite-policy=always
 Pop-Location
 ```
 

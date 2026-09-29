@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 from ..runtime.logging import log_info
-from ..runtime.paths import PMT_MATHTYPE_WORK_DIR
+from ..runtime.paths import process_temp_dir
 
 from .docx_ole import replace_omml_with_template
 
@@ -22,7 +22,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", default="output/docx/manuscript.docx", help="DOCX containing OMML")
     parser.add_argument("--sample", default="mathtype.docx", help="DOCX containing one MathType OLE object")
-    parser.add_argument("--target", default=str(PMT_MATHTYPE_WORK_DIR / "lowlevel-probe.docx"), help="Output probe DOCX")
+    parser.add_argument("--target", default=str(process_temp_dir() / "mathtype-build" / "lowlevel-probe.docx"), help="Output probe DOCX")
     parser.add_argument("--limit", type=int, default=1, help="Number of top-level OMML nodes to replace")
     parser.add_argument("--copy-only", action="store_true", help="Only copy the source DOCX")
     args = parser.parse_args()

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import atexit
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -30,6 +32,18 @@ class CustomBuildHook(BuildHookInterface):
 
         root = Path(self.root)
         force_include = build_data.setdefault("force_include", {})
+        # A forced template directory bypasses Hatchling's normal excludes.
+        # Stage only authored files so old project caches never enter the wheel.
+        template_stage = Path(tempfile.mkdtemp(prefix="papper-wheel-template-"))
+        atexit.register(shutil.rmtree, template_stage, ignore_errors=True)
+        shutil.copytree(
+            root / "template",
+            template_stage / "template",
+            ignore=shutil.ignore_patterns(".pmt", ".papper", ".pandoc-cache", "output", "tmp", "__pycache__", "*.pyc"),
+        )
+        force_include.pop("template", None)
+        force_include.pop(str(root / "template"), None)
+        force_include[str(template_stage / "template")] = "pandoc_manuscript/_template"
         if os.name == "nt":
             helper = self.build_mathtype_ole_helper(root)
             force_include[str(helper)] = "pandoc_manuscript/mathtype/ole_helper/bin/Release/net48/MathTypeOleHelper.exe"

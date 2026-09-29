@@ -38,7 +38,7 @@ class DummyDoc:
 
     pmt_svg_embed_images = True
     pmt_svg_embed_base_dirs: list[Path] = []
-    pmt_svg_embed_output_root = Path(".pmt/cache/svg-embedded")
+    pmt_svg_embed_output_root = Path(".papper/cache/svg-embedded")
     pmt_svg_embed_pmt_version = "test"
 
 
@@ -73,7 +73,7 @@ def test_svg_child_image_is_embedded_as_data_uri(tmp_path, monkeypatch) -> None:
 
     doc = DummyDoc()
     doc.pmt_svg_embed_base_dirs = [tmp_path]
-    doc.pmt_svg_embed_output_root = tmp_path / ".pmt/cache/svg-embedded"
+    doc.pmt_svg_embed_output_root = tmp_path / ".papper/cache/svg-embedded"
     elem = image("figures/layout.svg")
 
     result = svg_filter.action(elem, doc)
@@ -99,7 +99,7 @@ def test_svg_child_image_requests_png_fallback(tmp_path, monkeypatch) -> None:
 
     doc = DummyDoc()
     doc.pmt_svg_embed_base_dirs = [tmp_path]
-    doc.pmt_svg_embed_output_root = tmp_path / ".pmt/cache/svg-embedded"
+    doc.pmt_svg_embed_output_root = tmp_path / ".papper/cache/svg-embedded"
     elem = image("figures/layout.svg")
 
     result = svg_filter.action(elem, doc)
@@ -114,7 +114,7 @@ def test_svg_child_image_requests_png_fallback(tmp_path, monkeypatch) -> None:
         (),
         {
             "pmt_svg_base_dirs": [tmp_path],
-            "pmt_svg_output_root": tmp_path / ".pmt/cache/svg-png",
+            "pmt_svg_output_root": tmp_path / ".papper/cache/svg-png",
             "pmt_svg_dpi": 300,
             "pmt_svg_scale": 1,
             "pmt_svg_width": None,
@@ -144,7 +144,7 @@ def test_svg_without_local_child_images_is_left_unchanged(tmp_path) -> None:
     result = svg_filter.rewrite_image(
         elem,
         [tmp_path],
-        tmp_path / ".pmt/cache/svg-embedded",
+        tmp_path / ".papper/cache/svg-embedded",
         "test",
     )
 
@@ -181,7 +181,7 @@ def test_cache_metadata_tracks_child_image_changes(tmp_path) -> None:
     source_svg = figures / "layout.svg"
     write_svg(source_svg, "panel.png")
     elem = image("figures/layout.svg")
-    output_root = tmp_path / ".pmt/cache/svg-embedded"
+    output_root = tmp_path / ".papper/cache/svg-embedded"
 
     svg_filter.rewrite_image(elem, [tmp_path], output_root, "test")
     metadata_path = Path(elem.url).with_suffix(".svg.meta.json")

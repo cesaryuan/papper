@@ -11,7 +11,7 @@ from pathlib import Path
 from collections.abc import Sequence
 from ...runtime.logging import log_info, log_success, log_warning, log_debug
 from ...runtime.metadata import PmtSettings
-from ...runtime.paths import PMT_MATHTYPE_WORK_DIR, PMT_REPLY_PROBE_DIR, PMT_REPLY_WORK_DIR
+from ...runtime.paths import process_temp_dir
 from ...runtime.resources import template_root
 from ...mathtype.convert_marked_docx import convert_marked_docx
 from ...mathtype.marked_docx import extract_marked_equation_requests
@@ -35,9 +35,6 @@ from .settings import (
 )
 
 
-REPLY_PROBE_DIR = PMT_REPLY_PROBE_DIR
-
-
 def resolve_mathtype_enabled(requested: bool, conversion_method: object | None = None) -> bool:
     """Return whether MathType conversion should run for this reply build."""
     if not requested:
@@ -59,7 +56,7 @@ def resolve_mathtype_enabled(requested: bool, conversion_method: object | None =
 
 def mathtype_marked_docx_path(output: Path) -> Path:
     """Return the intermediate reply DOCX path carrying hidden LaTeX markers."""
-    work_dir = PMT_MATHTYPE_WORK_DIR / "reply"
+    work_dir = process_temp_dir() / "mathtype-build" / "reply"
     work_dir.mkdir(parents=True, exist_ok=True)
     return work_dir / f"{output.stem}.marked.docx"
 
@@ -115,7 +112,7 @@ def run_mathtype_conversion(marked_docx: Path, target_docx: Path, pmt_settings: 
     convert_marked_docx(
         source=marked_docx,
         target=target_docx,
-        work_dir=PMT_MATHTYPE_WORK_DIR / "reply" / target_docx.stem,
+        work_dir=process_temp_dir() / "mathtype-build" / "reply" / target_docx.stem,
         pmt_settings=pmt_settings,
     )
 
@@ -140,8 +137,8 @@ def ensure_output_writable(output: Path) -> None:
 
 def resolved_reply_path(reply: Path) -> Path:
     """Return a temporary reply path outside the source tree's visible files."""
-    REPLY_PROBE_DIR.mkdir(parents=True, exist_ok=True)
-    return REPLY_PROBE_DIR / f"{reply.stem}.{uuid.uuid4().hex}.resolved.md"
+    reply_resolve.reply_probe_dir().mkdir(parents=True, exist_ok=True)
+    return reply_resolve.reply_probe_dir() / f"{reply.stem}.{uuid.uuid4().hex}.resolved.md"
 
 
 def reply_resource_path(reply: Path) -> str:
@@ -173,7 +170,7 @@ def cleanup_resolved_reply_path(path: Path) -> None:
 
 def reply_reference_doc_for_pandoc(reference_doc: Path, output: Path, pmt_settings: PmtSettings) -> Path:
     """Return a reference DOCX with docxPageMargins already applied for Pandoc."""
-    target = PMT_REPLY_WORK_DIR / "reference-doc" / f"{output.stem}.reference.docx"
+    target = process_temp_dir() / "reply" / "reference-doc" / f"{output.stem}.reference.docx"
     result = write_reference_doc_with_page_margins(reference_doc, target, pmt_settings)
     if result is None:
         return reference_doc

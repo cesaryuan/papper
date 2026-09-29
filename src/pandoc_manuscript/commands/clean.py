@@ -10,7 +10,7 @@ from pydantic import AliasChoices, Field
 from pydantic_settings import SettingsConfigDict
 
 from ..runtime.logging import log_error, log_info, log_success, log_warning
-from ..runtime.paths import PMT_DIR, PMT_WORK_DIR
+from ..runtime.paths import project_state_dir, project_work_dir
 from .build import DEFAULT_OUTPUT_DIR
 from .common import VerboseCommandSettings
 
@@ -45,9 +45,10 @@ def clean(output_dir: str | Path = DEFAULT_OUTPUT_DIR) -> None:
         shutil.rmtree(output_path)
         log_info(f"Removed: {output_path}")
 
-    if PMT_WORK_DIR.exists():
-        shutil.rmtree(PMT_WORK_DIR)
-        log_info(f"Removed: {PMT_WORK_DIR}")
+    work_dir = project_work_dir()
+    if work_dir.exists():
+        shutil.rmtree(work_dir)
+        log_info(f"Removed: {work_dir}")
 
     log_success("\n[OK] Clean complete.")
 
@@ -57,7 +58,7 @@ def distclean(output_dir: str | Path = DEFAULT_OUTPUT_DIR) -> None:
     log_info("\n[Clean] Deep cleaning...\n")
     clean(output_dir)
 
-    for cache_dir in (PMT_DIR, Path(".pandoc-cache")):
+    for cache_dir in (project_state_dir(), Path(".pandoc-cache")):
         if cache_dir.exists():
             shutil.rmtree(cache_dir)
             log_info(f"Removed: {cache_dir}")

@@ -19,9 +19,8 @@ from ..runtime.metadata import (
     write_pandoc_metadata,
 )
 from ..runtime.paths import (
-    PMT_MATHTYPE_WORK_DIR,
-    PMT_WORK_DIR,
-    pmt_path,
+    process_temp_dir,
+    project_work_dir,
 )
 from ..runtime.resources import package_resource_path, template_root
 from ..html.build import build_html
@@ -65,7 +64,7 @@ class BuildSettings(BaseSettings):
     output_file: str | None = None
     resource_path: str | None = None
     enable_docx_postprocess: bool = True
-    mathtype_work_dir: str = pmt_path(PMT_MATHTYPE_WORK_DIR)
+    mathtype_work_dir: str = Field(default_factory=lambda: str(process_temp_dir() / "mathtype-build"))
     reference_doc: str | None = None
 
 
@@ -309,7 +308,7 @@ def generated_pandoc_metadata_file(
     """Write only shared Pandoc metadata for a non-DOCX build."""
     return write_pandoc_metadata(
         effective.pandoc_metadata,
-        PMT_WORK_DIR / "metadata" / "pandoc.pandoc.generated.yml",
+        project_work_dir() / "metadata" / "pandoc.pandoc.generated.yml",
     )
 
 
@@ -481,6 +480,9 @@ def run_build_command(
     configure_reference_doc(reference_doc)
 
     configure_manuscript(manuscript_arg or SETTINGS.manuscript_file, derive_project_name=bool(manuscript_arg))
+    if "PMT_MATHTYPE_WORK_DIR" not in os.environ:
+        # The CLI can build more than one project in a long-lived Python process.
+        SETTINGS.mathtype_work_dir = str(process_temp_dir() / "mathtype-build")
 
     try:
         if target == "docx":

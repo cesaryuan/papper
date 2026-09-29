@@ -11,7 +11,7 @@ from ..runtime.metadata import (
     is_chinese_language,
     write_pandoc_metadata,
 )
-from ..runtime.paths import PMT_WORK_DIR
+from ..runtime.paths import project_work_dir
 from .equation_layout import derive_docx_equation_layout, sync_eqn_block_template_with_page_margins
 
 
@@ -43,7 +43,7 @@ def write_docx_pandoc_metadata(
     )
     output = write_pandoc_metadata(
         metadata,
-        PMT_WORK_DIR / "metadata" / "pandoc.docx.generated.yml",
+        project_work_dir() / "metadata" / "pandoc.docx.generated.yml",
     )
     if tab_stops is not None:
         center_tab, right_tab = tab_stops

@@ -26,7 +26,7 @@ class DummyDoc:
     """Provide the filter attributes normally attached by panflute prepare()."""
 
     pmt_svg_base_dirs = [Path.cwd()]
-    pmt_svg_output_root = Path(".pmt/cache/svg-png")
+    pmt_svg_output_root = Path(".papper/cache/svg-png")
     pmt_svg_dpi = 300
     pmt_svg_scale = 1
     pmt_svg_width = None
@@ -48,7 +48,7 @@ def test_to_png_attribute_converts_one_svg(monkeypatch) -> None:
 
     def fake_rewrite(elem: pf.Image, *args: object) -> pf.Image:
         calls.append(elem.url)
-        elem.url = ".pmt/cache/svg-png/figure.png"
+        elem.url = ".papper/cache/svg-png/figure.png"
         return elem
 
     monkeypatch.setattr(svg_filter, "rewrite_image", fake_rewrite)
@@ -58,7 +58,7 @@ def test_to_png_attribute_converts_one_svg(monkeypatch) -> None:
 
     assert result is elem
     assert calls == ["figure.svg"]
-    assert elem.url == ".pmt/cache/svg-png/figure.png"
+    assert elem.url == ".papper/cache/svg-png/figure.png"
     assert "to-png" not in elem.attributes
 
 
@@ -69,7 +69,7 @@ def test_to_png_scale_attribute_overrides_one_svg(monkeypatch) -> None:
 
     def fake_rewrite(elem: pf.Image, *args: object) -> pf.Image:
         calls.append((args[3], args[6]))
-        elem.url = ".pmt/cache/svg-png/figure.scale-2.png"
+        elem.url = ".papper/cache/svg-png/figure.scale-2.png"
         return elem
 
     monkeypatch.setattr(svg_filter, "rewrite_image", fake_rewrite)
@@ -79,7 +79,7 @@ def test_to_png_scale_attribute_overrides_one_svg(monkeypatch) -> None:
 
     assert result is elem
     assert calls == [(2.0, "scale-2")]
-    assert elem.url == ".pmt/cache/svg-png/figure.scale-2.png"
+    assert elem.url == ".papper/cache/svg-png/figure.scale-2.png"
     assert "to-png" not in elem.attributes
     assert "to-png-scale" not in elem.attributes
 
@@ -105,9 +105,9 @@ def test_to_png_scale_attribute_uses_distinct_cache_path(tmp_path, monkeypatch) 
     monkeypatch.setattr(svg_filter, "ensure_png", fake_ensure_png)
 
     elem = image(str(source))
-    svg_filter.rewrite_image(elem, [tmp_path], tmp_path / ".pmt/cache/svg-png", 300, 2, None, "test", "scale-2")
+    svg_filter.rewrite_image(elem, [tmp_path], tmp_path / ".papper/cache/svg-png", 300, 2, None, "test", "scale-2")
 
-    assert targets == [tmp_path / ".pmt/cache/svg-png/figure.scale-2.png"]
+    assert targets == [tmp_path / ".papper/cache/svg-png/figure.scale-2.png"]
     assert elem.url.endswith("figure.scale-2.png")
 
 
@@ -137,7 +137,7 @@ def test_global_switch_still_converts_svg(monkeypatch) -> None:
 
     def fake_rewrite(elem: pf.Image, *args: object) -> pf.Image:
         calls.append(elem.url)
-        elem.url = ".pmt/cache/svg-png/figure.png"
+        elem.url = ".papper/cache/svg-png/figure.png"
         return elem
 
     monkeypatch.setattr(svg_filter, "rewrite_image", fake_rewrite)
@@ -168,7 +168,7 @@ def test_url_encoded_chinese_child_href_is_decoded_before_resvg(tmp_path, monkey
 """,
         encoding="utf-8",
     )
-    target = tmp_path / ".pmt/cache/svg-png/layout.png"
+    target = tmp_path / ".papper/cache/svg-png/layout.png"
     calls: list[dict[str, object]] = []
 
     def fake_svg_to_bytes(**kwargs: object) -> bytes:
@@ -193,7 +193,7 @@ def test_global_width_is_passed_to_resvg(tmp_path, monkeypatch) -> None:
     svg_filter = load_svg_filter()
     source = tmp_path / "figure.svg"
     source.write_text("<svg xmlns='http://www.w3.org/2000/svg'/>\n", encoding="utf-8")
-    target = tmp_path / ".pmt/cache/svg-png/figure.png"
+    target = tmp_path / ".papper/cache/svg-png/figure.png"
     calls: list[dict[str, object]] = []
 
     def fake_svg_to_bytes(**kwargs: object) -> bytes:

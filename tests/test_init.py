@@ -100,8 +100,8 @@ def test_init_setup_runs_after_project_creation(tmp_path, monkeypatch) -> None:
         """Record init --setup without touching the network."""
         calls.append((Path.cwd(), force))
         return (
-            ResolvedTool("pandoc", Path(".pmt/tools/bin/pandoc"), ".pmt/tools"),
-            ResolvedTool("pandoc-crossref", Path(".pmt/tools/bin/pandoc-crossref"), ".pmt/tools"),
+            ResolvedTool("pandoc", Path(".papper/tools/bin/pandoc"), ".papper/tools"),
+            ResolvedTool("pandoc-crossref", Path(".papper/tools/bin/pandoc-crossref"), ".papper/tools"),
         )
 
     monkeypatch.setattr(init_command, "setup_pandoc_tools", fake_setup_pandoc_tools)

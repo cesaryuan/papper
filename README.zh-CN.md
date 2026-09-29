@@ -38,7 +38,7 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 - **一条命令初始化项目**：`papper init` 可以直接生成论文目录结构、稿件、样式元数据、参考文献和 agent 指南。
 - **面向投稿的后处理**：Pandoc 结束后，Papper 还会做 DOCX 侧的格式整理和增强。
 - **支持审稿回复**：`build-reply` 可以生成 DOCX 或 TXT，并自动解析正文中的引用和交叉引用。
-- **自管理 Pandoc 工具链**：如果系统里没有 `pandoc` 或 `pandoc-crossref`，Papper 可以把它们下载到当前项目的 `.pmt/tools`。
+- **自管理 Pandoc 工具链**：如果系统里没有 `pandoc` 或 `pandoc-crossref`，Papper 可以把它们下载到用户目录 `~/.papper/tools`，供所有项目复用。
 - **保留其他输出**：虽然以 DOCX 为核心，但仍然支持 LaTeX 和 JSON 输出。
 
 ## 你能得到什么
@@ -64,11 +64,16 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 建议准备以下工具：
 
 1. `uv`
-2. `pandoc` 3.0+ 和 `pandoc-crossref`
+2. `pandoc` 3.11+ 和 `pandoc-crossref`
 3. 行号来源工作流在 Windows 上需要安装 Microsoft Word；其他平台可以使用 `soffice`
 4. 可选：MathType，用于需要 MathType 公式的 DOCX 输出
 
-如果 `pandoc` 或 `pandoc-crossref` 不在 `PATH` 中，Papper 可以把受管工具下载到项目内的 `.pmt/tools`。
+Papper 要求 `pandoc` 3.11 或更高版本。如果检测到 `PATH` 中的 Pandoc 版本过低或不可用，Papper 会自动启动工具配置流程，并将受管工具下载到 `~/.papper/tools`；同一用户的所有项目都会复用这份安装。
+可复用缓存和持久构建状态分别保存在 `~/.papper/projects/<project-id>/cache` 与
+`~/.papper/projects/<project-id>/work`。项目 ID 由项目绝对路径计算，不同项目不会互相覆盖。
+MathType OLE/WMF 预览图、行号来源转换文件等单次构建中间产物存放在系统临时目录，Papper
+进程退出时清理。`papper clean` 清理当前项目的 work；`papper distclean` 还会清理其缓存。
+原有项目内的 `.pmt` 和 `.papper` 目录不会自动迁移或删除。
 
 ### Python 版本粗检
 
@@ -218,7 +223,7 @@ papper build html --start-server
 启动项目绑定的 PMT runtime。需要使用其他通用 server 时才设置
 `PMT_PANDOC_SERVER_COMMAND`。服务地址会打印到构建日志，支持 `/`、`/batch`、
 `/version` 接口。
-进程状态保存在 `.pmt/pandoc-server.json`，服务输出保存在 `.pmt/pandoc-server.log`。
+进程状态保存在 `~/.papper/projects/<project-id>/pandoc-server.json`，服务输出保存在同目录的 `pandoc-server.log`。
 
 这个服务用于高频 Markdown 转换。它会读取当前项目的 PMT defaults 和 metadata，使用
 与正常 HTML 构建相同的 `pandoc-crossref` 与 Lua filter 链。Papper 自己的首次 HTML
@@ -235,7 +240,7 @@ papper build html --start-server --server-port 3030
 
 ```powershell
 Push-Location .\scripts\pandoc-server
-cabal install . --installdir ..\..\.pmt\tools\bin --overwrite-policy=always
+cabal install . --installdir "$HOME\.papper\tools\bin" --overwrite-policy=always
 Pop-Location
 ```
 

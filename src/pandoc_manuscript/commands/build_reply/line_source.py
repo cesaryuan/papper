@@ -18,15 +18,27 @@ from xml.etree import ElementTree
 from ... import runtime_cache_version
 from ...runtime.logging import log_debug, log_error, log_info, log_warning, should_log
 from ...runtime.paths import (
-    PMT_REPLY_LINE_SOURCE_CACHE_DIR,
-    PMT_REPLY_LINE_SOURCE_DOCX_DIR,
-    PMT_REPLY_LINE_SOURCE_PDF_DIR,
+    process_temp_dir,
+    project_cache_dir,
 )
 
 
-LINE_SOURCE_PDF_DIR = PMT_REPLY_LINE_SOURCE_PDF_DIR
-LINE_SOURCE_DOCX_DIR = PMT_REPLY_LINE_SOURCE_DOCX_DIR
-LINE_SOURCE_CACHE_DIR = PMT_REPLY_LINE_SOURCE_CACHE_DIR
+
+def line_source_pdf_dir() -> Path:
+    """Return this process's temporary PDF conversion directory."""
+    return process_temp_dir() / "reply" / "line-source-pdf"
+
+
+def line_source_docx_dir() -> Path:
+    """Return this process's temporary line-source DOCX directory."""
+    return process_temp_dir() / "reply" / "line-source-docx"
+
+
+def line_source_cache_dir() -> Path:
+    """Return the current project's reusable line-source cache."""
+    return project_cache_dir() / "reply" / "line-source"
+
+
 LINE_REGEX_PATTERN = re.compile(r"\(Line `([^`]+)`\)")
 DOCX_CORE_PROPERTIES_PART = "docProps/core.xml"
 DOCX_VOLATILE_CORE_PROPERTY_TAGS = {
@@ -133,7 +145,7 @@ def ensure_word_for_line_source(line_source: Path) -> None:
 
 def cached_line_source_path(kind: str, key: str, suffix: str) -> Path:
     """Return a persistent line-source cache path for a computed key."""
-    return LINE_SOURCE_CACHE_DIR / kind / f"{key}{suffix}"
+    return line_source_cache_dir() / kind / f"{key}{suffix}"
 
 
 def work_line_source_path(directory: Path, stem: str, key: str, suffix: str) -> Path:
@@ -175,7 +187,7 @@ def prepare_cached_docx_line_source_pdf(source_docx: Path) -> Path:
     """Convert or reuse the cached PDF for a DOCX line source."""
     key = docx_line_source_pdf_cache_key(source_docx)
     cached_pdf = cached_line_source_path("pdf", key, ".pdf")
-    target_pdf = work_line_source_path(LINE_SOURCE_PDF_DIR, source_docx.stem, key, ".pdf")
+    target_pdf = work_line_source_path(line_source_pdf_dir(), source_docx.stem, key, ".pdf")
     if copy_from_cache(cached_pdf, target_pdf, "line-source PDF"):
         return target_pdf
 
@@ -349,7 +361,7 @@ try {
     [GC]::WaitForPendingFinalizers()
 }
 """
-    script_path = LINE_SOURCE_PDF_DIR / "word_docx_to_pdf.ps1"
+    script_path = line_source_pdf_dir() / "word_docx_to_pdf.ps1"
     script_path.parent.mkdir(parents=True, exist_ok=True)
     script_path.write_text(powershell, encoding="utf-8")
     result = subprocess.run(
@@ -484,7 +496,7 @@ def prepare_line_source_pdf(line_source: Path) -> Path:
     if suffix == ".pdf":
         return line_source
     if suffix in {".md", ".markdown"}:
-        target_docx = LINE_SOURCE_DOCX_DIR / f"{line_source.stem}.docx"
+        target_docx = line_source_docx_dir() / f"{line_source.stem}.docx"
         build_markdown_line_source_docx(line_source, target_docx)
         line_source = target_docx
         suffix = line_source.suffix.lower()

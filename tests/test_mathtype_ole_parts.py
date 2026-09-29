@@ -731,7 +731,7 @@ def test_failed_native_conversion_continues_docx_build(monkeypatch, tmp_path, me
         metadata_path.write_text("{}", encoding="utf-8")
 
     monkeypatch.setattr(ole_parts.platform, "system", lambda: "Windows")
-    monkeypatch.setattr(ole_parts, "MATHTYPE_CACHE_DIR", cache)
+    monkeypatch.setattr(ole_parts, "mathtype_cache_dir", lambda: cache)
     monkeypatch.setattr(ole_parts, "resolve_auto_conversion_methods", lambda: ("rust",))
     monkeypatch.setattr(ole_parts, "native_source_digest_for_method", lambda method: None)
     monkeypatch.setattr(ole_parts.native, "get_converter", FakeConverter)

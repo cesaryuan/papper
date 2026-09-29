@@ -87,7 +87,8 @@ def test_build_writes_adjusted_docx_metadata_file(tmp_path, monkeypatch) -> None
     )
 
     metadata = yaml.safe_load(metadata_file.read_text(encoding="utf-8"))
-    assert metadata_file.parts[:3] == (".pmt", "work", "metadata")
+    assert metadata_file.is_relative_to(Path.home() / ".papper" / "projects")
+    assert metadata_file.parent.name == "metadata"
     assert 'w:pos="4156"' in metadata["eqnBlockTemplate"]
     assert 'w:pos="8312"' in metadata["eqnBlockTemplate"]
 

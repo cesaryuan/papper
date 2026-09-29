@@ -259,6 +259,7 @@ output/
 
 # Pandoc cache
 .pmt/
+.papper/
 .pandoc-cache/
 __pycache__/
 /tmp

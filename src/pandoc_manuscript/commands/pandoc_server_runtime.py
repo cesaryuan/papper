@@ -29,7 +29,7 @@ from pydantic_settings import BaseSettings, CliApp, SettingsConfigDict
 import yaml
 
 from ..html.postprocess import postprocess_html_text
-from ..runtime.paths import PMT_DIR, PMT_TOOLS_BIN_DIR
+from ..runtime.paths import PMT_TOOLS_BIN_DIR, process_temp_dir, project_cache_dir, project_state_dir
 
 
 class ServerRuntimeSettings(BaseSettings):
@@ -236,7 +236,7 @@ class PandocWorker:
         self._assets = ProjectAssetCache(config)
         self._result_cache: OrderedDict[str, str] = OrderedDict()
         self._result_cache_limit = 8
-        self._ast_cache_dir = PMT_DIR / "work" / "pandoc-server-ast"
+        self._ast_cache_dir = project_cache_dir(Path(config["project_dir"])) / "pandoc-server-ast"
         self._ast_lock = threading.Lock()
         self._ast_building: set[str] = set()
         self._process = self._start_process(config, log_path)
@@ -258,7 +258,7 @@ class PandocWorker:
                 return [str(candidate)]
         raise FileNotFoundError(
             "PMT Pandoc worker not found. Build scripts/pandoc-server and install "
-            "pmt-pandoc-worker into .pmt/tools/bin, or set PMT_PANDOC_SERVER_WORKER_COMMAND."
+            "pmt-pandoc-worker into ~/.papper/tools/bin, or set PMT_PANDOC_SERVER_WORKER_COMMAND."
         )
 
     @classmethod
@@ -339,7 +339,7 @@ class PandocWorker:
             timings["cache_lookup"] = round((time.perf_counter() - started) * 1000, 3)
             return ConversionResult(cached, timings, True, mode)
 
-        output_dir = PMT_DIR / "work" / "pandoc-server-output"
+        output_dir = process_temp_dir() / "pandoc-server-output"
         output_dir.mkdir(parents=True, exist_ok=True)
         self._ast_cache_dir.mkdir(parents=True, exist_ok=True)
         ast_path = self._ast_cache_dir / f"{cache_key}.json"
@@ -572,7 +572,8 @@ def main() -> int:
     """Start the project-bound PMT HTML HTTP service."""
     settings = CliApp.run(ServerRuntimeSettings)
     config = json.loads(settings.config.read_text(encoding="utf-8"))
-    worker_config_path = PMT_DIR / "pandoc-server-worker.json"
+    worker_config_path = project_state_dir(Path(config["project_dir"])) / "pandoc-server-worker.json"
+    worker_config_path.parent.mkdir(parents=True, exist_ok=True)
     worker_config_path.write_text(
         json.dumps(
             {
@@ -585,7 +586,7 @@ def main() -> int:
         encoding="utf-8",
     )
     config["worker_config"] = str(worker_config_path)
-    worker = PandocWorker(config, PMT_DIR / "pandoc-server-worker.log")
+    worker = PandocWorker(config, project_state_dir(Path(config["project_dir"])) / "pandoc-server-worker.log")
     server = ThreadingHTTPServer((settings.host, settings.port), PmtHtmlRequestHandler)
     server.worker = worker  # type: ignore[attr-defined]
     try:

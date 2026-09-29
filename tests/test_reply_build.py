@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import zipfile
 
 import pytest
+from docx import Document
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -281,8 +282,8 @@ def test_prepare_line_source_pdf_uses_soffice_on_non_windows(tmp_path, monkeypat
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
     monkeypatch.setattr(reply_line_source.sys, "platform", "linux")
-    monkeypatch.setattr(reply_line_source, "LINE_SOURCE_PDF_DIR", pdf_dir)
-    monkeypatch.setattr(reply_line_source, "LINE_SOURCE_CACHE_DIR", cache_dir)
+    monkeypatch.setattr(reply_line_source, "line_source_pdf_dir", lambda: pdf_dir)
+    monkeypatch.setattr(reply_line_source, "line_source_cache_dir", lambda: cache_dir)
     monkeypatch.setattr(reply_line_source.subprocess, "run", fake_run)
 
     result = reply_build.prepare_line_source_pdf(source_docx)
@@ -365,9 +366,9 @@ def test_prepare_line_source_pdf_builds_markdown_before_pdf(tmp_path, monkeypatc
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(b"%PDF")
 
-    monkeypatch.setattr(reply_line_source, "LINE_SOURCE_DOCX_DIR", docx_dir)
-    monkeypatch.setattr(reply_line_source, "LINE_SOURCE_PDF_DIR", pdf_dir)
-    monkeypatch.setattr(reply_line_source, "LINE_SOURCE_CACHE_DIR", cache_dir)
+    monkeypatch.setattr(reply_line_source, "line_source_docx_dir", lambda: docx_dir)
+    monkeypatch.setattr(reply_line_source, "line_source_pdf_dir", lambda: pdf_dir)
+    monkeypatch.setattr(reply_line_source, "line_source_cache_dir", lambda: cache_dir)
     monkeypatch.setattr(reply_line_source.sys, "platform", "win32")
     monkeypatch.setattr(reply_line_source, "build_markdown_line_source_docx", fake_build_markdown_line_source_docx)
     monkeypatch.setattr(reply_line_source, "export_docx_to_pdf_with_word", fake_export_docx_to_pdf_with_word)
@@ -409,7 +410,7 @@ def test_build_reply_docx_uses_svg_filters(tmp_path, monkeypatch) -> None:
     manuscript.write_text("# Manuscript\n", encoding="utf-8")
     output = tmp_path / "reply.docx"
     reference_doc = tmp_path / "reference.docx"
-    reference_doc.write_bytes(b"docx")
+    Document().save(reference_doc)
     style = tmp_path / "style.yml"
     style.write_text("docxEmbedSvgImages: true\n", encoding="utf-8")
     resolved_reply = tmp_path / "reply.resolved.md"

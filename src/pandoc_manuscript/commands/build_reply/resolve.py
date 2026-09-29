@@ -12,7 +12,7 @@ from typing import Any, Sequence
 from ...docx.equation_layout import derive_docx_equation_layout, sync_eqn_block_template_with_page_margins
 from ...runtime.logging import log_debug, log_warning
 from ...runtime.metadata import EffectiveMetadata, PmtSettings, load_effective_metadata, write_pandoc_metadata
-from ...runtime.paths import PMT_REPLY_PROBE_DIR
+from ...runtime.paths import process_temp_dir
 from ...runtime.resources import template_root
 from ..common import suppress_known_external_warnings
 from ..setup import pandoc_command, pandoc_tools_env
@@ -71,7 +71,9 @@ REPLY_EQUATION_OPENXML_PREFIX = (
     "</w:tabs></w:pPr><w:r><w:tab /></w:r>"
 )
 REPLY_EQUATION_OPENXML_NUMBER_TAB = '<w:r><w:tab /></w:r>'
-REPLY_PROBE_DIR = PMT_REPLY_PROBE_DIR
+def reply_probe_dir() -> Path:
+    """Return the temporary Pandoc probe directory for this project."""
+    return process_temp_dir() / "reply" / "probes"
 
 
 def to_pandoc_path(path: Path) -> str:
@@ -137,7 +139,7 @@ def write_reply_style_metadata_file(
         )
     flattened_style = write_pandoc_metadata(
         metadata,
-        REPLY_PROBE_DIR / "pandoc.reply.generated.yml",
+        reply_probe_dir() / "pandoc.reply.generated.yml",
     )
     return flattened_style
 
@@ -304,9 +306,9 @@ def extract_probe_map(
 
 
 def write_probe_file(name: str, lines: list[str]) -> Path:
-    """Write a stable probe file under .papper without relying on tempfile ACLs."""
-    REPLY_PROBE_DIR.mkdir(parents=True, exist_ok=True)
-    probe_path = REPLY_PROBE_DIR / name
+    """Write a probe file in system temp for this build process."""
+    reply_probe_dir().mkdir(parents=True, exist_ok=True)
+    probe_path = reply_probe_dir() / name
     probe_path.write_text("\n\n".join(lines) + "\n", encoding="utf-8")
     return probe_path
 

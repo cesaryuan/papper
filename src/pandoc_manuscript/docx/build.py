@@ -171,9 +171,9 @@ def active_reference_doc(settings, resource_path) -> Path:
 
 def generated_reference_doc_path(settings) -> Path:
     """Return the temporary reference DOCX path prepared for Pandoc."""
-    from ..runtime.paths import PMT_WORK_DIR
+    from ..runtime.paths import process_temp_dir
 
-    return PMT_WORK_DIR / "reference-doc" / f"{settings.project_name}.reference.docx"
+    return process_temp_dir() / "reference-doc" / f"{settings.project_name}.reference.docx"
 
 
 def docx_reference_doc_args(settings, pmt_settings, resource_path, to_pandoc_path) -> list[str]:

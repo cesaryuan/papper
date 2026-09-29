@@ -20,7 +20,11 @@ from pathlib import Path
 from typing import Any
 
 from ...runtime.logging import log_info, should_log
-from ...runtime.paths import PMT_TOOLS_BIN_DIR, PMT_TOOLS_DOWNLOAD_DIR, PMT_TOOLS_EXTRACT_DIR
+from ...runtime.paths import (
+    PMT_TOOLS_BIN_DIR,
+    PMT_TOOLS_DIR,
+    PMT_TOOLS_DOWNLOAD_DIR,
+)
 
 
 GITHUB_API = "https://api.github.com/repos/{repo}/releases/latest"
@@ -34,6 +38,7 @@ PROXY_LOGGED = False
 DOWNLOAD_CHUNK_SIZE = 256 * 1024
 PROGRESS_BAR_WIDTH = 28
 PROGRESS_LINE_LENGTH = 0
+MIN_PANDOC_VERSION = (3, 11)
 
 
 @dataclass(frozen=True)
@@ -304,8 +309,7 @@ def install_release_tool(
     archive = PMT_TOOLS_DOWNLOAD_DIR / asset["name"]
     download_asset(asset["url"], archive, force=force_download)
 
-    PMT_TOOLS_EXTRACT_DIR.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=f"{tool}-{tag}-", dir=PMT_TOOLS_EXTRACT_DIR) as working:
+    with tempfile.TemporaryDirectory(prefix=f"papper-{tool}-{tag}-") as working:
         extract_dir = Path(working)
         for attempt in range(2):
             try:
@@ -342,7 +346,7 @@ def install_release_tool(
     }
     (PMT_TOOLS_BIN_DIR / f"{tool}.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     log_info(f"[TOOLS] Installed {tool} {tag}: {installed}")
-    return ResolvedTool(tool, installed, f".pmt/tools ({tag})")
+    return ResolvedTool(tool, installed, f"~/.papper/tools ({tag})")
 
 
 def managed_executable(tool: str) -> Path:
@@ -359,8 +363,8 @@ def install_managed_tool(
     """Install or reuse a pmt-managed tool, ignoring system PATH."""
     managed = managed_executable(tool)
     if not force and managed.exists() and usable_tool(managed, tool):
-        log_info(f"[TOOLS] {tool} already installed in .pmt/tools: {managed}")
-        return ResolvedTool(tool, managed, ".pmt/tools")
+        log_info(f"[TOOLS] {tool} already installed in ~/.papper/tools: {managed}")
+        return ResolvedTool(tool, managed, "~/.papper/tools")
     return install_release_tool(tool, release=release, force_download=force)
 
 
@@ -391,15 +395,17 @@ def subprocess_run_version(executable: Path) -> str:
 
 
 def usable_tool(executable: Path, tool: str) -> bool:
-    """Reject interrupted installs and Pandoc versions below the supported 3.8 floor."""
+    """Reject interrupted installs and Pandoc versions below the supported 3.11 floor."""
     try:
         output = subprocess_run_version(executable)
         match = re.search(rf"(?im)^{re.escape(tool)}(?:\.exe)?\s+v?(\d+(?:\.\d+)*)", output)
         if match is None:
             raise ValueError("unrecognized version output")
         version = tuple(int(part) for part in match.group(1).split("."))
-        if tool == "pandoc" and version < (3, 8):
-            raise ValueError(f"Pandoc {match.group(1)} is older than 3.8")
+        if tool == "pandoc" and version < MIN_PANDOC_VERSION:
+            raise ValueError(
+                f"Pandoc {match.group(1)} is older than {'.'.join(str(part) for part in MIN_PANDOC_VERSION)}"
+            )
         return True
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         log_info(f"[TOOLS] Ignoring unusable {tool} at {executable}: {exc}")
@@ -411,7 +417,7 @@ def pandoc_release_for_crossref(version: str | None) -> dict[str, Any] | None:
     if not version:
         return None
     match = re.fullmatch(r"\d+(?:\.\d+)*", version)
-    if match is None or tuple(int(part) for part in version.split(".")) < (3, 8):
+    if match is None or tuple(int(part) for part in version.split(".")) < MIN_PANDOC_VERSION:
         return None
     try:
         return release_by_tag("pandoc", version)
@@ -433,13 +439,19 @@ def resolve_pandoc(required_version: str | None = None) -> ResolvedTool:
 
     managed = managed_executable("pandoc")
     if managed.exists() and usable_tool(managed, "pandoc"):
-        resolved = ResolvedTool("pandoc", managed, ".pmt/tools")
+        resolved = ResolvedTool("pandoc", managed, "~/.papper/tools")
         TOOL_CACHE["pandoc"] = resolved
         return resolved
 
     release = pandoc_release_for_crossref(required_version)
-    log_info(f"[TOOLS] No usable Pandoc >= 3.8 found; installing into {PMT_TOOLS_BIN_DIR}")
-    resolved = install_release_tool("pandoc", release=release)
+    log_info(
+        f"[TOOLS] No usable Pandoc >= {'.'.join(str(part) for part in MIN_PANDOC_VERSION)} found; "
+        f"running managed setup in {PMT_TOOLS_DIR}"
+    )
+    if release is None:
+        resolved = install_release_tool("pandoc")
+    else:
+        resolved = install_release_tool("pandoc", release=release)
     TOOL_CACHE["pandoc"] = resolved
     return resolved
 
@@ -459,7 +471,7 @@ def resolve_tool(tool: str) -> ResolvedTool:
 
     managed = managed_executable(tool)
     if managed.exists() and usable_tool(managed, tool):
-        resolved = ResolvedTool(tool, managed, ".pmt/tools")
+        resolved = ResolvedTool(tool, managed, "~/.papper/tools")
         TOOL_CACHE[tool] = resolved
         return resolved
 
@@ -470,14 +482,18 @@ def resolve_tool(tool: str) -> ResolvedTool:
 
 
 def ensure_pandoc_tools() -> tuple[ResolvedTool, ResolvedTool]:
-    """Resolve both Pandoc tools required by the manuscript pipeline."""
+    """Resolve both Pandoc tools, running the managed setup for old Pandoc installs."""
+    installed_pandoc = shutil.which("pandoc") or str(managed_executable("pandoc"))
+    if installed_pandoc and Path(installed_pandoc).exists() and not usable_tool(Path(installed_pandoc), "pandoc"):
+        log_info("[TOOLS] Installed Pandoc is below 3.11; starting managed setup.")
+        return setup_pandoc_tools()
     crossref = resolve_tool("pandoc-crossref")
     pandoc = resolve_pandoc(crossref_pandoc_version(crossref.executable))
     return pandoc, crossref
 
 
 def setup_pandoc_tools(*, force: bool = False) -> tuple[ResolvedTool, ResolvedTool]:
-    """Prepare pmt-managed Pandoc tools for this project."""
+    """Prepare user-scoped managed Pandoc tools shared by all Papper projects."""
     TOOL_CACHE.clear()
     crossref = install_managed_tool("pandoc-crossref", force=force)
     pandoc_release = pandoc_release_for_crossref(crossref_pandoc_version(crossref.executable))

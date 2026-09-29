@@ -14,29 +14,41 @@ from pandoc_manuscript.docx import build as docx_build
 from pandoc_manuscript.docx.svg_filters import python_filter_wrapper
 from pandoc_manuscript.mathtype import ole_parts
 from pandoc_manuscript.runtime import resources
+from pandoc_manuscript.runtime import paths as runtime_paths
 from pandoc_manuscript.runtime.metadata import PmtSettings
 from pandoc_manuscript.runtime.paths import (
-    PMT_CACHE_DIR,
-    PMT_DIR,
-    PMT_REPLY_LINE_SOURCE_CACHE_DIR,
-    PMT_SVG_EMBED_CACHE_DIR,
-    PMT_SVG_PNG_CACHE_DIR,
-    PMT_WORK_DIR,
+    process_temp_dir,
+    project_cache_dir,
+    project_state_dir,
 )
 
 
-def test_generated_work_and_cache_paths_are_under_pmt() -> None:
-    """Keep Papper's temporary files and reusable caches in one hidden project directory."""
-    paths = [
-        Path(build.SETTINGS.mathtype_work_dir),
-        reply_build.LINE_SOURCE_PDF_DIR,
-        reply_build.LINE_SOURCE_CACHE_DIR,
-        reply_build.REPLY_PROBE_DIR,
-        ole_parts.MATHTYPE_CACHE_DIR,
-    ]
+def test_generated_work_and_cache_paths_are_isolated(tmp_path, monkeypatch) -> None:
+    """Separate reusable project caches from large per-run intermediates."""
+    monkeypatch.chdir(tmp_path)
+    state = project_state_dir()
+    assert state.parent == Path.home() / ".papper" / "projects"
+    assert reply_build.line_source_cache_dir().is_relative_to(state / "cache")
+    assert ole_parts.mathtype_cache_dir().is_relative_to(state / "cache")
+    assert reply_build.line_source_pdf_dir().is_relative_to(process_temp_dir())
+    assert reply_build.reply_probe_dir().is_relative_to(process_temp_dir())
 
-    for path in paths:
-        assert path.parts[0] == PMT_DIR.name
+
+def test_cache_resolution_follows_project_changes(tmp_path, monkeypatch) -> None:
+    """Switch projects in one process without reusing the first project's cache."""
+    monkeypatch.setattr(runtime_paths, "PAPPER_HOME_DIR", tmp_path / "user-state")
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    monkeypatch.chdir(first)
+    first_paths = (ole_parts.cache_paths("abcdef"), reply_build.line_source_cache_dir())
+    monkeypatch.chdir(second)
+    second_paths = (ole_parts.cache_paths("abcdef"), reply_build.line_source_cache_dir())
+
+    assert first_paths != second_paths
+    assert second_paths[0][0].is_relative_to(project_cache_dir(second))
+    assert second_paths[1].is_relative_to(project_cache_dir(second))
 
 
 def test_build_resource_path_is_forwarded_without_normalization(tmp_path, monkeypatch) -> None:
@@ -75,7 +87,7 @@ def test_svg_to_png_cache_uses_pmt_cache(monkeypatch) -> None:
         build.SETTINGS.manuscript_file, PmtSettings.model_validate({})
     )
 
-    assert Path(env["PMT_SVG_TO_PNG_DIR"]) == (Path.cwd() / PMT_CACHE_DIR / "svg-png").resolve()
+    assert Path(env["PMT_SVG_TO_PNG_DIR"]) == project_cache_dir() / "svg-png"
     assert env["PMT_SVG_TO_PNG_CONVERT_ALL"] == "false"
 
 
@@ -154,7 +166,7 @@ def test_svg_embed_cache_uses_pmt_cache(monkeypatch) -> None:
         build.SETTINGS.manuscript_file, PmtSettings.model_validate({})
     )
 
-    assert Path(env["PMT_SVG_EMBED_DIR"]) == (Path.cwd() / PMT_SVG_EMBED_CACHE_DIR).resolve()
+    assert Path(env["PMT_SVG_EMBED_DIR"]) == project_cache_dir() / "svg-embedded"
     assert env["PMT_SVG_EMBED_IMAGES"] == "true"
 
 
@@ -193,7 +205,7 @@ def test_reply_svg_embed_env_uses_shared_cache(tmp_path) -> None:
         PmtSettings.model_validate({"docxEmbedSvgImages": True}),
     )
 
-    assert Path(env["PMT_SVG_EMBED_DIR"]) == (Path.cwd() / PMT_SVG_EMBED_CACHE_DIR).resolve()
+    assert Path(env["PMT_SVG_EMBED_DIR"]) == project_cache_dir() / "svg-embedded"
     assert env["PMT_SVG_EMBED_IMAGES"] == "true"
     assert str(tmp_path.resolve()) in env["PMT_SVG_EMBED_BASE_DIRS"]
 
@@ -207,7 +219,7 @@ def test_reply_svg_to_png_env_uses_shared_cache(tmp_path) -> None:
         PmtSettings.model_validate({"docxConvertSvgToPng": True}),
     )
 
-    assert Path(env["PMT_SVG_TO_PNG_DIR"]) == (Path.cwd() / PMT_SVG_PNG_CACHE_DIR).resolve()
+    assert Path(env["PMT_SVG_TO_PNG_DIR"]) == project_cache_dir() / "svg-png"
     assert env["PMT_SVG_TO_PNG_CONVERT_ALL"] == "true"
     assert str(tmp_path.resolve()) in env["PMT_SVG_TO_PNG_BASE_DIRS"]
 
@@ -263,13 +275,12 @@ def test_python_filter_launcher_path(monkeypatch, tmp_path) -> None:
     if os.name == "nt":
         assert wrapper == filter_path.resolve()
     else:
-        assert wrapper.parts[: len(PMT_WORK_DIR.parts)] == PMT_WORK_DIR.parts
+        assert wrapper.is_relative_to(process_temp_dir())
 
 
 def test_reply_line_source_cache_uses_pmt_cache() -> None:
     """Keep reusable reply line-source artifacts under the shared papper cache."""
-    assert reply_build.LINE_SOURCE_CACHE_DIR == PMT_REPLY_LINE_SOURCE_CACHE_DIR
-    assert reply_build.LINE_SOURCE_CACHE_DIR.parts[: len(PMT_CACHE_DIR.parts)] == PMT_CACHE_DIR.parts
+    assert reply_build.line_source_cache_dir() == project_cache_dir() / "reply" / "line-source"
 
 
 def test_runtime_resources_resolve_source_checkout_roots() -> None:

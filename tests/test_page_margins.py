@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import tempfile
 
 import pytest
 from docx import Document
@@ -108,7 +109,8 @@ def test_build_reference_doc_args_uses_margin_adjusted_reference(tmp_path: Path,
     )
 
     assert args[0] == "--reference-doc"
-    assert Path(args[1]).parts[:3] == (".pmt", "work", "reference-doc")
+    assert Path(args[1]).is_relative_to(Path(tempfile.gettempdir()))
+    assert Path(args[1]).parent.name == "reference-doc"
     section = Document(args[1]).sections[0]
     assert section.left_margin.cm == pytest.approx(3.17, abs=0.001)
     assert section.right_margin.cm == pytest.approx(3.17, abs=0.001)
@@ -129,7 +131,8 @@ def test_reply_reference_doc_for_pandoc_uses_margin_adjusted_reference(tmp_path:
         ),
     )
 
-    assert reference.parts[:4] == (".pmt", "work", "reply", "reference-doc")
+    assert reference.is_relative_to(Path(tempfile.gettempdir()))
+    assert reference.parent.name == "reference-doc"
     section = Document(str(reference)).sections[0]
     assert section.left_margin.cm == pytest.approx(3.17, abs=0.001)
     assert section.right_margin.cm == pytest.approx(3.17, abs=0.001)

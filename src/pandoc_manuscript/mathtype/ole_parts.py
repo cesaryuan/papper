@@ -17,7 +17,7 @@ from typing import Literal
 from tqdm import tqdm
 
 from ..runtime.logging import log_debug, log_info, log_warning, should_log
-from ..runtime.paths import PMT_MATHTYPE_CACHE_DIR
+from ..runtime.paths import project_cache_dir
 from ..runtime.resources import package_resource_path, source_tree_root
 
 from .compound_file import CompoundFile
@@ -41,7 +41,13 @@ MATHTYPE_MT6_RELATIVE_PATHS = (
 )
 # Keep the sizing template in-repo so builds do not depend on a local MathType preferences path.
 MATHTYPE_DEFAULT_PREFS_TEMPLATE = resource_path("mathtype/Times+Symbol 12.eqp")
-MATHTYPE_CACHE_DIR = PMT_MATHTYPE_CACHE_DIR
+
+
+def mathtype_cache_dir() -> Path:
+    """Return the reusable MathType cache for the current project."""
+    return project_cache_dir() / "mathtype"
+
+
 MATHTYPE_CACHE_VERSION = 4
 PLACEABLE_WMF_KEY_BYTES = bytes.fromhex("d7cdc69a")
 PLACEABLE_WMF_HEADER_SIZE = 22
@@ -712,7 +718,7 @@ def mathtype_cache_key(
 
 def cache_paths(cache_key: str) -> tuple[Path, Path, Path]:
     """Return the cache file paths for one generated MathType equation."""
-    folder = MATHTYPE_CACHE_DIR / cache_key[:2] / cache_key
+    folder = mathtype_cache_dir() / cache_key[:2] / cache_key
     return folder / "equation.ole.bin", folder / "preview.wmf", folder / "metadata.json"
 
 
@@ -1522,5 +1528,5 @@ def generate_equation_parts(
                 math_style=math_style,
             )
         )
-    log_info(f"[mathtype] cache summary: hits={cache_hits}, misses={cache_misses}, dir={MATHTYPE_CACHE_DIR}")
+    log_info(f"[mathtype] cache summary: hits={cache_hits}, misses={cache_misses}, dir={mathtype_cache_dir()}")
     return equations

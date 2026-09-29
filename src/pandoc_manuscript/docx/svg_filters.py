@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from .. import runtime_cache_version
 from ..runtime.metadata import PmtSettings
-from ..runtime.paths import PMT_FILTER_WORK_DIR, PMT_SVG_EMBED_CACHE_DIR, PMT_SVG_PNG_CACHE_DIR
+from ..runtime.paths import process_temp_dir, project_cache_dir
 from ..runtime.resources import template_root
 
 def to_pandoc_path(path: Path) -> str:
@@ -66,7 +66,7 @@ def python_filter_wrapper(filter_path: Path, name: str) -> Path:
         # cmd wrapper also preserves UNC working directories for the filter.
         return filter_path
 
-    wrapper_dir = PMT_FILTER_WORK_DIR
+    wrapper_dir = process_temp_dir() / "filters"
     wrapper_dir.mkdir(parents=True, exist_ok=True)
     wrapper_path = wrapper_dir / name
     wrapper_path.write_text(
@@ -126,7 +126,7 @@ def svg_embed_images_filter_env(
     if embed_images is None:
         embed_images = should_embed_docx_svg_images(settings)
     return {
-        "PMT_SVG_EMBED_DIR": str(PMT_SVG_EMBED_CACHE_DIR.resolve()),
+        "PMT_SVG_EMBED_DIR": str((project_cache_dir() / "svg-embedded").resolve()),
         "PMT_SVG_EMBED_BASE_DIRS": os.pathsep.join(str(path) for path in unique_resolved_dirs(base_dirs)),
         "PMT_SVG_EMBED_PMT_VERSION": runtime_cache_version(),
         "PMT_SVG_EMBED_IMAGES": "true" if embed_images else "false",
@@ -143,7 +143,7 @@ def svg_to_png_filter_env(
         convert_all = should_convert_docx_svg_to_png(settings)
     validate_svg_to_png_controls(settings)
     env = {
-        "PMT_SVG_TO_PNG_DIR": str(PMT_SVG_PNG_CACHE_DIR.resolve()),
+        "PMT_SVG_TO_PNG_DIR": str((project_cache_dir() / "svg-png").resolve()),
         "PMT_SVG_TO_PNG_BASE_DIRS": os.pathsep.join(str(path) for path in unique_resolved_dirs(base_dirs)),
         "PMT_SVG_TO_PNG_DPI": str(settings.docx_svg_to_png_dpi or 300),
         "PMT_SVG_TO_PNG_SCALE": str(settings.docx_svg_to_png_scale or 1),

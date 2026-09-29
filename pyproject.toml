@@ -78,6 +78,7 @@ dev = [
 exclude = [
   ".git",
   ".pmt",
+  ".papper",
   ".pandoc-cache",
   ".vscode",
   "output",
@@ -105,4 +106,3 @@ exclude = [
 
 [tool.hatch.build.targets.wheel.force-include]
 "pandoc" = "pandoc_manuscript/pandoc"
-"template" = "pandoc_manuscript/_template"

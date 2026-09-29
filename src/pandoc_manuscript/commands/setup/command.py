@@ -17,7 +17,7 @@ class SetupSettings(VerboseCommandSettings):
     force: bool = Field(default=False, description="Redownload and reinstall managed Pandoc tools.")
 
     def run(self) -> int:
-        """Download project-local Pandoc tools into .pmt/tools."""
+        """Download user-scoped Pandoc tools into ``~/.papper/tools``."""
         pandoc, crossref = setup_pandoc_tools(force=self.force)
 
         log(f"[OK] pandoc: {pandoc.executable} [{pandoc.source}]")

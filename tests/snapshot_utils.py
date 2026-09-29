@@ -10,6 +10,8 @@ from zipfile import ZipFile
 
 from lxml import etree
 
+from pandoc_manuscript.runtime.paths import project_cache_dir
+
 
 _VOLATILE_DOCX_TAGS = {"created", "modified"}
 _VOLATILE_DOCX_ATTRIBUTES = {"rsidR", "rsidRPr", "rsidP", "rsidDel", "rsidSect"}
@@ -50,7 +52,10 @@ def canonical_docx(path: Path, *, repository_root: Path) -> str:
     retain their exact SHA-256 and byte size without ZIP-container timestamps.
     """
     root = repository_root.resolve()
+    cache = project_cache_dir(root)
     path_replacements = (
+        (cache.as_posix(), "__PAPPER_CACHE__"),
+        (str(cache), "__PAPPER_CACHE__"),
         (root.as_posix(), "__REPO__"),
         (str(root), "__REPO__"),
     )

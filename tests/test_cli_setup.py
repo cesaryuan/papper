@@ -17,8 +17,8 @@ def test_setup_command_runs_in_project_directory(tmp_path, monkeypatch) -> None:
         """Record the setup working directory without touching the network."""
         calls.append((Path.cwd(), force))
         return (
-            ResolvedTool("pandoc", Path(".pmt/tools/bin/pandoc"), ".pmt/tools"),
-            ResolvedTool("pandoc-crossref", Path(".pmt/tools/bin/pandoc-crossref"), ".pmt/tools"),
+            ResolvedTool("pandoc", Path(".papper/tools/bin/pandoc"), ".papper/tools"),
+            ResolvedTool("pandoc-crossref", Path(".papper/tools/bin/pandoc-crossref"), ".papper/tools"),
         )
 
     monkeypatch.setattr(setup_command_impl, "setup_pandoc_tools", fake_setup_pandoc_tools)
