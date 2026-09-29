@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import errno
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -12,14 +11,12 @@ from ..mathtype.convert_marked_docx import convert_marked_docx
 from ..mathtype.ole_parts import check_mathtype_availability, normalize_conversion_method
 from ..runtime.logging import log_debug, log_warning
 from ..runtime.metadata import EffectiveMetadata, is_chinese_language
-from ..commands.setup import ensure_pandoc_tools
 from .metadata import prepare_docx_metadata, write_docx_pandoc_metadata
 from . import svg_filters as svg_filter_helpers
 from .page_margins import write_reference_doc_with_page_margins
 from .postprocess import postprocess_docx as run_docx_postprocess
 from .postprocess.final_docx_syntax_check import validate_final_docx_syntax
 from .svg_filters import (
-    python_filter_wrapper,
     should_convert_docx_svg_to_png,
     should_embed_docx_svg_images,
 )
@@ -35,22 +32,6 @@ class DocxBuildContext:
     resource_path: Callable[[str], Path]
     to_pandoc_path: Callable[[Path], str]
     run_pandoc: Callable[..., None]
-
-
-def should_use_mathbfit_filter() -> bool:
-    """Apply the DOCX mathbfit workaround only for affected Pandoc versions."""
-    try:
-        pandoc = ensure_pandoc_tools()[0].executable
-        result = subprocess.run([str(pandoc), "--version"], capture_output=True, text=True, check=True)
-        version_str = result.stdout.split("\n")[0].split()[1]
-        parts = version_str.split(".")
-        while len(parts) < 4:
-            parts.append("0")
-        version = tuple(int(part) for part in parts[:4])
-    except Exception as exc:
-        log_warning(f"[WARN] Could not detect Pandoc version: {exc}")
-        return False
-    return version <= (3, 8, 3, 0)
 
 
 def ensure_docx_target_writable(target: Path) -> None:
@@ -259,19 +240,6 @@ def build_docx(
         )
     )
 
-    if should_use_mathbfit_filter():
-        log_debug("[DEBUG] Using mathbfit filter (Pandoc <= 3.8.3.0)")
-        extra_args.extend(
-            [
-                "--filter",
-                context.to_pandoc_path(
-                    python_filter_wrapper(
-                        context.resource_path("pandoc/filters/docx/to_mathbfit.py"),
-                        "to_mathbfit_filter",
-                    )
-                ),
-            ]
-        )
     if use_mathtype:
         pandoc_output = mathtype_marked_docx_path(settings)
         pandoc_env["PMT_ENABLE_MATHTYPE_MARKERS"] = "true"

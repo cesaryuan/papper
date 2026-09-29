@@ -330,9 +330,14 @@ def run_pandoc(
     extra_env: dict[str, str] | None = None,
     metadata_file: Path | None = None,
 ) -> None:
-    """Run Pandoc with one generated metadata source and a header-free input copy."""
+    """Run Pandoc with generated metadata and strip YAML from input when present."""
     extra_args = extra_args or []
-    generated_input = write_markdown_without_yaml_header(SETTINGS.manuscript_file)
+    # A header-free manuscript was already checked during metadata loading.
+    generated_input = (
+        write_markdown_without_yaml_header(SETTINGS.manuscript_file)
+        if effective.has_yaml_header
+        else None
+    )
     pandoc_input = generated_input or Path(SETTINGS.manuscript_file)
     try:
         metadata_args = (

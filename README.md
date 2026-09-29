@@ -83,8 +83,8 @@ Missing or unusable `pandoc-crossref` executables are also installed automatical
 Downloads and executable installation use temporary files followed by atomic
 replacement, so an interrupted build can be rerun. Invalid cached archives are
 discarded and downloaded again once; unusable managed executables are reinstalled.
-Bundled Python filters, including the compatibility `to_mathbfit` filter, run with
-Papper's Python interpreter and its installed dependencies.
+Bundled Python filters run with Papper's Python interpreter and its installed
+dependencies.
 On Windows, Papper puts that interpreter first on Pandoc's `PATH` and runs the
 Python filters directly, including for manuscript projects on UNC network paths.
 

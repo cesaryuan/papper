@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -153,7 +154,15 @@ def _merge(parent: _StyleSpec, child: _StyleSpec) -> _StyleSpec:
 
 
 def _read_reference_styles(path: Path) -> dict[str, _StyleSpec]:
-    """Read and resolve basedOn inheritance from the current reference XML."""
+    """Reuse parsed reference styles until the XML file changes."""
+    source = path.resolve()
+    stat = source.stat()
+    return _parse_reference_styles(source, stat.st_mtime_ns, stat.st_size)
+
+
+@lru_cache(maxsize=8)
+def _parse_reference_styles(path: Path, mtime_ns: int, size: int) -> dict[str, _StyleSpec]:
+    """Resolve XML style inheritance using file mtime and size as cache keys."""
     root = ElementTree.parse(path).getroot()
     style_elements: dict[str, ElementTree.Element] = {}
     names: dict[str, str] = {}

@@ -504,11 +504,11 @@ def parse_yaml_file(yaml_path: str | Path) -> dict[str, Any]:
 def write_pandoc_metadata(metadata: dict[str, Any], output_path: str | Path) -> Path:
     """Write a generated YAML file containing only Pandoc-facing metadata."""
     path = Path(output_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False),
-        encoding="utf-8",
-    )
+    serialized = yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False)
+    # Repeat builds often produce identical metadata; preserve the existing file.
+    if not path.is_file() or path.read_text(encoding="utf-8") != serialized:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(serialized, encoding="utf-8")
     return path
 
 

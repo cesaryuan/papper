@@ -483,12 +483,23 @@ def resolve_tool(tool: str) -> ResolvedTool:
 
 def ensure_pandoc_tools() -> tuple[ResolvedTool, ResolvedTool]:
     """Resolve both Pandoc tools, running the managed setup for old Pandoc installs."""
-    installed_pandoc = shutil.which("pandoc") or str(managed_executable("pandoc"))
-    if installed_pandoc and Path(installed_pandoc).exists() and not usable_tool(Path(installed_pandoc), "pandoc"):
-        log_info("[TOOLS] Installed Pandoc is below 3.11; starting managed setup.")
-        return setup_pandoc_tools()
+    if "pandoc" in TOOL_CACHE and "pandoc-crossref" in TOOL_CACHE:
+        return TOOL_CACHE["pandoc"], TOOL_CACHE["pandoc-crossref"]
+    system_pandoc = shutil.which("pandoc")
+    installed_pandoc = Path(system_pandoc) if system_pandoc else managed_executable("pandoc")
+    if installed_pandoc.exists():
+        if not usable_tool(installed_pandoc, "pandoc"):
+            log_info("[TOOLS] Installed Pandoc is below 3.11; starting managed setup.")
+            return setup_pandoc_tools()
+        # Reuse this validation instead of launching pandoc --version again.
+        TOOL_CACHE["pandoc"] = ResolvedTool(
+            "pandoc", installed_pandoc, "PATH" if system_pandoc else "~/.papper/tools"
+        )
     crossref = resolve_tool("pandoc-crossref")
-    pandoc = resolve_pandoc(crossref_pandoc_version(crossref.executable))
+    # Crossref's build version matters only when Pandoc needs a managed install.
+    pandoc = resolve_pandoc(
+        crossref_pandoc_version(crossref.executable) if "pandoc" not in TOOL_CACHE else None
+    )
     return pandoc, crossref
 
 
