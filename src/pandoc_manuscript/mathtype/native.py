@@ -108,6 +108,11 @@ def latex_to_equation(latex: str, *, prefs_file: str | Path | None = None) -> di
     return converter.call(latex=latex, prefs_file=str(prefs_file) if prefs_file is not None else None)
 
 
+def ole_to_latex(ole: bytes, *, mode: str = "auto") -> str:
+    """Recover TeX from OLE bytes in process, falling back to MTEF structure."""
+    return get_converter("mathtype-rust").call(operation="decode_ole", ole=ole.hex(), mode=mode)["latex"]
+
+
 def render_latex_to_wmf(
     latex: str, *, svg_backend: str = "typst", math_style: str = "display",
     font_size_pt: float = 12.0, math_font: str = "XITS Math",

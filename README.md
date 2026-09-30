@@ -75,6 +75,21 @@ references such as `@fig:_Ref241620557` and `@eq:_Ref241620691`. It keeps
 ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
 
+MathType decoding uses the same Rust shared library as LaTeX-to-MTEF export.
+`papper convert` decodes objects in its Python process and passes the results
+to Lua; wheels contain no additional `mathtype-rust` executable.
+
+To run the MathType Lua filter directly from a source checkout, use the Python
+environment containing Papper:
+
+```powershell
+uv run pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
+```
+
+In this standalone mode Lua starts one Python batch decoder, which loads the
+same shared library. Set `PAPPER_PYTHON` to the interpreter path if it is not
+available as `python` on Pandoc's PATH.
+
 ## Quick Start
 
 ### Prerequisites

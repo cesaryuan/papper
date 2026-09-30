@@ -72,6 +72,19 @@ uv run papper convert "测试文档.docx" -o converted
 或 `@eq:_Ref241620691` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
 Pandoc 的结果；公式无法解码时会保留预览图片。
 
+MathType 反向解码复用 LaTeX 转 MTEF 时使用的同一份 Rust 动态库。
+`papper convert` 在当前 Python 进程中完成解码，再把结果交给 Lua；wheel
+不再额外包含 `mathtype-rust` 可执行文件。
+
+在源码仓库中也可以直接运行 MathType Lua 过滤器，使用已安装 Papper 的 Python 环境：
+
+```powershell
+uv run pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
+```
+
+此时 Lua 一次启动一个 Python 批量解码模块，由它加载同一份动态库。若 Pandoc 的
+PATH 中没有对应的 `python`，可将 `PAPPER_PYTHON` 设置为该解释器的路径。
+
 ## 快速开始
 
 ### 前置依赖

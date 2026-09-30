@@ -2,9 +2,11 @@
 -- Pandoc's DOCX reader keeps an OLE object's preview image in the AST but
 -- discards its MTEF payload. This native Lua filter reads the source DOCX with
 -- pandoc.zip, matches each preview image to its embedded OLE relationship,
--- calls the existing mathtype-rust converter, and replaces the Image with Math.
+-- reads LaTeX decoded through Papper's Rust DLL, and replaces the Image with Math.
 -- Run with: pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua
--- Build the converter first: cargo build --manifest-path scripts/mathtype-rust/Cargo.toml
+-- Install Papper in the Python environment used by this command.
+-- papper convert supplies a predecoded map; standalone Pandoc starts one Python
+-- batch helper (PAPPER_PYTHON selects its interpreter) to load the same DLL.
 
 --- Return the local part of an XML name, independent of namespace prefix.
 local function local_name(name)
@@ -172,19 +174,20 @@ local function collect_previews()
   return previews
 end
 
---- Locate the adjacent Rust converter or use an explicit environment override.
-local function converter_path()
-  local override = os.getenv('MATHTYPE_RUST_EXE')
-  if override and override ~= '' then
-    return override
+--- Read in-process conversion results or decode the documents in one Python call.
+local function read_latex_map()
+  local mapping = os.getenv('MATHTYPE_LATEX_MAP')
+  if mapping and mapping ~= '' then
+    return pandoc.json.decode(pandoc.system.read_file(mapping), false)
   end
-  local executable = pandoc.system.os == 'mingw32' and 'mathtype-rust.exe' or 'mathtype-rust'
-  local script_dir = pandoc.path.directory(PANDOC_SCRIPT_FILE)
-  local adjacent = pandoc.path.normalize(pandoc.path.join({ script_dir, '..', '..', '..', 'scripts', 'mathtype-rust', 'target', 'debug', executable }))
-  if pandoc.path.exists(adjacent) then
-    return adjacent
+  local args = { '-m', 'pandoc_manuscript.mathtype.decode_docx' }
+  for _, input in ipairs(PANDOC_STATE.input_files) do
+    if input:lower():match('%.docx$') then
+      args[#args + 1] = input
+    end
   end
-  error('MathType converter missing; run cargo build --manifest-path scripts/mathtype-rust/Cargo.toml or set MATHTYPE_RUST_EXE')
+  local python = os.getenv('PAPPER_PYTHON') or 'python'
+  return pandoc.json.decode(pandoc.pipe(python, args, ''), false)
 end
 
 --- Remove one outer TeX math delimiter pair before constructing a Pandoc Math.
@@ -199,25 +202,17 @@ local function math_body(latex)
   return value
 end
 
---- Decode one OLE object, using structure when its original TeX record is absent.
-local function decode_ole(ole, converter, temp_dir, cache, index)
+--- Look up a decoded OLE by content hash and strip its outer math delimiters.
+local function decode_ole(ole, decoded, cache)
   if cache[ole] ~= nil then
     return cache[ole] or nil
   end
-  local path = pandoc.path.join({ temp_dir, 'equation-' .. tostring(index) .. '.bin' })
-  pandoc.system.write_file(path, ole, true)
-  -- Most third-party objects lack a TeX source record; skip that expected failure.
-  local flags = ole:find('TeX Input Language', 1, true)
-    and { '--ole-input', '--ole-structural-input' }
-    or { '--ole-structural-input' }
-  for _, flag in ipairs(flags) do
-    local ok, output = pcall(pandoc.pipe, converter, { flag, path }, '')
-    if ok then
-      local body = math_body(output)
-      if body ~= '' then
-        cache[ole] = body
-        return body
-      end
+  local latex = decoded[pandoc.utils.sha1(ole)]
+  if type(latex) == 'string' then
+    local body = math_body(latex)
+    if body ~= '' then
+      cache[ole] = body
+      return body
     end
   end
   cache[ole] = false
@@ -247,69 +242,63 @@ function Pandoc(doc)
   if next(previews) == nil then
     return doc
   end
-  local converter = converter_path()
-  return pandoc.system.with_temporary_directory('mtef-parser-', function(temp_dir)
-    local cache = {}
-    local count = 0
-    local decoded = 0
-    local converted_sources = {}
-    -- Replace only images linked to a MathType OLE object.
-    local function replace_image(image, style)
-      local source = image_source(image.src)
-      local ole = previews[source]
-      if not ole then
-        return nil
-      end
-      if cache[ole] == nil then
-        decoded = decoded + 1
-      end
-      local body = decode_ole(ole, converter, temp_dir, cache, decoded)
-      if not body then
-        return nil
-      end
-      count = count + 1
-      converted_sources[source] = true
-      return pandoc.Math(style, body)
+  local decoded = read_latex_map()
+  local cache = {}
+  local count = 0
+  local converted_sources = {}
+  -- Replace only images linked to a MathType OLE object.
+  local function replace_image(image, style)
+    local source = image_source(image.src)
+    local ole = previews[source]
+    if not ole then
+      return nil
     end
-    doc = doc:walk({
-      Para = function(para)
-        local image = sole_image(para.content)
-        if image then
-          local math = replace_image(image, 'DisplayMath')
-          if math then
-            para.content = { math }
-            return para
-          end
-        end
-        return nil
-      end,
-      Plain = function(plain)
-        local image = sole_image(plain.content)
-        if image then
-          local math = replace_image(image, 'DisplayMath')
-          if math then
-            plain.content = { math }
-            return plain
-          end
-        end
-        return nil
-      end,
-    })
-    doc = doc:walk({ Image = function(image)
-      return replace_image(image, 'InlineMath')
-    end })
-    -- Pandoc extracts every media bag item, even when its Image was replaced.
-    -- Keep a shared preview if any Image still references it after conversion.
-    local retained_sources = {}
-    doc:walk({ Image = function(image)
-      retained_sources[image_source(image.src)] = true
-    end })
-    for source in pairs(converted_sources) do
-      if not retained_sources[source] then
-        pandoc.mediabag.delete(source)
-      end
+    local body = decode_ole(ole, decoded, cache)
+    if not body then
+      return nil
     end
-    io.stderr:write('[mtef-parser] converted ', tostring(count), ' MathType equation(s)\n')
-    return doc
-  end)
+    count = count + 1
+    converted_sources[source] = true
+    return pandoc.Math(style, body)
+  end
+  doc = doc:walk({
+    Para = function(para)
+      local image = sole_image(para.content)
+      if image then
+        local math = replace_image(image, 'DisplayMath')
+        if math then
+          para.content = { math }
+          return para
+        end
+      end
+      return nil
+    end,
+    Plain = function(plain)
+      local image = sole_image(plain.content)
+      if image then
+        local math = replace_image(image, 'DisplayMath')
+        if math then
+          plain.content = { math }
+          return plain
+        end
+      end
+      return nil
+    end,
+  })
+  doc = doc:walk({ Image = function(image)
+    return replace_image(image, 'InlineMath')
+  end })
+  -- Pandoc extracts every media bag item, even when its Image was replaced.
+  -- Keep a shared preview if any Image still references it after conversion.
+  local retained_sources = {}
+  doc:walk({ Image = function(image)
+    retained_sources[image_source(image.src)] = true
+  end })
+  for source in pairs(converted_sources) do
+    if not retained_sources[source] then
+      pandoc.mediabag.delete(source)
+    end
+  end
+  io.stderr:write('[mtef-parser] converted ', tostring(count), ' MathType equation(s)\n')
+  return doc
 end

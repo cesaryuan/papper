@@ -2,21 +2,22 @@
 
 This command runs Pandoc's DOCX reader with the MathType, equation-layout, and
 cross-reference Lua filters in order. The filters live in the packaged Pandoc
-resources, while the Rust executable supplies MTEF decoding when required.
+resources, while the existing Rust library supplies MTEF decoding in process.
 """
 
 from __future__ import annotations
 
-import os
+import json
 import subprocess
+import tempfile
 from pathlib import Path
-from zipfile import ZipFile
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import CliPositionalArg, SettingsConfigDict
 
 from ..runtime.logging import log_info, log_success
-from ..runtime.resources import package_resource_path, source_tree_root, template_root
+from ..runtime.resources import template_root
+from ..mathtype.decode_docx import decode_documents
 from .common import VerboseCommandSettings
 from .setup import pandoc_tools_env, resolve_tool
 
@@ -59,10 +60,14 @@ class ConvertSettings(VerboseCommandSettings):
         for path in filters:
             command.extend(("--lua-filter", str(path)))
         command.extend(("--extract-media=.", "--output", output.name))
-        converter_env = {"MATHTYPE_RUST_EXE": str(resolve_converter())} if has_mathtype_ole(source) else {}
-        environment = pandoc_tools_env(converter_env)
         log_info(f"[convert] Importing {source}")
-        subprocess.run(command, cwd=output_dir, env=environment, check=True)
+        decoded = decode_documents([source])
+        # Share the in-process DLL results with Lua without another decoder process.
+        with tempfile.TemporaryDirectory(prefix="papper-mtef-map-") as temp:
+            mapping = Path(temp) / "equations.json"
+            mapping.write_text(json.dumps(decoded, ensure_ascii=True), encoding="utf-8")
+            environment = pandoc_tools_env({"MATHTYPE_LATEX_MAP": str(mapping)})
+            subprocess.run(command, cwd=output_dir, env=environment, check=True)
 
         # Pandoc prefixes extracted paths with ./ when extracting into cwd.
         # Keep Markdown links source-relative for a portable manuscript folder.
@@ -72,43 +77,3 @@ class ConvertSettings(VerboseCommandSettings):
             output.write_text(normalized, encoding="utf-8", newline="\n")
         log_success(f"[convert] Wrote {output}")
         return 0
-
-
-def resolve_converter() -> Path:
-    """Find the wheel executable or build the source checkout's Rust CLI."""
-    executable = "mathtype-rust.exe" if os.name == "nt" else "mathtype-rust"
-    source_root = source_tree_root()
-    if source_root is not None:
-        project = source_root / "scripts" / "mathtype-rust"
-        target_dir = Path(os.environ.get("CARGO_TARGET_DIR") or project / "target")
-        if not target_dir.is_absolute():
-            target_dir = Path.cwd() / target_dir
-        candidates = (target_dir / "debug" / executable, target_dir / "release" / executable)
-        manifest = project / "Cargo.toml"
-        source_files = [manifest, project / "Cargo.lock", *project.joinpath("src").rglob("*.rs")]
-        for candidate in candidates:
-            if candidate.is_file() and all(
-                not path.is_file() or path.stat().st_mtime <= candidate.stat().st_mtime for path in source_files
-            ):
-                return candidate.resolve()
-        log_info("[convert] Building the MathType converter with Cargo")
-        subprocess.run(["cargo", "build", "--locked", "--manifest-path", str(manifest), "--bin", "mathtype-rust"], check=True)
-        if candidates[0].is_file():
-            return candidates[0].resolve()
-    packaged = package_resource_path(Path("mathtype/bin") / executable)
-    if packaged.is_file():
-        return packaged.resolve()
-    raise FileNotFoundError(
-        "MathType converter executable is missing; build scripts/mathtype-rust with Cargo or install a Papper wheel that includes it"
-    )
-
-
-def has_mathtype_ole(docx: Path) -> bool:
-    """Require the Rust executable only for DOCX parts that declare MathType OLE."""
-    with ZipFile(docx) as archive:
-        for part in archive.namelist():
-            if part.startswith("word/") and part.endswith(".xml") and "/_rels/" not in part:
-                content = archive.read(part)
-                if b"OLEObject" in content and (b"Equation." in content or b"MathType" in content):
-                    return True
-    return False
