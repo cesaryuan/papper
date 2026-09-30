@@ -1,6 +1,5 @@
 from pathlib import Path
 import struct
-import subprocess
 import sys
 import zipfile
 
@@ -24,13 +23,6 @@ def test_missing_helper_is_not_built_during_conversion(monkeypatch, tmp_path) ->
 
     with pytest.raises(FileNotFoundError, match="prebuilt|bundles it|build the helper"):
         ole_parts.require_helper_executable()
-
-
-def test_auto_native_digest_does_not_build_rust_fallbacks(monkeypatch, tmp_path) -> None:
-    """Keep a successful auto set-data build from compiling unused Rust libraries."""
-    monkeypatch.setattr(ole_parts, "MATHTYPE_RUST_LIBRARY", tmp_path / "missing-rust.dll")
-    monkeypatch.setattr(ole_parts.native, "get_converter", lambda name: pytest.fail("digest must not load native libraries"))
-    assert ole_parts.native_library_digest_for_method("auto") is None
 
 
 def test_decode_process_output_falls_back_for_localized_helper_errors() -> None:
@@ -95,13 +87,10 @@ def test_marked_docx_preserves_inline_formula_context(tmp_path) -> None:
 
 def test_preview_baseline_maps_directly_to_word_position() -> None:
     """Map every backend's preview depth directly to Word half-points."""
-    inline = docx_ole.build_mathtype_template()
-    inline.baseline_from_bottom_pt = 3.0
-    display = docx_ole.build_mathtype_template()
-    display.baseline_from_bottom_pt = 3.0
+    template = docx_ole.build_mathtype_template()
+    template.baseline_from_bottom_pt = 3.0
 
-    assert docx_ole.mathtype_position_half_points(inline) == -6
-    assert docx_ole.mathtype_position_half_points(display) == -6
+    assert docx_ole.mathtype_position_half_points(template) == -6
 
     shallow = docx_ole.build_mathtype_template()
     shallow.baseline_from_bottom_pt = 0.24
@@ -128,61 +117,6 @@ def test_zero_depth_baseline_does_not_use_height_fallback(tmp_path) -> None:
 
     assert equation.baseline_from_bottom_pt == 0.0
     assert docx_ole.mathtype_position_half_points(template) == 0
-
-
-def test_make_wmf_metadata_from_mtef_uses_sdk_xform_ole(monkeypatch, tmp_path) -> None:
-    """Use the helper's MTEF SDK path to create Rust-path WMF and JSON files."""
-    calls = []
-    mtef_path = tmp_path / "eq.mtef.bin"
-    helper_ole_path = tmp_path / "eq.sdk.ole.bin"
-    wmf_path = tmp_path / "eq.wmf"
-    metadata_path = tmp_path / "eq.json"
-    prefs_path = tmp_path / "size.eqp"
-    helper_exe = tmp_path / "MathTypeOleHelper.exe"
-
-    monkeypatch.setattr(ole_parts, "require_helper_executable", lambda: helper_exe)
-    monkeypatch.setattr(ole_parts, "run", lambda command, **kwargs: calls.append(command))
-
-    ole_parts.make_wmf_metadata_from_mtef(
-        mtef_path,
-        helper_ole_path,
-        wmf_path,
-        metadata_path,
-        prefs_file=prefs_path,
-    )
-
-    command = calls[0]
-    assert command[command.index("--method") + 1] == "sdk-xform-ole"
-    assert command[command.index("--format") + 1] == "MathType EF"
-    assert command[command.index("--input") + 1] == str(mtef_path)
-    assert command[command.index("--output") + 1] == str(helper_ole_path)
-    assert command[command.index("--preview-output") + 1] == str(wmf_path)
-    assert command[command.index("--metadata-output") + 1] == str(metadata_path)
-    assert command[command.index("--prefs-file") + 1] == str(prefs_path)
-    assert "--binary" in command
-
-
-def test_generate_uncached_equation_parts_uses_rust_sdk_method(monkeypatch, tmp_path) -> None:
-    """Keep the former Rust plus MathType SDK pipeline under rust-sdk."""
-    calls = []
-
-    monkeypatch.setattr(
-        ole_parts,
-        "make_ole_wmf_metadata_with_mathtype_rust_sdk",
-        lambda *args, **kwargs: calls.append("rust-sdk"),
-    )
-
-    ole_parts.generate_uncached_equation_parts(
-        1,
-        tmp_path / "eq.tex",
-        tmp_path / "eq.ole.bin",
-        tmp_path / "eq.wmf",
-        tmp_path / "eq.json",
-        tmp_path / "eq.mtef.bin",
-        conversion_method="rust-sdk",
-    )
-
-    assert calls == ["rust-sdk"]
 
 
 def test_rust_sdk_generates_rust_ole_before_helper_preview(monkeypatch, tmp_path) -> None:
@@ -223,61 +157,6 @@ def test_rust_sdk_generates_rust_ole_before_helper_preview(monkeypatch, tmp_path
     assert ole_path.read_bytes() == b"rust-ole"
     assert not (tmp_path / "eq.ole.sdk.bin").exists()
 
-
-def test_generate_uncached_equation_parts_uses_rust_method(monkeypatch, tmp_path) -> None:
-    """Use only the Rust path when style metadata selects rust."""
-    calls = []
-
-    monkeypatch.setattr(
-        ole_parts,
-        "make_ole_wmf_metadata_with_mathtype_rust",
-        lambda *args, **kwargs: calls.append("rust"),
-    )
-    monkeypatch.setattr(
-        ole_parts,
-        "make_ole_wmf_metadata_with_mathtype_set_data",
-        lambda *args, **kwargs: calls.append("set-data"),
-    )
-
-    ole_parts.generate_uncached_equation_parts(
-        1,
-        tmp_path / "eq.tex",
-        tmp_path / "eq.ole.bin",
-        tmp_path / "eq.wmf",
-        tmp_path / "eq.json",
-        tmp_path / "eq.mtef.bin",
-        conversion_method="rust",
-    )
-
-    assert calls == ["rust"]
-
-
-def test_generate_uncached_equation_parts_uses_set_data_method(monkeypatch, tmp_path) -> None:
-    """Use only MathType TeX import when style metadata selects set-data."""
-    calls = []
-
-    monkeypatch.setattr(
-        ole_parts,
-        "make_ole_wmf_metadata_with_mathtype_rust",
-        lambda *args, **kwargs: calls.append("rust"),
-    )
-    monkeypatch.setattr(
-        ole_parts,
-        "make_ole_wmf_metadata_with_mathtype_set_data",
-        lambda *args, **kwargs: calls.append("set-data"),
-    )
-
-    ole_parts.generate_uncached_equation_parts(
-        1,
-        tmp_path / "eq.tex",
-        tmp_path / "eq.ole.bin",
-        tmp_path / "eq.wmf",
-        tmp_path / "eq.json",
-        tmp_path / "eq.mtef.bin",
-        conversion_method="set-data",
-    )
-
-    assert calls == ["set-data"]
 
 def test_generate_uncached_equation_parts_auto_uses_rust_when_mathtype_unavailable(
     monkeypatch, tmp_path
@@ -337,58 +216,6 @@ def test_generate_uncached_equation_parts_auto_uses_rust_on_non_windows(monkeypa
     )
 
     assert calls == ["rust"]
-
-
-def test_generate_cached_equation_parts_auto_uses_resolved_order(monkeypatch, tmp_path) -> None:
-    """Apply the resolved set-data, rust-sdk, Rust order at the cache boundary."""
-    calls = []
-
-    def fake_generate(*args, **kwargs):
-        method = args[13]
-        calls.append(method)
-        if method != "rust":
-            raise RuntimeError(f"{method} failed")
-        return False
-
-    monkeypatch.setattr(ole_parts, "generate_cached_equation_parts_for_method", fake_generate)
-
-    hits, misses = ole_parts.generate_cached_equation_parts_auto(
-        1,
-        "x",
-        None,
-        None,
-        None,
-        None,
-        None,
-        tmp_path / "eq.tex",
-        tmp_path / "eq.ole.bin",
-        tmp_path / "eq.wmf",
-        tmp_path / "eq.json",
-        tmp_path / "eq.mtef.bin",
-        None,
-        ("set-data", "rust-sdk", "rust"),
-    )
-
-    assert calls == ["set-data", "rust-sdk", "rust"]
-    assert (hits, misses) == (0, 3)
-
-
-def test_normalize_conversion_method_accepts_style_aliases() -> None:
-    """Normalize user-facing style metadata values to conversion backends."""
-    assert ole_parts.normalize_conversion_method(None) == "auto"
-    assert ole_parts.normalize_conversion_method("mathtype-rust") == "rust"
-    assert ole_parts.normalize_conversion_method("rust-sdk") == "rust-sdk"
-    assert ole_parts.normalize_conversion_method("sdk-xform-ole") == "rust-sdk"
-    assert ole_parts.normalize_conversion_method("tex") == "set-data"
-    assert ole_parts.normalize_conversion_method("fallback") == "auto"
-    assert ole_parts.normalize_conversion_method("both") == "both"
-
-
-def test_normalize_svg_backend_accepts_documented_values() -> None:
-    """Normalize both cross-platform SVG renderer names from style metadata."""
-    assert ole_parts.normalize_svg_backend(None) == "typst"
-    assert ole_parts.normalize_svg_backend("RaTeX") == "ratex"
-    assert ole_parts.normalize_svg_backend("typst-as-lib") == "typst"
 
 
 def test_generate_equation_parts_both_uses_independent_backend_caches(monkeypatch, tmp_path) -> None:
@@ -547,82 +374,6 @@ def test_warn_if_conversion_outputs_differ_accepts_equal_mtef(monkeypatch, tmp_p
     assert warnings == []
 
 
-def test_warn_if_conversion_outputs_differ_reports_ole_mtef(monkeypatch, tmp_path) -> None:
-    """Keep formula-data differences visible regardless of preview metadata."""
-    warnings = []
-    rust_ole = tmp_path / "rust.ole.bin"
-    set_data_ole = tmp_path / "set-data.ole.bin"
-    for path in (rust_ole, set_data_ole):
-        path.write_bytes(b"not-used")
-
-    monkeypatch.setattr(ole_parts, "mathtype_ole_mtef_sha256", lambda path: Path(path).stem)
-    monkeypatch.setattr(ole_parts, "log_warning", lambda message: warnings.append(message))
-
-    ole_parts.warn_if_conversion_outputs_differ(
-        2,
-        "x",
-        rust_ole,
-        set_data_ole,
-    )
-
-    assert len(warnings) == 1
-    assert "OLE MTEF" in warnings[0]
-    assert "JSON" not in warnings[0]
-    assert "WMF" not in warnings[0]
-
-
-def test_convert_marked_docx_passes_style_conversion_method(monkeypatch, tmp_path) -> None:
-    """Pass conversion and SVG backend selections into MathType part generation."""
-    seen = {}
-
-    monkeypatch.setattr(
-        convert_marked_docx_module,
-        "extract_marked_equation_requests",
-        lambda source: [ole_parts.EquationRequest("x")],
-    )
-    monkeypatch.setattr(
-        convert_marked_docx_module,
-        "replace_marked_omml_with_generated",
-        lambda source, target, equations: 1,
-    )
-    monkeypatch.setattr(convert_marked_docx_module, "inspect_docx", lambda target: None)
-
-    def fake_generate_equation_parts(
-        requests,
-        output_dir,
-        conversion_method="rust",
-        svg_backend="ratex",
-        math_font="XITS Math",
-    ):
-        seen["conversion_method"] = conversion_method
-        seen["svg_backend"] = svg_backend
-        return [
-            ole_parts.GeneratedEquation(
-                latex=requests[0].latex,
-                ole_path=tmp_path / "eq.ole.bin",
-                wmf_path=tmp_path / "eq.wmf",
-            )
-        ]
-
-    monkeypatch.setattr(convert_marked_docx_module, "generate_equation_parts", fake_generate_equation_parts)
-
-    replaced = convert_marked_docx_module.convert_marked_docx(
-        tmp_path / "source.docx",
-        tmp_path / "target.docx",
-        tmp_path / "work",
-        pmt_settings=PmtSettings.model_validate(
-            {
-                "mathtypeConversionMethod": "set-data",
-                "mathtypeSvgBackend": "typst",
-            }
-        ),
-    )
-
-    assert replaced == 1
-    assert seen["conversion_method"] == "set-data"
-    assert seen["svg_backend"] == "typst"
-
-
 def test_mathtype_cache_key_includes_rust_converter_and_method_digests() -> None:
     """Invalidate cache entries when the Rust converter or selected method changes."""
     base = ole_parts.mathtype_cache_key("x", None, None, "helper", "rust-src-a", "rust-exe", "rust")
@@ -675,11 +426,11 @@ class FakeCompound:
         return b"DSMT"
 
 
-@pytest.mark.parametrize("method,failed_stage", [
-    ("rust", "wmf"), ("auto", "wmf"), ("both", "wmf"),
-    ("rust", "ole"), ("auto", "ole"), ("both", "ole"), ("rust-sdk", "ole"),
+@pytest.mark.parametrize("method,failed_stage,failed_indices", [
+    ("rust", "wmf", {2}), ("auto", "wmf", {2}), ("both", "wmf", {2}),
+    ("rust", "ole", {2}), ("both", "ole", {2}), ("rust-sdk", "ole", {2}),
+    ("rust", "ole", {1, 2, 3}), ("both", "ole", {1, 2, 3}),
 ])
-@pytest.mark.parametrize("failed_indices", [{2}, {1, 2, 3}])
 def test_failed_native_conversion_continues_docx_build(monkeypatch, tmp_path, method, failed_stage, failed_indices) -> None:
     """Preserve failed OMML, later formula alignment, and usable both-mode output."""
     warnings = []

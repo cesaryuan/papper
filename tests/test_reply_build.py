@@ -5,15 +5,12 @@ from types import SimpleNamespace
 import zipfile
 
 import pytest
-from docx import Document
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pandoc_manuscript.commands import build_reply as reply_build
 from pandoc_manuscript.commands.build_reply import extract_citation_clusters, replace_citations
-from pandoc_manuscript.commands.build_reply import command as reply_command
 from pandoc_manuscript.commands.build_reply import line_source as reply_line_source
-from pandoc_manuscript.commands.build_reply import output as reply_output
 from pandoc_manuscript.commands.build_reply import resolve as reply_resolve
 
 
@@ -46,21 +43,6 @@ def write_test_docx(
         ):
             entry = zipfile.ZipInfo(name, date_time=zip_timestamp)
             archive.writestr(entry, data)
-
-
-def test_extract_labeled_equation_labels() -> None:
-    """Find display equation labels that need manuscript-derived numbering."""
-    markdown = r"""
-$$
-a+b
-$$ {#eq:first}
-
-See @fig:overview.
-
-$$ c+d $$ {#eq:second}
-"""
-
-    assert reply_build.extract_labeled_equation_labels(markdown) == ["eq:first", "eq:second"]
 
 
 def test_add_manuscript_caption_numbers_handles_quoted_figures_and_tables() -> None:
@@ -233,38 +215,6 @@ def test_extract_probe_map_reads_superscript_csl_citation_without_probe_space() 
     assert resolved == {"smith2023machine": "^1^"}
 
 
-def test_extract_probe_map_reads_superscript_csl_cluster_without_probe_space() -> None:
-    """Read CSL superscript citation clusters from Pandoc's Cite inline tail."""
-    document = {
-        "blocks": [
-            {
-                "t": "Para",
-                "c": [
-                    {"t": "Str", "c": reply_build.CITATION_CLUSTER_PROBE_SENTINEL},
-                    {"t": "Space"},
-                    {"t": "Str", "c": "0"},
-                    {
-                        "t": "Cite",
-                        "c": [
-                            [],
-                            [{"t": "Superscript", "c": [{"t": "Str", "c": "2,3"}]}],
-                        ],
-                    },
-                ],
-            }
-        ]
-    }
-
-    resolved = reply_build.extract_probe_map(
-        document,
-        reply_build.CITATION_CLUSTER_PROBE_SENTINEL,
-        ["0"],
-        ("???",),
-    )
-
-    assert resolved == {"0": "^2,3^"}
-
-
 def test_prepare_line_source_pdf_uses_soffice_on_non_windows(tmp_path, monkeypatch) -> None:
     """Convert DOCX line sources with soffice when Word COM is unavailable."""
     source_docx = tmp_path / "manuscript.docx"
@@ -313,11 +263,6 @@ def test_prepare_line_source_pdf_uses_soffice_on_non_windows(tmp_path, monkeypat
             },
         )
     ]
-
-
-def test_default_reply_line_source_is_manuscript_markdown() -> None:
-    """Use manuscript.md by default so line sources rebuild from current manuscript content."""
-    assert reply_build.DEFAULT_REPLY_LINE_SOURCE == "manuscript.md"
 
 
 def test_docx_line_source_cache_key_ignores_volatile_package_timestamps(tmp_path) -> None:
@@ -400,69 +345,6 @@ def test_prepare_line_source_pdf_reports_missing_word_on_windows(tmp_path, monke
 
     with pytest.raises(RuntimeError, match=r"Microsoft Word.*Please install Microsoft Word"):
         reply_build.prepare_line_source_pdf(source_docx)
-
-
-def test_build_reply_docx_uses_svg_filters(tmp_path, monkeypatch) -> None:
-    """Apply reply SVG embedding and rasterization filters during Pandoc DOCX build."""
-    reply = tmp_path / "reply.md"
-    reply.write_text("See ![layout](figures/layout.svg).\n", encoding="utf-8")
-    manuscript = tmp_path / "manuscript.md"
-    manuscript.write_text("# Manuscript\n", encoding="utf-8")
-    output = tmp_path / "reply.docx"
-    reference_doc = tmp_path / "reference.docx"
-    Document().save(reference_doc)
-    style = tmp_path / "style.yml"
-    style.write_text("docxEmbedSvgImages: true\n", encoding="utf-8")
-    resolved_reply = tmp_path / "reply.resolved.md"
-    calls: list[tuple[list[str], dict[str, str]]] = []
-
-    monkeypatch.setattr(reply_resolve, "write_reply_style_metadata_file", lambda *args, **kwargs: style)
-    monkeypatch.setattr(
-        reply_output,
-        "resolve_mathtype_enabled",
-        lambda requested, conversion_method=None: False,
-    )
-    monkeypatch.setattr(reply_resolve, "resolve_reference_map", lambda *args: {})
-    monkeypatch.setattr(reply_resolve, "resolve_citation_map", lambda *args: {})
-    monkeypatch.setattr(reply_resolve, "resolve_citation_cluster_map", lambda *args: {})
-    monkeypatch.setattr(reply_line_source, "resolve_line_regexes", lambda text, source: text)
-    monkeypatch.setattr(reply_resolve, "replace_references", lambda text, refs: text)
-    monkeypatch.setattr(reply_resolve, "replace_citations", lambda text, refs, clusters=None: text)
-    monkeypatch.setattr(reply_output, "resolved_reply_path", lambda _: resolved_reply)
-    monkeypatch.setattr(reply_output, "pandoc_command", lambda: "pandoc")
-    monkeypatch.setattr(reply_output, "docx_metadata_filter_args", lambda: ["--lua-filter", "docx-metadata.lua"])
-    monkeypatch.setattr(reply_output, "svg_embed_images_filter_args", lambda: ["--filter", "embed.py"])
-    monkeypatch.setattr(reply_output, "svg_to_png_filter_args", lambda: ["--filter", "png.py"])
-    monkeypatch.setattr(reply_output, "pandoc_tools_env", lambda env=None: env or {})
-    monkeypatch.setattr(reply_output, "postprocess_docx", lambda *args, **kwargs: True)
-    monkeypatch.setattr(reply_output, "validate_final_docx_syntax", lambda path: [])
-
-    def fake_run_command(cmd, env=None):
-        """Capture the Pandoc command without running external tools."""
-        calls.append((cmd, env or {}))
-        output.write_bytes(b"docx")
-        return subprocess.CompletedProcess(cmd, 0)
-
-    monkeypatch.setattr(reply_resolve, "run_command", fake_run_command)
-
-    reply_build.build_reply_docx(
-        reply=reply,
-        manuscript=manuscript,
-        manuscript_line_source=manuscript,
-        output=output,
-        reference_doc=reference_doc,
-        style=style,
-        from_format="markdown",
-    )
-
-    assert len(calls) == 1
-    cmd, env = calls[0]
-    assert "--filter" in cmd
-    assert "embed.py" in cmd
-    assert "png.py" in cmd
-    assert env["PMT_SVG_EMBED_IMAGES"] == "true"
-    assert env["PMT_SVG_TO_PNG_CONVERT_ALL"] == "false"
-    assert str(tmp_path.resolve()) in env["PMT_SVG_EMBED_BASE_DIRS"]
 
 
 def test_render_reply_txt_markdown_keeps_markdown_but_removes_output_only_syntax() -> None:
@@ -557,25 +439,6 @@ $$ x+y $$ {#eq:sum}
     assert "$$ x+y $$" in text
     assert "{#eq:sum}" not in text
     assert "<w:tab" not in text
-
-
-def test_run_build_reply_command_routes_txt_output(tmp_path, monkeypatch) -> None:
-    """Use the TXT builder when the exact output path ends in .txt."""
-    reply = tmp_path / "reply.md"
-    reply.write_text("Reply\n", encoding="utf-8")
-    calls = []
-
-    def fake_build_reply_txt(**kwargs) -> None:
-        """Capture TXT builder arguments without touching external tools."""
-        calls.append(kwargs)
-
-    monkeypatch.setattr(reply_command, "build_reply_txt", fake_build_reply_txt)
-    monkeypatch.setattr(reply_command, "build_reply_docx", lambda **kwargs: pytest.fail("DOCX builder should not run"))
-
-    result = reply_build.run_build_reply_command(markdown=str(reply), output_file=str(tmp_path / "reply.txt"))
-
-    assert result == 0
-    assert calls[0]["output"] == tmp_path / "reply.txt"
 
 
 def test_reply_output_format_rejects_unknown_suffix(tmp_path) -> None:

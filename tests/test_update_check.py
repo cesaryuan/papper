@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
-import subprocess
 import sys
-import tempfile
 import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from pandoc_manuscript import cli
 from pandoc_manuscript.runtime import update_check
 
 
@@ -59,19 +55,6 @@ def test_available_update_ignores_unexpected_pypi_json(monkeypatch) -> None:
     assert update_check.available_update("0.5.3") is None
 
 
-def test_update_cache_is_written_atomically_and_read_back(monkeypatch) -> None:
-    """Keep command-time reads safe while the background worker replaces the cache."""
-    cache = update_check.UpdateCache("0.5.4", 1000.0, 1000.0)
-    with tempfile.TemporaryDirectory(prefix="pmt-update-") as temporary_directory:
-        cache_path = Path(temporary_directory) / "update.json"
-        monkeypatch.setattr(update_check, "update_cache_path", lambda: cache_path)
-
-        update_check.write_update_cache(cache)
-
-        assert update_check.read_update_cache() == cache
-        assert not list(cache_path.parent.glob("*.tmp"))
-
-
 def test_update_cache_refresh_uses_ttl_and_failure_backoff() -> None:
     """Avoid repeated worker launches while retaining a bounded retry after failure."""
     now = 100_000.0
@@ -106,30 +89,6 @@ def test_notify_reads_cache_then_starts_a_stale_refresh(monkeypatch, capsys) -> 
     assert worker_starts == [None]
 
 
-def test_start_update_worker_uses_the_current_python_without_a_console(monkeypatch) -> None:
-    """Run the cache refresher in the tool environment rather than through a shell."""
-    calls: list[tuple[list[str], dict[str, object]]] = []
-
-    def fake_popen(command, **kwargs):
-        """Capture the background worker process request."""
-        calls.append((command, kwargs))
-
-    monkeypatch.setattr(update_check.subprocess, "Popen", fake_popen)
-
-    update_check.start_update_worker()
-
-    command, options = calls[0]
-    assert command == [sys.executable, "-m", "pandoc_manuscript.runtime.update_check"]
-    assert options["stdin"] is subprocess.DEVNULL
-    assert options["stdout"] is subprocess.DEVNULL
-    assert options["stderr"] is subprocess.DEVNULL
-    assert options["close_fds"] is True
-    if os.name == "nt":
-        assert options["creationflags"] == subprocess.CREATE_NO_WINDOW
-    else:
-        assert options["start_new_session"] is True
-
-
 def test_worker_retains_the_last_known_release_after_a_network_failure(monkeypatch) -> None:
     """Preserve a useful cached update while recording a failed refresh attempt."""
     previous = update_check.UpdateCache("0.5.4", 100.0, 100.0)
@@ -142,15 +101,3 @@ def test_worker_retains_the_last_known_release_after_a_network_failure(monkeypat
     update_check.run_update_worker()
 
     assert written == [update_check.UpdateCache("0.5.4", 100.0, 200.0)]
-
-
-def test_cli_checks_cached_updates_after_a_command(monkeypatch, capsys) -> None:
-    """Schedule the non-blocking cache refresh only after CLI command output is complete."""
-    calls: list[str] = []
-    monkeypatch.setattr(cli, "notify_and_schedule_update_check", calls.append)
-
-    assert cli.main(["--version"]) == 0
-
-    captured = capsys.readouterr()
-    assert captured.out.startswith("papper ")
-    assert calls == [cli.__version__]

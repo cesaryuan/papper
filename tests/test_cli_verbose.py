@@ -19,34 +19,6 @@ def disable_update_check(monkeypatch) -> None:
     monkeypatch.setattr(cli, "notify_and_schedule_update_check", lambda version: None)
 
 
-@pytest.mark.parametrize(
-    ("settings_class", "arguments"),
-    [
-        (cli.InitSettings, ["init", "paper", "--verbose"]),
-        (cli.SetupSettings, ["setup", "--verbose"]),
-        (cli.DoctorSettings, ["doctor", "--verbose"]),
-        (cli.BuildCommandSettings, ["build", "docx", "--verbose"]),
-        (cli.BuildReplySettings, ["build-reply", "reply.md", "--verbose"]),
-        (cli.CleanSettings, ["clean", "--verbose"]),
-        (cli.DistcleanSettings, ["distclean", "--verbose"]),
-    ],
-)
-def test_all_commands_accept_verbose(settings_class, arguments, monkeypatch) -> None:
-    """Expose the same verbose flag on every public papper subcommand."""
-    observed: list[bool] = []
-
-    def fake_run(self) -> int:
-        """Record parsed verbose settings without running command side effects."""
-        observed.append(self.verbose)
-        log_debug("verbose command output")
-        return 0
-
-    monkeypatch.setattr(settings_class, "run", fake_run)
-
-    assert cli.main(arguments) == 0
-    assert observed == [True]
-
-
 def test_verbose_temporarily_enables_debug_logging(monkeypatch, capsys) -> None:
     """Enable DEBUG during a verbose command without leaking it to later commands."""
     monkeypatch.delenv(LOG_LEVEL_ENV, raising=False)

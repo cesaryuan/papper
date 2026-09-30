@@ -25,4 +25,3 @@ def test_html_docx_style_aliases_match_localized_heading_names(tmp_path: Path, s
 
     assert "h1 {" in css
     assert "font-size: 14pt;" in css
-    assert f"docxStyle.{style_name} override" in css

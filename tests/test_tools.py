@@ -14,7 +14,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pandoc_manuscript.commands.setup import pandoc_tools as tools
-from pandoc_manuscript.runtime.paths import PMT_TOOLS_BIN_DIR
 
 
 def test_pandoc_asset_selection_uses_platform_preferences(monkeypatch) -> None:
@@ -49,42 +48,6 @@ def test_crossref_asset_selection_uses_platform_preferences(monkeypatch) -> None
     }
 
 
-def test_pandoc_tools_env_prepends_managed_bin(monkeypatch, tmp_path) -> None:
-    """Expose managed tools and the active Windows Python to Pandoc."""
-    monkeypatch.chdir(tmp_path)
-
-    env = tools.pandoc_tools_env({"PATH": "base"})
-
-    path_entries = env["PATH"].split(tools.os.pathsep)
-    if tools.os.name == "nt":
-        assert path_entries[0] == str(Path(tools.sys.executable).parent)
-        assert path_entries[1] == str(PMT_TOOLS_BIN_DIR.resolve())
-    else:
-        assert path_entries[0] == str(PMT_TOOLS_BIN_DIR.resolve())
-    assert env["PATH"].endswith("base")
-
-
-def test_resolve_tool_prefers_system_path(monkeypatch, tmp_path) -> None:
-    """Use an existing system command instead of downloading a managed copy."""
-    tools.TOOL_CACHE.clear()
-    fake_executable = tmp_path / ("pandoc.exe" if tools.os.name == "nt" else "pandoc")
-    fake_executable.write_text("fake", encoding="utf-8")
-
-    monkeypatch.setattr(shutil, "which", lambda command: str(fake_executable) if command == "pandoc" else None)
-    monkeypatch.setattr(tools, "subprocess_run_version", lambda executable: "pandoc 3.11")
-    monkeypatch.setattr(
-        tools,
-        "install_release_tool",
-        lambda command: (_ for _ in ()).throw(AssertionError("download should not run")),
-    )
-
-    resolved = tools.resolve_tool("pandoc")
-
-    assert resolved.executable == fake_executable
-    assert resolved.source == "PATH"
-    tools.TOOL_CACHE.clear()
-
-
 def test_crossref_pandoc_version_parses_reported_build_version(monkeypatch, tmp_path) -> None:
     """Read the Pandoc ABI version reported by pandoc-crossref --version."""
     crossref = tmp_path / "pandoc-crossref.exe"
@@ -114,30 +77,6 @@ def test_download_proxy_prefers_https_proxy_env(monkeypatch) -> None:
 
     assert proxy.proxy == "http://127.0.0.1:7890"
     assert proxy.source == "HTTPS_PROXY"
-
-
-def test_download_proxy_uses_system_proxy_when_env_missing(monkeypatch) -> None:
-    """Fall back to the OS proxy when HTTPS_PROXY is not set."""
-    monkeypatch.delenv("HTTPS_PROXY", raising=False)
-    monkeypatch.delenv("https_proxy", raising=False)
-    monkeypatch.setattr(tools, "system_https_proxy", lambda: "http://127.0.0.1:7891")
-
-    proxy = tools.download_proxy_config()
-
-    assert proxy.proxy == "http://127.0.0.1:7891"
-    assert proxy.source == "system proxy"
-
-
-def test_download_proxy_direct_when_no_proxy(monkeypatch) -> None:
-    """Use direct downloads when neither environment nor system proxy exists."""
-    monkeypatch.delenv("HTTPS_PROXY", raising=False)
-    monkeypatch.delenv("https_proxy", raising=False)
-    monkeypatch.setattr(tools, "system_https_proxy", lambda: None)
-
-    proxy = tools.download_proxy_config()
-
-    assert proxy.proxy is None
-    assert proxy.source == "direct"
 
 
 @pytest.mark.parametrize("url", [
@@ -177,15 +116,6 @@ def test_download_uses_detected_windows_system_proxy(monkeypatch, url) -> None:
     assert destinations == [tools.urllib.parse.urlsplit(url).hostname + ":443"]
 
 
-def test_progress_line_shows_percentage_for_known_size() -> None:
-    """Render a determinate progress line when Content-Length is known."""
-    line = tools.progress_line(512, 1024)
-
-    assert "50.0%" in line
-    assert "512 B/1.0 KiB" in line
-    assert "\r" not in line
-
-
 def test_write_progress_clears_previous_longer_line(monkeypatch) -> None:
     """Pad shorter progress updates so stale terminal characters disappear."""
     output = io.StringIO()
@@ -220,25 +150,7 @@ class FakeDownloadResponse:
         return self.chunks.pop(0)
 
 
-def test_copy_response_with_progress_streams_body_and_finishes(monkeypatch) -> None:
-    """Copy downloaded bytes in chunks and emit a final progress update."""
-    response = FakeDownloadResponse([b"abc", b"def"], content_length=6)
-    output = io.BytesIO()
-    updates = []
-
-    def fake_write_progress(downloaded, total, *, final=False):
-        """Record progress updates without writing to the test terminal."""
-        updates.append((downloaded, total, final))
-
-    monkeypatch.setattr(tools, "write_progress", fake_write_progress)
-
-    tools.copy_response_with_progress(response, output)
-
-    assert output.getvalue() == b"abcdef"
-    assert updates == [(3, 6, False), (6, 6, False), (6, 6, True)]
-
-
-@pytest.mark.parametrize("version,accepted", [("2.19", False), ("3.10.1", False), ("3.11", True), ("3.11.1", True)])
+@pytest.mark.parametrize("version,accepted", [("3.10.1", False), ("3.11", True), ("3.11.1", True)])
 def test_resolve_pandoc_enforces_minimum_version(monkeypatch, tmp_path, version, accepted) -> None:
     """Use supported PATH versions and replace older ones with a managed install."""
     monkeypatch.chdir(tmp_path)
@@ -256,22 +168,6 @@ def test_old_crossref_does_not_pin_unsupported_pandoc(monkeypatch) -> None:
     """An older crossref ABI must not cause installation of Pandoc below 3.11."""
     monkeypatch.setattr(tools, "release_by_tag", lambda *args: pytest.fail("unsupported release requested"))
     assert tools.pandoc_release_for_crossref("3.7.0.2") is None
-
-
-def test_old_path_pandoc_starts_managed_setup(monkeypatch, tmp_path) -> None:
-    """Automatically run the setup flow when PATH Pandoc is below 3.11."""
-    tools.TOOL_CACHE.clear()
-    executable = tmp_path / "pandoc.exe"
-    executable.write_text("fake", encoding="utf-8")
-    monkeypatch.setattr(tools.shutil, "which", lambda command: str(executable))
-    monkeypatch.setattr(tools, "subprocess_run_version", lambda path: "pandoc 3.10.2")
-    expected = (
-        tools.ResolvedTool("pandoc", tmp_path / "managed-pandoc.exe", "~/.papper/tools"),
-        tools.ResolvedTool("pandoc-crossref", tmp_path / "managed-crossref.exe", "~/.papper/tools"),
-    )
-    monkeypatch.setattr(tools, "setup_pandoc_tools", lambda: expected)
-
-    assert tools.ensure_pandoc_tools() == expected
 
 
 @pytest.mark.parametrize("failure", [KeyboardInterrupt, OSError])

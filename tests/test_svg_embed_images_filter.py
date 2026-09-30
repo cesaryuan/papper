@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import importlib.util
-import json
 import sys
 from pathlib import Path
 
@@ -171,8 +170,8 @@ def test_global_switch_controls_embedding(monkeypatch) -> None:
     assert elem.url == "figure.svg"
 
 
-def test_cache_metadata_tracks_child_image_changes(tmp_path) -> None:
-    """Include child image metadata so edited panels invalidate SVG caches."""
+def test_cache_invalidates_when_child_image_changes(tmp_path) -> None:
+    """Refresh embedded image bytes when an edited panel invalidates the SVG cache."""
     svg_filter = load_svg_embed_filter()
     figures = tmp_path / "figures"
     figures.mkdir()
@@ -184,13 +183,13 @@ def test_cache_metadata_tracks_child_image_changes(tmp_path) -> None:
     output_root = tmp_path / ".papper/cache/svg-embedded"
 
     svg_filter.rewrite_image(elem, [tmp_path], output_root, "test")
-    metadata_path = Path(elem.url).with_suffix(".svg.meta.json")
-    first_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    first_output = Path(elem.url).read_text(encoding="utf-8")
 
     child.write_bytes(b"two-two")
     elem.url = "figures/layout.svg"
     svg_filter.rewrite_image(elem, [tmp_path], output_root, "test")
-    second_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    second_output = Path(elem.url).read_text(encoding="utf-8")
 
-    assert first_metadata["resources"][0]["size"] == 3
-    assert second_metadata["resources"][0]["size"] == 7
+    assert base64.b64encode(b"one").decode("ascii") in first_output
+    assert base64.b64encode(b"two-two").decode("ascii") in second_output
+    assert base64.b64encode(b"one").decode("ascii") not in second_output

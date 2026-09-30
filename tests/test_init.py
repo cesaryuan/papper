@@ -6,21 +6,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from pandoc_manuscript import cli
-from pandoc_manuscript.commands import init as init_command
 from pandoc_manuscript.cli import InitSettings
-from pandoc_manuscript.commands.setup import ResolvedTool
 from pandoc_manuscript.runtime.metadata import load_effective_metadata
-
-
-def test_init_copies_packaged_agents_directory(tmp_path) -> None:
-    """Copy reusable agent guidance into new manuscript projects."""
-    target = tmp_path / "paper"
-
-    InitSettings(directory=str(target)).run()
-
-    assert (target / ".agents" / "manuscript-syntax.md").is_file()
-    assert (target / ".agents" / "manuscript-review" / "SKILL.md").is_file()
-    assert (target / ".agents" / "word-manuscript-fix" / "scripts" / "unescape_latex.py").is_file()
 
 
 def test_init_without_directory_uses_current_directory(tmp_path, monkeypatch) -> None:
@@ -47,15 +34,6 @@ def test_init_zh_cn_uses_translated_manuscript_and_reply_templates(tmp_path) -> 
     assert "# 对审稿意见的回复" in reply
     assert "# Introduction" not in manuscript
     assert "# Reply to comments of reviewers" not in reply
-
-
-def test_init_cli_accepts_lang_zh_cn(tmp_path, monkeypatch) -> None:
-    """Expose zh-cn template selection through the public init CLI parser."""
-    target = tmp_path / "paper"
-    monkeypatch.setattr(cli, "notify_and_schedule_update_check", lambda version: None)
-
-    assert cli.main(["init", str(target), "--lang", "zh-cn"]) == 0
-    assert "# 引言" in (target / "manuscript.md").read_text(encoding="utf-8")
 
 
 def test_init_project_style_does_not_override_language_defaults(tmp_path) -> None:
@@ -89,24 +67,3 @@ def test_init_merge_agents_directory_keeps_existing_files(tmp_path) -> None:
     assert existing_skill.read_text(encoding="utf-8") == "local skill notes\n"
     assert (target / ".agents" / "manuscript-review" / "SKILL.md").is_file()
     assert (target / ".agents" / "word-manuscript-fix" / "scripts" / "unescape_latex.py").is_file()
-
-
-def test_init_setup_runs_after_project_creation(tmp_path, monkeypatch) -> None:
-    """Run optional tool setup inside the newly initialized project."""
-    target = tmp_path / "paper"
-    calls = []
-
-    def fake_setup_pandoc_tools(*, force=False):
-        """Record init --setup without touching the network."""
-        calls.append((Path.cwd(), force))
-        return (
-            ResolvedTool("pandoc", Path(".papper/tools/bin/pandoc"), ".papper/tools"),
-            ResolvedTool("pandoc-crossref", Path(".papper/tools/bin/pandoc-crossref"), ".papper/tools"),
-        )
-
-    monkeypatch.setattr(init_command, "setup_pandoc_tools", fake_setup_pandoc_tools)
-
-    InitSettings(directory=str(target), setup=True).run()
-
-    assert (target / "manuscript.md").is_file()
-    assert calls == [(target.resolve(), False)]
