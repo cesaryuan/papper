@@ -16,8 +16,12 @@ filters:
   # tab-layout display equations into InlineMath. Equation attributes must be
   # extracted first because its filter expects DisplayMath to lead the block.
   - ${.}/filters/docx/mathtype_markers.lua
+  # Mark number boundaries before crossref; emit native fields after Chinese
+  # number normalization. Enabled only by the manuscript DOCX build environment.
+  - ${.}/filters/docx/native_crossrefs.lua
   - pandoc-crossref  # Must come before citeproc
   - ${.}/filters/shared/normalize_chinese_numbering.lua
+  - ${.}/filters/docx/native_crossrefs.lua
   - ${.}/filters/shared/merge_table_cells.lua
   - ${.}/filters/shared/paragraph_custom_styles.lua
   - ${.}/filters/docx/inline_math_spacing.lua

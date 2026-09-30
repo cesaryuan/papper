@@ -14,6 +14,7 @@ from ..runtime.metadata import EffectiveMetadata, is_chinese_language
 from .metadata import prepare_docx_metadata, write_docx_pandoc_metadata
 from . import svg_filters as svg_filter_helpers
 from .page_margins import write_reference_doc_with_page_margins
+from .native_crossrefs import finalize_native_heading_numbering
 from .postprocess import postprocess_docx as run_docx_postprocess
 from .postprocess.final_docx_syntax_check import validate_final_docx_syntax
 from .svg_filters import (
@@ -207,6 +208,10 @@ def build_docx(
 
     pandoc_output = docx_file
     pandoc_env: dict[str, str] = {"PMT_CHINESE_MODE": "true"} if chinese_mode else {}
+    # Gate the entire native workflow; false leaves the original Pandoc AST intact.
+    pandoc_env["PMT_DOCX_NATIVE_CROSSREFS"] = str(pmt_settings.docx_native_crossref).lower()
+    if pmt_settings.docx_native_crossref:
+        log_debug("[DOCX] Native REF/SEQ fields and multilevel heading numbering enabled")
     extra_args = docx_reference_doc_args(
         settings,
         pmt_settings,
@@ -252,6 +257,9 @@ def build_docx(
         extra_env=pandoc_env,
         metadata_file=write_docx_pandoc_metadata(effective, use_mathtype=use_mathtype),
     )
+    if pmt_settings.docx_native_crossref:
+        # Numbering is part of native output even when optional formatting is disabled.
+        finalize_native_heading_numbering(pandoc_output)
     if settings.enable_docx_postprocess:
         log_debug("\n[DOCX] Running Python post-processing...\n")
         postprocess_target = pandoc_output if use_mathtype else docx_file

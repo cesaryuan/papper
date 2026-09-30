@@ -530,6 +530,33 @@ overrides `style.yml:pandocMetadata`, but it does not override Papper-owned top-
 settings. The optional `reply:` section can override both Papper settings and its own
 `reply.pandocMetadata` for `papper build-reply`.
 
+Native Word cross-references are opt-in for manuscript DOCX builds. Configure
+this at the top level of `style.yml`, outside `pandocMetadata`:
+
+```yaml
+docxNativeCrossref: true
+```
+
+The default `false` leaves the original Pandoc numbering and hyperlink
+references unchanged. With `true`, Arabic figure, table, and equation item
+numbers become `SEQ` fields and their references become `REF` fields. Numbered
+headings use a Word multilevel list linked to Heading styles; their references
+use `REF ... \r \h`. `numberSections: false`, `sectionsDepth`, and `{-}` headings
+remain respected. Title text keeps its inline formatting, with numbering stored
+in the list rather than typed into the title. Subfigure references combine a
+`REF` to the parent's number with a `REF` to the panel letter; panels do not
+increment the figure sequence.
+
+For standard level-1 chapter prefixes, `STYLEREF` reads the native heading number
+and `SEQ \s 1` restarts item numbering after each chapter. Other custom chapter
+prefixes retain Pandoc text and explicit SEQ resets. Non-Arabic heading/item
+numbers and unsupported templates retain their Pandoc result with a warning.
+Field results are cached during the build. After editing, update fields in Word;
+forward references may need two updates. `pandocMetadata.linkReferences: false`
+still produces plain reference text instead of `REF` fields. Manuscript YAML
+cannot override the Papper-owned `docxNativeCrossref` setting. HTML, LaTeX, JSON,
+and reviewer reply builds do not use this DOCX workflow.
+
 The bundled English and Chinese style YAML files provide build defaults.
 A new project's `style.yml` starts with only `pandocMetadata: {}` so it can
 override either language without pinning values from the other language.
@@ -627,11 +654,9 @@ docxShowPageNumbers: true
 
 For DOCX builds, `pmt` derives the pandoc-crossref equation layout automatically;
 do not add `tableEqns`, `eqnBlockTemplate`, or `eqnBlockInlineMath` to
-`pandocMetadata`. When MathType conversion is active, Papper uses an inline
-OpenXML tab-stop template and derives its two `w:pos` values from the left/right
-margins. When MathType conversion is inactive or unavailable, Papper uses the
-three-column table template so native Word display equations remain centered
-with their numbers right-aligned.
+`pandocMetadata`. Papper uses a three-column table template with a separate text
+number, so both Word math and MathType equations stay centered while native
+numbering fields remain right-aligned.
 
 For a one-off DOCX build, the command line can override the top-level
 `mathtype` setting without editing `style.yml`:

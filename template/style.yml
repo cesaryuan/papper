@@ -18,6 +18,10 @@ mathtypeSvgBackend: typst
 # 仅影响 rust 路径的公式预览；both 最终采用 MathType 原生结果，不使用此字体设置。
 mathtypeTypstMathFont: New Computer Modern Math
 
+# true 使用 Word 原生 REF/SEQ 域和章节多级列表编号。
+# false 保留原有 Pandoc 编号和超链接引用行为。
+docxNativeCrossref: false
+
 # 设置为 true，可在构建 DOCX 时将引用的 SVG 文件中的本地子图像内嵌。
 # 这样既能保持 SVG 文本和矢量元素清晰，又能让链接的子图像在 Word 中可见。
 # 当 docxConvertSvgToPng 为 true 时，此功能会自动禁用。

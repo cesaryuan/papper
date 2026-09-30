@@ -118,6 +118,7 @@ PMT_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
         "convertSvgToPng",
         "convert-svg-to-png",
     ),
+    "docxNativeCrossref": ("docxNativeCrossref", "docx-native-crossref", "docx_native_crossref"),
     "docxSvgToPngWidth": ("docxSvgToPngWidth", "docx-svg-to-png-width", "docx_svg_to_png_width"),
     "docxSvgToPngDpi": ("docxSvgToPngDpi", "docx-svg-to-png-dpi", "docx_svg_to_png_dpi"),
     "docxSvgToPngScale": ("docxSvgToPngScale", "docx-svg-to-png-scale", "docx_svg_to_png_scale"),
@@ -273,6 +274,12 @@ class PmtSettings(BaseSettings):
         validation_alias=AliasChoices("mathtypeTypstMathFont", "mathtype-typst-math-font", "mathtype_typst_math_font"),
         serialization_alias="mathtypeTypstMathFont",
     )
+    docx_native_crossref: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("docxNativeCrossref", "docx-native-crossref", "docx_native_crossref"),
+        serialization_alias="docxNativeCrossref",
+        description="Use native Word REF/SEQ fields and multilevel heading numbering in manuscript DOCX builds.",
+    )  # False preserves Pandoc numbering and hyperlink cross-references
     docx_embed_svg_images: bool = Field(
         default=True,
         validation_alias=AliasChoices(

@@ -269,6 +269,24 @@ In generated projects, `style.yml` keeps Papper-owned build settings at the top
 level and places metadata sent to Pandoc under `pandocMetadata`. Manuscript YAML
 overrides only the Pandoc metadata domain.
 
+Native Word cross-references are opt-in for manuscript DOCX builds. Set the
+following at the top level of `style.yml`:
+
+```yaml
+docxNativeCrossref: true
+```
+
+The default `false` preserves the original Pandoc numbering and hyperlink
+references. With `true`, figures, tables, and equations use `SEQ` numbering and
+`REF` references. Numbered headings use a Word multilevel list linked to heading
+styles, and section references use `REF ... \r \h`. Heading numbering still
+respects `numberSections`, `sectionsDepth`, and unnumbered headings. Standard
+level-1 chapter prefixes use `STYLEREF`, with `SEQ \s 1` restarting item numbers.
+Update fields in Word after editing; forward references may need two updates.
+Custom non-Arabic numbers and unsupported templates retain their Pandoc result
+with a warning. This setting applies to `papper build docx`; other targets and
+reviewer replies keep their existing workflow.
+
 ## When Papper Is a Good Fit
 
 Papper is especially useful if:

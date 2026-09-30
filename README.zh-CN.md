@@ -241,6 +241,20 @@ papper distclean
 
 完整 CLI 请查看 `papper --help`。
 
+`papper build docx` 的原生交叉引用默认关闭。在 `style.yml` 顶层设置：
+
+```yaml
+docxNativeCrossref: true
+```
+
+默认值 `false` 完整保留原有 Pandoc 编号和超链接引用行为。开启后，图、表、公式
+使用原生 `SEQ` 编号和 `REF` 引用；章节标题使用关联标题样式的 Word 多级列表，
+章节编号引用使用 `REF ... \r \h`。章节编号仍遵循 `numberSections`、
+`sectionsDepth` 以及不编号标题的设置。常规一级章节前缀使用 `STYLEREF`，项目
+序列通过 `SEQ \s 1` 随章节重启。修改文档后在 Word 中更新域；前向引用可能
+需要更新两遍。无法识别的自定义编号或模板保留 Pandoc 结果并给出提示。
+该选项仅用于主稿 DOCX 构建，其他输出目标和审稿回复继续使用原有流程。
+
 如果需要同时为编辑器或其他扩展启动（或复用）本机 Pandoc HTTP 服务，可以执行：
 
 ```bash
