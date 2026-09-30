@@ -13,7 +13,6 @@ local parent_ref_class = 'pmt-native-parent-reference'
 local child_ref_class = 'pmt-native-child-reference'
 local heading_title_class = 'pmt-native-heading-title'
 local phase_key = 'pmt-native-crossrefs-prepared'
-local sequence_names = { fig = 'Figure', tbl = 'Table', eq = 'Equation' }
 local equation_template = [[
 +:------+:--------------------------------------------------:+--------:+
 |       | $$t$$                                              | $$nmi$$ |
@@ -35,6 +34,30 @@ end
 --- Escape dynamic field instructions before embedding them in OpenXML
 local function xml_escape(text)
   return text:gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;')
+end
+
+--- Use a caption title as the sequence name, trimming Unicode boundary whitespace
+local function sequence_name(value, fallback)
+  local text = pandoc.utils.stringify(value or fallback)
+  local first, last
+  for position, codepoint in utf8.codes(text) do
+    -- Markdown metadata can preserve boundary spaces as NBSP or ideographic spaces.
+    local whitespace = (codepoint >= 0x09 and codepoint <= 0x0D) or codepoint == 0x20
+      or codepoint == 0x85 or codepoint == 0xA0 or codepoint == 0x1680
+      or (codepoint >= 0x2000 and codepoint <= 0x200A) or codepoint == 0x2028
+      or codepoint == 0x2029 or codepoint == 0x202F or codepoint == 0x205F or codepoint == 0x3000
+    if not whitespace then
+      first = first or position
+      last = utf8.offset(text, 2, position) or (#text + 1)
+    end
+  end
+  return first and text:sub(first, last - 1) or fallback
+end
+
+--- Quote sequence labels containing spaces or field syntax without changing them
+local function field_argument(text)
+  if text:match('^[%w_\128-\255]+$') then return text end
+  return '"' .. text:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"'
 end
 
 --- Return whether a Span carries the internal number marker
@@ -135,6 +158,14 @@ end
 local function convert(doc)
   local targets, identifiers, counters, child_parents = {}, {}, {}, {}
   local next_bookmark, ref_count, seq_count, section_count = 0, 0, 0, 0
+  local sequence_names = {
+    fig = sequence_name(doc.meta.figureTitle, 'Figure'),
+    tbl = sequence_name(doc.meta.tableTitle, 'Table'),
+    eq = 'Equation',
+  }
+  -- Papper supplies a UUID namespace; standalone filter runs get their own fallback.
+  local bookmark_namespace = os.getenv('PMT_DOCX_BOOKMARK_NAMESPACE')
+    or pandoc.utils.sha1(tostring({}) .. os.time() .. os.clock()):sub(1, 24)
   local chapters = enabled(doc.meta.chapters, false)
   local chapter_level = tonumber(pandoc.utils.stringify(doc.meta.chaptersDepth or '1')) or 1
   local native_heading_levels = {}
@@ -169,7 +200,8 @@ local function convert(doc)
       next_bookmark = next_bookmark + 1
       -- Pandoc hashes Span identifiers starting with _, so use a letter here
       -- REF instructions must contain the exact bookmark name in the DOCX
-      name = ('PapperRef%06d'):format(next_bookmark)
+      -- A 96-bit build namespace reduces collisions between independently built documents.
+      name = ('PapperRef%s%06x'):format(bookmark_namespace, next_bookmark)
     until not identifiers[name]
     identifiers[name] = true
     return name
@@ -184,7 +216,7 @@ local function convert(doc)
     end
     local value = tonumber(digits)
     local previous = counters[kind] or { prefix = prefix, value = 0 }
-    local instruction = 'SEQ ' .. sequence_names[kind] .. ' \\* ARABIC'
+    local instruction = 'SEQ ' .. field_argument(sequence_names[kind]) .. ' \\* ARABIC'
     local chapter_number, chapter_delimiter = prefix:match('^(%d+)([^%d]+)$')
     local native_chapter = chapter_level == 1 and native_heading_levels[chapter_level]
       and chapter_number ~= nil
@@ -234,7 +266,7 @@ local function convert(doc)
           section_count = section_count + 1
         end
         result = { name = name, number = number, switches = '\\h' }
-        -- Let Pandoc allocate numeric bookmark IDs, avoiding raw XML ID collisions
+        -- Pandoc allocates paired numeric IDs; Python randomizes them after writing.
         return pandoc.Span(content, pandoc.Attr(name))
       end
     }

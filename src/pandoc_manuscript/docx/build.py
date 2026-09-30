@@ -6,6 +6,7 @@ import errno
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+from uuid import uuid4
 
 from ..mathtype.convert_marked_docx import convert_marked_docx
 from ..mathtype.ole_parts import check_mathtype_availability, normalize_conversion_method
@@ -14,7 +15,7 @@ from ..runtime.metadata import EffectiveMetadata, is_chinese_language
 from .metadata import prepare_docx_metadata, write_docx_pandoc_metadata
 from . import svg_filters as svg_filter_helpers
 from .page_margins import write_reference_doc_with_page_margins
-from .native_crossrefs import finalize_native_heading_numbering
+from .native_crossrefs import finalize_native_crossrefs
 from .postprocess import postprocess_docx as run_docx_postprocess
 from .postprocess.final_docx_syntax_check import validate_final_docx_syntax
 from .svg_filters import (
@@ -211,6 +212,7 @@ def build_docx(
     # Gate the entire native workflow; false leaves the original Pandoc AST intact.
     pandoc_env["PMT_DOCX_NATIVE_CROSSREFS"] = str(pmt_settings.docx_native_crossref).lower()
     if pmt_settings.docx_native_crossref:
+        pandoc_env["PMT_DOCX_BOOKMARK_NAMESPACE"] = uuid4().hex[:24]
         log_debug("[DOCX] Native REF/SEQ fields and multilevel heading numbering enabled")
     extra_args = docx_reference_doc_args(
         settings,
@@ -258,8 +260,8 @@ def build_docx(
         metadata_file=write_docx_pandoc_metadata(effective, use_mathtype=use_mathtype),
     )
     if pmt_settings.docx_native_crossref:
-        # Numbering is part of native output even when optional formatting is disabled.
-        finalize_native_heading_numbering(pandoc_output)
+        # Numbering and bookmark identities are required even without optional formatting.
+        finalize_native_crossrefs(pandoc_output)
     if settings.enable_docx_postprocess:
         log_debug("\n[DOCX] Running Python post-processing...\n")
         postprocess_target = pandoc_output if use_mathtype else docx_file

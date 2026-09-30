@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections import Counter
 from pathlib import Path
 import shutil
 import subprocess
@@ -341,3 +342,107 @@ def test_ambiguous_heading_template_preserves_legacy_reference(tmp_path: Path) -
     assert [link.get(W + "anchor") for link in root.iter(W + "hyperlink")] == ["sec:one"]
     assert "1/1 Overview" in "".join(node.text or "" for node in root.iter(W + "t"))
     assert "Custom heading numbering" in log
+
+
+@pytest.mark.parametrize(
+    ("figure_title", "table_title", "figure_sequence", "table_sequence"),
+    [
+        ("  Supplementary Figure\t", " Table A ", '"Supplementary Figure"', '"Table A"'),
+        ("\u00a0图\u3000", "\u3000表\u00a0", "图", "表"),
+        ("", "   ", "Figure", "Table"),
+    ],
+)
+def test_native_sequences_follow_trimmed_caption_titles(
+    tmp_path: Path, figure_title: str, table_title: str, figure_sequence: str, table_sequence: str,
+) -> None:
+    """Keep custom and localized caption sequences usable, including empty titles."""
+    prepare_project(
+        tmp_path,
+        """See @fig:first, @fig:second, @tbl:first, @tbl:second, and @eq:one.
+
+![First figure](figure.svg){#fig:first}
+
+![Second figure](figure.svg){#fig:second}
+
+| Value |
+| --- |
+| 1 |
+
+: First table {#tbl:first}
+
+| Value |
+| --- |
+| 2 |
+
+: Second table {#tbl:second}
+
+$$
+x=1
+$$ {#eq:one}
+""",
+        True,
+        figureTitle=figure_title,
+        tableTitle=table_title,
+        numberSections=False,
+    )
+    output, _ = build_document(tmp_path)
+    fields, bookmarks, _ = read_native_content(output)
+    assert assert_reference_targets(fields, bookmarks) == ["1", "2", "1", "2", "1"]
+    sequences = [field for field in fields if field["code"].startswith("SEQ ")]
+    assert [field["code"] for field in sequences] == [
+        f"SEQ {name} \\* ARABIC"
+        for name in [figure_sequence, figure_sequence, table_sequence, table_sequence, "Equation"]
+    ]
+
+
+@pytest.mark.parametrize("number_sections", [False, True])
+def test_independent_native_builds_have_distinct_paired_bookmarks(tmp_path: Path, number_sections: bool) -> None:
+    """Keep references independent when combining builds with identical source labels."""
+    manuscript = """# Overview {#sec:one}
+
+See @fig:one and @tbl:one.
+
+[Custom target]{#custom-target}. [Jump](#custom-target).
+
+Footnote[^one].
+
+[^one]: [Footnote target]{#note-target}. See @fig:one.
+
+![Caption](figure.svg){#fig:one}
+
+| Value |
+| --- |
+| 1 |
+
+: Table caption {#tbl:one}
+"""
+    documents = []
+    for name in ["first", "second"]:
+        project = tmp_path / name
+        project.mkdir()
+        prepare_project(project, manuscript, True, numberSections=number_sections)
+        output, _ = build_document(project)
+        fields, bookmarks, root = read_native_content(output)
+        assert assert_reference_targets(fields, bookmarks) == ["1", "1"]
+        native_names = {name for name in bookmarks if name.startswith("PapperRef")}
+        assert all(len(name) <= 40 and name.isalnum() and name[0].isalpha() for name in native_names)
+        assert [link.get(W + "anchor") for link in root.iter(W + "hyperlink")] == ["custom-target"]
+        identifiers = set()
+        with ZipFile(output) as package:
+            for part_name in package.namelist():
+                if not part_name.startswith("word/") or not part_name.endswith(".xml"):
+                    continue
+                part_root = ET.fromstring(package.read(part_name))
+                starts = Counter(node.get(W + "id") for node in part_root.iter(W + "bookmarkStart"))
+                ends = Counter(node.get(W + "id") for node in part_root.iter(W + "bookmarkEnd"))
+                assert starts == ends and all(count == 1 for count in starts.values())
+                assert identifiers.isdisjoint(starts)
+                assert all(0 < int(identifier) < 2**31 for identifier in starts)
+                identifiers.update(starts)
+            footnotes = ET.fromstring(package.read("word/footnotes.xml"))
+            footnote_refs = [node.text.strip().split()[1] for node in footnotes.iter(W + "instrText") if node.text.strip().startswith("REF ")]
+            assert len(footnote_refs) == 1 and footnote_refs[0] in native_names
+        documents.append((fields, bookmarks, native_names, identifiers))
+    first, second = documents
+    assert first[2].isdisjoint(second[2]) and first[3].isdisjoint(second[3])
+    assert assert_reference_targets(first[0] + second[0], first[1] | second[1]) == ["1", "1", "1", "1"]

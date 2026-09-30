@@ -1,14 +1,17 @@
-"""Bind Lua-exported heading records to Word's native multilevel numbering."""
+"""Finalize native headings and randomize bookmark IDs before DOCX formatting."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from secrets import randbelow
 from typing import Any
 
 from docx import Document
-from docx.oxml import OxmlElement
+from docx.opc.part import XmlPart
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
+from lxml import etree
 
 from ..runtime.logging import log_debug
 
@@ -16,8 +19,8 @@ from ..runtime.logging import log_debug
 HEADING_MARKER = "PMT_NATIVE_HEADING:"
 
 
-class NativeHeadingNumbering:
-    """Keep heading records and numbering definitions together during finalization."""
+class NativeCrossrefs:
+    """Keep heading records and document bookmark identities together during finalization."""
 
     def __init__(self, path: Path) -> None:
         """Open the generated manuscript without changing its existing list definitions."""
@@ -122,17 +125,52 @@ class NativeHeadingNumbering:
                 else:
                     outline.set(qn("w:val"), str(int(record["level"]) - 1))
 
-    def finalize(self) -> int:
-        """Write native numbering only when the Lua filter exported numbered headings."""
+    def randomize_bookmark_ids(self) -> int:
+        """Give all bookmark pairs distinct random IDs across the document's XML parts."""
+        roots = []
+        tags = {qn("w:bookmarkStart"), qn("w:bookmarkEnd")}
+        for part in self.document.part.package.parts:
+            if not str(part.partname).startswith("/word/") or not str(part.partname).endswith(".xml"):
+                continue
+            root = part.element if isinstance(part, XmlPart) else parse_xml(part.blob)
+            if any(node.tag in tags for node in root.iter()):
+                roots.append((part, root))
+        used = {node.get(qn("w:id")) for _, root in roots for node in root.iter() if node.tag in tags}
+        count = 0
+        for part, root in roots:
+            replacements = {}
+            for node in root.iter(qn("w:bookmarkStart")):
+                old_id = node.get(qn("w:id"))
+                if old_id in replacements:
+                    continue
+                # Word accepts signed 32-bit IDs; reserve each draw before pairing ends.
+                new_id = str(randbelow(2**31 - 1) + 1)
+                while new_id in used:
+                    new_id = str(randbelow(2**31 - 1) + 1)
+                used.add(new_id)
+                replacements[old_id] = new_id
+            for node in root.iter():
+                if node.tag in tags and node.get(qn("w:id")) in replacements:
+                    node.set(qn("w:id"), replacements[node.get(qn("w:id"))])
+            if not isinstance(part, XmlPart):
+                # python-docx loads footnotes/comments as generic OPC parts.
+                part._blob = etree.tostring(root, encoding="UTF-8", xml_declaration=True, standalone=True)
+            count += len(replacements)
+        return count
+
+    def finalize(self) -> tuple[int, int]:
+        """Write bookmark identities even when the manuscript has no numbered headings."""
         self.collect()
-        if not self.records:
-            return 0
-        self.bind_paragraphs(self.create_numbering())
-        self.document.save(str(self.path))
-        return len(self.records)
+        if self.records:
+            self.bind_paragraphs(self.create_numbering())
+        bookmark_count = self.randomize_bookmark_ids()
+        if self.records or bookmark_count:
+            self.document.save(str(self.path))
+        return len(self.records), bookmark_count
 
 
-def finalize_native_heading_numbering(path: Path) -> None:
-    """Complete native heading output independently of optional DOCX formatting."""
-    count = NativeHeadingNumbering(path).finalize()
-    log_debug(f"[DOCX] Bound {count} heading(s) to native multilevel numbering")
+def finalize_native_crossrefs(path: Path) -> None:
+    """Complete native headings and bookmark IDs independently of optional formatting."""
+    heading_count, bookmark_count = NativeCrossrefs(path).finalize()
+    log_debug(f"[DOCX] Bound {heading_count} heading(s) to native multilevel numbering")
+    log_debug(f"[DOCX] Randomized {bookmark_count} bookmark ID(s)")

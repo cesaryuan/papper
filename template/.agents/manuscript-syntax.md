@@ -547,6 +547,12 @@ in the list rather than typed into the title. Subfigure references combine a
 `REF` to the parent's number with a `REF` to the panel letter; panels do not
 increment the figure sequence.
 
+Figure and table `SEQ` identifiers use `figureTitle` and `tableTitle` with leading
+and trailing whitespace removed; empty labels fall back to `Figure` and `Table`.
+Equation sequences retain `Equation`. Native reference bookmark names have a
+random namespace per build, and bookmark start/end numeric IDs are randomized
+in matching pairs across the document XML parts to reduce merge collisions.
+
 For standard level-1 chapter prefixes, `STYLEREF` reads the native heading number
 and `SEQ \s 1` restarts item numbering after each chapter. Other custom chapter
 prefixes retain Pandoc text and explicit SEQ resets. Non-Arabic heading/item
