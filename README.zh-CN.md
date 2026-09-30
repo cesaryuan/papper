@@ -47,6 +47,7 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 - 用 `papper doctor` 检查环境
 - 用 `papper setup` 准备项目本地工具
 - 用 `papper build` 构建 DOCX、LaTeX、JSON
+- 用 `papper convert` 将已有 DOCX 论文导入 Markdown
 - 用 `papper build-reply` 构建审稿回复
 - 图、表、公式、章节的交叉引用
 - 基于 CSL 的参考文献格式
@@ -56,6 +57,20 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
   样式的居中、右对齐制表位分别设在 DOCX 第一节正文可用宽度（页面宽度减左右页边距）的一半和末端；移除公式段落上的直接制表位，使其继承样式。修改页边距后需重新执行此步骤。
 - Word 不友好图片场景下的 SVG 处理和回退方案
 - 需要时支持 MathType 相关的 DOCX 工作流
+
+## 将 Word 论文转换为 Markdown
+
+使用 `papper convert` 导入 DOCX，生成 Markdown 和相邻的 `media` 图片目录：
+
+```powershell
+uv run papper convert "测试文档.docx" -o converted
+```
+
+命令会生成 `converted/测试文档.md`，并只把 Markdown 仍需要的图片放进
+`converted/media`。三个内置 Lua 过滤器依次将 MathType OLE 公式转换为 LaTeX、
+展平单行的公式排版表格、把可确认的 Word 书签链接转换为 `@fig:_Ref241620557`
+或 `@eq:_Ref241620691` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
+Pandoc 的结果；公式无法解码时会保留预览图片。
 
 ## 快速开始
 

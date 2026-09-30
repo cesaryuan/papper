@@ -47,6 +47,7 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 - Environment checks with `papper doctor`
 - Project-local tool setup with `papper setup`
 - DOCX, LaTeX, and JSON builds with `papper build`
+- DOCX-to-Markdown manuscript import with `papper convert`
 - Reviewer reply builds with `papper build-reply`
 - Cross-references for figures, tables, equations, and sections
 - CSL-based citations
@@ -56,6 +57,23 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
   The style's center and right tab stops use half and all of the first DOCX section's writable width (page width minus left/right margins). Direct paragraph tab stops are removed so equations inherit the style's positions; rerun the step after changing page margins.
 - SVG handling and DOCX fallbacks for figures that Word does not handle well
 - Cross-platform MathType-compatible OLE/WMF equations, with an optional native MathType comparison path on Windows
+
+## Convert a Word manuscript to Markdown
+
+Use `papper convert` to import a DOCX into a Markdown file and a sibling `media`
+directory:
+
+```powershell
+uv run papper convert "测试文档.docx" -o converted
+```
+
+This writes `converted/测试文档.md` and only the images still needed by the
+Markdown under `converted/media`. The command combines three bundled Lua
+filters: it converts MathType OLE equations to LaTeX, flattens one-row equation
+layout tables, and changes recognizable Word bookmark links to pandoc-crossref
+references such as `@fig:_Ref241620557` and `@eq:_Ref241620691`. It keeps
+ordinary tables and unrecognized links as Pandoc produced them. When an
+equation cannot be decoded, its preview image remains available.
 
 ## Quick Start
 

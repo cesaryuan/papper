@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, CliApp, CliSubCommand, SettingsConfi
 from . import __version__
 from .commands.build import BuildCommandSettings
 from .commands.clean import CleanSettings, DistcleanSettings
+from .commands.convert import ConvertSettings
 from .commands.common import log
 from .commands.doctor import DoctorSettings
 from .commands.init import InitSettings
@@ -35,6 +36,7 @@ class PmtCli(BaseSettings):
     init: CliSubCommand[InitSettings | None]
     setup: CliSubCommand[SetupSettings | None]
     build: CliSubCommand[BuildCommandSettings | None]
+    convert: CliSubCommand[ConvertSettings | None]
     build_reply: CliSubCommand[BuildReplySettings | None]
     clean: CliSubCommand[CleanSettings | None]
     distclean: CliSubCommand[DistcleanSettings | None]
@@ -80,6 +82,7 @@ __all__ = [
     "BuildCommandSettings",
     "BuildReplySettings",
     "CleanSettings",
+    "ConvertSettings",
     "DistcleanSettings",
     "DoctorSettings",
     "InitSettings",
