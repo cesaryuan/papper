@@ -1,5 +1,80 @@
 # Development
 
+## Build benchmark
+
+Benchmark the current Papper/Pandoc toolchain against `template/manuscript.md`:
+
+```powershell
+uv run python scripts/benchmark_build.py
+```
+
+The reusable script benchmarks one toolchain per invocation; it does not download
+or compare specific Pandoc releases. By default it measures DOCX, HTML and JSON,
+honors the manuscript's MathType metadata, and collects seven samples per target
+for both empty and prewarmed Papper state, after two unmeasured warmups. Each build
+uses a new Python process. Existing manuscript files and user project caches are
+untouched; only temporary project state is redirected, leaving managed tools
+available. Operating-system filesystem caches are not flushed.
+
+Select the Pandoc executable with `PAPPER_BENCH_PANDOC`, or `--pandoc`. The
+executable must be named `pandoc` or `pandoc.exe`. For example, with both versions
+already installed, run the same workload twice:
+
+```powershell
+$env:PAPPER_BENCH_PANDOC = 'C:/Tools/pandoc-3.11/pandoc.exe'
+uv run python scripts/benchmark_build.py --mathtype off --runs 11
+
+$env:PAPPER_BENCH_PANDOC = 'C:/Tools/pandoc-3.12/pandoc.exe'
+uv run python scripts/benchmark_build.py --mathtype off --runs 11
+
+Remove-Item Env:PAPPER_BENCH_PANDOC
+```
+
+`--mathtype off` measures native Word equations; omit it to benchmark the usual
+metadata-driven build, or use `--mathtype on` to request MathType explicitly. Keep
+the same Python environment, manuscript, style files, filters, pandoc-crossref,
+targets, cache policies and MathType policy when comparing reports. Avoid running
+the sessions concurrently. The report records both CLI-resolved and
+filter-resolved crossref paths, since managed tools can precede system tools in
+Pandoc's filter environment.
+For small differences, repeat the sessions in reverse order and inspect both
+`pandoc_s` and `process_s`; Python startup and background system load can obscure
+the conversion change.
+
+To benchmark another manuscript or a subset of targets:
+
+```powershell
+uv run python scripts/benchmark_build.py --manuscript template/manuscript.md --targets docx --targets html --cache-modes warm --runs 11
+```
+
+Every setting also accepts its `PAPPER_BENCH_` environment variable; list settings
+use JSON, for example `$env:PAPPER_BENCH_TARGETS = '["docx","html"]'`.
+Run `uv run python scripts/benchmark_build.py --help` for the full option list.
+
+Each invocation creates a timestamped directory under `output/benchmarks/`, or
+under the parent selected with `--output-dir`. It contains `results.json` with
+every measured sample, tool versions, executable paths, Python/platform details,
+input/style hashes and Pandoc commands; `summary.md` with median, mean, standard
+deviation and sample count; one log per build; and the last output of each case.
+Failed builds stop the session and retain partial results and diagnostic logs.
+No samples are discarded as outliers.
+
+The four timing metrics distinguish process startup from conversion work:
+
+- `process_s`: Python process start through exit, including imports, benchmark
+  worker setup/timing export and cleanup.
+- `build_s`: Papper CLI parsing and build dispatch, excluding module imports.
+- `pandoc_s`: actual Pandoc subprocess execution, including JSON/Lua filters,
+  citeproc, resource loading and output writing; tool version probes are excluded.
+- `non_pandoc_build_s`: `build_s - pandoc_s`, including metadata preparation,
+  tool checks, Python postprocessing and optional MathType conversion.
+
+The controller invokes the public Papper CLI parser and dispatcher but skips the
+unrelated PyPI update notification/refresh hook. Neither `uv` startup nor tool
+downloads during preflight are timed. Source builds of native helpers can happen
+during warmups; their global compiled artifacts are not reset by the cold-cache
+policy, so this is not a clean-room native compilation benchmark.
+
 ## Build snapshots
 
 The build snapshots cover the manuscript template and focused fixtures for
