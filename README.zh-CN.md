@@ -257,7 +257,14 @@ docxNativeCrossref: true
 `sectionsDepth` 以及不编号标题的设置。常规一级章节前缀使用 `STYLEREF`，项目
 序列通过 `SEQ \s 1` 随章节重启。图、表的 `SEQ` 序列名分别取去除首尾空白后的
 `figureTitle`、`tableTitle`；标题为空时回退到 `Figure`、`Table`，公式序列名为
-`Equation`。原生引用书签名使用 `PapperRef-` 加 9 位随机小写字母或数字，总长
+`Equation`。
+数字制 CSL 参考文献的条目编号使用 `SEQ PapperBibliography`，正文引用编号使用
+指向对应编号书签的 `REF ... \h \* MERGEFORMAT`。保留 CSL 的方括号、上标、
+页码定位符和连续引用范围分隔符，范围的两端分别使用 REF 域。作者—年份制和无法
+识别的文献编号格式保留 citeproc 输出；显式设置 `link-citations: false` 时正文
+文献引用仍为纯文本。Word 可以重编号文献条目并更新 REF，但引用分组、排序或
+CSL 格式改变后仍需重新构建。
+原生引用书签名使用 `PapperRef-` 加 9 位随机小写字母或数字，总长
 19 个字符，并在本篇文档内排重；书签起止位置的数字
 ID 成对随机化，覆盖正文、脚注和页眉页脚，以降低合并文档时的冲突。
 修改文档后在 Word 中更新域；前向引用可能

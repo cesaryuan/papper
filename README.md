@@ -287,6 +287,13 @@ respects `numberSections`, `sectionsDepth`, and unnumbered headings. Standard
 level-1 chapter prefixes use `STYLEREF`, with `SEQ \s 1` restarting item numbers.
 Figure and table sequence names follow the trimmed `figureTitle` and `tableTitle`;
 empty titles fall back to `Figure` and `Table`. Equation sequences use `Equation`.
+Numeric CSL bibliographies use `SEQ PapperBibliography` for their entry numbers;
+citation numbers use `REF ... \h \* MERGEFORMAT` pointing to those numbers.
+CSL brackets, superscripts, locators, and collapsed range delimiters are preserved;
+range endpoints are separate REF fields. Author-date styles and unsupported
+bibliography labels retain citeproc output. Explicit `link-citations: false` keeps
+in-text citations as plain text. Word can renumber bibliography entries and their
+REFs, but changing citation grouping, sorting, or CSL formatting requires a rebuild.
 Native reference bookmark names use `PapperRef-` followed by nine random lowercase
 letters/digits, with collision checks within each build. Bookmark
 start/end IDs are randomized in matching pairs to reduce collisions when merging

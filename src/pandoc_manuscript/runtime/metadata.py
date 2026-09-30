@@ -278,7 +278,7 @@ class PmtSettings(BaseSettings):
         default=False,
         validation_alias=AliasChoices("docxNativeCrossref", "docx-native-crossref", "docx_native_crossref"),
         serialization_alias="docxNativeCrossref",
-        description="Use native Word REF/SEQ fields and multilevel heading numbering in manuscript DOCX builds.",
+        description="Use native Word REF/SEQ fields for cross-references and numeric citations, and native heading numbering in manuscript DOCX builds.",
     )  # False preserves Pandoc numbering and hyperlink cross-references
     docx_embed_svg_images: bool = Field(
         default=True,

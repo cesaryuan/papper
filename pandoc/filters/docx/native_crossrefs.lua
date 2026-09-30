@@ -13,6 +13,10 @@ local parent_ref_class = 'pmt-native-parent-reference'
 local child_ref_class = 'pmt-native-child-reference'
 local heading_title_class = 'pmt-native-heading-title'
 local phase_key = 'pmt-native-crossrefs-prepared'
+local helpers = dofile(pandoc.path.join {
+  pandoc.path.directory(PANDOC_SCRIPT_FILE), 'native_field_helpers.lua',
+})
+local xml_escape, bookmark_suffix, field = helpers.xml_escape, helpers.bookmark_suffix, helpers.field
 local equation_template = [[
 +:------+:--------------------------------------------------:+--------:+
 |       | $$t$$                                              | $$nmi$$ |
@@ -29,11 +33,6 @@ local function enabled(value, fallback)
   end
   local text = pandoc.utils.stringify(value):lower()
   return text ~= 'false' and text ~= 'no' and text ~= '0'
-end
-
---- Escape dynamic field instructions before embedding them in OpenXML
-local function xml_escape(text)
-  return text:gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;')
 end
 
 --- Use a caption title as the sequence name, trimming Unicode boundary whitespace
@@ -60,17 +59,6 @@ local function field_argument(text)
   return '"' .. text:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"'
 end
 
---- Derive nine lowercase base32 characters from the build namespace and target index
-local function bookmark_suffix(namespace, index)
-  local alphabet = 'abcdefghijklmnopqrstuvwxyz234567'
-  local digest = pandoc.utils.sha1(namespace .. ':' .. index):sub(1, 18)
-  return digest:gsub('%x%x', function(byte)
-    -- Five bits per character keep short names random without case-only differences.
-    local position = tonumber(byte, 16) % 32 + 1
-    return alphabet:sub(position, position)
-  end)
-end
-
 --- Return whether a Span carries the internal number marker
 local function is_number_marker(span, class)
   return span.classes:includes(class or marker_class)
@@ -86,21 +74,6 @@ local function debug(message)
   if (os.getenv('PANDOC_TEMPLATE_LOG_LEVEL') or ''):upper() == 'DEBUG' then
     io.stderr:write('[native-crossrefs] ' .. message .. '\n')
   end
-end
-
---- Emit a complex Word field while retaining Pandoc's formatted cached result
-local function field(instruction, result)
-  local inlines = pandoc.Inlines {
-    pandoc.RawInline('openxml',
-      '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' ..
-      '<w:r><w:instrText xml:space="preserve"> ' ..
-      xml_escape(instruction) .. ' </w:instrText></w:r>' ..
-      '<w:r><w:fldChar w:fldCharType="separate"/></w:r>')
-  }
-  inlines:extend(result)
-  inlines:insert(pandoc.RawInline('openxml',
-    '<w:r><w:fldChar w:fldCharType="end"/></w:r>'))
-  return inlines
 end
 
 --- Parse string metadata into inline or block templates as crossref expects

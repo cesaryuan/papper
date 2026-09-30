@@ -213,7 +213,7 @@ def build_docx(
     pandoc_env["PMT_DOCX_NATIVE_CROSSREFS"] = str(pmt_settings.docx_native_crossref).lower()
     if pmt_settings.docx_native_crossref:
         pandoc_env["PMT_DOCX_BOOKMARK_NAMESPACE"] = uuid4().hex[:24]
-        log_debug("[DOCX] Native REF/SEQ fields and multilevel heading numbering enabled")
+        log_debug("[DOCX] Native REF/SEQ fields, numeric bibliography, and multilevel heading numbering enabled")
     extra_args = docx_reference_doc_args(
         settings,
         pmt_settings,

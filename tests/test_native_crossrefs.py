@@ -447,3 +447,194 @@ Footnote[^one].
     first, second = documents
     assert first[2].isdisjoint(second[2]) and first[3].isdisjoint(second[3])
     assert assert_reference_targets(first[0] + second[0], first[1] | second[1]) == ["1", "1", "1", "1"]
+
+
+def prepare_citation_project(project: Path, native_crossref: bool, csl: Path, **metadata) -> None:
+    """Create numeric citations covering repeats, narrative citations, and a collapsed range."""
+    prepare_project(
+        project,
+        """---
+bibliography: references.bib
+---
+
+Single [@alpha2020].
+
+Range [@alpha2020; @beta2021; @gamma2022].
+
+Repeated [@beta2021].
+
+Narrative @alpha2020.
+""",
+        native_crossref,
+        csl=csl.as_posix(),
+        **{"link-citations": True, "numberSections": False, **metadata},
+    )
+    shutil.copyfile(ROOT / "tests/snapshot_cases/references/references.bib", project / "references.bib")
+
+
+def document_paragraphs(root: ET.Element) -> list[str]:
+    """Read visible paragraph text for comparisons of citation and bibliography formatting."""
+    return [
+        "".join(node.text or "" for node in paragraph.iter(W + "t"))
+        for paragraph in root.iter(W + "p")
+    ]
+
+
+@pytest.mark.parametrize("native_crossref", [False, True])
+@pytest.mark.parametrize(
+    ("style_name", "superscript"),
+    [
+        ("elsevier-vancouver.csl", False),
+        ("GB-T-7714—2015（顺序编码，双语，姓名不大写，无URL、DOI）.csl", True),
+        ("sage-vancouver.csl", True),
+        ("sage-vancouver-brackets.csl", False),
+    ],
+)
+def test_numeric_citations_keep_csl_display_and_reference_bibliography_numbers(
+    tmp_path: Path, native_crossref: bool, style_name: str, superscript: bool,
+) -> None:
+    """Keep CSL punctuation and superscripts while switching hyperlinks to real Word fields."""
+    prepare_citation_project(tmp_path, native_crossref, ROOT / "pandoc/csl" / style_name)
+    output, _ = build_document(tmp_path)
+    fields, bookmarks, root = read_native_content(output)
+    assert assert_reference_targets(fields, bookmarks) == (["1", "1", "3", "2", "1"] if native_crossref else [])
+    assert [field["result"] for field in fields if field["code"].startswith("SEQ ")] == (["1", "2", "3"] if native_crossref else [])
+    links = [link.get(W + "anchor") for link in root.iter(W + "hyperlink") if link.get(W + "anchor")]
+    assert links == ([] if native_crossref else ["ref-alpha2020", "ref-alpha2020", "ref-gamma2022", "ref-beta2021", "ref-alpha2020"])
+    text = "\n".join(document_paragraphs(root))
+    assert "1–3" in text and "2020" in text and "2021" in text and "2022" in text
+    if style_name != "sage-vancouver.csl":
+        assert "[1–3]" in text and "[1]" in text
+    for paragraph in list(root.iter(W + "p"))[:4]:
+        for run in paragraph.iter(W + "r"):
+            visible = "".join(node.text or "" for node in run.iter(W + "t"))
+            if visible.isdigit():
+                alignment = run.find(W + "rPr/" + W + "vertAlign")
+                assert (alignment is not None and alignment.get(W + "val") == "superscript") == superscript
+
+
+@pytest.mark.parametrize("customization", ["inline-labels", "locators", "ambiguous-labels"])
+def test_custom_numeric_csl_preserves_locators_and_rejects_ambiguous_labels(
+    tmp_path: Path, customization: str,
+) -> None:
+    """Preserve citation affixes and page numbers without treating them as reference numbers."""
+    style = (ROOT / "pandoc/csl/elsevier-vancouver.csl").read_text(encoding="utf-8")
+    if customization == "inline-labels":
+        style = style.replace(' second-field-align="flush"', "")
+    elif customization == "locators":
+        style = style.replace(
+            '<text variable="citation-number"/>',
+            '<text variable="citation-number" prefix="(" suffix=")"/><text variable="locator" prefix=", p. "/>',
+            1,
+        )
+    else:
+        style = style.replace('prefix="[" suffix="]"/>', 'prefix="[" suffix="/1]"/>')
+    csl = tmp_path / "custom.csl"
+    csl.write_text(style, encoding="utf-8")
+    prepare_citation_project(tmp_path, True, csl)
+    if customization == "locators":
+        (tmp_path / "paper.md").write_text(
+            "---\nbibliography: references.bib\n---\n\n"
+            "[@alpha2020, p. 42]; [see 7 in @beta2021, p. 2021].\n",
+            encoding="utf-8",
+        )
+    output, log = build_document(tmp_path)
+    fields, bookmarks, root = read_native_content(output)
+    if customization == "ambiguous-labels":
+        assert not fields and "Unsupported bibliography number labels" in log
+        assert any(link.get(W + "anchor") == "ref-alpha2020" for link in root.iter(W + "hyperlink"))
+    else:
+        expected = ["1", "2"] if customization == "locators" else ["1", "1", "3", "2", "1"]
+        assert assert_reference_targets(fields, bookmarks) == expected
+        assert not any(link.get(W + "anchor", "").startswith("ref-") for link in root.iter(W + "hyperlink"))
+        if customization == "locators":
+            assert "[(1), p. 42]; [see 7 in (2), p. 2021]." in "\n".join(document_paragraphs(root))
+
+
+def test_author_date_citations_keep_their_original_citeproc_output(tmp_path: Path) -> None:
+    """Keep author names and years intact rather than misinterpreting years as citation numbers."""
+    default_style = subprocess.run(
+        ["pandoc", "--print-default-data-file", "default.csl"],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    ).stdout
+    csl = tmp_path / "author-date.csl"
+    csl.write_text(default_style, encoding="utf-8")
+    documents = []
+    for native in [False, True]:
+        project = tmp_path / str(native)
+        project.mkdir()
+        prepare_citation_project(project, native, csl)
+        output, _ = build_document(project)
+        fields, _, root = read_native_content(output)
+        assert not fields
+        assert any(link.get(W + "anchor") == "ref-alpha2020" for link in root.iter(W + "hyperlink"))
+        documents.append(document_paragraphs(root))
+    assert documents[0] == documents[1]
+    assert "Alpha 2020" in "\n".join(documents[1])
+
+
+def test_explicit_unlinked_citations_keep_plain_text(tmp_path: Path) -> None:
+    """Respect link-citations:false while keeping bibliography numbering editable in Word."""
+    prepare_citation_project(tmp_path, True, ROOT / "pandoc/csl/elsevier-vancouver.csl", **{"link-citations": False})
+    output, _ = build_document(tmp_path)
+    fields, _, root = read_native_content(output)
+    assert [field["result"] for field in fields] == ["1", "2", "3"]
+    assert all(field["code"].startswith("SEQ ") for field in fields)
+    assert "Range [1–3]." in "\n".join(document_paragraphs(root))
+
+
+def test_native_citations_preserve_the_configured_range_delimiter(tmp_path: Path) -> None:
+    """Keep Papper's citation range delimiter around independently updatable REF endpoints."""
+    prepare_citation_project(tmp_path, True, ROOT / "pandoc/csl/elsevier-vancouver.csl")
+    style_file = tmp_path / "style.yml"
+    settings = yaml.safe_load(style_file.read_text(encoding="utf-8"))
+    settings["citationNumberRangeDelimiter"] = "~"
+    style_file.write_text(yaml.safe_dump(settings), encoding="utf-8")
+    output, _ = build_document(tmp_path)
+    fields, bookmarks, root = read_native_content(output)
+    assert assert_reference_targets(fields, bookmarks) == ["1", "1", "3", "2", "1"]
+    assert "Range [1~3]." in "\n".join(document_paragraphs(root))
+
+
+@pytest.mark.parametrize("postprocess", [False, True])
+def test_native_citations_cover_footnotes_uncited_entries_and_existing_crossrefs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, postprocess: bool,
+) -> None:
+    """Keep bibliography REF targets valid across stories and alongside figure/heading fields."""
+    monkeypatch.setenv("PMT_ENABLE_DOCX_POSTPROCESS", str(postprocess).lower())
+    prepare_citation_project(tmp_path, True, ROOT / "pandoc/csl/elsevier-vancouver.csl", numberSections=True)
+    (tmp_path / "paper.md").write_text(
+        """---
+bibliography: references.bib
+nocite: '@*'
+---
+
+# Overview {#sec:one}
+
+See @sec:one, @fig:one, and [@alpha2020]. Footnote[^one].
+
+[^one]: Cited again [@alpha2020; @beta2021].
+
+![Caption](figure.svg){#fig:one}
+""",
+        encoding="utf-8",
+    )
+    output, _ = build_document(tmp_path)
+    fields, bookmarks, _ = read_native_content(output)
+    assert assert_reference_targets(fields, bookmarks) == ["1", "1", "1"]
+    assert len([field for field in fields if field["code"].startswith("SEQ ")]) == 4
+    with ZipFile(output) as package:
+        footnotes = ET.fromstring(package.read("word/footnotes.xml"))
+    references = [node.text.strip().split()[1] for node in footnotes.iter(W + "instrText") if node.text.strip().startswith("REF ")]
+    assert len(references) == 2
+    assert [bookmarks[name] for name in references] == ["1", "2"]
+    assert any(bookmarks[name] == "3" for name in bookmarks if name.startswith("PapperRef-"))
+
+
+def test_native_citations_leave_json_output_unchanged(tmp_path: Path) -> None:
+    """Keep bibliography and citation fields exclusive to the manuscript DOCX target."""
+    prepare_citation_project(tmp_path, True, ROOT / "pandoc/csl/elsevier-vancouver.csl")
+    output, _ = build_document(tmp_path, "json")
+    text = output.read_text(encoding="utf-8")
+    assert '"Cite"' in text and "alpha2020" in text
+    assert "PapperRef-" not in text and "PapperBibliography" not in text
