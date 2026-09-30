@@ -95,6 +95,30 @@ jobs:
             url."https://x-access-token:${PRIVATE_SUBMODULES_TOKEN}@github.com/cesaryuan/latex2wmf".insteadOf \
             "https://github.com/cesaryuan/latex2wmf"
 
+      # Visual reverse-conversion tests require ImageMagick outside Cargo.
+      - name: Install ImageMagick on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes imagemagick librsvg2-bin
+
+      - name: Install ImageMagick on macOS
+        if: runner.os == 'macOS'
+        run: brew install imagemagick librsvg
+
+      - name: Verify ImageMagick tools
+        shell: bash
+        run: |
+          # Ubuntu can provide version 6; Windows must use version 7's magick
+          # because its built-in convert.exe is unrelated to ImageMagick.
+          if [[ "$RUNNER_OS" != "Windows" ]] && ! command -v magick >/dev/null 2>&1; then
+            convert -version
+            identify -version
+            compare -version
+          else
+            magick -version
+          fi
+
       - name: Run complete Rust test suite
         run: cargo test -- --show-output
 
