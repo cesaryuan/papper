@@ -86,6 +86,10 @@ class BuildCommandSettings(VerboseCommandSettings):
         validation_alias=AliasChoices("m", "manuscript"),
         description="Input markdown file, equivalent to the positional MARKDOWN argument.",
     )
+    style_file: str = Field(
+        default="style.yml",
+        description="Use only this style file; relative paths resolve from the working directory. Auto: discover style.yml.",
+    )  # Explicit style path for this build; omitted values keep automatic discovery.
     output_file: str | None = Field(
         default=None,
         validation_alias=AliasChoices("o", "output-file"),
@@ -137,6 +141,8 @@ class BuildCommandSettings(VerboseCommandSettings):
                 target=self.target,
                 markdown=self.markdown,
                 manuscript_option=self.manuscript_option,
+                # Distinguish an explicit --style-file style.yml from automatic discovery.
+                style_file=self.style_file if "style_file" in self.model_fields_set else None,
                 output_file=self.output_file,
                 resource_path=self.resource_path,
                 reference_doc=self.reference_doc,
@@ -253,6 +259,17 @@ def configure_reference_doc(reference_doc: str | None) -> None:
         SETTINGS.reference_doc = reference_doc
 
 
+def configure_style_file(style_file: str | Path) -> None:
+    """Validate an explicit style path and select it without automatic discovery."""
+    path = Path(style_file).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Style file not found: {path}")
+    if not path.is_file():
+        raise ValueError(f"Style path is not a file: {path}")
+    SETTINGS.style_file = to_pandoc_path(path)
+    log_debug(f"[DEBUG] Command-line style file: {path}")
+
+
 def manuscript_output_file(default_dir: str, suffix: str) -> Path:
     """Return the explicit output file, or the target's default derived file."""
     if SETTINGS.output_file:
@@ -280,7 +297,7 @@ def style_metadata_files() -> list[str]:
 
 
 def manuscript_style_paths() -> tuple[Path, ...]:
-    """Find style.yml beside the Markdown first, then in the working directory."""
+    """Resolve the selected style, or discover Markdown-local and cwd styles."""
     source_dir = Path(SETTINGS.manuscript_file).resolve().parent
     working_dir = Path.cwd().resolve()
     candidates = (source_dir / SETTINGS.style_file, working_dir / SETTINGS.style_file)
@@ -449,6 +466,7 @@ def run_build_command(
     target: str = "docx",
     markdown: str | None = None,
     manuscript_option: str | None = None,
+    style_file: str | None = None,
     output_file: str | None = None,
     resource_path: str | None = None,
     reference_doc: str | None = None,
@@ -489,7 +507,10 @@ def run_build_command(
         # The CLI can build more than one project in a long-lived Python process.
         SETTINGS.mathtype_work_dir = str(process_temp_dir() / "mathtype-build")
 
+    original_style_file = SETTINGS.style_file
     try:
+        if style_file is not None:
+            configure_style_file(style_file)
         if target == "docx":
             effective = load_build_metadata(lang_override=lang)
             if mathtype is not None:
@@ -514,3 +535,6 @@ def run_build_command(
     except Exception as e:
         log_error(f"\n[ERROR] {e}")
         return 1
+    finally:
+        # A one-build override must not leak into later builds in the same process.
+        SETTINGS.style_file = original_style_file

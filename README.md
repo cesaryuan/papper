@@ -195,6 +195,9 @@ papper build docx --lang zh-cn
 # Build another Markdown file explicitly
 papper build docx paper.md -o build/paper.docx
 
+# Choose a style file for this build
+papper build docx paper.md --style-file styles/journal.yml
+
 # Build one standalone HTML file with embedded resources
 papper build html -o build/paper.html
 
@@ -484,6 +487,14 @@ For each build, Pandoc resource lookup is passed explicitly in this order:
 2. the current working directory.
 
 The same order is used for `style.yml`. If both directories contain that file, Papper merges them and the Markdown directory has higher priority. Relative assets named by metadata, such as `csl`, are resolved with the same lookup order.
+
+Use `--style-file PATH` to select a single style file for a DOCX, LaTeX, HTML,
+or JSON build. Relative paths resolve from the current working directory;
+absolute paths are also accepted. The selected file replaces automatic
+`style.yml` discovery for that build. Missing files and directory paths produce
+an error. Bundled language defaults still apply, and manuscript YAML continues
+to override the selected file's `pandocMetadata`. Omitting the option keeps
+the automatic discovery and merging behavior described above.
 
 `papper build` also accepts `--resource-path`. Its value is passed to Pandoc
 unchanged as the value of one `--resource-path` option. Supplying it replaces
