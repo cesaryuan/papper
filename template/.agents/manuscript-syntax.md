@@ -549,8 +549,9 @@ increment the figure sequence.
 
 Figure and table `SEQ` identifiers use `figureTitle` and `tableTitle` with leading
 and trailing whitespace removed; empty labels fall back to `Figure` and `Table`.
-Equation sequences retain `Equation`. Native reference bookmark names have a
-random namespace per build, and bookmark start/end numeric IDs are randomized
+Equation sequences retain `Equation`. Native reference bookmark names use
+`PapperRef-` plus nine random lowercase letters/digits, with collisions checked
+within each build. Bookmark start/end numeric IDs are randomized
 in matching pairs across the document XML parts to reduce merge collisions.
 
 For standard level-1 chapter prefixes, `STYLEREF` reads the native heading number

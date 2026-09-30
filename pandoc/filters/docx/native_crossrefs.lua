@@ -60,6 +60,17 @@ local function field_argument(text)
   return '"' .. text:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"'
 end
 
+--- Derive nine lowercase base32 characters from the build namespace and target index
+local function bookmark_suffix(namespace, index)
+  local alphabet = 'abcdefghijklmnopqrstuvwxyz234567'
+  local digest = pandoc.utils.sha1(namespace .. ':' .. index):sub(1, 18)
+  return digest:gsub('%x%x', function(byte)
+    -- Five bits per character keep short names random without case-only differences.
+    local position = tonumber(byte, 16) % 32 + 1
+    return alphabet:sub(position, position)
+  end)
+end
+
 --- Return whether a Span carries the internal number marker
 local function is_number_marker(span, class)
   return span.classes:includes(class or marker_class)
@@ -200,8 +211,8 @@ local function convert(doc)
       next_bookmark = next_bookmark + 1
       -- Pandoc hashes Span identifiers starting with _, so use a letter here
       -- REF instructions must contain the exact bookmark name in the DOCX
-      -- A 96-bit build namespace reduces collisions between independently built documents.
-      name = ('PapperRef%s%06x'):format(bookmark_namespace, next_bookmark)
+      -- Keep the visible name at 19 characters; retry any collision within this document.
+      name = 'PapperRef-' .. bookmark_suffix(bookmark_namespace, next_bookmark)
     until not identifiers[name]
     identifiers[name] = true
     return name

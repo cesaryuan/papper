@@ -284,7 +284,8 @@ respects `numberSections`, `sectionsDepth`, and unnumbered headings. Standard
 level-1 chapter prefixes use `STYLEREF`, with `SEQ \s 1` restarting item numbers.
 Figure and table sequence names follow the trimmed `figureTitle` and `tableTitle`;
 empty titles fall back to `Figure` and `Table`. Equation sequences use `Equation`.
-Native reference bookmark names use a random namespace for each build. Bookmark
+Native reference bookmark names use `PapperRef-` followed by nine random lowercase
+letters/digits, with collision checks within each build. Bookmark
 start/end IDs are randomized in matching pairs to reduce collisions when merging
 documents, including bookmarks in footnotes, headers, and footers.
 Update fields in Word after editing; forward references may need two updates.

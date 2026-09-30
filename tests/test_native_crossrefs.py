@@ -425,7 +425,8 @@ Footnote[^one].
         fields, bookmarks, root = read_native_content(output)
         assert assert_reference_targets(fields, bookmarks) == ["1", "1"]
         native_names = {name for name in bookmarks if name.startswith("PapperRef")}
-        assert all(len(name) <= 40 and name.isalnum() and name[0].isalpha() for name in native_names)
+        assert all(name.startswith("PapperRef-") and len(name) == 19 for name in native_names)
+        assert all(name[10:].isalnum() and name[10:] == name[10:].lower() for name in native_names)
         assert [link.get(W + "anchor") for link in root.iter(W + "hyperlink")] == ["custom-target"]
         identifiers = set()
         with ZipFile(output) as package:

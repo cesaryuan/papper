@@ -253,7 +253,8 @@ docxNativeCrossref: true
 `sectionsDepth` 以及不编号标题的设置。常规一级章节前缀使用 `STYLEREF`，项目
 序列通过 `SEQ \s 1` 随章节重启。图、表的 `SEQ` 序列名分别取去除首尾空白后的
 `figureTitle`、`tableTitle`；标题为空时回退到 `Figure`、`Table`，公式序列名为
-`Equation`。原生引用书签名使用每次构建独立的随机命名空间；书签起止位置的数字
+`Equation`。原生引用书签名使用 `PapperRef-` 加 9 位随机小写字母或数字，总长
+19 个字符，并在本篇文档内排重；书签起止位置的数字
 ID 成对随机化，覆盖正文、脚注和页眉页脚，以降低合并文档时的冲突。
 修改文档后在 Word 中更新域；前向引用可能
 需要更新两遍。无法识别的自定义编号或模板保留 Pandoc 结果并给出提示。
