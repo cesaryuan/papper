@@ -98,6 +98,21 @@ uv run pytest tests/test_build_snapshots.py -p no:cacheprovider --snapshot-updat
 
 The build snapshots require `pandoc` and `pandoc-crossref` on `PATH`.
 
+The DOCX-only `native_crossrefs` case explicitly enables `docxNativeCrossref` and
+covers figures, tables, equations, native heading lists, subfigures, numeric
+citations, and footnote references. Its snapshot preserves field instructions,
+cached results, numbering definitions, and bookmark ranges. Random bookmark names
+and numeric IDs are mapped consistently across XML parts and REF instructions;
+reference targets remain distinguishable. Other snapshots keep their existing
+bookmark serialization.
+
+Check or refresh only this case with:
+
+```bash
+uv run pytest tests/test_build_snapshots.py -k native_crossrefs -p no:cacheprovider
+uv run pytest tests/test_build_snapshots.py -k native_crossrefs -p no:cacheprovider --snapshot-update
+```
+
 ## Private native submodules
 
 The `scripts/mathtype-rust` and `scripts/latex2wmf` source trees are private

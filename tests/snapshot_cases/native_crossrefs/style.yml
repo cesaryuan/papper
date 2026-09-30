@@ -1,0 +1,15 @@
+# Keep native fields and CSL settings explicit so local project styles cannot alter this case.
+mathtype: false
+docxNativeCrossref: true
+citationNumberRangeDelimiter: "-"
+pandocMetadata:
+  lang: zh-CN
+  numberSections: true
+  sectionsDepth: 3
+  chapters: true
+  chaptersDepth: 1
+  chapDelim: "-"
+  figureTitle: " 图 "
+  tableTitle: " 表 "
+  linkReferences: true
+  link-citations: true
