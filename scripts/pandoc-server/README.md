@@ -6,7 +6,22 @@ HTTP responses, and normal HTML postprocessing. The serialized native worker
 keeps Pandoc and citation assets alive between conversions. Markdown is parsed
 from a fresh immutable snapshot. Public HTTP conversions return exact documents.
 
-## Build and install
+## Installed wheels
+
+The PyPI platform wheels bundle `pmt-pandoc-worker` (with `.exe` on Windows).
+`papper build html --start-server` uses it directly; users do not install GHC or
+Cabal. `PMT_PANDOC_SERVER_WORKER_COMMAND` overrides the bundled executable for
+profiling or development. Without an override, the bundled worker takes priority
+over an older manually installed executable in `~/.papper/tools/bin`.
+
+The Hatch wheel hook builds the current checkout with static Haskell libraries.
+CI pins GHC 9.10.3 and Cabal 3.16.1.0, caches Cabal dependencies, and builds Linux
+inside manylinux 2.28. Auditwheel on Linux and delocate on macOS bundle required
+non-system C libraries. Every installed wheel is exercised by
+`scripts/check_packaged_html_server.py`: actual citation/cross-reference output,
+warm HTML reuse, and source-edit invalidation must pass before publication.
+
+## Build and install from source
 
 The supported versions are Pandoc 3.11, pandoc-crossref 0.3.25, and citeproc
 0.13.x. `cabal.project` pins Pandoc and relaxes crossref's initial 3.10 upper
@@ -106,6 +121,8 @@ Reference parsing still calls Pandoc's exposed `getReferences` implementation.
 
 These adapted modules and the linked native worker use GPL-2.0-or-later. The
 upstream license and copyright notices are retained in `vendor/pandoc/` and at
-the top of the adapted modules. The Python package's existing license is
+the top of the adapted modules. Wheels retain the worker sources and notices,
+plus exact resolved dependency versions and upstream source links, under
+`pandoc_manuscript/bin/pandoc-worker-source`. The Python package's existing license is
 unchanged. A future Pandoc upgrade must reconcile these adapters against its
 upstream implementations and rerun the complete HTML output tests.

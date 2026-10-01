@@ -30,6 +30,7 @@ from ..html.postprocess import postprocess_html_text
 from ..html.server_metadata import ProjectMetadataCache
 from ..runtime.logging import log_debug, log_warning
 from ..runtime.paths import PMT_TOOLS_BIN_DIR, process_temp_dir, project_state_dir
+from ..runtime.resources import package_resource_path
 from .server_assets import ProjectAssetCache
 from .pandoc_server import split_server_command
 
@@ -83,17 +84,20 @@ class PandocWorker:
 
     @staticmethod
     def _resolve_command(config: dict[str, Any]) -> list[str]:
-        """Resolve an explicit worker or the project-managed native executable."""
+        """Prefer an explicit worker, then the installed wheel, then development tools."""
         configured = os.environ.get("PMT_PANDOC_SERVER_WORKER_COMMAND")
         if configured:
             return split_server_command(configured)
         names = ("pmt-pandoc-worker.exe", "pmt-pandoc-worker") if os.name == "nt" else ("pmt-pandoc-worker",)
-        for name in names:
-            candidate = PMT_TOOLS_BIN_DIR / name
-            if candidate.is_file():
-                return [str(candidate)]
+        # The bundled worker matches this package's private protocol. A stale
+        # manually installed binary must not shadow it after a PyPI upgrade.
+        for directory in (package_resource_path("bin"), PMT_TOOLS_BIN_DIR):
+            for name in names:
+                candidate = directory / name
+                if candidate.is_file():
+                    return [str(candidate)]
         raise FileNotFoundError(
-            "Papper Pandoc worker not found. Build scripts/pandoc-server and install "
+            "Papper Pandoc worker not found. Install a platform wheel, or build scripts/pandoc-server and install "
             "pmt-pandoc-worker into ~/.papper/tools/bin, or set PMT_PANDOC_SERVER_WORKER_COMMAND"
         )
 
@@ -102,11 +106,14 @@ class PandocWorker:
         """Launch the line-based worker with the project's filter environment."""
         command = [*cls._resolve_command(config), "--config", str(Path(config["worker_config"]).resolve())]
         log_path.parent.mkdir(parents=True, exist_ok=True)
+        # A detached Windows HTTP parent has no console to inherit, so an
+        # unflagged console worker would allocate a visible window of its own.
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         with log_path.open("a", encoding="utf-8") as log:
             process = subprocess.Popen(
                 command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log,
                 text=True, encoding="utf-8", errors="replace", cwd=config["project_dir"],
-                env=os.environ.copy(), bufsize=1,
+                env=os.environ.copy(), bufsize=1, creationflags=creationflags,
             )
         if process.stdin is None or process.stdout is None:
             process.kill()

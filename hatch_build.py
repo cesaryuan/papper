@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import atexit
+import json
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,7 @@ from packaging.tags import sys_tags
 
 
 class CustomBuildHook(BuildHookInterface):
-    """Build and include binary-only MathType runtime tools in wheels."""
+    """Build and bundle platform MathType libraries and the persistent HTML worker."""
 
     PLUGIN_NAME = "papper-native-helpers"
 
@@ -44,6 +45,10 @@ class CustomBuildHook(BuildHookInterface):
         force_include.pop("template", None)
         force_include.pop(str(root / "template"), None)
         force_include[str(template_stage / "template")] = "pandoc_manuscript/_template"
+        worker = self.build_pandoc_worker(root)
+        force_include[str(worker)] = f"pandoc_manuscript/bin/{worker.name}"
+        worker_sources = self.stage_worker_sources(root, template_stage)
+        force_include[str(worker_sources)] = "pandoc_manuscript/bin/pandoc-worker-source"
         if os.name == "nt":
             helper = self.build_mathtype_ole_helper(root)
             force_include[str(helper)] = "pandoc_manuscript/mathtype/ole_helper/bin/Release/net48/MathTypeOleHelper.exe"
@@ -77,6 +82,54 @@ class CustomBuildHook(BuildHookInterface):
         platform_tag = next(iter(sys_tags())).platform
         build_data["pure_python"] = False
         build_data["tag"] = f"py3-none-{platform_tag}"
+
+    def build_pandoc_worker(self, root: Path) -> Path:
+        """Compile the checkout's worker with statically linked Haskell libraries."""
+        if shutil.which("cabal") is None or shutil.which("ghc") is None:
+            raise RuntimeError("Building platform wheels requires `ghc` and `cabal` on PATH.")
+        project = root / "scripts" / "pandoc-server"
+        # Never copy a user-installed worker: it may implement an older private
+        # protocol. Keep build/list-bin flags identical, including linkage mode.
+        options = ["exe:pmt-pandoc-worker", "--disable-executable-dynamic", "--disable-shared"]
+        print("[papper build] building persistent Pandoc worker with cabal", flush=True)
+        started = time.monotonic()
+        subprocess.run(["cabal", "build", *options, "--jobs=2"], cwd=project, check=True)
+        result = subprocess.run(
+            ["cabal", "list-bin", *options, "-v0"], cwd=project, check=True,
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        executable = Path(result.stdout.strip())
+        if not executable.is_file():
+            raise FileNotFoundError(f"cabal did not create expected worker: {executable}")
+        print(f"[papper build] Pandoc worker completed in {time.monotonic() - started:.1f}s", flush=True)
+        return executable
+
+    def stage_worker_sources(self, root: Path, stage: Path) -> Path:
+        """Retain the GPL worker's adapted sources, notices, and upstream source links."""
+        project = root / "scripts" / "pandoc-server"
+        destination = stage / "pandoc-worker-source"
+        for relative in (
+            "Main.hs", "Papper/Citeproc.hs", "Papper/Locator.hs", "cabal.project",
+            "pmt-pandoc-server.cabal", "README.md", "vendor/pandoc/COPYING.md", "vendor/pandoc/COPYRIGHT",
+        ):
+            target = destination / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(project / relative, target)
+        plan = json.loads((project / "dist-newstyle/cache/plan.json").read_text(encoding="utf-8"))
+        packages = sorted({
+            (item["pkg-name"], item["pkg-version"]) for item in plan["install-plan"]
+            if item.get("pkg-src", {}).get("type") == "repo-tar"
+        })
+        # Record resolved upstream versions without leaking build-machine paths.
+        sources = {
+            "compiler": plan["compiler-id"], "cabal": plan["cabal-version"],
+            "repository": "https://github.com/cesaryuan/papper/tree/main/scripts/pandoc-server",
+            "packages": [{"name": name, "version": version,
+                          "source": f"https://hackage.haskell.org/package/{name}-{version}/{name}-{version}.tar.gz"}
+                         for name, version in packages],
+        }
+        (destination / "SOURCES.json").write_text(json.dumps(sources, indent=2) + "\n", encoding="utf-8")
+        return destination
 
     def build_native_library(self, root: Path, project_name: str) -> Path:
         """Compile only the shared library exposing the versioned C ABI."""

@@ -16,6 +16,7 @@ from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from .. import __version__
 from ..runtime.logging import log_info, log_warning
 from ..runtime.paths import project_state_dir
 
@@ -118,11 +119,14 @@ def _stop_pid(pid: int) -> None:
     if not _pid_is_running(pid):
         return
     if os.name == "nt":
+        # A console-less caller would otherwise flash a taskkill window when
+        # replacing the background service after a configuration change.
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"],
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
     else:
         os.kill(pid, 15)
@@ -177,6 +181,9 @@ def write_pmt_server_config(
     temporary = target.with_suffix(".tmp")
     serialized = json.dumps(
         {
+            # A wheel upgrade must replace the old Python/native service even
+            # when project settings and installed package paths are unchanged.
+            "runtime_version": __version__,
             # Changing the buffer protocol must invalidate a running pre-upgrade
             # service, which would otherwise silently ignore editor text.
             "source_text_protocol": 1,

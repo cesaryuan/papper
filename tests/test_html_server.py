@@ -107,6 +107,56 @@ def assert_cli_parity(source: Path, html: str, tmp_path: Path) -> None:
     assert html.rstrip() == output.read_text(encoding="utf-8").rstrip()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows console allocation contract")
+def test_detached_server_worker_has_no_console(tmp_path: Path) -> None:
+    """Keep a real worker console-free under a detached server without losing I/O."""
+    probe = tmp_path / "console_probe.py"
+    probe.write_text('''"""Probe worker console allocation and pipes under a detached server.
+
+The outer process uses Papper's worker launcher; the --config child reports
+its actual Windows console handle and echoes stdin, with diagnostics on stderr.
+"""
+import ctypes
+import json
+import sys
+from pathlib import Path
+
+from pandoc_manuscript.commands.pandoc_server_runtime import PandocWorker
+
+if "--config" in sys.argv:
+    kernel = ctypes.WinDLL("kernel32")
+    kernel.GetConsoleWindow.restype = ctypes.c_void_p
+    print(json.dumps({"console": kernel.GetConsoleWindow() or 0,
+                      "input": sys.stdin.read()}), flush=True)
+    print("Worker diagnostic", file=sys.stderr)
+else:
+    root = Path(sys.argv[1])
+    process = PandocWorker._start_process(
+        {"project_dir": str(root), "worker_config": str(root / "worker.json")},
+        root / "worker.log",
+    )
+    try:
+        output, _ = process.communicate("Protocol input\\n", timeout=15)
+        if process.returncode:
+            raise RuntimeError(f"Probe worker exited with {process.returncode}")
+        print(output, end="")
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
+''', encoding="utf-8")
+    environment = {**os.environ, "PMT_PANDOC_SERVER_WORKER_COMMAND": f'"{sys.executable}" "{probe}"'}
+    # Reproduce the console-less HTTP parent's real Windows creation mode:
+    # a console worker launched without its own flags allocates a new window.
+    result = subprocess.run(
+        [sys.executable, str(probe), str(tmp_path)], env=environment,
+        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+        capture_output=True, text=True, check=True, timeout=25,
+    )
+    assert json.loads(result.stdout) == {"console": 0, "input": "Protocol input\n"}
+    assert (tmp_path / "worker.log").read_text(encoding="utf-8").strip() == "Worker diagnostic"
+
+
 def test_raw_editor_text_preserves_source_and_invalidates_cache(server_factory) -> None:
     """Render unsaved/empty buffers through real HTTP without touching the manuscript."""
     worker, source = server_factory("references")

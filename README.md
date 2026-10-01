@@ -370,9 +370,16 @@ papper build html --start-server --server-port 3030
 ```
 
 The native wrapper under `scripts/pandoc-server` links Pandoc 3.11 and
-pandoc-crossref 0.3.25, with a dependency-aware citeproc adapter. Rebuild an older
-wrapper to enable these optimizations. With GHC/Cabal available, install it into
-the project-managed tool directory with:
+pandoc-crossref 0.3.25, with a dependency-aware citeproc adapter. Platform wheels
+include this worker, so PyPI installations need no GHC/Cabal or separate worker
+installation. Runtime discovery prefers `PMT_PANDOC_SERVER_WORKER_COMMAND`, then
+the bundled worker, then `~/.papper/tools/bin` for source-checkout development.
+An older manually installed worker cannot shadow a newer wheel's worker.
+Server configuration records the package version so a later release restarts
+an existing background service instead of retaining its old native worker.
+
+For source-checkout development, with GHC/Cabal available, install it into
+the user-managed tool directory with:
 
 ```powershell
 Push-Location .\scripts\pandoc-server
@@ -444,7 +451,7 @@ Release with `uvx bump-my-version bump patch` followed by
 on `v*` tag pushes. Its `main` builds and manual runs build and verify the same
 three platform wheels without publishing them.
 
-Changes to either Rust submodule, the native build hook, helper inputs, or the
+Changes to either Rust submodule, the Haskell worker, the native build hook, helper inputs, or the
 publishing workflow trigger cache warming on `main`. To warm or refresh caches
 manually, run **Publish to PyPI** with **Run workflow**, selecting `main`.
 Complete the first warm-up before creating the next release tag: GitHub allows
@@ -459,7 +466,16 @@ equation preferences, rather than the Python package version. Only successful
 `main` builds save caches; tag builds restore them and still run Cargo with
 `--locked`, package the wheel, and verify its native libraries.
 
-The wheel builds and ships only the `mathtype-rust` shared library. Its versioned
+The workflow also pins GHC to `9.10.3` and Cabal to `3.16.1.0`, compiles the HTML
+worker on all three platforms, and caches its Haskell dependencies separately.
+Linux compiles both native components inside manylinux 2.28; auditwheel repairs
+shared C dependencies of the library and worker executable. macOS uses delocate
+to bundle non-system dependencies and checks the macOS 14 deployment target.
+Each installed wheel must render citations and table cross-references through
+its real background HTML server, reuse unchanged HTML, and invalidate edited
+source before it can be published. GHC/Cabal are build-time tools only.
+
+For MathType, the wheel builds and ships the `mathtype-rust` shared library. Its versioned
 C ABI handles OLE/MTEF conversion and `operation="render_wmf"` requests, linking
 `latex2wmf` once as a pinned Git dependency. The renderer retains backend, style,
 font size, and math-font options. The standalone `latex2wmf` crate and CLI remain
@@ -468,9 +484,16 @@ available for development; its dynamic library is not shipped.
 CI sets `CARGO_TARGET_DIR` to persist native build artifacts. On Linux this directory and Cargo's download cache live on the host via
 the container's `/host` mount, so they survive the manylinux container. Local
 builds retain their normal per-project target directories unless this environment
-variable is set. Build logs report elapsed time for each Rust library and the
+variable is set. Cabal dependency caches also persist through the Linux `/host`
+mount. Build logs report elapsed time for the Haskell worker, Rust library, and
 Windows .NET helper. A cold cache or a toolchain change still requires compilation;
 actual release speedups should be measured after a successful warm-up.
+
+The GPL HTML worker's adapted Haskell sources, Pandoc license/copyright notices,
+and resolved dependency source links are included under
+`pandoc_manuscript/bin/pandoc-worker-source` in each wheel. Non-editable local
+wheel builds require GHC/Cabal as well as Cargo and, on Windows, .NET; editable
+Python development installations retain the existing manually built worker path.
 
 Before saving the Linux cache, the workflow transfers its container-created files
 to the runner user and checks directory sizes and readability. A lookup after
