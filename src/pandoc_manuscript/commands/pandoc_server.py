@@ -304,7 +304,10 @@ def ensure_pandoc_server(
     log_handle = server_log_file().open("a", encoding="utf-8")
     creationflags = 0
     if os.name == "nt":
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+        # DETACHED_PROCESS still lets a Windows venv launcher create a console
+        # for the real interpreter. CREATE_NO_WINDOW covers that extra layer;
+        # combining it with DETACHED_PROCESS would make Windows ignore it.
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     try:
         process = subprocess.Popen(
             full_command,

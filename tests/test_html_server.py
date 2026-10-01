@@ -108,6 +108,61 @@ def assert_cli_parity(source: Path, html: str, tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows console allocation contract")
+def test_server_launcher_has_no_console(tmp_path: Path, monkeypatch) -> None:
+    """Keep the HTTP interpreter console-free, including the Windows venv launcher."""
+    probe = tmp_path / "http_console_probe.py"
+    probe.write_text('''"""Serve the actual interpreter's console handle for a launch regression check.
+
+Use Papper's runtime settings to accept --port, then expose the console handle
+and PID over HTTP so the caller checks the real server rather than Popen flags.
+"""
+import ctypes
+import json
+import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from pydantic_settings import CliApp
+from pandoc_manuscript.commands.pandoc_server_runtime import ServerRuntimeSettings
+
+class Handler(BaseHTTPRequestHandler):
+    """Report console allocation through the server's health endpoint."""
+
+    def do_GET(self):
+        """Return the runtime's console handle and process identifier."""
+        kernel = ctypes.WinDLL("kernel32")
+        kernel.GetConsoleWindow.restype = ctypes.c_void_p
+        body = json.dumps({"console": kernel.GetConsoleWindow() or 0,
+                           "pid": os.getpid()}).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        """Keep the health probe's routine access output out of server logs."""
+        return
+
+settings = CliApp.run(ServerRuntimeSettings)
+ThreadingHTTPServer((settings.host, settings.port), Handler).serve_forever()
+''', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(paths, "PAPPER_HOME_DIR", tmp_path / "state")
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    info = client.ensure_pandoc_server(port=port, command=f'"{sys.executable}" "{probe}"')
+    try:
+        with client._server_opener().open(f"{info.base_url}/version", timeout=5) as response:
+            status = json.load(response)
+        assert status["console"] == 0
+        assert _pid_is_running(status["pid"])
+        # The service must survive the originating launch call and be reusable.
+        assert client.ensure_pandoc_server(port=port) == info
+    finally:
+        _stop_pid(info.pid)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows console allocation contract")
 def test_detached_server_worker_has_no_console(tmp_path: Path) -> None:
     """Keep a real worker console-free under a detached server without losing I/O."""
     probe = tmp_path / "console_probe.py"
