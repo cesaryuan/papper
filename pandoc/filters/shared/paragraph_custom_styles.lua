@@ -266,8 +266,13 @@ local function process_blocks(blocks)
       end
     end
 
-    local follows_equation, table_layout = is_equation_block(previous)
-    if starts_with_where(block) and follows_equation then
+    -- Only "where" paragraphs need the recursive equation scan. Scanning
+    -- every preceding prose paragraph dominated this filter on long papers.
+    local follows_equation, table_layout = false, false
+    if previous ~= nil and starts_with_where(block) then
+      follows_equation, table_layout = is_equation_block(previous)
+    end
+    if follows_equation then
       local attributes = table_layout and { ["where-layout"] = "table" } or nil
       blocks[index] = style_paragraph(block, where_style, attributes)
     elseif previous ~= nil and previous.t == "Table" and block.t == "Para" then

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import ctypes
 import os
 import shlex
 import shutil
@@ -84,6 +85,26 @@ def _pid_is_running(pid: int) -> bool:
     """Return whether a local process identifier still exists."""
     if pid <= 0:
         return False
+    if os.name == "nt":
+        # Windows os.kill(pid, 0) calls TerminateProcess rather than probing;
+        # querying the exit code avoids killing a live service during cleanup.
+        from ctypes import wintypes
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+        handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.get_last_error() == 5  # Access denied still indicates a live PID
+        try:
+            exit_code = wintypes.DWORD()
+            return bool(kernel.GetExitCodeProcess(handle, ctypes.byref(exit_code))) and exit_code.value == 259
+        finally:
+            kernel.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except (OSError, ProcessLookupError):
@@ -110,7 +131,7 @@ def _request_version(host: str, port: int, timeout: float = 0.35) -> bool:
     """Probe the official `/version` endpoint without requiring a client library."""
     request = urllib.request.Request(f"http://{host}:{port}/version", method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=timeout) as response:
             return 200 <= response.status < 300
     except (OSError, urllib.error.URLError):
         return False
@@ -122,37 +143,73 @@ def write_pmt_server_config(
     pandoc_args: list[str],
     pandoc_metadata: dict[str, object],
     resource_paths: list[Path] | None = None,
+    metadata_sources: dict[str, object] | None = None,
 ) -> Path:
     """Write the project-bound conversion settings consumed by the PMT server."""
     target = server_config_file()
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(".tmp")
-    temporary.write_text(
-        json.dumps(
-            {
-                "project_dir": str(project_dir.resolve()),
-                "pandoc_args": pandoc_args,
-                "pandoc_metadata": pandoc_metadata,
-                "resource_paths": [str(path.resolve()) for path in (resource_paths or [])],
-            },
-            indent=2,
-            ensure_ascii=False,
-            default=str,
-        ),
-        encoding="utf-8",
+    serialized = json.dumps(
+        {
+            "project_dir": str(project_dir.resolve()),
+            "pandoc_args": pandoc_args,
+            "pandoc_metadata": pandoc_metadata,
+            "resource_paths": [str(path.resolve()) for path in (resource_paths or [])],
+            "metadata_sources": metadata_sources,
+        },
+        indent=2, ensure_ascii=False, default=str,
     )
+    # Identical configuration must preserve mtime; otherwise every CLI build
+    # kills the warm worker and discards its citation caches.
+    if target.is_file() and target.read_text(encoding="utf-8") == serialized:
+        return target
+    temporary.write_text(serialized, encoding="utf-8")
     temporary.replace(target)
     return target
+
+
+def build_with_pandoc_server(info: PandocServerInfo, source: Path, output: Path) -> bool:
+    """Build through a PMT service; generic servers retain the normal CLI path."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(f"{info.base_url}/version", timeout=2) as response:
+        version = json.load(response)
+    if not isinstance(version, dict) or version.get("protocol") != "pmt-html-v1":
+        return False
+    request = urllib.request.Request(
+        f"{info.base_url}/convert/raw",
+        data=json.dumps({"path": str(source.resolve())}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    try:
+        with opener.open(request, timeout=120) as response:
+            html = response.read().decode("utf-8")
+            cache = response.headers.get("X-PMT-Cache", "unknown")
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"Pandoc server conversion failed: {exc.read().decode('utf-8', errors='replace')}") from exc
+    # Decode before opening the destination: a failed request must preserve an
+    # existing output file, and use the same newline policy as the CLI writer.
+    output.write_text(html, encoding="utf-8")
+    log_info(f"[Pandoc server] HTML built at {info.base_url} (cache {cache})")
+    return True
+
+
+def split_server_command(command: str) -> list[str]:
+    """Split overrides while removing Windows quotes retained by shlex."""
+    parts = shlex.split(command, posix=os.name != "nt")
+    if os.name == "nt":
+        # Popen already quotes each list argument. Retained wrapping quotes
+        # otherwise become part of the executable name, especially with spaces.
+        parts = [part[1:-1] if len(part) >= 2 and part[0] == part[-1] and part[0] in {'"', "'"} else part for part in parts]
+    if not parts:
+        raise ValueError("Pandoc server command is empty")
+    return parts
 
 
 def _resolve_command(command: str | None, config_path: Path | None) -> tuple[list[str], bool]:
     """Resolve an explicit server command or the bundled PMT runtime."""
     configured = command or os.environ.get("PMT_PANDOC_SERVER_COMMAND")
     if configured:
-        parts = shlex.split(configured, posix=os.name != "nt")
-        if not parts:
-            raise ValueError("PMT_PANDOC_SERVER_COMMAND is empty")
-        return parts, False
+        return split_server_command(configured), False
 
     if config_path is not None:
         return [
@@ -220,7 +277,9 @@ def ensure_pandoc_server(
             stderr=subprocess.STDOUT,
             env={**os.environ, **(environment or {})},
             creationflags=creationflags,
-            close_fds=os.name != "nt",
+            # A detached Windows service must not inherit a captured CLI stdout
+            # handle: its caller would wait for pipe EOF until the service exits.
+            close_fds=True,
         )
     except BaseException:
         log_handle.close()
@@ -259,5 +318,6 @@ __all__ = [
     "DEFAULT_SERVER_PORT",
     "PandocServerInfo",
     "ensure_pandoc_server",
+    "build_with_pandoc_server",
     "write_pmt_server_config",
 ]

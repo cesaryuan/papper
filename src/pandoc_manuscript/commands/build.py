@@ -113,13 +113,13 @@ class BuildCommandSettings(VerboseCommandSettings):
     )
     start_server: bool = Field(
         default=False,
-        description="Start or reuse a local Pandoc HTTP server before an HTML build.",
+        description="Build HTML through a reusable local Pandoc HTTP service.",
     )
     server_host: str = Field(default=DEFAULT_SERVER_HOST, description="Local Pandoc server bind host.")
     server_port: int = Field(default=DEFAULT_SERVER_PORT, description="Local Pandoc server HTTP port.")
     server_command: str | None = Field(
         default=None,
-        description="Pandoc server command; defaults to PMT_PANDOC_SERVER_COMMAND or PATH lookup.",
+        description="Override the PMT HTTP runtime; also configurable with PMT_PANDOC_SERVER_COMMAND.",
     )
 
     @classmethod

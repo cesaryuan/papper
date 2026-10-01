@@ -348,21 +348,23 @@ supports the official `/`, `/batch`, and `/version` API. State is recorded in
 `~/.papper/projects/<project-id>/pandoc-server.json` and output in the sibling
 `pandoc-server.log`.
 
-The server is an integration service for repeated Markdown conversions. It
-loads the current project's PMT defaults and metadata, and uses the same
-`pandoc-crossref` and Lua filter chain as the normal HTML build. The normal PMT
-HTML build still runs its existing CLI path, so `--start-server` does not
-change cross-reference or resource behavior. Set a generic server command
-explicitly only when needed:
+With `--start-server`, the HTML build itself uses `/convert/raw`, reusing a
+persistent Pandoc worker and its prepared citation data. Identical configuration
+does not restart the worker. The service reloads changed Markdown headers,
+`style.yml`, defaults, Lua filters, bibliography, CSL, and template dependencies,
+and applies the normal PMT HTML postprocessing. Builds without this flag, explicit
+inputs outside the working-directory project, and explicitly selected generic
+servers use the existing CLI build. Set a generic server command only when needed:
 
 ```powershell
 $env:PMT_PANDOC_SERVER_COMMAND = 'C:\path\to\pandoc-server.exe'
 papper build html --start-server --server-port 3030
 ```
 
-The repository includes a minimal executable wrapper under
-`scripts/pandoc-server`. With GHC/Cabal and the matching Pandoc 3.11 package
-available, build it into the project-managed tool directory with:
+The native wrapper under `scripts/pandoc-server` links Pandoc 3.11 and
+pandoc-crossref 0.3.25, with a dependency-aware citeproc adapter. Rebuild an older
+wrapper to enable these optimizations. With GHC/Cabal available, install it into
+the project-managed tool directory with:
 
 ```powershell
 Push-Location .\scripts\pandoc-server
@@ -380,19 +382,47 @@ post-processing used by `papper build html`, together with stage timings and
 the HTML result-cache status.
 
 For clients that want to avoid the JSON envelope, `POST /convert/raw` returns
-the exact PMT HTML directly as `text/html`. `POST /preview` returns a faster
-HTML fragment path: it reuses a project-scoped Pandoc AST cache, disables the
-standalone template and author block, and keeps the PMT filter chain for
-cross-references and citations. The first preview for a changed manuscript
-returns immediately through the normal preview path while warming the section
-AST cache in the background; subsequent requests can reuse unchanged section
-ASTs and the rendered HTML cache. `GET /metrics` exposes the current in-memory
-cache counts.
+the exact PMT HTML directly as `text/html`. `POST /preview` and `/preview/raw`
+return HTML fragments with the standalone template and author block disabled.
+Both modes parse the complete current source, preserving global heading IDs,
+link definitions, and footnotes. They reuse prepared citation styles and
+bibliographies; prose-only changes can also reuse citation evaluation while
+applying the resulting citations to the new document. Unchanged successful
+HTML is held in a bounded cache. `GET /metrics` distinguishes HTML and citation
+cache reuse. Concurrent identical requests share the completed conversion.
 
-Every raw response includes `X-PMT-Cache`, `X-PMT-Mode`, and a `Server-Timing`
-header. The timing fields cover asset-cache lookup, AST construction when
-needed, Pandoc worker time, output reading, HTML post-processing, and total
-request time.
+Remote CSL parents and other remote citation assets are downloaded to the
+project's Papper state directory. The service checks them every five minutes,
+using conditional HTTP requests when validators are available; changed content
+invalidates prepared citations and HTML. If validation fails after a successful
+download, the last valid snapshot remains available and a retry follows after
+30 seconds. First-time downloads and periodic validation can still add network
+latency. Local bibliography, CSL, filter, and template edits are checked on each
+request. Custom filters retain their normal execution path.
+
+Every raw response includes `X-PMT-Cache`, `X-PMT-Citeproc-Cache`, `X-PMT-Mode`,
+and `Server-Timing`. The citeproc header is `hit` or `miss` when the native worker
+ran, and `skipped` on a whole-HTML cache hit. Timings cover dependency lookup,
+native worker and filter stages, output reading, postprocessing, queue wait,
+and total request time.
+
+To reproduce warm HTTP benchmarks, including changed prose, changed citation
+locators, and unchanged HTML, run from this checkout:
+
+```powershell
+uv run python scripts/benchmark_html_server.py --manuscript template/manuscript.md
+uv run python scripts/benchmark_html_server.py --manuscript ../1-3d-mesh/manuscript.md --modes exact,preview
+```
+
+The script copies editable inputs into an isolated project, preserves all timed
+samples, and verifies final HTML against fresh CLI conversions. Reports under
+`output/benchmarks/server/` exclude worker startup and independent CLI checks.
+Use `--baseline-worker PATH` to compare an older wrapper through the same HTTP
+frontend, or `--no-compare` to measure only the current worker. See
+[the native worker notes](scripts/pandoc-server/README.md) for cache boundaries,
+build requirements, profiling, and source attribution.
+Recorded warm-request improvements and measurement limits are described in
+[the performance note](scripts/pandoc-server/PERFORMANCE.md).
 
 ## Maintainer releases and native build caches
 

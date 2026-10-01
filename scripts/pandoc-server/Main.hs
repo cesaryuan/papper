@@ -1,38 +1,50 @@
 {-
   Long-lived Pandoc worker for the PMT HTML server.
 
-  The worker parses PMT's fixed HTML defaults once, then accepts JSON lines
-  containing an input Markdown path and an output path. It invokes Pandoc's
-  Haskell API for each request, so Lua filters and the Pandoc runtime remain in
-  memory while the existing external pandoc-crossref filter still runs with
-  the same project environment.
+  Build with `cabal build exe:pmt-pandoc-worker`, then run with --config PATH.
+  JSON lines specify an input snapshot, output, and dependency fingerprint.
+  Pandoc and crossref run in this process; the citation adapter caches CSL,
+  references, and evaluated citations while applying Pandoc's document
+  mutations to fresh prose on every request. Changed assets reload defaults.
 -}
 
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Main where
 
-import Control.Exception (SomeException, try)
+import Control.Exception (SomeException, evaluate, try)
+import Control.DeepSeq (force)
+import Control.Monad.IO.Class (liftIO)
 import Control.Applicative ((<|>))
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import qualified Data.Text as T
+import qualified Data.Map as M
+import Data.Maybe (fromMaybe)
 import Data.Aeson (FromJSON, Value, eitherDecode, encode, object, (.=))
+import qualified Data.Aeson.Key as Key
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy.Char8 as BL8
 import GHC.Generics (Generic)
+import Data.IORef (IORef, newIORef, modifyIORef', readIORef, writeIORef)
+import Text.Pandoc.Definition (Pandoc (..), Format (..))
+import Text.Pandoc.CrossRef (runCrossRefIO, defaultCrossRefAction)
+import qualified Papper.Citeproc as Citations
+import Text.Pandoc.Filter (Filter (..))
 import System.Directory (canonicalizePath, createDirectoryIfMissing, makeAbsolute)
-import System.Environment (getArgs)
-import System.FilePath (isRelative, makeRelative, normalise, takeDirectory, (</>))
+import System.Environment (getArgs, setEnv, unsetEnv)
+import System.FilePath (isRelative, makeRelative, normalise, takeBaseName, takeDirectory, splitDirectories, (</>))
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stdin, stdout)
 import Text.Pandoc.App (Opt (..), convertWithOpts,
                         defaultOpts, options, parseOptionsFromArgs)
 import Text.Pandoc.Lua (getEngine)
-import Text.Pandoc.Scripting (ScriptingEngine)
+import Text.Pandoc.Scripting (ScriptingEngine (..))
 
 data Config = Config
   { pandocArgs :: [String]
   , projectDir :: FilePath
+  , workDirs :: Maybe [FilePath]
   } deriving (Generic, Show)
 
 instance FromJSON Config
@@ -42,10 +54,18 @@ data Request = Request
   , output :: FilePath
   , mode :: Maybe String
   , inputFormat :: Maybe String
+  , assetFingerprint :: Maybe String
+  , metadataFile :: Maybe FilePath
+  , resourcePaths :: Maybe [FilePath]
+  , filterEnvironment :: Maybe (M.Map String (Maybe String))
+  , luaBundle :: Maybe FilePath
+  , luaBundlePaths :: Maybe [FilePath]
+  , remoteResources :: Maybe (M.Map String FilePath)
   } deriving (Generic, Show)
 
 instance FromJSON Request
 
+-- | Initialize one persistent worker and consume its private JSON-line protocol.
 main :: IO ()
 main = do
   hSetBuffering stdin LineBuffering
@@ -53,13 +73,55 @@ main = do
   args <- getArgs
   configPath <- argumentValue "--config" args
   config <- decodeFile configPath
-  parsed <- parseOptionsFromArgs options defaultOpts "pmt-pandoc-worker" (pandocArgs config)
-  baseOpts <- either (fail . show) pure parsed
-  engine <- getEngine
-  loop engine config baseOpts
+  baseOpts <- loadOptions config
+  optionsCache <- newIORef (Nothing, baseOpts)
+  luaEngine <- getEngine
+  timings <- newIORef []
+  citationCache <- Citations.newCitationCache
+  let engine = embeddedEngine luaEngine timings citationCache
+  loop engine timings citationCache config optionsCache
 
-loop :: ScriptingEngine -> Config -> Opt -> IO ()
-loop engine config baseOpts = do
+-- | Parse project defaults again only after the dependency generation changes.
+loadOptions :: Config -> IO Opt
+loadOptions config = do
+  parsed <- parseOptionsFromArgs options defaultOpts "pmt-pandoc-worker" (pandocArgs config)
+  opts <- either (fail . show) pure parsed
+  pure opts {optFilters = map embedFilter (optFilters opts)}
+
+-- Replace only the standard crossref executable; custom JSON filters retain
+-- Pandoc's existing subprocess behavior and their original order.
+embedFilter :: Filter -> Filter
+embedFilter (JSONFilter path)
+  | path == "pandoc-crossref" = LuaFilter "papper-embedded-crossref"
+embedFilter CiteprocFilter = LuaFilter "papper-embedded-citeproc"
+embedFilter filt = filt
+
+-- Run the crossref library in this process while preserving config-file
+-- handling. Force results within the timer because Haskell evaluates lazily.
+embeddedEngine :: ScriptingEngine -> IORef [(String, Double)] -> Citations.CitationCache -> ScriptingEngine
+embeddedEngine luaEngine timings citationCache = luaEngine
+  { engineApplyFilter = \env args path doc@(Pandoc meta _) -> do
+      started <- liftIO getCurrentTime
+      result <- case takeBaseName path of
+        "papper-embedded-crossref" -> liftIO $ runCrossRefIO meta (Format . T.pack <$> first args)
+                        defaultCrossRefAction doc
+        "papper-embedded-citeproc" -> Citations.processCitations citationCache doc
+        _ -> engineApplyFilter luaEngine env args path doc
+      strict <- liftIO $ evaluate $ force result
+      finished <- liftIO getCurrentTime
+      liftIO $ modifyIORef' timings
+        (++ [(takeBaseName path, realToFrac (diffUTCTime finished started) * 1000)])
+      pure strict
+  }
+
+-- Safely obtain the output format passed by Pandoc's filter runner.
+first :: [a] -> Maybe a
+first [] = Nothing
+first (value : _) = Just value
+
+-- | Return one response per line, including recoverable conversion errors.
+loop :: ScriptingEngine -> IORef [(String, Double)] -> Citations.CitationCache -> Config -> IORef (Maybe String, Opt) -> IO ()
+loop engine timings citationCache config optionsCache = do
   -- Lazy ByteString Char8 has no line reader; convert each strict stdin line.
   line <- BL8.fromStrict <$> B8.getLine
   if BL8.null line
@@ -67,20 +129,32 @@ loop engine config baseOpts = do
     else do
       response <- case eitherDecode line of
         Left err -> pure $ object ["ok" .= False, "error" .= err]
-        Right request -> convertRequest engine config baseOpts request
+        Right request -> convertRequest engine timings citationCache config optionsCache request
       BL8.putStrLn (encode response)
-      loop engine config baseOpts
+      loop engine timings citationCache config optionsCache
 
-convertRequest :: ScriptingEngine -> Config -> Opt -> Request -> IO Value
-convertRequest engine config baseOpts request = do
+-- | Refresh assets and execute one conversion with wall-clock filter timings.
+convertRequest :: ScriptingEngine -> IORef [(String, Double)] -> Citations.CitationCache -> Config -> IORef (Maybe String, Opt) -> Request -> IO Value
+convertRequest engine timings citationCache config optionsCache request = do
   started <- getCurrentTime
+  writeIORef timings []
+  Citations.invalidateCitationCache citationCache (assetFingerprint request)
+  Citations.setRemoteResources citationCache (fromMaybe M.empty (remoteResources request))
   result <- try $ do
-    source <- resolveProjectPath (projectDir config) (input request)
-    target <- resolveProjectPath (projectDir config) (output request)
+    (previous, cachedOptions) <- readIORef optionsCache
+    baseOpts <- if assetFingerprint request == Nothing || previous /= assetFingerprint request
+      then loadOptions config
+      else pure cachedOptions
+    writeIORef optionsCache (assetFingerprint request, baseOpts)
+    mapM_ (mapM_ setFilterVariable . M.toList) (filterEnvironment request)
+    source <- resolveProjectPath config (input request)
+    target <- resolveProjectPath config (output request)
     createDirectoryIfMissing True (takeDirectory target)
     let opts = requestOptions baseOpts request source target
     convertWithOpts engine opts
   finished <- getCurrentTime
+  filterTimings <- readIORef timings
+  citationsReused <- Citations.citationCacheHit citationCache
   let elapsedMs :: Int
       elapsedMs = round (realToFrac (diffUTCTime finished started) * 1000.0)
   case result of
@@ -89,12 +163,27 @@ convertRequest engine config baseOpts request = do
       , "error" .= show (err :: SomeException)
       , "elapsed_ms" .= elapsedMs
       ]
-    Right () -> pure $ object ["ok" .= True, "elapsed_ms" .= elapsedMs]
+    Right () -> pure $ object ["ok" .= True, "elapsed_ms" .= elapsedMs,
+                              "citeproc_cache_hit" .= citationsReused,
+                              "filters_ms" .= object [Key.fromString key .= value | (key, value) <- filterTimings]]
 
+-- | Update only Papper's filter settings; arbitrary environment keys are rejected.
+setFilterVariable :: (String, Maybe String) -> IO ()
+setFilterVariable (key, value)
+  | key == "PMT_CITATION_NUMBER_RANGE_DELIMITER" = maybe (unsetEnv key) (setEnv key) value
+  | otherwise = fail $ "Unsupported filter environment variable: " ++ key
+
+-- | Apply per-source metadata/resources and exact/fragment writer semantics.
 requestOptions :: Opt -> Request -> FilePath -> FilePath -> Opt
 requestOptions baseOpts request source target =
+  let prepared = baseOpts
+        { optMetadataFiles = maybe (optMetadataFiles baseOpts) (:[]) (metadataFile request)
+        , optResourcePath = fromMaybe (optResourcePath baseOpts) (resourcePaths request)
+        , optFilters = bundleFilters request (optFilters baseOpts)
+        }
+  in
   case mode request of
-    Just "ast" -> baseOpts
+    Just "ast" -> prepared
       { optInputFiles = Just [source]
       , optOutputFile = Just target
       , optFrom = Just "markdown"
@@ -107,7 +196,8 @@ requestOptions baseOpts request source target =
       , optBibliography = []
       , optCitationAbbreviations = Nothing
       }
-    Just "preview" -> baseOpts
+
+    Just "preview" -> prepared
       { optInputFiles = Just [source]
       , optOutputFile = Just target
       , optFrom = fmap T.pack (inputFormat request) <|> optFrom baseOpts
@@ -115,29 +205,51 @@ requestOptions baseOpts request source target =
       , optStandalone = False
       , optTemplate = Nothing
       }
-    _ -> baseOpts
+    _ -> prepared
       { optInputFiles = Just [source]
       , optOutputFile = Just target
       }
 
-resolveProjectPath :: FilePath -> FilePath -> IO FilePath
-resolveProjectPath root raw = do
-  root' <- canonicalizePath root
-  path <- normalise <$> makeAbsolute (if isRelative raw then root' </> raw else raw)
-  let relative = makeRelative root' path
-  -- Accept descendants while rejecting paths that escape the project via `..`.
-  if relative == "." || (isRelative relative && not (".." `prefixOf` relative))
+-- | Replace only an exact contiguous sequence verified by the dependency cache.
+-- Extra/reordered/custom filters retain their original invocation boundaries.
+bundleFilters :: Request -> [Filter] -> [Filter]
+bundleFilters request = go
+  where
+    expected = map (LuaFilter . normalise) $ fromMaybe [] (luaBundlePaths request)
+    -- Windows accepts both slash styles in configured Lua paths.
+    normalizeFilter (LuaFilter path) = LuaFilter (normalise path)
+    normalizeFilter filt = filt
+    go [] = []
+    go filters@(filt : rest) = case luaBundle request of
+      Just bundle | length expected == 5 && map normalizeFilter (take 5 filters) == expected ->
+        LuaFilter bundle : go (drop 5 filters)
+      _ -> filt : go rest
+
+-- | Permit project files and explicitly allocated private intermediates only.
+resolveProjectPath :: Config -> FilePath -> IO FilePath
+resolveProjectPath config raw = do
+  root <- canonicalizePath (projectDir config)
+  path <- canonicalizePath =<< makeAbsolute (if isRelative raw then root </> raw else raw)
+  roots <- mapM canonicalizePath $ root : fromMaybe [] (workDirs config)
+  if any (`containsPath` path) roots
     then pure path
     else fail $ "Path is outside the PMT project: " ++ path
 
-prefixOf :: String -> String -> Bool
-prefixOf prefix value = take (length prefix) value == prefix
+-- | Compare path components so `..notes` is allowed but traversal is rejected.
+containsPath :: FilePath -> FilePath -> Bool
+containsPath root path =
+  let relative = makeRelative root path
+  in relative == "." || (isRelative relative && case splitDirectories relative of
+    ".." : _ -> False
+    _ -> True)
 
+-- | Read a required internal CLI option without changing Pandoc's own parser.
 argumentValue :: String -> [String] -> IO String
 argumentValue name args = case dropWhile (/= name) args of
   (_ : value : _) -> pure value
   _ -> fail $ "Missing " ++ name
 
+-- | Decode the worker configuration before accepting requests.
 decodeFile :: FromJSON a => FilePath -> IO a
 decodeFile path = do
   contents <- BL8.readFile path

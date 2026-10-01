@@ -78,6 +78,24 @@ def append_reference_style_block(effective: EffectiveMetadata, css: str) -> None
     effective.pandoc_metadata["header-includes"] = includes
 
 
+def prepare_html_metadata(effective: EffectiveMetadata, project_name: str) -> None:
+    """Apply identical title, equation, reference CSS, and page defaults to HTML."""
+    from ..commands.build import resource_path
+
+    metadata = effective.pandoc_metadata
+    if not metadata.get("title") and not metadata.get("pagetitle"):
+        metadata["pagetitle"] = project_name
+    metadata.update(HTML_EQUATION_METADATA)
+    append_reference_style_block(
+        effective,
+        build_reference_style_css(
+            resource_path("pandoc/manuscript-template/reference-doc/word/styles.xml"),
+            effective.pmt_settings,
+        ),
+    )
+    apply_html_page_metadata(effective)
+
+
 def build_html(
     *,
     start_server: bool = False,
@@ -85,7 +103,7 @@ def build_html(
     server_port: int = 3030,
     server_command: str | None = None,
 ) -> None:
-    """Generate HTML and optionally start a reusable Pandoc server for clients."""
+    """Generate HTML through the CLI or an explicitly requested reusable service."""
     # Import the shared build primitives lazily to keep HTML implementation
     # details in this package without creating a module import cycle.
     from ..commands.build import (
@@ -94,13 +112,14 @@ def build_html(
         load_build_metadata,
         manuscript_output_file,
         manuscript_resource_paths,
+        manuscript_style_paths,
         resource_path,
         pandoc_filter_env,
         style_metadata_args,
         run_pandoc,
     )
     from ..runtime.logging import log_debug, log_info, log_success
-    from ..commands.pandoc_server import ensure_pandoc_server, write_pmt_server_config
+    from ..commands.pandoc_server import build_with_pandoc_server, ensure_pandoc_server, write_pmt_server_config
     from ..commands.setup import pandoc_tools_env
 
     log_info("\n[HTML] Building HTML...\n")
@@ -110,17 +129,7 @@ def build_html(
     # Pandoc derives the page title from the temporary header-free input
     # filename when a manuscript has no explicit title; keep the title stable
     # without adding a visible title block to the document body.
-    if not effective.pandoc_metadata.get("title") and not effective.pandoc_metadata.get("pagetitle"):
-        effective.pandoc_metadata["pagetitle"] = SETTINGS.project_name
-    effective.pandoc_metadata.update(HTML_EQUATION_METADATA)
-    append_reference_style_block(
-        effective,
-        build_reference_style_css(
-            resource_path("pandoc/manuscript-template/reference-doc/word/styles.xml"),
-            effective.pmt_settings,
-        ),
-    )
-    apply_html_page_metadata(effective)
+    prepare_html_metadata(effective, SETTINGS.project_name)
     log_debug(
         "[HTML] Page layout: A4 with margins "
         f"top={effective.pandoc_metadata['html-page-margin-top']}, "
@@ -144,15 +153,27 @@ def build_html(
                 resource_path_option,
             ],
             pandoc_metadata=effective.pandoc_metadata,
-            resource_paths=list(manuscript_resource_paths()),
+            resource_paths=[Path(path) for path in resource_path_option.split(os.pathsep)],
+            metadata_sources={
+                "style_file": SETTINGS.style_file,
+                "style_paths": [str(path) for path in manuscript_style_paths()],
+                "project_name": SETTINGS.project_name,
+                "resource_path_explicit": SETTINGS.resource_path is not None,
+            },
         )
-        ensure_pandoc_server(
+        server = ensure_pandoc_server(
             host=server_host,
             port=server_port,
             command=server_command,
             config_path=server_config,
             environment=pandoc_tools_env(pandoc_filter_env(effective.pmt_settings)),
         )
+        # Explicit external CLI inputs keep the normal Pandoc path; the public
+        # service remains bound to the project that launched it.
+        source = Path(SETTINGS.manuscript_file)
+        if source.resolve().is_relative_to(Path.cwd().resolve()) and build_with_pandoc_server(server, source, html_file):
+            log_success(f"\n[OK] HTML created: {html_file}")
+            return
     run_pandoc(
         resource_path("pandoc/pandoc-html.yml"),
         html_file,

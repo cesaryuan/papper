@@ -1,0 +1,6 @@
+packages: .
+
+-- Crossref 0.3.25's initial release names Pandoc 3.10; its 3.11 release
+-- uses the same library API. Pin the worker's ABI while relaxing that bound.
+allow-newer: pandoc-crossref:pandoc
+constraints: pandoc == 3.11
