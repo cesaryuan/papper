@@ -305,14 +305,19 @@ class ProjectAssetCache:
                 digest.update(b"<missing>")
         return digest.hexdigest()
 
-    def source_digest(self, path: Path) -> str:
+    def source_digest(self, path: Path, *, text: str | None = None) -> str:
         """Fingerprint prose and local resources, reusing reference discovery."""
-        content, content_digest = self.read(path)
+        if text is None:
+            content, content_digest = self.read(path)
+            text = content.decode("utf-8-sig")
+        else:
+            # Hash the editor snapshot and discover its resources, otherwise
+            # unsaved prose/image edits can incorrectly hit the disk HTML cache.
+            content_digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
         previous = self._source_resources.get(path)
         if previous is not None and previous[0] == content_digest:
             resources = previous[1]
         else:
-            text = content.decode("utf-8-sig")
             resources = tuple(next(value for value in match.groups() if value) for match in self._REFERENCES.finditer(text))
             self._source_resources[path] = (content_digest, resources)
         digest = hashlib.sha256(content_digest.encode("ascii"))

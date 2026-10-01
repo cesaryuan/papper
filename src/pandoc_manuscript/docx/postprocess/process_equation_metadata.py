@@ -23,7 +23,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.text.paragraph import Paragraph
 
-from .common import iter_body_blocks, open_docx, print_debug, print_debug_success, print_error, print_warning, save_docx
+from .common import open_docx, print_debug, print_debug_success, print_error, print_warning, save_docx
 
 
 EQUATION_METADATA_MARKER_PREFIX = "PMT_EQUATION_METADATA:"
@@ -53,14 +53,15 @@ def paragraph_has_display_math(paragraph: Paragraph) -> bool:
 
 
 def equation_paragraphs_from_doc(doc: DocumentObject) -> list[tuple[Paragraph, dict[str, Any]]]:
-    """Pair hidden equation markers with the following display-equation paragraph."""
+    """Pair hidden markers with display equations, including equation-layout cells."""
     pairs: list[tuple[Paragraph, dict[str, Any]]] = []
     pending_record: dict[str, Any] | None = None
     marker_paragraphs: list[Paragraph] = []
 
-    for block in iter_body_blocks(doc):
-        if not isinstance(block, Paragraph):
-            continue
+    # The default numbered-equation layout puts both marker and math in a cell;
+    # scanning body-level paragraphs alone misses those revised equations.
+    for element in doc.element.body.iter(qn("w:p")):
+        block = Paragraph(element, doc)
 
         if block.text.startswith(EQUATION_METADATA_MARKER_PREFIX):
             marker_paragraphs.append(block)

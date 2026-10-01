@@ -146,11 +146,13 @@ class PandocWorker:
             raise RuntimeError(str(result.get("error", "Papper Pandoc worker conversion failed")))
         return result
 
-    def convert(self, input_path: Path, *, mode: str = "exact") -> ConversionResult:
-        """Convert a project source while coalescing concurrent identical requests."""
+    def convert(self, input_path: Path, *, mode: str = "exact", text: str | None = None) -> ConversionResult:
+        """Convert project sources or unsaved editor text without modifying the source."""
         started = time.perf_counter()
         if mode not in {"exact", "preview"}:
             raise ValueError(f"Unknown conversion mode: {mode}")
+        if text is not None and not isinstance(text, str):
+            raise ValueError("Source text must be a string")
         source = (self._project / input_path).resolve()
         if not source.is_relative_to(self._project):
             raise ValueError(f"Path is outside the Papper project: {source}")
@@ -158,21 +160,25 @@ class PandocWorker:
         # transaction; otherwise simultaneous requests can reuse mismatched assets.
         with self._lock:
             wait_ms = (time.perf_counter() - started) * 1000
-            result = self._convert(source, mode=mode)
+            result = self._convert(source, mode=mode, text=text)
             result.timings["queue"] = round(wait_ms, 3)
             result.timings["total"] = round((time.perf_counter() - started) * 1000, 3)
             return result
 
-    def _convert(self, source: Path, *, mode: str) -> ConversionResult:
+    def _convert(self, source: Path, *, mode: str, text: str | None = None) -> ConversionResult:
         """Prepare one immutable source snapshot and cache only successful HTML."""
         asset_started = time.perf_counter()
         self._assets.begin()
-        text = self._assets.read(source)[0].decode("utf-8-sig").replace("\r\n", "\n")
+        # Editor buffers can differ from disk, including being completely empty.
+        # Retain the real source path for style/resource lookup and cache identity.
+        if text is None:
+            text = self._assets.read(source)[0].decode("utf-8-sig")
+        text = text.removeprefix("\ufeff").replace("\r\n", "\n")
         metadata, metadata_file, body, environment = self._metadata.refresh(source, text)
         asset_digest = self._assets.refresh(
             metadata, source=source, extra_paths=self._metadata.style_paths(source),
         )
-        source_digest = self._assets.source_digest(source)
+        source_digest = self._assets.source_digest(source, text=text)
         timings = {"asset_cache": round((time.perf_counter() - asset_started) * 1000, 3)}
         cache_key = hashlib.sha256(f"{mode}:{source}:{source_digest}:{asset_digest}".encode("utf-8")).hexdigest()
         self._requests += 1
@@ -241,6 +247,11 @@ class PandocWorker:
         """Report native worker health without executing an extra conversion."""
         return self._process.poll() is None
 
+    @property
+    def project_dir(self) -> Path:
+        """Expose service identity so editors never reuse another project's worker."""
+        return self._project
+
     def cache_stats(self) -> dict[str, int]:
         """Expose whole-HTML and citation reuse as separate diagnostic counters."""
         with self._lock:
@@ -289,7 +300,9 @@ class PmtHtmlRequestHandler(BaseHTTPRequestHandler):
             else:
                 # A dead child can be restarted on conversion; expose it without
                 # making the supervisor kill a recoverable HTTP service.
-                self._json_response({"server": self.server_version, "protocol": "pmt-html-v1", "worker_alive": worker.is_alive()})
+                self._json_response({"server": self.server_version, "protocol": "pmt-html-v1",
+                                     "worker_alive": worker.is_alive(), "source_text": True,
+                                     "project_dir": str(worker.project_dir)})
         elif self.path == "/metrics":
             self._json_response(worker.cache_stats() if worker is not None else {})
         else:
@@ -299,7 +312,9 @@ class PmtHtmlRequestHandler(BaseHTTPRequestHandler):
         """Convert one source or a batch, consuming the body before responding."""
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if length < 0 or length > 1024 * 1024:
+            # Unsaved manuscripts travel in JSON instead of a project file;
+            # allow large editor buffers while retaining a bounded request size.
+            if length < 0 or length > 32 * 1024 * 1024:
                 self.close_connection = True
                 self._json_response({"error": "Invalid request body length"}, HTTPStatus.BAD_REQUEST)
                 return
@@ -314,7 +329,7 @@ class PmtHtmlRequestHandler(BaseHTTPRequestHandler):
                 self._json_response({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
             if self.path == "/convert/raw":
-                self._html_response(self.server.worker.convert(Path(paths[0])))
+                self._html_response(self.server.worker.convert(Path(paths[0]), text=payload.get("text")))
                 return
             results = []
             for path in paths:

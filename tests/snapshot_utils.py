@@ -17,6 +17,20 @@ from pandoc_manuscript.runtime.paths import project_cache_dir
 _VOLATILE_DOCX_TAGS = {"created", "modified"}
 _VOLATILE_DOCX_ATTRIBUTES = {"rsidR", "rsidRPr", "rsidP", "rsidDel", "rsidSect"}
 _WORD_NAMESPACE = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+_CACHE_FILENAME_HASH = re.compile(
+    r"(__PAPPER_CACHE__/svg-(?:png|embedded)/[^\"<>]*?)-[0-9a-f]{12}(?=\.(?:png|svg)\b)"
+)
+
+
+def _canonical_path_text(
+    value: str, path_replacements: tuple[tuple[str, str], ...],
+) -> str:
+    """Normalize cache paths and the filename hashes derived from temporary paths."""
+    for source, replacement in path_replacements:
+        value = value.replace(source, replacement)
+    # SVG rasterization hashes an embedded source's absolute cache path. A fresh
+    # project directory changes this filename without changing the image bytes.
+    return _CACHE_FILENAME_HASH.sub(r"\1-__SOURCE_PATH_HASH__", value)
 
 
 class NativeBookmarkNormalizer:
@@ -85,16 +99,14 @@ def _canonical_xml(
         if etree.QName(element).localname in _VOLATILE_DOCX_TAGS:
             element.text = "<normalized>"
         if element.text:
-            for source, replacement in path_replacements:
-                element.text = element.text.replace(source, replacement)
+            element.text = _canonical_path_text(element.text, path_replacements)
         for attribute in list(element.attrib):
             if etree.QName(attribute).localname in _VOLATILE_DOCX_ATTRIBUTES:
                 del element.attrib[attribute]
             else:
-                value = element.attrib[attribute]
-                for source, replacement in path_replacements:
-                    value = value.replace(source, replacement)
-                element.attrib[attribute] = value
+                element.attrib[attribute] = _canonical_path_text(
+                    element.attrib[attribute], path_replacements,
+                )
     canonical = etree.tostring(root, method="c14n", with_comments=True).decode("utf-8")
     return canonical.replace("><", ">\n<")
 
@@ -107,7 +119,8 @@ def canonical_html(path: Path) -> str:
 
 
 def canonical_docx(
-    path: Path, *, repository_root: Path, normalize_native_crossrefs: bool = False,
+    path: Path, *, repository_root: Path, project_dir: Path | None = None,
+    normalize_native_crossrefs: bool = False,
 ) -> str:
     """Serialize every decompressed DOCX ZIP member for a reviewable snapshot.
 
@@ -115,7 +128,7 @@ def canonical_docx(
     retain their exact SHA-256 and byte size without ZIP-container timestamps.
     """
     root = repository_root.resolve()
-    cache = project_cache_dir(root)
+    cache = project_cache_dir(project_dir or root)
     path_replacements = (
         (cache.as_posix(), "__PAPPER_CACHE__"),
         (str(cache), "__PAPPER_CACHE__"),

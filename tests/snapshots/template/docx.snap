@@ -4050,7 +4050,7 @@
       "<a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/picture\">",
       "<pic:pic>",
       "<pic:nvPicPr>",
-      "<pic:cNvPr descr=\"__PAPPER_CACHE__/svg-png/subfigure-svg-layout-example-b25b13e9483c.png\" id=\"31\" name=\"Picture\">",
+      "<pic:cNvPr descr=\"__PAPPER_CACHE__/svg-png/subfigure-svg-layout-example-__SOURCE_PATH_HASH__.png\" id=\"31\" name=\"Picture\">",
       "</pic:cNvPr>",
       "<pic:cNvPicPr>",
       "<a:picLocks noChangeArrowheads=\"1\" noChangeAspect=\"1\">",

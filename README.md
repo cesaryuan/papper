@@ -390,7 +390,13 @@ post-processing used by `papper build html`, together with stage timings and
 the HTML result-cache status.
 
 For clients that want to avoid the JSON envelope, `POST /convert/raw` returns
-the exact PMT HTML directly as `text/html`. Conversions parse the complete
+the exact PMT HTML directly as `text/html`. Editors can send
+`{"path":"manuscript.md","text":"Current unsaved Markdown"}` to render a buffer
+without saving or creating a Markdown mirror. The path stays inside the project
+and supplies the style/resource lookup context; omit `text` to read from disk.
+An empty `text` renders an empty document. `GET /version` advertises
+`source_text: true` and `project_dir` for safe editor reuse. JSON request bodies
+are limited to 32 MiB. Conversions parse the complete
 current source, preserving global heading IDs, link definitions, and footnotes.
 They reuse prepared citation styles and bibliographies; prose-only changes can
 also reuse citation evaluation while

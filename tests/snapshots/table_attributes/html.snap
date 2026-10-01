@@ -4,8 +4,7 @@
   <meta charset="utf-8">
   <meta name="generator" content="pandoc 3.11">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <meta name="keywords" content="snapshot, metadata, regression">
-  <title>Metadata snapshot case</title>
+  <title>table_attributes</title>
   <style>
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -262,19 +261,6 @@
       padding-left: 1em;
       border-left: 2px solid #e6e6e6;
       color: #606060;
-    }
-    div.abstract {
-      margin: 2em 0em 0em 0em;
-      text-align: justify;
-      font-size: 12pt;
-      line-height: 1.5;
-    }
-    div.abstract-title {
-      font-weight: bold;
-      text-align: center;
-      font-size: 12pt;
-      padding: 0;
-      margin-bottom: 0.5em;
     }
     code {
       white-space: pre-wrap;
@@ -588,24 +574,65 @@
 </head>
 <body>
 <main class="pmt-page">
-<header id="title-block-header">
-<h1 class="title">Metadata snapshot case</h1>
-<div class="papper-authors">
-<p class="author"><span class="author-name">Snapshot Author</span><sup>a</sup><sup>*</sup></p>
-<p class="affiliation"><sup>a</sup> Example Laboratory</p>
-<p class="corresponding-author"><sup>*</sup>Correspondence to: Dr. Snapshot Author (Professor), Example Laboratory. E-mail: snapshot@example.test.</p>
+<h1 id="sec:tables">1 Table attribute combinations</h1>
+<p>Table <a href="#tbl:directional">1</a> selects one row and one column
+while leaving other cells unchanged.</p>
+<table id="tbl:directional" data-cell_margin_top="1mm" data-cell-margin-bottom="2mm" data-cell_margin_left="3mm" data-cell-margin-right="4mm" data-row-height="0.6cm" data-alignment="left" data-autofit="content" data-revision_rows="2" data-revision-columns="3" style="--pmt-table-cell-margin-top: 2.8346pt; --pmt-table-cell-margin-right: 11.3386pt; --pmt-table-cell-margin-bottom: 5.6693pt; --pmt-table-cell-margin-left: 8.5039pt;">
+<caption>Table 1 Directional margins and selective revisions.</caption>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+<th data-custom-style="Revision Char">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-custom-style="Revision Char">Baseline</td>
+<td data-custom-style="Revision Char">10</td>
+<td data-custom-style="Revision Char">Original</td>
+</tr>
+<tr>
+<td>Candidate</td>
+<td>12</td>
+<td data-custom-style="Revision Char">Updated</td>
+</tr>
+</tbody>
+</table>
+<div data-custom-style="Para After Table">
+<p>The paragraph after the table should retain its post-table style.</p>
 </div>
-<div class="abstract">
-<div class="abstract-title">Abstract</div>
-A short abstract used to verify title, author, keyword, and abstract
-output.
-</div>
-<p class="keywords"><strong>Keywords: </strong>snapshot, metadata, regression</p>
-</header>
-<h1 id="sec:metadata-body">1 Metadata body</h1>
-<p>Metadata from the YAML header should be visible in the standalone
-HTML title block and in the corresponding DOCX properties and title
-page.</p>
+<table id="tbl:all-rows" data-revision-rows="*">
+<caption>Table 2 A newly added table with a revised caption.</caption>
+<thead>
+<tr>
+<th data-custom-style="Revision Char">Method</th>
+<th data-custom-style="Revision Char">Score</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-custom-style="Revision Char">Added method</td>
+<td data-custom-style="Revision Char">15</td>
+</tr>
+</tbody>
+</table>
+<table id="tbl:all-columns" data-revision_columns="*">
+<caption>Table 3 Whole-table revision selected through
+columns.</caption>
+<thead>
+<tr>
+<th data-custom-style="Revision Char">Method</th>
+<th data-custom-style="Revision Char">Score</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td data-custom-style="Revision Char">Another method</td>
+<td data-custom-style="Revision Char">16</td>
+</tr>
+</tbody>
+</table>
 </main>
 </body>
 </html>

@@ -5,6 +5,7 @@ authors:
     email: snapshot@example.test
     affiliation: Example Laboratory
     corresponding: true
+    title: Professor
 keywords: [snapshot, metadata, regression]
 abstract: A short abstract used to verify title, author, keyword, and abstract output.
 ---

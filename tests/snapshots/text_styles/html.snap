@@ -4,8 +4,7 @@
   <meta charset="utf-8">
   <meta name="generator" content="pandoc 3.11">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <meta name="keywords" content="snapshot, metadata, regression">
-  <title>Metadata snapshot case</title>
+  <title>text_styles</title>
   <style>
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -262,19 +261,6 @@
       padding-left: 1em;
       border-left: 2px solid #e6e6e6;
       color: #606060;
-    }
-    div.abstract {
-      margin: 2em 0em 0em 0em;
-      text-align: justify;
-      font-size: 12pt;
-      line-height: 1.5;
-    }
-    div.abstract-title {
-      font-weight: bold;
-      text-align: center;
-      font-size: 12pt;
-      padding: 0;
-      margin-bottom: 0.5em;
     }
     code {
       white-space: pre-wrap;
@@ -588,24 +574,28 @@
 </head>
 <body>
 <main class="pmt-page">
-<header id="title-block-header">
-<h1 class="title">Metadata snapshot case</h1>
-<div class="papper-authors">
-<p class="author"><span class="author-name">Snapshot Author</span><sup>a</sup><sup>*</sup></p>
-<p class="affiliation"><sup>a</sup> Example Laboratory</p>
-<p class="corresponding-author"><sup>*</sup>Correspondence to: Dr. Snapshot Author (Professor), Example Laboratory. E-mail: snapshot@example.test.</p>
-</div>
-<div class="abstract">
-<div class="abstract-title">Abstract</div>
-A short abstract used to verify title, author, keyword, and abstract
-output.
-</div>
-<p class="keywords"><strong>Keywords: </strong>snapshot, metadata, regression</p>
-</header>
-<h1 id="sec:metadata-body">1 Metadata body</h1>
-<p>Metadata from the YAML header should be visible in the standalone
-HTML title block and in the corresponding DOCX properties and title
-page.</p>
+<h1 id="sec:styles">1 Emphasis and revision styles</h1>
+<p>Plain text surrounds <em>emphasized words</em> and <strong>bold
+words</strong>. Nested emphasis combines <em>an emphasized phrase with
+<strong>bold content</strong></em>.</p>
+<p>The result includes <span data-custom-style="Revision Char">newly
+revised wording</span>.</p>
+<figure id="fig:original">
+<img src="figure.svg" alt="Figure 1 Original figure caption.">
+<figcaption aria-hidden="true">Figure 1 Original figure
+caption.</figcaption>
+</figure>
+<figure id="fig:revised">
+<img src="figure.svg" alt="Figure 2 Revised figure caption with updated details.">
+<figcaption aria-hidden="true">Figure 2 <span data-custom-style="Revision Char">Revised figure caption with updated
+details.</span></figcaption>
+</figure>
+<p>Both Figure <a href="#fig:original">1</a> and Figure <a href="#fig:revised">2</a> remain available as numbered references.</p>
+<p>A paragraph containing only inline math must keep its inline equation
+form:</p>
+<p><span class="math inline">x_i</span></p>
+<p>Ordinary prose with inline math <span class="math inline">y_i</span>
+follows as a control.</p>
 </main>
 </body>
 </html>

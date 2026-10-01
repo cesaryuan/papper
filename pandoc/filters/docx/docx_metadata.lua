@@ -93,8 +93,9 @@ local function inline_contains_display_math(inline)
   return false
 end
 
+-- Match display math in ordinary paragraphs and table-cell Plain blocks.
 local function block_is_display_equation(block)
-  if block.t ~= "Para" then
+  if block.t ~= "Para" and block.t ~= "Plain" then
     return false
   end
   for _, inline in ipairs(block.content) do
@@ -103,6 +104,16 @@ local function block_is_display_equation(block)
     end
   end
   return false
+end
+
+-- Mark the formula inside its cell after crossref creates an equation table.
+local function mark_revised_equation(block)
+  if block_is_display_equation(block) then
+    return {
+      hidden_paragraph_marker(equation_marker_prefix, { revision = "true" }),
+      block,
+    }
+  end
 end
 
 function Table(table)
@@ -127,6 +138,7 @@ function Table(table)
   }
 end
 
+-- Consume revision wrappers and keep markers next to their nested formulas.
 function Div(div)
   if FORMAT ~= "docx" then
     return nil
@@ -137,12 +149,7 @@ function Div(div)
     return nil
   end
 
-  local blocks = {}
-  for _, block in ipairs(div.content) do
-    if block_is_display_equation(block) then
-      table.insert(blocks, hidden_paragraph_marker(equation_marker_prefix, { revision = "true" }))
-    end
-    table.insert(blocks, block)
-  end
-  return blocks
+  -- Numbered native equations use nested Divs and table cells by default.
+  -- Looking only at immediate Para children silently lost their revision mark.
+  return div:walk({ Para = mark_revised_equation, Plain = mark_revised_equation }).content
 end

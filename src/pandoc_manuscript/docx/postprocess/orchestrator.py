@@ -230,8 +230,9 @@ def postprocess_docx(
             ("Applying page-number metadata", apply_page_number_step),
             ("Clearing subfigure table formatting", clear_subfigure_table_format_step),
             ("Converting table text style", convert_table_text_style_step),
-            ("Auto-fitting tables to window", autofit_tables_step),
+            # Remove revision markers before they can misclassify equation-layout tables.
             ("Applying equation revision metadata", process_equation_metadata_step),
+            ("Auto-fitting tables to window", autofit_tables_step),
             ("Applying table attribute metadata", process_table_metadata_step),
             ("Formatting equation layout tables", format_equation_layout_tables_step),
             ("Applying tab-layout equation paragraph style", apply_para_equation_style_step),

@@ -34,7 +34,7 @@ from pandoc_manuscript.html.postprocess import postprocess_html_text
 from pandoc_manuscript.runtime import paths
 from pandoc_manuscript.runtime.metadata import write_pandoc_metadata
 from snapshot_utils import assert_snapshot
-from test_build_snapshots import CASES, ROOT, SNAPSHOT_ROOT, build_case
+from test_build_snapshots import CASES, DOCX_ONLY_CASES, ROOT, SNAPSHOT_ROOT, build_case
 
 
 @pytest.fixture(scope="module")
@@ -105,6 +105,53 @@ def assert_cli_parity(source: Path, html: str, tmp_path: Path) -> None:
     output = tmp_path / "cli.html"
     build_case(source.parent, source.name, "html", output)
     assert html.rstrip() == output.read_text(encoding="utf-8").rstrip()
+
+
+def test_raw_editor_text_preserves_source_and_invalidates_cache(server_factory) -> None:
+    """Render unsaved/empty buffers through real HTTP without touching the manuscript."""
+    worker, source = server_factory("references")
+    saved = source.read_bytes()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), runtime.PmtHtmlRequestHandler)
+    server.daemon_threads = True
+    server.worker = worker
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=30)
+
+    def convert(text: str | None) -> tuple[int, str, str | None]:
+        """Send one actual editor snapshot and consume the complete response."""
+        payload = {"path": str(source)}
+        if text is not None:
+            payload["text"] = text
+        connection.request("POST", "/convert/raw", body=json.dumps(payload),
+                           headers={"Content-Type": "application/json"})
+        response = connection.getresponse()
+        return response.status, response.read().decode("utf-8"), response.getheader("X-PMT-Cache")
+
+    try:
+        first = saved.decode("utf-8-sig") + "\n\nUnsaved editor paragraph alpha.\n"
+        status, html, cache = convert(first)
+        assert status == 200 and "Unsaved editor paragraph alpha." in html
+        assert cache == "miss"
+        assert convert(first) == (200, html, "hit")
+        second = first.replace("paragraph alpha", "paragraph beta")
+        status, changed, cache = convert(second)
+        assert status == 200 and "Unsaved editor paragraph beta." in changed
+        assert "Unsaved editor paragraph alpha." not in changed and cache == "miss"
+        status, empty, _ = convert("")
+        assert status == 200 and "Unsaved editor paragraph" not in empty
+        assert "<p>" not in empty
+        status, disk, _ = convert(None)
+        assert status == 200 and "Unsaved editor paragraph" not in disk
+        assert source.read_bytes() == saved
+        status, error, _ = convert(123)
+        assert status == 400 and "Source text must be a string" in error
+        assert convert(second)[1] == changed
+    finally:
+        connection.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
 
 
 def test_removed_preview_routes_return_not_found() -> None:
@@ -178,7 +225,7 @@ def test_local_html_build_without_available_tls_certificates(tmp_path: Path, mon
         client._server_opener.cache_clear()
 
 
-@pytest.mark.parametrize("case_name", [name for name in CASES if name != "native_crossrefs"])
+@pytest.mark.parametrize("case_name", [name for name in CASES if name not in DOCX_ONLY_CASES])
 def test_exact_server_matches_existing_html_snapshot(server_factory, case_name: str) -> None:
     """Preserve complete HTML for citations, crossrefs, metadata, styles, and Chinese."""
     worker, source = server_factory(case_name)

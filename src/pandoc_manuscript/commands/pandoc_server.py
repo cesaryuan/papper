@@ -177,6 +177,9 @@ def write_pmt_server_config(
     temporary = target.with_suffix(".tmp")
     serialized = json.dumps(
         {
+            # Changing the buffer protocol must invalidate a running pre-upgrade
+            # service, which would otherwise silently ignore editor text.
+            "source_text_protocol": 1,
             "project_dir": str(project_dir.resolve()),
             "pandoc_args": pandoc_args,
             "pandoc_metadata": pandoc_metadata,

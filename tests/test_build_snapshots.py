@@ -27,7 +27,22 @@ CASES = {
     ),
     "metadata": (ROOT / "tests" / "snapshot_cases" / "metadata", "metadata.md"),
     "style": (ROOT / "tests" / "snapshot_cases" / "style", "style.md"),
+    "table_attributes": (
+        ROOT / "tests" / "snapshot_cases" / "table_attributes", "table_attributes.md",
+    ),
+    "text_styles": (ROOT / "tests" / "snapshot_cases" / "text_styles", "text_styles.md"),
+    "author_affiliations": (
+        ROOT / "tests" / "snapshot_cases" / "author_affiliations", "author_affiliations.md",
+    ),
+    "equation_attributes": (
+        ROOT / "tests" / "snapshot_cases" / "equation_attributes", "equation_attributes.md",
+    ),
+    "svg_rasterization": (
+        ROOT / "tests" / "snapshot_cases" / "svg_rasterization", "svg_rasterization.md",
+    ),
 }
+# Trailing equation revision attributes are supported by the DOCX pipeline only.
+DOCX_ONLY_CASES = {"native_crossrefs", "equation_attributes"}
 
 pytestmark = pytest.mark.skipif(
     shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None,
@@ -42,6 +57,8 @@ def build_case(
     command = [
         "uv",
         "run",
+        "--project",
+        str(ROOT),
         "papper",
         "build",
         target,
@@ -54,7 +71,13 @@ def build_case(
         command.append("--no-mathtype")
     if style_file is not None:
         command.extend(["--style-file", str(style_file)])
-    subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True)
+    # Metadata files are keyed by cwd. Shared repository state lets concurrent
+    # CLI/server tests overwrite one another's metadata and corrupt snapshots.
+    output.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        command, cwd=output.parent, check=True, capture_output=True,
+        text=True, encoding="utf-8",
+    )
 
 
 @pytest.mark.parametrize(
@@ -63,7 +86,7 @@ def build_case(
         pytest.param(target, case_name, id=f"{target}-{case_name}")
         for target in ["html", "docx"]
         for case_name in CASES
-        if case_name != "native_crossrefs" or target == "docx"
+        if case_name not in DOCX_ONLY_CASES or target == "docx"
     ],
 )
 def test_build_output_matches_snapshot(
@@ -72,7 +95,7 @@ def test_build_output_matches_snapshot(
     tmp_path: Path,
     snapshot_update: bool,
 ) -> None:
-    """Snapshot both build targets and the DOCX-only native cross-reference contract."""
+    """Snapshot shared manuscript syntax and target-specific DOCX contracts."""
     case_dir, markdown = CASES[case_name]
     if case_name == "chinese_crossrefs":
         # This fixture was built from a copy to keep generated files out of its source.
@@ -89,7 +112,8 @@ def test_build_output_matches_snapshot(
         canonical_html(output)
         if target == "html"
         else canonical_docx(
-            output, repository_root=ROOT, normalize_native_crossrefs=native_crossrefs,
+            output, repository_root=ROOT, project_dir=tmp_path,
+            normalize_native_crossrefs=native_crossrefs,
         )
     )
     snapshot_path = SNAPSHOT_ROOT / case_name / f"{target}.snap"

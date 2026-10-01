@@ -4,8 +4,7 @@
   <meta charset="utf-8">
   <meta name="generator" content="pandoc 3.11">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <meta name="keywords" content="snapshot, metadata, regression">
-  <title>Metadata snapshot case</title>
+  <title>svg_rasterization</title>
   <style>
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -262,19 +261,6 @@
       padding-left: 1em;
       border-left: 2px solid #e6e6e6;
       color: #606060;
-    }
-    div.abstract {
-      margin: 2em 0em 0em 0em;
-      text-align: justify;
-      font-size: 12pt;
-      line-height: 1.5;
-    }
-    div.abstract-title {
-      font-weight: bold;
-      text-align: center;
-      font-size: 12pt;
-      padding: 0;
-      margin-bottom: 0.5em;
     }
     code {
       white-space: pre-wrap;
@@ -588,24 +574,25 @@
 </head>
 <body>
 <main class="pmt-page">
-<header id="title-block-header">
-<h1 class="title">Metadata snapshot case</h1>
-<div class="papper-authors">
-<p class="author"><span class="author-name">Snapshot Author</span><sup>a</sup><sup>*</sup></p>
-<p class="affiliation"><sup>a</sup> Example Laboratory</p>
-<p class="corresponding-author"><sup>*</sup>Correspondence to: Dr. Snapshot Author (Professor), Example Laboratory. E-mail: snapshot@example.test.</p>
-</div>
-<div class="abstract">
-<div class="abstract-title">Abstract</div>
-A short abstract used to verify title, author, keyword, and abstract
-output.
-</div>
-<p class="keywords"><strong>Keywords: </strong>snapshot, metadata, regression</p>
-</header>
-<h1 id="sec:metadata-body">1 Metadata body</h1>
-<p>Metadata from the YAML header should be visible in the standalone
-HTML title block and in the corresponding DOCX properties and title
-page.</p>
+<h1 id="sec:images">1 Per-image SVG rasterization</h1>
+<figure id="fig:vector">
+<img src="figure.svg" alt="Figure 1 A vector figure retained as SVG.">
+<figcaption aria-hidden="true">Figure 1 A vector figure retained as
+SVG.</figcaption>
+</figure>
+<figure id="fig:raster">
+<img src="figure.svg" data-to-png="true" alt="Figure 2 The same figure explicitly rasterized.">
+<figcaption aria-hidden="true">Figure 2 The same figure explicitly
+rasterized.</figcaption>
+</figure>
+<figure id="fig:scaled">
+<img src="figure.svg" data-to-png="true" data-to-png-scale="2" alt="Figure 3 The rasterized figure at twice the default scale.">
+<figcaption aria-hidden="true">Figure 3 The rasterized figure at twice
+the default scale.</figcaption>
+</figure>
+<p>Compare Figure <a href="#fig:vector">1</a>, Figure <a href="#fig:raster">2</a>, and Figure <a href="#fig:scaled">3</a>. The
+image-level conversion options should affect only the selected DOCX
+images.</p>
 </main>
 </body>
 </html>

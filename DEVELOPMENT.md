@@ -97,6 +97,24 @@ uv run pytest tests/test_build_snapshots.py -p no:cacheprovider --snapshot-updat
 ```
 
 The build snapshots require `pandoc` and `pandoc-crossref` on `PATH`.
+Each CLI build runs from its temporary output directory so concurrently running
+tests cannot overwrite the same project metadata. DOCX normalization uses that
+build directory's cache path while retaining the repository resource paths.
+Cache filename hashes derived from absolute SVG source paths are normalized;
+embedded image bytes, their SHA-256 hashes, and drawing dimensions remain exact.
+
+Focused syntax fixtures also cover directional table margins and attribute
+aliases, selective and whole-table revisions including captions, content-sized
+tables, emphasis and revised figure captions, standalone inline math, keyed
+author affiliations and custom correspondence text, and per-image SVG
+rasterization. The `metadata`
+case checks the title in the generated default corresponding-author text.
+The DOCX-only `equation_attributes` case covers trailing `revision=true` and
+`revision=false`, and labeled and unnumbered equations.
+Revised formulas retain their red math runs inside the default equation-layout
+tables, while the unchanged control and following explanations remain uncolored.
+SVG rasterization uses a small font-free source so PNG snapshots do not depend
+on system fonts; the HTML case retains the original SVG image references.
 
 The DOCX-only `native_crossrefs` case explicitly enables `docxNativeCrossref` and
 covers figures, tables, equations, native heading lists, subfigures, numeric
