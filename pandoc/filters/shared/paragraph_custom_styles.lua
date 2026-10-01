@@ -234,7 +234,17 @@ local function style_paragraph(paragraph, style, extra_attributes)
   return pandoc.Div({ paragraph }, pandoc.Attr("", {}, attributes))
 end
 
--- Recursively process nested block lists while preserving immediate adjacency.
+-- Revision comments are invisible and must not break equation/paragraph adjacency.
+-- Require comment-only HTML so visible raw markup still separates blocks.
+local function is_html_comment_block(block)
+  if block.t ~= "RawBlock" or block.format ~= "html" then
+    return false
+  end
+  local remainder, count = (block.text or ""):gsub("<!%-%-.-%-%->", "")
+  return count > 0 and remainder:match("^%s*$") ~= nil
+end
+
+-- Recursively process nested block lists while preserving visible adjacency.
 local function process_blocks(blocks)
   local previous = nil
   for index, block in ipairs(blocks or {}) do
@@ -278,7 +288,9 @@ local function process_blocks(blocks)
     elseif previous ~= nil and previous.t == "Table" and block.t == "Para" then
       blocks[index] = style_paragraph(block, after_table_style)
     end
-    previous = block
+    if not is_html_comment_block(block) then
+      previous = block
+    end
   end
   return blocks
 end

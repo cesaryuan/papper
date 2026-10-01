@@ -37,6 +37,9 @@ CASES = {
     "equation_attributes": (
         ROOT / "tests" / "snapshot_cases" / "equation_attributes", "equation_attributes.md",
     ),
+    "where_comments": (
+        ROOT / "tests" / "snapshot_cases" / "where_comments", "where_comments.md",
+    ),
     "svg_rasterization": (
         ROOT / "tests" / "snapshot_cases" / "svg_rasterization", "svg_rasterization.md",
     ),
