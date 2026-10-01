@@ -229,6 +229,53 @@ def test_removed_preview_routes_return_not_found() -> None:
         thread.join(timeout=3)
 
 
+@pytest.mark.parametrize("failure, expected", [
+    ("exit", "exit code 7"),
+    pytest.param("signal", "exit code -11 (SIGSEGV)",
+                 marks=pytest.mark.skipif(os.name == "nt", reason="POSIX signal exit codes")),
+])
+def test_worker_failure_reports_cause_and_preserves_output(tmp_path: Path, monkeypatch,
+                                                         failure: str, expected: str) -> None:
+    """Expose real native-process failures to HTTP clients without losing old HTML."""
+    probe = tmp_path / "failed_worker.py"
+    probe.write_text(
+        '"""Consume a conversion request and reproduce an external worker crash."""\n'
+        'import os\nimport signal\nimport sys\n'
+        'sys.stdin.readline()\n'
+        'print("Native worker diagnostic", file=sys.stderr, flush=True)\n'
+        + ('os.kill(os.getpid(), signal.SIGSEGV)\n' if failure == "signal" else 'sys.exit(7)\n'),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PMT_PANDOC_SERVER_WORKER_COMMAND", f'"{sys.executable}" "{probe}"')
+    monkeypatch.setattr(paths, "PAPPER_HOME_DIR", tmp_path / "state")
+    source = tmp_path / "manuscript.md"
+    source.write_text("A manuscript.\n", encoding="utf-8")
+    worker = runtime.PandocWorker({
+        "project_dir": str(tmp_path), "pandoc_args": [],
+        "worker_config": str(tmp_path / "worker.json"),
+    }, tmp_path / "worker.log")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), runtime.PmtHtmlRequestHandler)
+    server.daemon_threads = True
+    server.worker = worker
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    output = tmp_path / "result.html"
+    saved = b"<html>Existing output</html>"
+    output.write_bytes(saved)
+    try:
+        info = PandocServerInfo("127.0.0.1", server.server_port, worker._process.pid, [], 0)
+        with pytest.raises(RuntimeError) as error:
+            build_with_pandoc_server(info, source, output)
+        assert expected in str(error.value)
+        assert "Native worker diagnostic" in str(error.value)
+        assert output.read_bytes() == saved
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+        worker.close()
+
+
 def test_local_html_build_without_available_tls_certificates(tmp_path: Path, monkeypatch) -> None:
     """Keep local HTTP builds usable when the system TLS store cannot load."""
     import ssl

@@ -6,6 +6,11 @@
 # Invoke through CIBW_BEFORE_ALL_LINUX, after CIBW_ENVIRONMENT_LINUX is applied.
 set -euo pipefail
 
+# The cibuildwheel image ships patchelf 0.17.2, whose RPATH rewrite can make
+# GHC executables segfault before main with no stderr. Pin a verified repairer.
+pipx install --force 'patchelf==0.19.1.0'
+patchelf --version
+
 dnf install -y gcc gcc-c++ make perl pkgconf-pkg-config gmp-devel libffi-devel ncurses-devel numactl-devel zlib-devel
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
   -y --profile minimal --default-toolchain "$RUSTUP_TOOLCHAIN"

@@ -21,6 +21,10 @@ non-system C libraries. Every installed wheel is exercised by
 `scripts/check_packaged_html_server.py`: actual citation/cross-reference output,
 warm HTML reuse, and source-edit invalidation must pass before publication.
 
+Linux setup pins the PyPI `patchelf` package to 0.19.1.0 before auditwheel runs.
+The manylinux image's 0.17.2 RPATH rewrite can cause GHC executables to exit with
+SIGSEGV before `main`, even when auditwheel reports a successful repair.
+
 ## Build and install from source
 
 The supported versions are Pandoc 3.11, pandoc-crossref 0.3.25, and citeproc

@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import tempfile
 import threading
@@ -143,15 +144,43 @@ class PandocWorker:
         if metadata_file is not None:
             request["metadataFile"] = str(metadata_file)
         assert self._process.stdin is not None and self._process.stdout is not None
-        self._process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
-        self._process.stdin.flush()
+        try:
+            self._process.stdin.write(json.dumps(request, ensure_ascii=False) + "\n")
+            self._process.stdin.flush()
+        except BrokenPipeError as exc:
+            # A startup crash can close stdin before the first request is sent.
+            raise self._worker_failure() from exc
         response = self._process.stdout.readline()
         if not response:
-            raise RuntimeError("Papper Pandoc worker exited without a response")
+            raise self._worker_failure()
         result = json.loads(response)
         if not result.get("ok"):
             raise RuntimeError(str(result.get("error", "Papper Pandoc worker conversion failed")))
         return result
+
+    def _worker_failure(self) -> RuntimeError:
+        """Report native exits, including silent loader crashes and stderr context."""
+        try:
+            returncode = self._process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            returncode = None
+        detail = f"exit code {returncode}" if returncode is not None else "stdout closed while still running"
+        if os.name != "nt" and returncode is not None and returncode < 0:
+            try:
+                detail += f" ({signal.Signals(-returncode).name})"
+            except ValueError:
+                pass
+        message = f"Papper Pandoc worker exited without a response: {detail}; log: {self._log_path}"
+        # Read only a bounded tail: a long-lived service may have a large log.
+        if self._log_path.is_file():
+            with self._log_path.open("rb") as log:
+                log.seek(0, os.SEEK_END)
+                log.seek(max(0, log.tell() - 8192))
+                stderr = log.read().decode("utf-8", errors="replace").strip()
+            if stderr:
+                message += f"\n{stderr}"
+        log_warning(f"[Pandoc server] {message}")
+        return RuntimeError(message)
 
     def convert(self, input_path: Path, *, mode: str = "exact", text: str | None = None) -> ConversionResult:
         """Convert project sources or unsaved editor text without modifying the source."""
