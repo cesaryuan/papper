@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ..docx.page_margins import normalize_page_margins
+from ..runtime.page_margins import PageMarginValues
 from ..runtime.metadata import EffectiveMetadata
 from .postprocess import postprocess_html
 from .styles import build_reference_style_css
@@ -33,9 +33,8 @@ HTML_PAGE_DEFAULTS = {
 
 
 def _css_length(length: object) -> str:
-    """Render a validated python-docx length as a CSS point value."""
-    # python-docx Length values expose points and are already validated by
-    # normalize_page_margins(), so numeric settings cannot reach CSS raw.
+    """Render a validated layout length as a CSS point value."""
+    # Shared normalization validates lengths before they reach CSS.
     points = float(getattr(length, "pt"))
     rendered = f"{points:.4f}".rstrip("0").rstrip(".")
     return f"{rendered}pt"
@@ -54,7 +53,7 @@ def apply_html_page_metadata(effective: EffectiveMetadata) -> None:
             "html-page-margin-right": HTML_PAGE_DEFAULTS["margin_right"],
         }
     )
-    normalized = normalize_page_margins(effective.pmt_settings)
+    normalized = PageMarginValues.normalize_page_margins(effective.pmt_settings)
     if normalized is None:
         return
 

@@ -2,75 +2,33 @@
 
 from __future__ import annotations
 
-import re
 import shutil
 from pathlib import Path
 from typing import Any
 
 from docx import Document
 from docx.document import Document as DocumentObject
-from docx.shared import Cm, Inches, Mm, Pt
+from docx.shared import Emu
 
 from ..runtime.metadata import PmtSettings
 
-MARGIN_SIDE_ALIASES = {
-    "top": ("top",),
-    "bottom": ("bottom",),
-    "left": ("left", "inside"),
-    "right": ("right", "outside"),
-}
+from ..runtime.page_margins import MARGIN_SIDE_ALIASES, PageMarginValues
 
-
-def first_present(mapping: dict[str, Any], keys: tuple[str, ...]) -> Any:
-    """Return the first configured metadata value for a group of alias keys."""
-    for key in keys:
-        if key in mapping:
-            return mapping[key]
-    return None
+first_present = PageMarginValues.first_present
 
 
 def parse_margin_length(value: Any, field_name: str):
-    """Parse a DOCX page margin length with common Word-friendly units."""
-    if isinstance(value, (int, float)):
-        return Pt(float(value))
-    if not isinstance(value, str):
-        raise ValueError(f"{field_name} must be a length value, got: {value!r}")
-
-    cleaned = value.strip().lower()
-    match = re.match(r"^(-?\d+(?:\.\d+)?)\s*(pt|磅|cm|厘米|mm|毫米|in|inch|inches|英寸)?$", cleaned)
-    if not match:
-        raise ValueError(f"{field_name} must be a length such as 72pt, 2.54cm, or 1in")
-
-    amount = float(match.group(1))
-    if amount < 0:
-        raise ValueError(f"{field_name} must be greater than or equal to 0")
-
-    unit = match.group(2) or "pt"
-    if unit in ("pt", "磅"):
-        return Pt(amount)
-    if unit in ("cm", "厘米"):
-        return Cm(amount)
-    if unit in ("mm", "毫米"):
-        return Mm(amount)
-    return Inches(amount)
+    """Adapt shared margin validation to a native DOCX length."""
+    return Emu(PageMarginValues.parse_margin_length(value, field_name))
 
 
 def normalize_page_margins(settings: PmtSettings) -> tuple[dict[str, Any], dict[str, str]] | None:
-    """Normalize docxPageMargins into section attributes without defaulting missing sides."""
-    raw_margins = settings.docx_page_margins
-    if raw_margins is None:
+    """Preserve native DOCX section values after shared margin validation."""
+    normalized = PageMarginValues.normalize_page_margins(settings)
+    if normalized is None:
         return None
-
-    margins: dict[str, Any] = {}
-    display_values: dict[str, str] = {}
-    for side, aliases in MARGIN_SIDE_ALIASES.items():
-        value = first_present(raw_margins, aliases)
-        if value is None:
-            continue
-        margins[side] = parse_margin_length(value, f"docxPageMargins.{side}")
-        display_values[side] = str(value)
-
-    return margins, display_values
+    margins, display = normalized
+    return {side: Emu(value) for side, value in margins.items()}, display
 
 
 def apply_page_margins(doc: DocumentObject, margins: dict[str, Any]) -> int:

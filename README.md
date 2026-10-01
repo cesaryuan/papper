@@ -354,7 +354,15 @@ does not restart the worker. The service reloads changed Markdown headers,
 `style.yml`, defaults, Lua filters, bibliography, CSL, and template dependencies,
 and applies the normal PMT HTML postprocessing. Builds without this flag, explicit
 inputs outside the working-directory project, and explicitly selected generic
-servers use the existing CLI build. Set a generic server command only when needed:
+servers use the existing CLI build.
+
+Ordinary CLI invocations load only the selected command's settings; root help
+still describes every command. HTML typography and margins share metadata
+validation with DOCX without loading the Word document backend. The local server
+client reuses a proxy-free HTTP opener and initializes certificate verification
+only if an actual HTTPS request or redirect occurs.
+
+Set a generic server command only when needed:
 
 ```powershell
 $env:PMT_PANDOC_SERVER_COMMAND = 'C:\path\to\pandoc-server.exe'

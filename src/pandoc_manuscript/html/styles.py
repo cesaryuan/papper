@@ -8,7 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 from xml.etree import ElementTree
 
-from ..docx.postprocess.docx_style import normalize_docx_style_settings
+from ..runtime.style_values import ParagraphStyleValues
 from ..runtime.metadata import PmtSettings
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -360,7 +360,7 @@ def _find_style(styles: dict[str, _StyleSpec], name: str) -> _StyleSpec | None:
 
 
 def _point_value(value: object) -> float | None:
-    """Read points from python-docx length values used by normalized settings."""
+    """Read points from shared layout lengths used by normalized settings."""
     if value is None:
         return None
     return float(getattr(value, "pt", value))
@@ -368,7 +368,7 @@ def _point_value(value: object) -> float | None:
 
 def _override_css(settings: PmtSettings, table_style: _StyleSpec | None) -> list[str]:
     """Render configured docxStyle fields after reference defaults."""
-    normalized = normalize_docx_style_settings(settings) or []
+    normalized = ParagraphStyleValues.normalize_docx_style_settings(settings) or []
     selectors = {
         "normal": ".pmt-page > p",
         "正文": ".pmt-page > p",

@@ -13,6 +13,7 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from ..runtime.logging import log_info, log_warning
@@ -127,11 +128,36 @@ def _stop_pid(pid: int) -> None:
         os.kill(pid, 15)
 
 
+class _LazyHTTPSHandler(urllib.request.HTTPSHandler):
+    """Keep standard HTTPS redirects without loading certificates for HTTP."""
+
+    def __init__(self) -> None:
+        """Register an HTTP-compatible handler without creating a TLS context."""
+        urllib.request.AbstractHTTPHandler.__init__(self)
+        self._delegate: urllib.request.HTTPSHandler | None = None
+
+    def https_open(self, request: urllib.request.Request):
+        """Initialize the normal certificate-verifying handler on first HTTPS."""
+        if self._delegate is None:
+            self._delegate = urllib.request.HTTPSHandler()
+            self._delegate.add_parent(self.parent)
+        return self._delegate.https_open(request)
+
+
+@lru_cache(maxsize=1)
+def _server_opener() -> urllib.request.OpenerDirector:
+    """Reuse a proxy-free client with TLS initialized only for actual HTTPS."""
+    # Python 3.13 eagerly loads system certificates in HTTPSHandler.__init__.
+    # Supplying its lazy subclass avoids that cost for local HTTP probes/builds
+    # while retaining urllib's redirect, status-code and HTTPS verification rules.
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _LazyHTTPSHandler())
+
+
 def _request_version(host: str, port: int, timeout: float = 0.35) -> bool:
     """Probe the official `/version` endpoint without requiring a client library."""
     request = urllib.request.Request(f"http://{host}:{port}/version", method="GET")
     try:
-        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=timeout) as response:
+        with _server_opener().open(request, timeout=timeout) as response:
             return 200 <= response.status < 300
     except (OSError, urllib.error.URLError):
         return False
@@ -170,7 +196,7 @@ def write_pmt_server_config(
 
 def build_with_pandoc_server(info: PandocServerInfo, source: Path, output: Path) -> bool:
     """Build through a PMT service; generic servers retain the normal CLI path."""
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    opener = _server_opener()
     with opener.open(f"{info.base_url}/version", timeout=2) as response:
         version = json.load(response)
     if not isinstance(version, dict) or version.get("protocol") != "pmt-html-v1":

@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from pandoc_manuscript.commands import build
+from pandoc_manuscript.commands import pandoc_server as client
 from pandoc_manuscript.commands import pandoc_server_runtime as runtime
 from pandoc_manuscript.commands.pandoc_server import PandocServerInfo, build_with_pandoc_server, _pid_is_running, _stop_pid
 from pandoc_manuscript.commands.setup import pandoc_tools_env
@@ -103,6 +104,52 @@ def assert_cli_parity(source: Path, html: str, tmp_path: Path) -> None:
     output = tmp_path / "cli.html"
     build_case(source.parent, source.name, "html", output)
     assert html.rstrip() == output.read_text(encoding="utf-8").rstrip()
+
+
+def test_local_html_build_without_available_tls_certificates(tmp_path: Path, monkeypatch) -> None:
+    """Keep local HTTP builds usable when the system TLS store cannot load."""
+    import ssl
+
+    class LocalService(BaseHTTPRequestHandler):
+        """Serve the real HTTP boundary without depending on a native worker."""
+
+        def do_GET(self) -> None:
+            """Advertise the build protocol used by the production client."""
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"protocol":"pmt-html-v1"}')
+
+        def do_POST(self) -> None:
+            """Return document content after consuming the actual request."""
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"<html><body>Local build output</body></html>")
+
+        def log_message(self, format: str, *args) -> None:
+            """Keep successful test requests out of stderr."""
+
+    def unavailable_certificates(*args, **kwargs):
+        """Simulate a failed OS certificate-store initialization."""
+        raise OSError("System certificate store unavailable")
+
+    monkeypatch.setattr(ssl, "_create_default_https_context", unavailable_certificates)
+    # Start with a fresh client so a previous test cannot conceal TLS loading.
+    client._server_opener.cache_clear()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LocalService)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        info = PandocServerInfo("127.0.0.1", server.server_port, 0, [], 0)
+        assert client._request_version(info.host, info.port)
+        output = tmp_path / "result.html"
+        assert build_with_pandoc_server(info, tmp_path / "source.md", output)
+        assert output.read_text(encoding="utf-8") == "<html><body>Local build output</body></html>"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+        client._server_opener.cache_clear()
 
 
 @pytest.mark.parametrize("case_name", [name for name in CASES if name != "native_crossrefs"])
