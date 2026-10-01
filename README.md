@@ -390,11 +390,10 @@ post-processing used by `papper build html`, together with stage timings and
 the HTML result-cache status.
 
 For clients that want to avoid the JSON envelope, `POST /convert/raw` returns
-the exact PMT HTML directly as `text/html`. `POST /preview` and `/preview/raw`
-return HTML fragments with the standalone template and author block disabled.
-Both modes parse the complete current source, preserving global heading IDs,
-link definitions, and footnotes. They reuse prepared citation styles and
-bibliographies; prose-only changes can also reuse citation evaluation while
+the exact PMT HTML directly as `text/html`. Conversions parse the complete
+current source, preserving global heading IDs, link definitions, and footnotes.
+They reuse prepared citation styles and bibliographies; prose-only changes can
+also reuse citation evaluation while
 applying the resulting citations to the new document. Unchanged successful
 HTML is held in a bounded cache. `GET /metrics` distinguishes HTML and citation
 cache reuse. Concurrent identical requests share the completed conversion.
@@ -419,7 +418,7 @@ locators, and unchanged HTML, run from this checkout:
 
 ```powershell
 uv run python scripts/benchmark_html_server.py --manuscript template/manuscript.md
-uv run python scripts/benchmark_html_server.py --manuscript ../1-3d-mesh/manuscript.md --modes exact,preview
+uv run python scripts/benchmark_html_server.py --manuscript ../1-3d-mesh/manuscript.md
 ```
 
 The script copies editable inputs into an isolated project, preserves all timed

@@ -304,7 +304,7 @@ class PmtHtmlRequestHandler(BaseHTTPRequestHandler):
                 self._json_response({"error": "Invalid request body length"}, HTTPStatus.BAD_REQUEST)
                 return
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            if self.path in {"/", "/convert", "/convert/raw", "/preview", "/preview/raw"}:
+            if self.path in {"/", "/convert", "/convert/raw"}:
                 paths = [payload.get("path", "manuscript.md")]
                 batch = False
             elif self.path == "/batch":
@@ -313,13 +313,12 @@ class PmtHtmlRequestHandler(BaseHTTPRequestHandler):
             else:
                 self._json_response({"error": "Not found"}, HTTPStatus.NOT_FOUND)
                 return
-            mode = "preview" if self.path in {"/preview", "/preview/raw"} else "exact"
-            if self.path in {"/convert/raw", "/preview/raw", "/preview"}:
-                self._html_response(self.server.worker.convert(Path(paths[0]), mode=mode))
+            if self.path == "/convert/raw":
+                self._html_response(self.server.worker.convert(Path(paths[0])))
                 return
             results = []
             for path in paths:
-                result = self.server.worker.convert(Path(path), mode=mode)
+                result = self.server.worker.convert(Path(path))
                 results.append({"path": path, "output": result.html, "timings": result.timings,
                                 "cache_hit": result.cache_hit, "citeproc_cache_hit": result.citeproc_cache_hit,
                                 "mode": result.mode})

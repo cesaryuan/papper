@@ -4,7 +4,7 @@ This executable is the native half of Papper's project-bound HTTP service.
 Python owns metadata preparation, dependency discovery, bounded HTML caching,
 HTTP responses, and normal HTML postprocessing. The serialized native worker
 keeps Pandoc and citation assets alive between conversions. Markdown is parsed
-from a fresh immutable snapshot for both exact documents and preview fragments.
+from a fresh immutable snapshot. Public HTTP conversions return exact documents.
 
 ## Build and install
 
@@ -73,7 +73,7 @@ Run from the repository root:
 
 ```powershell
 uv run python scripts/benchmark_html_server.py --manuscript template/manuscript.md
-uv run python scripts/benchmark_html_server.py --manuscript ../1-3d-mesh/manuscript.md --modes exact,preview
+uv run python scripts/benchmark_html_server.py --manuscript ../1-3d-mesh/manuscript.md
 uv run pytest tests/test_html_server.py -q
 ```
 

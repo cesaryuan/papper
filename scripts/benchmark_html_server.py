@@ -63,7 +63,7 @@ class BenchmarkSettings(BaseSettings):
     worker: Path = Field(default=str(runtime.PMT_TOOLS_BIN_DIR / WORKER_NAME))  # Optimized native executable
     baseline_worker: Path = Field(default=str(ROOT / "tmp/server-profile/worker-baseline.exe"))  # Optional pre-change executable
     compare: bool = Field(default=True)  # Skip an absent baseline and report the optimized service alone
-    modes: list[Literal["exact", "preview"]] = Field(default=["exact"])  # Select complete documents or fragments
+    modes: list[Literal["exact"]] = Field(default=["exact"])  # Public HTTP conversions return complete documents
     scenarios: list[Literal["edit", "unchanged", "citation_edit"]] = Field(default=["edit", "unchanged", "citation_edit"])  # Distinct observable cache behavior
     runs: int = Field(default=15, ge=3)  # Timed samples with no outlier removal
     warmups: int = Field(default=2, ge=1)  # Exclude first resource loads and cache preparation
@@ -142,21 +142,15 @@ class BenchmarkSession:
         }
         return source, config
 
-    def reference_html(self, source: Path, config: dict, mode: str) -> str:
+    def reference_html(self, source: Path, config: dict) -> str:
         """Generate an independent CLI reference outside the measured interval."""
         output = source.parent / "reference.html"
         sanitized = write_markdown_without_yaml_header(source)
-        extra = []
-        if mode == "preview":
-            defaults = source.parent / "fragment.yml"
-            defaults.write_text("standalone: false\ntemplate: null\n", encoding="utf-8")
-            extra = ["--defaults", str(defaults)]
         try:
-            subprocess.run(["pandoc", *config["pandoc_args"], *extra, str(sanitized or source), "-o", str(output)],
+            subprocess.run(["pandoc", *config["pandoc_args"], str(sanitized or source), "-o", str(output)],
                            cwd=config["project_dir"], check=True, capture_output=True, text=True,
                            env=pandoc_tools_env(build.pandoc_filter_env(self.effective.pmt_settings)))
-            return postprocess_html_text(output.read_text(encoding="utf-8"), pandoc_metadata=self.effective.pandoc_metadata,
-                                         skip_author_info=mode == "preview")
+            return postprocess_html_text(output.read_text(encoding="utf-8"), pandoc_metadata=self.effective.pandoc_metadata)
         finally:
             if sanitized is not None:
                 sanitized.unlink(missing_ok=True)
@@ -192,7 +186,7 @@ class BenchmarkSession:
                                 suffix += f"\nBenchmark citation [@{self.citation_id}, p. {index + 1}].\n"
                             source.write_text(self.original + suffix, encoding="utf-8")
                         started = time.perf_counter()
-                        client.request("POST", "/preview/raw" if mode == "preview" else "/convert/raw",
+                        client.request("POST", "/convert/raw",
                                        body=json.dumps({"path": str(source)}).encode("utf-8"), headers={"Content-Type": "application/json"})
                         response = client.getresponse()
                         html = response.read().decode("utf-8")
@@ -208,7 +202,7 @@ class BenchmarkSession:
                             self.report["samples"].append(row)
                         LOG.info("%s %s %s %d: %.2f ms%s", label, mode, scenario, index + 1, elapsed,
                                  " (warmup)" if index < self.settings.warmups else "")
-                    expected = self.reference_html(source, config, mode)
+                    expected = self.reference_html(source, config)
                     if html != expected:
                         (self.report_dir / f"{label}-{mode}-{scenario}-actual.html").write_text(html, encoding="utf-8")
                         (self.report_dir / f"{label}-{mode}-{scenario}-expected.html").write_text(expected, encoding="utf-8")
@@ -234,7 +228,7 @@ class BenchmarkSession:
         lines = ["# Warm HTML server benchmark", "", f"Input: `{self.source}` ({self.report['input_bytes']} bytes)",
                  "", self.report["boundary"] + ".", "", self.report["baseline_note"] + ".",
                  "", "Warmup samples are excluded; all timed samples are retained. Original inputs are read-only. "
-                 "Final HTML for every scenario matched a fresh CLI conversion, including preview fragments.", "",
+                 "Final HTML for every scenario matched a fresh CLI conversion.", "",
                  "| Worker | Mode | Scenario | N | Median ms | Mean ± SD ms | HTML hits | Citation hits |",
                  "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |"]
         for row in self.report["summary"]:

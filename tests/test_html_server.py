@@ -8,6 +8,7 @@ Build scripts/pandoc-server first or set PMT_PANDOC_SERVER_WORKER_COMMAND.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import shutil
@@ -104,6 +105,31 @@ def assert_cli_parity(source: Path, html: str, tmp_path: Path) -> None:
     output = tmp_path / "cli.html"
     build_case(source.parent, source.name, "html", output)
     assert html.rstrip() == output.read_text(encoding="utf-8").rstrip()
+
+
+def test_removed_preview_routes_return_not_found() -> None:
+    """Reject removed routes and keep their consumed bodies off the next request."""
+    server = ThreadingHTTPServer(("127.0.0.1", 0), runtime.PmtHtmlRequestHandler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    connection = http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+    try:
+        for route in ("/preview", "/preview/raw"):
+            connection.request("POST", route, body=json.dumps({"path": "manuscript.md"}),
+                               headers={"Content-Type": "application/json"})
+            response = connection.getresponse()
+            assert response.status == 404
+            assert json.loads(response.read()) == {"error": "Not found"}
+        connection.request("GET", "/metrics")
+        response = connection.getresponse()
+        assert response.status == 200
+        assert json.loads(response.read()) == {}
+    finally:
+        connection.close()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
 
 
 def test_local_html_build_without_available_tls_certificates(tmp_path: Path, monkeypatch) -> None:

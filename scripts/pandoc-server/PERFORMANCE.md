@@ -1,5 +1,8 @@
 # HTML server performance, 2026-09-30
 
+Preview measurements below are historical. The public preview endpoints have
+since been removed; current HTTP benchmarks measure complete HTML documents.
+
 Warm conversions exceed the requested 50% latency reduction for both the bundled
 template and the real 3D mesh paper. The measurements cover a complete persistent
 local HTTP request, including dependency checks, Pandoc/filter execution, HTML
