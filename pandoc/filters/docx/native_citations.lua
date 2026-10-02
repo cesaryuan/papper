@@ -132,7 +132,8 @@ function Pandoc(doc)
     local name
     repeat
       next_bookmark = next_bookmark + 1
-      name = 'PapperRef-' .. helpers.bookmark_suffix(namespace, next_bookmark)
+      -- Keep bibliography targets legal under Pandoc 3.12's bookmark normalization
+      name = 'PapperRef_' .. helpers.bookmark_suffix(namespace, next_bookmark)
     until not identifiers[name]
     identifiers[name] = true
     targets[entry.identifier] = { name = name, number = number, aligned = aligned }

@@ -46,7 +46,9 @@ class NativeBookmarkNormalizer:
             root = etree.fromstring(archive.read(part_name))
             for bookmark in root.iter(_WORD_NAMESPACE + "bookmarkStart"):
                 name = bookmark.get(_WORD_NAMESPACE + "name")
-                if name and name.startswith("PapperRef-"):
+                # Pandoc 3.12 hides legal bookmarks with an underscore prefix.
+                # Normalize native names while preserving REF-to-target pairings.
+                if name and name.lstrip("_").startswith(("PapperRef-", "PapperRef_")):
                     self.names.setdefault(name, f"PapperRef-{len(self.names) + 1:09d}")
                 identifier = bookmark.get(_WORD_NAMESPACE + "id")
                 if identifier is not None:

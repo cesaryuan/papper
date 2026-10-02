@@ -1,6 +1,6 @@
 # Shared Pandoc CLI and persistent HTML worker
 
-This executable provides a Pandoc 3.11 CLI and the native half of Papper's
+This executable provides a Pandoc 3.12 CLI and the native half of Papper's
 project-bound HTTP service. Ordinary arguments follow the upstream CLI, including
 stdin/stdout, binary outputs, information requests, Lua and HTTP server modes.
 The standard `pandoc-crossref` filter is replaced by an in-process library call;
@@ -18,7 +18,7 @@ pmt-pandoc-worker --pmt-worker --config config.json
 The old private `--config PATH` launch convention remains supported for existing
 developer overrides. `--pmt-crossref-version` reports the compiled crossref
 version for Papper diagnostics. Public CLI parsing/error handling follows
-Pandoc 3.11's entry point; it is not a promise of byte-identical output across
+Pandoc 3.12's entry point; it is not a promise of byte-identical output across
 different platforms or dependency builds.
 
 Python owns metadata preparation, dependency discovery, bounded HTML caching,
@@ -36,11 +36,12 @@ profiling or development. Without an override, the bundled worker takes priority
 over an older manually installed executable in `~/.papper/tools/bin`.
 
 The Hatch wheel hook builds the current checkout with static Haskell libraries.
-CI pins GHC 9.10.3 and Cabal 3.16.1.0, caches Cabal dependencies, and builds Linux
+CI pins GHC 9.14.1 and Cabal 3.18.1.0, caches Cabal dependencies, and builds Linux
 inside manylinux 2.28. Auditwheel on Linux and delocate on macOS bundle required
 non-system C libraries. Every installed wheel is exercised by
 `scripts/check_packaged_html_server.py`: actual citation/cross-reference output,
-warm HTML reuse, and source-edit invalidation must pass before publication.
+HTTP input fetching, warm HTML reuse, and source-edit invalidation must pass
+before publication. HTTP verification uses a local fixture and needs no internet.
 
 Linux setup pins the PyPI `patchelf` package to 0.19.1.0 before auditwheel runs.
 The manylinux image's 0.17.2 RPATH rewrite can cause GHC executables to exit with
@@ -48,10 +49,23 @@ SIGSEGV before `main`, even when auditwheel reports a successful repair.
 
 ## Build and install from source
 
-The supported versions are Pandoc 3.11, pandoc-crossref 0.3.25, and citeproc
-0.13.x. `cabal.project` pins Pandoc and relaxes crossref's initial 3.10 upper
-bound; the worker uses the compatible exposed crossref library API. The measured
-Windows build used GHC 9.10.3 and Cabal 3.16.1.
+The supported versions are Pandoc 3.12, pandoc-crossref 0.3.25, and citeproc
+0.14. All direct dependency lower bounds track the latest stable Hackage
+versions audited on 2026-10-02. `cabal.project` pins Pandoc and the Hackage
+index state. Targeted `allow-newer` entries cover crossref's still-declared
+`pandoc <3.12` bound and lagging upper bounds in its dependency graph; all
+unlisted bounds remain active. HTTP resource fetching is explicitly enabled so
+the solver cannot silently remove remote CSL/image support to satisfy old TLS
+dependency bounds. Indirect dependencies are also upgraded, including
+crypton 2.1.7, QuickCheck 2.19, tagged 0.9, transformers 0.6.3, and Unicode 18
+data. The worker uses the compatible exposed crossref library API. Source builds
+require GHC 9.14.1 (base 4.22) and Cabal 3.18.1.0; CI uses these versions.
+
+One indirect dependency deliberately stays at its latest compatible release:
+`time-manager 0.3.2`. Version 0.4 changes active-handle `resume` behavior, whereas
+http2 5.4.7 still uses it as `tickle`. Its `<0.4` bound remains enforced to avoid
+breaking HTTP/2 timeout renewal. GHC bootstrap libraries retain the compiler's
+own versions; application dependencies are rebuilt with the newer libraries.
 
 ```powershell
 Push-Location .\scripts\pandoc-server
@@ -136,10 +150,10 @@ nurseries were tried without a useful warm-build improvement; the default is
 
 ## Adapted upstream sources
 
-`Papper/Citeproc.hs` and `Papper/Locator.hs` derive from Pandoc 3.11's
+`Papper/Citeproc.hs` and `Papper/Locator.hs` derive from Pandoc 3.12's
 `Text.Pandoc.Citeproc`, `Text.Pandoc.Citeproc.Locator`, and the small
 `splitStrWhen` helper in `Text.Pandoc.Shared`:
-[upstream source](https://github.com/jgm/pandoc/tree/3.11/src/Text/Pandoc).
+[upstream source](https://github.com/jgm/pandoc/tree/3.12/src/Text/Pandoc).
 The adapted modules preserve the upstream citation/document algorithms, expose
 prepared-data/result caching, and substitute validated local remote resources.
 Reference parsing still calls Pandoc's exposed `getReferences` implementation.
@@ -152,7 +166,7 @@ plus exact resolved dependency versions and upstream source links, under
 unchanged. A future Pandoc upgrade must reconcile these adapters against its
 upstream implementations and rerun the complete HTML output tests.
 
-The CLI dispatch in `Main.hs` also follows Pandoc 3.11's
+The CLI dispatch in `Main.hs` also follows Pandoc 3.12's
 `pandoc-cli/src/pandoc.hs`. `vendor/pandoc-cli/PandocCLI/` retains the upstream
 Lua and server launch modules with their original GPL notices. They and the
 adapted entry point are included in wheel source notices. The linked conversion

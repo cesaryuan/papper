@@ -32,8 +32,8 @@ permissions:
 env:
   RUSTUP_TOOLCHAIN: "1.98.0"
   CARGO_INCREMENTAL: "0"
-  GHC_VERSION: "9.10.3"
-  CABAL_VERSION: "3.16.1.0"
+  GHC_VERSION: "9.14.1"
+  CABAL_VERSION: "3.18.1.0"
 
 jobs:
   build-wheels:

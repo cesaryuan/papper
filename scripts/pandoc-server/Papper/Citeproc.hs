@@ -1,8 +1,8 @@
 {-
-  Adapted from Pandoc 3.11, src/Text/Pandoc/Citeproc.hs.
+  Adapted from Pandoc 3.12, src/Text/Pandoc/Citeproc.hs.
   Copyright (C) 2006-2025 John MacFarlane and Pandoc contributors.
   SPDX-License-Identifier: GPL-2.0-or-later
-  Upstream: https://github.com/jgm/pandoc/tree/3.11
+  Upstream: https://github.com/jgm/pandoc/tree/3.12
   See vendor/pandoc/COPYING.md and COPYRIGHT for the upstream license.
 -}
 
@@ -31,7 +31,7 @@ import Text.Pandoc.Class (PandocMonad(..), getResourcePath, getUserDataDir,
 import Text.Pandoc.Data (readDataFile)
 import Text.Pandoc.Error (PandocError(..))
 import Text.Pandoc.Logging (LogMessage(..))
-import Text.Pandoc.Shared (stringify, makeSections, blocksToInlines')
+import Text.Pandoc.Shared (stringifyInlines, makeSections, blocksToInlines')
 import Data.Containers.ListUtils (nubOrd)
 import Text.Pandoc.Walk (query, walk, walkM)
 import Control.Applicative ((<|>))
@@ -399,7 +399,7 @@ mvPunct moveNotes locale (x : xs)
 mvPunct moveNotes locale (q : s : x@(Cite _ [il]) : ys)
   | isSpacy s
   , isNote il
-  = let spunct = T.takeWhile isPunct $ stringify ys
+  = let spunct = T.takeWhile isPunct $ stringifyInlines ys
     in  if moveNotes
            then if T.null spunct
                    then q : x : mvPunct moveNotes locale ys
@@ -413,7 +413,7 @@ mvPunct moveNotes locale (Cite cs ils@(_:_) : ys)
    | isNote (last ils)
    , startWithPunct ys
    , moveNotes
-   = let s = stringify ys
+   = let s = stringifyInlines ys
          spunct = T.takeWhile isPunct s
      in  Cite cs (movePunctInsideQuotes locale $
                     init ils
@@ -428,7 +428,7 @@ mvPunct moveNotes locale (s : x@(Cite _ [il]) : ys)
 mvPunct moveNotes locale (s : x@(Cite _ (Superscript _ : _)) : ys)
   | isSpacy s = x : mvPunct moveNotes locale ys
 mvPunct moveNotes locale (Cite cs ils : Str "." : ys)
-  | "." `T.isSuffixOf` (stringify ils)
+  | "." `T.isSuffixOf` (stringifyInlines ils)
   = Cite cs ils : mvPunct moveNotes locale ys
 mvPunct moveNotes locale (x:xs) = x : mvPunct moveNotes locale xs
 mvPunct _ _ [] = []
@@ -443,7 +443,7 @@ isPunct c = isPunctuation c && c /= '\x2014' && c /= '\x2013'
 endWithPunct :: Bool -> [Inline] -> Bool
 endWithPunct _ [] = False
 endWithPunct onlyFinal xs@(_:_) =
-  case reverse (T.unpack $ stringify xs) of
+  case reverse (T.unpack $ stringifyInlines xs) of
        []                       -> True
        -- covers .), .", etc.:
        (d:c:_) | isPunct d
@@ -458,7 +458,7 @@ endWithPunct onlyFinal xs@(_:_) =
 -- | Start with punct using Pandoc's citation semantics.
 startWithPunct :: [Inline] -> Bool
 startWithPunct ils =
-  case T.uncons (stringify ils) of
+  case T.uncons (stringifyInlines ils) of
     Just (c,_) -> c `elem` (".,;:!?" :: [Char])
     Nothing -> False
 
@@ -466,8 +466,8 @@ startWithPunct ils =
 truish :: MetaValue -> Bool
 truish (MetaBool t) = t
 truish (MetaString s) = isYesValue (T.toLower s)
-truish (MetaInlines ils) = isYesValue (T.toLower (stringify ils))
-truish (MetaBlocks [Plain ils]) = isYesValue (T.toLower (stringify ils))
+truish (MetaInlines ils) = isYesValue (T.toLower (stringifyInlines ils))
+truish (MetaBlocks [Plain ils]) = isYesValue (T.toLower (stringifyInlines ils))
 truish _ = False
 
 -- | Is yes value using Pandoc's citation semantics.
@@ -641,11 +641,11 @@ bcp47LangToIETF bcplang =
       return Nothing
     Right lang -> return $ Just lang
 
--- | Interpret path/language metadata exactly as Pandoc 3.11 does.
+-- | Interpret path/language metadata exactly as Pandoc 3.12 does.
 -- | Meta value to text using Pandoc's citation semantics.
 metaValueToText :: MetaValue -> Maybe Text
 metaValueToText (MetaString t) = Just t
-metaValueToText (MetaInlines ils) = Just $ stringify ils
-metaValueToText (MetaBlocks bls) = Just $ stringify $ blocksToInlines' bls
+metaValueToText (MetaInlines ils) = Just $ stringifyInlines ils
+metaValueToText (MetaBlocks bls) = Just $ stringifyInlines $ blocksToInlines' bls
 metaValueToText (MetaList xs) = T.unwords <$> mapM metaValueToText xs
 metaValueToText _ = Nothing

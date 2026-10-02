@@ -97,7 +97,7 @@ available as `python` on Pandoc's PATH.
 Install these tools first:
 
 1. `uv` for running the CLI and Python environment
-2. A Papper platform wheel, which includes Pandoc 3.11 and embedded crossref
+2. A Papper platform wheel, which includes Pandoc 3.12 and embedded crossref
 3. For line-number source workflows, Windows requires Microsoft Word; other platforms can use `soffice`.
 4. Optional: MathType on Windows only if you select `rust-sdk`, `set-data`, `auto`, or `both`; the default `rust` path is self-contained
 
@@ -379,7 +379,7 @@ $env:PMT_PANDOC_SERVER_COMMAND = 'C:\path\to\pandoc-server.exe'
 papper build html --start-server --server-port 3030
 ```
 
-The native engine under `scripts/pandoc-server` links Pandoc 3.11 and
+The native engine under `scripts/pandoc-server` links Pandoc 3.12 and
 pandoc-crossref 0.3.25, with a dependency-aware citeproc adapter. Platform wheels
 include this CLI/worker, so PyPI installations need no GHC/Cabal or separate tool
 installation. Worker discovery prefers `PMT_PANDOC_SERVER_WORKER_COMMAND`, then
@@ -476,7 +476,7 @@ equation preferences, rather than the Python package version. Only successful
 `main` builds save caches; tag builds restore them and still run Cargo with
 `--locked`, package the wheel, and verify its native libraries.
 
-The workflow also pins GHC to `9.10.3` and Cabal to `3.16.1.0`, compiles the HTML
+The workflow also pins GHC to `9.14.1` and Cabal to `3.18.1.0`, compiles the HTML
 worker on all three platforms, and caches its Haskell dependencies separately.
 Linux compiles both native components inside manylinux 2.28; auditwheel repairs
 shared C dependencies of the library and worker executable. macOS uses delocate

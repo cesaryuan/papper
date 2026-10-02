@@ -1,11 +1,76 @@
 packages: .
 
+-- Keep Hackage versions and Cabal revisions consistent across wheel platforms.
+index-state: 2026-10-02T10:13:07Z
+
 -- The wheel ships only the worker executable, so Pandoc's templates and other
 -- data files must be embedded instead of looked up in Cabal's build store.
 package pandoc
-  flags: +embed_data_files
+  -- Keep resource fetching mandatory: the solver may otherwise disable HTTP
+  -- to satisfy stale TLS bounds, silently breaking remote CSL and images.
+  flags: +embed_data_files +http
 
--- Crossref 0.3.25's initial release names Pandoc 3.10; its 3.11 release
--- uses the same library API. Pin the worker's ABI while relaxing that bound.
-allow-newer: pandoc-crossref:pandoc
-constraints: pandoc == 3.11
+-- Crossref 0.3.25 still declares pandoc <3.12. Its exposed library API remains
+-- compatible; verify crossref output against snapshots after relaxing this bound.
+-- GHC's bundled Haddock 1.11 also builds with base 4.22/containers 0.8, but its
+-- Hackage bounds lag behind. Rebuilding mtl requires rebuilding this dependency.
+-- Aeson 2.3 and time 1.16 retain the APIs used by the listed Lua/HTTP helpers;
+-- their old upper bounds need targeted relaxation, never a global allow-newer.
+allow-newer:
+    pandoc-crossref:pandoc
+  , haddock-library:base
+  , haddock-library:containers
+  , pandoc-lua-marshal:aeson
+  , hslua-aeson:aeson
+  , aeson:time
+  , time-compat:time
+  , text-iso8601:time
+  , hslua-module-zip:time
+  , hslua-module-system:time
+-- These minor upgrades retain the APIs used by their parents: tagged only
+-- removes the deprecated Data.Proxy.TH module, which these parents do not use;
+-- unicode-data updates Unicode tables, and transformers-compat drops old GHCs.
+  , pandoc-types:QuickCheck
+  , servant:QuickCheck
+  , servant-server:tagged
+  , boring:tagged
+  , http-api-data:tagged
+  , aeson:tagged
+  , indexed-traversable-instances:tagged
+  , semialign:tagged
+  , monad-control:transformers-compat
+  , http-api-data:text-iso8601
+  , pandoc-lua-engine:crypton
+  , pandoc:crypton
+  , unicode-transforms:unicode-data
+  , hslua-repl:isocline
+  , gridtables:containers
+-- TLS session serialization still lists older GHC/container/time upper bounds.
+-- Keep HTTP enabled and validate the rebuilt stack with real remote CSL fetches.
+  , serialise:base
+  , serialise:containers
+  , serialise:time
+  , cborg:base
+  , cborg:containers
+
+-- Upgrade indirect packages that the solver would otherwise hold back because
+-- of installed compiler libraries or outdated parent bounds. Constraints do not
+-- introduce dependencies on platforms where the named package is unused.
+constraints:
+    pandoc == 3.12
+  , any.Cabal >= 3.18.1.0
+  , any.Cabal-syntax >= 3.18.1.0
+  , QuickCheck == 2.19.0.0
+  , crypton == 2.1.7
+  , gridtables == 0.1.1.0
+  , isocline == 1.1.0
+  , tagged == 0.9
+  , text-iso8601 == 0.2.0.0
+  , transformers == 0.6.3.0
+  , transformers-compat == 0.8
+  , unicode-data == 0.9.0
+  , unix >= 2.8.8.0
+
+-- HTTP2 5.4.7 uses resume as tickle on active handles. time-manager 0.4 changes
+-- that behavior, so retain the latest compatible release until HTTP2 adapts.
+  , time-manager == 0.3.2

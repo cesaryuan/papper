@@ -1,4 +1,4 @@
-"""Verify the shared native binary's public CLI contracts against Pandoc 3.11.
+"""Verify the shared native binary's public CLI contracts against matching Pandoc.
 
 These real-process checks cover stdin/stdout, errors, binary DOCX output/media
 extraction, and embedded crossref ordering. They complement manuscript snapshots
@@ -36,14 +36,18 @@ def engine() -> Path:
 
 
 @pytest.fixture(scope="module")
-def official_pandoc() -> str:
+def official_pandoc(engine: Path) -> str:
     """Use the same upstream release as a behavioral reference when installed."""
-    executable = shutil.which("pandoc")
+    executable = os.environ.get("PAPPER_TEST_PANDOC") or shutil.which("pandoc")
     if executable is None:
-        pytest.skip("CLI reference comparisons require an official Pandoc 3.11")
+        pytest.skip("CLI reference comparisons require an official Pandoc")
+    # Match the linked release so a dependency upgrade cannot compare different
+    # upstream semantics. The override allows testing without replacing user tools.
+    linked = subprocess.run([str(engine), "--version"], capture_output=True, text=True, check=True)
     version = subprocess.run([executable, "--version"], capture_output=True, text=True, check=True)
-    if version.stdout.splitlines()[0] != "pandoc 3.11":
-        pytest.skip("CLI reference comparisons require exactly Pandoc 3.11")
+    expected = linked.stdout.splitlines()[0]
+    if version.stdout.splitlines()[0] != expected:
+        pytest.skip(f"CLI reference comparisons require exactly {expected}")
     return executable
 
 

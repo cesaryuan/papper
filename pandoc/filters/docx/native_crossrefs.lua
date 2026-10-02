@@ -182,10 +182,9 @@ local function convert(doc)
     local name
     repeat
       next_bookmark = next_bookmark + 1
-      -- Pandoc hashes Span identifiers starting with _, so use a letter here
-      -- REF instructions must contain the exact bookmark name in the DOCX
-      -- Keep the visible name at 19 characters; retry any collision within this document.
-      name = 'PapperRef-' .. bookmark_suffix(bookmark_namespace, next_bookmark)
+      -- Pandoc 3.12 hashes identifiers containing hyphens, breaking raw REF targets
+      -- Use a legal 19-character name; helpers.field handles the writer's _ prefix
+      name = 'PapperRef_' .. bookmark_suffix(bookmark_namespace, next_bookmark)
     until not identifiers[name]
     identifiers[name] = true
     return name

@@ -78,10 +78,11 @@ def build_case(
     # Metadata files are keyed by cwd. Shared repository state lets concurrent
     # CLI/server tests overwrite one another's metadata and corrupt snapshots.
     output.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        command, cwd=output.parent, check=True, capture_output=True,
+    result = subprocess.run(
+        command, cwd=output.parent, check=False, capture_output=True,
         text=True, encoding="utf-8",
     )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.parametrize(

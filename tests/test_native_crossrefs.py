@@ -263,9 +263,10 @@ def test_ambiguous_custom_caption_keeps_a_working_link(tmp_path: Path) -> None:
         figureTemplate="$$figureTitle$$ $$i$$/$$i$$ $$t$$",
     )
     output, log = build_document(tmp_path)
-    fields, _, root = read_native_content(output)
+    fields, bookmarks, root = read_native_content(output)
     assert not fields
-    assert [link.get(W + "anchor") for link in root.iter(W + "hyperlink")] == ["fig:one"]
+    anchors = [link.get(W + "anchor") for link in root.iter(W + "hyperlink")]
+    assert len(anchors) == 1 and "Figure 1/1 Custom caption" in bookmarks[anchors[0]]
     assert "Figure 1/1 Custom caption" in "".join(element.text or "" for element in root.iter(W + "t"))
     assert "Ambiguous number template" in log
 
@@ -337,9 +338,10 @@ def test_ambiguous_heading_template_preserves_legacy_reference(tmp_path: Path) -
     """Keep repeated custom heading numbers intact rather than binding the wrong range."""
     prepare_project(tmp_path, "# Overview {#sec:one}\n\nSee @sec:one.\n", True, secHeaderTemplate="$$i$$/$$i$$ $$t$$")
     output, log = build_document(tmp_path)
-    fields, _, root = read_native_content(output)
+    fields, bookmarks, root = read_native_content(output)
     assert not fields
-    assert [link.get(W + "anchor") for link in root.iter(W + "hyperlink")] == ["sec:one"]
+    anchors = [link.get(W + "anchor") for link in root.iter(W + "hyperlink")]
+    assert len(anchors) == 1 and bookmarks[anchors[0]].startswith("1/1 Overview")
     assert "1/1 Overview" in "".join(node.text or "" for node in root.iter(W + "t"))
     assert "Custom heading numbering" in log
 
@@ -424,10 +426,12 @@ Footnote[^one].
         output, _ = build_document(project)
         fields, bookmarks, root = read_native_content(output)
         assert assert_reference_targets(fields, bookmarks) == ["1", "1"]
-        native_names = {name for name in bookmarks if name.startswith("PapperRef")}
-        assert all(name.startswith("PapperRef-") and len(name) == 19 for name in native_names)
-        assert all(name[10:].isalnum() and name[10:] == name[10:].lower() for name in native_names)
-        assert [link.get(W + "anchor") for link in root.iter(W + "hyperlink")] == ["custom-target"]
+        native_names = {name for name in bookmarks if name.lstrip("_").startswith("PapperRef_")}
+        assert native_names
+        # Word requires legal names; Pandoc releases may hide them with a prefix.
+        assert all(len(name) <= 40 and all(char.isalnum() or char == "_" for char in name) for name in native_names)
+        anchors = [link.get(W + "anchor") for link in root.iter(W + "hyperlink")]
+        assert len(anchors) == 1 and bookmarks[anchors[0]] == "Custom target"
         identifiers = set()
         with ZipFile(output) as package:
             for part_name in package.namelist():
@@ -500,7 +504,10 @@ def test_numeric_citations_keep_csl_display_and_reference_bibliography_numbers(
     assert assert_reference_targets(fields, bookmarks) == (["1", "1", "3", "2", "1"] if native_crossref else [])
     assert [field["result"] for field in fields if field["code"].startswith("SEQ ")] == (["1", "2", "3"] if native_crossref else [])
     links = [link.get(W + "anchor") for link in root.iter(W + "hyperlink") if link.get(W + "anchor")]
-    assert links == ([] if native_crossref else ["ref-alpha2020", "ref-alpha2020", "ref-gamma2022", "ref-beta2021", "ref-alpha2020"])
+    # Verify citation destinations rather than Pandoc's version-dependent bookmark names.
+    assert [next(year for year in ["2020", "2021", "2022"] if year in bookmarks[anchor]) for anchor in links] == (
+        [] if native_crossref else ["2020", "2020", "2022", "2021", "2020"]
+    )
     text = "\n".join(document_paragraphs(root))
     assert "1–3" in text and "2020" in text and "2021" in text and "2022" in text
     if style_name != "sage-vancouver.csl":
@@ -542,11 +549,11 @@ def test_custom_numeric_csl_preserves_locators_and_rejects_ambiguous_labels(
     fields, bookmarks, root = read_native_content(output)
     if customization == "ambiguous-labels":
         assert not fields and "Unsupported bibliography number labels" in log
-        assert any(link.get(W + "anchor") == "ref-alpha2020" for link in root.iter(W + "hyperlink"))
+        assert any("2020" in bookmarks.get(link.get(W + "anchor"), "") for link in root.iter(W + "hyperlink"))
     else:
         expected = ["1", "2"] if customization == "locators" else ["1", "1", "3", "2", "1"]
         assert assert_reference_targets(fields, bookmarks) == expected
-        assert not any(link.get(W + "anchor", "").startswith("ref-") for link in root.iter(W + "hyperlink"))
+        assert not any(link.get(W + "anchor") for link in root.iter(W + "hyperlink"))
         if customization == "locators":
             assert "[(1), p. 42]; [see 7 in (2), p. 2021]." in "\n".join(document_paragraphs(root))
 
@@ -565,9 +572,9 @@ def test_author_date_citations_keep_their_original_citeproc_output(tmp_path: Pat
         project.mkdir()
         prepare_citation_project(project, native, csl)
         output, _ = build_document(project)
-        fields, _, root = read_native_content(output)
+        fields, bookmarks, root = read_native_content(output)
         assert not fields
-        assert any(link.get(W + "anchor") == "ref-alpha2020" for link in root.iter(W + "hyperlink"))
+        assert any("2020" in bookmarks.get(link.get(W + "anchor"), "") for link in root.iter(W + "hyperlink"))
         documents.append(document_paragraphs(root))
     assert documents[0] == documents[1]
     assert "Alpha 2020" in "\n".join(documents[1])
@@ -628,7 +635,7 @@ See @sec:one, @fig:one, and [@alpha2020]. Footnote[^one].
     references = [node.text.strip().split()[1] for node in footnotes.iter(W + "instrText") if node.text.strip().startswith("REF ")]
     assert len(references) == 2
     assert [bookmarks[name] for name in references] == ["1", "2"]
-    assert any(bookmarks[name] == "3" for name in bookmarks if name.startswith("PapperRef-"))
+    assert any(bookmarks[name] == "3" for name in bookmarks if name.lstrip("_").startswith("PapperRef_"))
 
 
 def test_native_citations_leave_json_output_unchanged(tmp_path: Path) -> None:
@@ -637,4 +644,4 @@ def test_native_citations_leave_json_output_unchanged(tmp_path: Path) -> None:
     output, _ = build_document(tmp_path, "json")
     text = output.read_text(encoding="utf-8")
     assert '"Cite"' in text and "alpha2020" in text
-    assert "PapperRef-" not in text and "PapperBibliography" not in text
+    assert "PapperRef" not in text and "PapperBibliography" not in text

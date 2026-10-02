@@ -7,6 +7,7 @@ background HTTP service. It checks rendered citations/cross-references, warm
 HTML reuse, and source-edit invalidation, then stops its owned server. Pandoc's
 data directory is deliberately unavailable to verify embedded resources. No
 standalone Pandoc or pandoc-crossref executable is needed for these conversions.
+A local HTTP fixture verifies the CLI's remote resource support without internet.
 """
 
 from __future__ import annotations
@@ -18,7 +19,9 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from lxml import html
@@ -81,6 +84,41 @@ class PackagedServerSmoke:
         assert "@tbl:values" not in text, "An unresolved cross-reference reached the HTML"
 
     @staticmethod
+    def check_http(worker: Path) -> None:
+        """Catch Cabal silently disabling HTTP while resolving newer TLS dependencies."""
+        class RemoteMarkdownHandler(BaseHTTPRequestHandler):
+            """Serve a deterministic remote input for the installed Pandoc CLI."""
+
+            def do_GET(self) -> None:  # noqa: N802
+                """Return Markdown that must be fetched and converted by the binary."""
+                body = b"Remote **wheel** prose.\n"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/markdown")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, format: str, *args: object) -> None:
+                """Suppress routine requests to the local verification fixture."""
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), RemoteMarkdownHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            result = subprocess.run(
+                [str(worker), "-f", "markdown", "-t", "plain",
+                 f"http://127.0.0.1:{server.server_port}/input.md"],
+                capture_output=True, text=True, encoding="utf-8", timeout=30,
+            )
+            assert result.returncode == 0, result.stderr
+            assert result.stdout.strip() == "Remote wheel prose.", "HTTP input was not converted"
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+
+    @staticmethod
     def check_cli(worker: Path, source: Path, config: Path) -> None:
         """Require offline setup, conversions, and reply JSON probes through the same binary."""
         pandoc, crossref = setup_pandoc_tools(force=True)
@@ -89,6 +127,7 @@ class PackagedServerSmoke:
         for name in ("pandoc", "pandoc-crossref"):
             ok, detail = command_status([name, "--version"])
             assert ok, detail
+        PackagedServerSmoke.check_http(worker)
         args = json.loads(config.read_text(encoding="utf-8"))["pandoc_args"]
         output = source.parent / "cli.html"
         subprocess.run([str(pandoc.executable), *args, str(source), "-o", str(output)], check=True)
@@ -110,7 +149,7 @@ class PackagedServerSmoke:
         citations = reply_resolve.resolve_citation_map(source, style, ["packaged"], "markdown")
         assert references.get("tbl:values"), "The reply's JSON probe did not resolve its table reference"
         assert citations.get("packaged"), "The reply's JSON probe did not resolve its citation"
-        print(f"Packaged Pandoc CLI passed: {worker.name}; offline setup, HTML, DOCX, import, reply probes, crossref")
+        print(f"Packaged Pandoc CLI passed: {worker.name}; offline setup, HTTP input, HTML, DOCX, import, reply probes, crossref")
 
     @staticmethod
     def run(project: Path) -> None:

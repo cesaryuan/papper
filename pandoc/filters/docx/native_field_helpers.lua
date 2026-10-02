@@ -21,6 +21,12 @@ end
 
 --- Emit a complex Word field with formatted cached results for immediate display
 function helpers.field(instruction, result)
+  -- Pandoc 3.12 prefixes legal Span bookmark names with _ to hide them in Word
+  -- Raw OpenXML REF instructions bypass that writer, so match its target name
+  -- Generated PapperRef_ identifiers use only ASCII letters, digits and underscores
+  if PANDOC_VERSION >= pandoc.types.Version { 3, 12 } then
+    instruction = instruction:gsub('^(REF%s+)(PapperRef_%w+)', '%1_%2')
+  end
   local inlines = pandoc.Inlines {
     pandoc.RawInline('openxml',
       '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' ..

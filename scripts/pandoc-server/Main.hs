@@ -2,13 +2,13 @@
   Pandoc-compatible CLI and long-lived worker for the PMT HTML server.
 
   Build with `cabal build exe:pmt-pandoc-worker`. Ordinary arguments use the
-  Pandoc 3.11 CLI; --pmt-worker --config PATH starts the private worker.
+  Pandoc 3.12 CLI; --pmt-worker --config PATH starts the private worker.
   JSON lines specify an input snapshot, output, and dependency fingerprint.
   Pandoc and crossref run in this process; the citation adapter caches CSL,
   references, and evaluated citations while applying Pandoc's document
   mutations to fresh prose on every request. Changed assets reload defaults.
 
-  CLI dispatch is adapted from Pandoc 3.11's pandoc-cli/src/pandoc.hs,
+  CLI dispatch is adapted from Pandoc 3.12's pandoc-cli/src/pandoc.hs,
   Copyright (C) 2006-2024 John MacFarlane, GPL-2.0-or-later.
 -}
 
@@ -93,7 +93,7 @@ main = E.handle (handleError . Left) $ do
             else if System.os == "mingw32" then "pandoc.exe" else "pandoc"
       withProgName cliName $ runCLI args
 
--- | Follow Pandoc 3.11's CLI dispatch, changing only standard crossref execution.
+-- | Follow Pandoc 3.12's CLI dispatch, changing only standard crossref execution.
 runCLI :: [String] -> IO ()
 runCLI rawArgs = do
   program <- getProgName
