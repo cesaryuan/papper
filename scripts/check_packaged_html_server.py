@@ -4,7 +4,8 @@ Run with ``uv run --isolated --no-project --with PATH.whl python
 scripts/check_packaged_html_server.py``. The script rejects a source checkout,
 clears worker overrides, and builds a temporary manuscript through the real
 background HTTP service. It checks rendered citations/cross-references, warm
-HTML reuse, and source-edit invalidation, then stops its owned server. No
+HTML reuse, and source-edit invalidation, then stops its owned server. Pandoc's
+data directory is deliberately unavailable to verify embedded resources. No
 standalone Pandoc or pandoc-crossref executable is needed for these conversions.
 """
 
@@ -124,10 +125,13 @@ def main() -> int:
         raise RuntimeError("Run this smoke check with an installed wheel, not the editable source package")
     original_dir = Path.cwd()
     overrides = {key: os.environ.pop(key, None) for key in
-                 ("PMT_PANDOC_SERVER_WORKER_COMMAND", "PMT_PANDOC_SERVER_COMMAND")}
+                 ("PMT_PANDOC_SERVER_WORKER_COMMAND", "PMT_PANDOC_SERVER_COMMAND", "pandoc_datadir")}
     try:
         with tempfile.TemporaryDirectory(prefix="papper-wheel-server-") as temporary:
             project = Path(temporary).resolve()
+            # A build runner's Cabal store can hide missing wheel resources.
+            # Require embedded Pandoc data even while that store still exists.
+            os.environ["pandoc_datadir"] = str(project / "missing-pandoc-data")
             os.chdir(project)
             try:
                 PackagedServerSmoke.run(project)
@@ -138,7 +142,9 @@ def main() -> int:
     finally:
         os.chdir(original_dir)
         for key, value in overrides.items():
-            if value is not None:
+            if value is None:
+                os.environ.pop(key, None)
+            else:
                 os.environ[key] = value
     return 0
 

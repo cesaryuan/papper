@@ -1,5 +1,10 @@
 packages: .
 
+-- The wheel ships only the worker executable, so Pandoc's templates and other
+-- data files must be embedded instead of looked up in Cabal's build store.
+package pandoc
+  flags: +embed_data_files
+
 -- Crossref 0.3.25's initial release names Pandoc 3.10; its 3.11 release
 -- uses the same library API. Pin the worker's ABI while relaxing that bound.
 allow-newer: pandoc-crossref:pandoc
