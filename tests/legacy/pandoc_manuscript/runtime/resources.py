@@ -18,16 +18,18 @@ def package_root() -> Path:
 
 def package_resource_path(relative_path: str | Path) -> Path:
     """Return a filesystem path for a resource bundled inside the papper package."""
+    source_root = source_tree_root()
+    if source_root is not None and Path(relative_path).parts[:1] == ("mathtype",):
+        return source_root / "src" / PACKAGE_NAME / relative_path
     return package_root() / Path(relative_path)
 
 
 def source_tree_root() -> Path | None:
     """Return the papper repository root when running from this source checkout."""
-    # runtime/resources.py lives one level deeper than the package root after
-    # the support-module layout refactor, so the source checkout root is +1 up.
-    root = Path(__file__).resolve().parents[3]
+    # The frozen oracle now lives under tests/legacy, separate from product code.
+    root = Path(__file__).resolve().parents[4]
     # Detect the tool repository itself, not a generated manuscript project.
-    if (root / "pyproject.toml").is_file() and (root / "src" / PACKAGE_NAME).is_dir():
+    if (root / "pyproject.toml").is_file() and (root / "tests" / "legacy" / PACKAGE_NAME).is_dir():
         return root
     return None
 

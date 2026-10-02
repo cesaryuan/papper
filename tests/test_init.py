@@ -61,9 +61,17 @@ def test_init_merge_agents_directory_keeps_existing_files(tmp_path) -> None:
     existing_skill = target / ".agents" / "word-manuscript-fix" / "SKILL.md"
     existing_skill.parent.mkdir(parents=True)
     existing_skill.write_text("local skill notes\n", encoding="utf-8")
+    original_skill = existing_skill.read_bytes()
 
     InitSettings(directory=str(target), merge=True).run()
 
     assert existing_skill.read_text(encoding="utf-8") == "local skill notes\n"
-    assert (target / ".agents" / "manuscript-review" / "SKILL.md").is_file()
-    assert (target / ".agents" / "word-manuscript-fix" / "scripts" / "unescape_latex.py").is_file()
+    # The former Python helper is now the native repair-math command. Validate
+    # merge's actual resource contents rather than that removed script's path.
+    authored = Path(__file__).resolve().parents[1] / "template" / ".agents"
+    expected = {path.relative_to(authored): path.read_bytes()
+                for path in authored.rglob("*") if path.is_file()}
+    expected[Path("word-manuscript-fix/SKILL.md")] = original_skill
+    actual = {path.relative_to(target / ".agents"): path.read_bytes()
+              for path in (target / ".agents").rglob("*") if path.is_file()}
+    assert actual == expected

@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 import pytest
+import sys
+from pathlib import Path
+
+# The former Python product is a frozen differential oracle. It is deliberately
+# absent from release wheels; native contracts invoke the real Rust executables.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "legacy"))
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

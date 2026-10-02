@@ -1,0 +1,42 @@
+[package]
+name = "papper-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "papper"
+
+[[bin]]
+name = "papper"
+path = "src/main.rs"
+
+[[bin]]
+name = "pmt"
+path = "src/pmt.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tempfile.workspace = true
+ureq.workspace = true
+papper-core.workspace = true
+papper-document.workspace = true
+papper-engine.workspace = true
+papper-server.workspace = true
+papper-platform.workspace = true
+serde.workspace = true
+regex.workspace = true
+sha2.workspace = true
+zip.workspace = true
+flate2.workspace = true
+tar.workspace = true
+xz2.workspace = true
+sevenz-rust2.workspace = true
+pep440_rs.workspace = true
+fancy-regex.workspace = true
+libloading.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true

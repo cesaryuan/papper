@@ -6,6 +6,12 @@ Write in Markdown. Submit in Word.
 
 Papper is a DOCX-first academic writing workflow built for the AI era. AI tools are already great at drafting, revising, and restructuring Markdown. The problem is that many journals, editors, and collaborators still expect `.docx`. Papper bridges that gap: you keep the clarity and version-control friendliness of Markdown, while generating submission-ready Word documents when it is time to deliver.
 
+The CLI, configuration, HTML Server, document post-processing and integration
+layers are native Rust. Lua filters, the Haskell Pandoc worker and the Windows
+C# MathType helper retain their existing implementations. PyPI wheels install
+direct `papper` and `pmt` native executables through `uv tool`; commands do not
+start a Python interpreter.
+
 <!--
 Hero image idea for the README:
 - Use a wide 3-panel workflow graphic instead of a logo-only banner.
@@ -53,7 +59,7 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 - CSL-based citations
 - Reference DOCX support for Word styling
 - DOCX post-processing for author blocks, table behavior, styles, and line-number-related workflows
-- Tab-layout equation paragraphs automatically use `Para Equation`, based on `Body Text`, with 0.5 line spacing after and single line spacing. To apply only this step to an existing DOCX in place, run `uv run python -m pandoc_manuscript.docx.postprocess.para_equation_style path/to/file.docx` (add `--no-save` for a dry run).
+- Tab-layout equation paragraphs automatically use `Para Equation`, based on `Body Text`, with 0.5 line spacing after and single line spacing during `papper build docx`.
   The style's center and right tab stops use half and all of the first DOCX section's writable width (page width minus left/right margins). Direct paragraph tab stops are removed so equations inherit the style's positions; rerun the step after changing page margins.
 - SVG handling and DOCX fallbacks for figures that Word does not handle well
 - Cross-platform MathType-compatible OLE/WMF equations, with an optional native MathType comparison path on Windows
@@ -76,19 +82,20 @@ ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
 
 MathType decoding uses the same Rust shared library as LaTeX-to-MTEF export.
-`papper convert` decodes objects in its Python process and passes the results
+`papper convert` decodes objects in its Rust process and passes the results
 to Lua; wheels contain no additional `mathtype-rust` executable.
 
-To run the MathType Lua filter directly from a source checkout, use the Python
-environment containing Papper:
+To run the MathType Lua filter directly from a source checkout, put the native
+`papper` executable on Pandoc's PATH:
 
 ```powershell
-uv run pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
+pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
 ```
 
-In this standalone mode Lua starts one Python batch decoder, which loads the
-same shared library. Set `PAPPER_PYTHON` to the interpreter path if it is not
-available as `python` on Pandoc's PATH.
+In standalone mode Lua invokes the native decoder once for the input batch.
+Set `PAPPER_EXECUTABLE` to the native executable path if `papper` is unavailable
+on Pandoc's PATH. Repair over-escaped imported formulas with
+`papper repair-math converted.md -o repaired.md`; surrounding Markdown is preserved.
 
 ## Quick Start
 
@@ -96,7 +103,7 @@ available as `python` on Pandoc's PATH.
 
 Install these tools first:
 
-1. `uv` for running the CLI and Python environment
+1. `uv` for installing the platform wheel (the product itself runs natively)
 2. A Papper platform wheel, which includes Pandoc 3.12 and embedded crossref
 3. For line-number source workflows, Windows requires Microsoft Word; other platforms can use `soffice`.
 4. Optional: MathType on Windows only if you select `rust-sdk`, `set-data`, `auto`, or `both`; the default `rust` path is self-contained
@@ -126,10 +133,9 @@ directories are not migrated or deleted automatically.
 Legacy tool downloads and executable installation use temporary files followed by atomic
 replacement, so an interrupted build can be rerun. Invalid cached archives are
 discarded and downloaded again once; unusable managed executables are reinstalled.
-Bundled Python filters run with Papper's Python interpreter and its installed
-dependencies.
-On Windows, Papper puts that interpreter first on Pandoc's `PATH` and runs the
-Python filters directly, including for manuscript projects on UNC network paths.
+The six formerly Python-based bundled JSON filters are native Rust filters.
+They run through native executable aliases without an interpreter, including
+on Windows and for manuscript projects on UNC network paths.
 
 Legacy tool downloads automatically use `HTTPS_PROXY` (or `https_proxy`) when set,
 otherwise the configured Windows/macOS system HTTP/HTTPS proxy, and otherwise
@@ -141,15 +147,33 @@ downloads.` when it selects that route. An explicit `HTTPS_PROXY` takes preceden
 over the system setting. PAC scripts and automatic proxy discovery are not
 evaluated by this downloader.
 
-### Rough Python Compatibility Check
+### Source Development and Validation
 
-If you just want a quick syntax-level check against the project's minimum Python target, use Ruff:
+Install the pinned Rust toolchain, then run:
 
 ```bash
-uvx ruff check .
+cargo check --workspace --locked
+cargo test --workspace --locked
+uv sync
+uv run pytest
 ```
 
-This is only a rough version-compatibility check. It can catch syntax that does not fit the configured Python target, but it does not prove runtime compatibility.
+`uv sync` installs a native development CLI. Python and its dependencies are
+used for the existing test suite and the frozen reference in `tests/legacy/`.
+After changing native CLI code, use `uv sync --reinstall-package papper` to
+refresh that development executable. Release wheels omit the reference and
+have no Python runtime dependencies. Build and validate a release wheel with
+`cargo run -p papper-dev -- wheel --output dist` and
+`cargo run -p papper-dev -- smoke --wheel <wheel-path>`.
+
+The former `pandoc_manuscript` Python import API and `python -m` utilities are
+not included in native wheels. Use the public native commands or the Rust
+workspace libraries for integrations. The reference remains available to
+repository tests only. Existing manuscript files and style configuration
+continue to work; native state uses a separate `work/rust-v1` namespace.
+Before upgrading a project with a running HTML service, run `papper clean` in
+that project to stop the owned service while retaining reusable caches. The
+next `papper build html --start-server` launches the newly installed program.
 
 ### Create Your First Project
 
@@ -385,8 +409,9 @@ include this CLI/worker, so PyPI installations need no GHC/Cabal or separate too
 installation. Worker discovery prefers `PMT_PANDOC_SERVER_WORKER_COMMAND`, then
 the bundled engine, a source build, and `~/.papper/tools/bin` for development.
 An older manually installed worker cannot shadow a newer wheel's worker.
-Server configuration records the package version so a later release restarts
-an existing background service instead of retaining its old native worker.
+Server configuration records the package version and resource identity.
+Run `papper clean` in projects with an active service before upgrading; the
+next build starts the newly installed native program and its matching worker.
 
 For source-checkout development, with GHC/Cabal available, install it into
 the user-managed tool directory with:
@@ -447,6 +472,10 @@ uv run python scripts/benchmark_html_server.py --manuscript ../1-3d-mesh/manuscr
 The script copies editable inputs into an isolated project, preserves all timed
 samples, and verifies final HTML against fresh CLI conversions. Reports under
 `output/benchmarks/server/` exclude worker startup and independent CLI checks.
+This historical script compares retained Haskell workers through the frozen
+Python frontend; it does not measure the native Rust CLI or its HTTP frontend.
+Current migration measurements and their executable/configuration boundaries
+are recorded in [RUST_MIGRATION_STATUS.md](RUST_MIGRATION_STATUS.md).
 Use `--baseline-worker PATH` to compare an older wrapper through the same HTTP
 frontend, or `--no-compare` to measure only the current worker. See
 [the native worker notes](scripts/pandoc-server/README.md) for cache boundaries,
@@ -478,9 +507,10 @@ equation preferences, rather than the Python package version. Only successful
 
 The workflow also pins GHC to `9.14.1` and Cabal to `3.18.1.0`, compiles the HTML
 worker on all three platforms, and caches its Haskell dependencies separately.
-Linux compiles both native components inside manylinux 2.28; auditwheel repairs
-shared C dependencies of the library and worker executable. macOS uses delocate
-to bundle non-system dependencies and checks the macOS 14 deployment target.
+Linux compiles native components inside manylinux 2.28. The Rust wheel builder
+stages and audits shared dependencies before embedding the runtime; it repairs
+Linux RUNPATH and macOS load paths, and bundles official Windows CRT dependencies.
+The Windows CLI uses a static CRT. The builder leaves original component files intact.
 Each installed wheel must render citations and table cross-references through
 its real background HTML server, reuse unchanged HTML, and invalidate edited
 source before it can be published. GHC/Cabal are build-time tools only.
@@ -501,9 +531,9 @@ actual release speedups should be measured after a successful warm-up.
 
 The GPL HTML worker's adapted Haskell sources, Pandoc license/copyright notices,
 and resolved dependency source links are included under
-`pandoc_manuscript/bin/pandoc-worker-source` in each wheel. Non-editable local
+`share/papper/bin/pandoc-worker-source` in each wheel's data directory. Non-editable local
 wheel builds require GHC/Cabal as well as Cargo and, on Windows, .NET; editable
-Python development installations retain the existing manually built worker path.
+native development installations retain the existing manually built worker path.
 
 Before saving the Linux cache, the workflow transfers its container-created files
 to the runner user and checks directory sizes and readability. A lookup after

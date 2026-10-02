@@ -15,11 +15,16 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
-  "Programming Language :: Python :: 3",
+  "Programming Language :: Rust",
   "Topic :: Scientific/Engineering",
   "Topic :: Text Processing :: Markup :: Markdown",
 ]
-dependencies = [
+dependencies = []
+
+[dependency-groups]
+# Frozen Python implementation dependencies exist only for differential tests.
+dev = [
+  "pytest>=9.1.1",
   "python-docx>=1.1.0",
   "pyyaml>=6.0",
   "lxml>=4.9.0",
@@ -35,6 +40,9 @@ dependencies = [
 
 [tool.ruff]
 target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff.lint]
 select = ["E9"]
@@ -55,10 +63,46 @@ filename = "uv.lock"
 search = "name = \"papper\"\nversion = \"{current_version}\""
 replace = "name = \"papper\"\nversion = \"{new_version}\""
 
-[project.scripts]
-papper = "pandoc_manuscript.cli:main"
-# Keep pmt as a compatibility alias for existing user scripts.
-pmt = "pandoc_manuscript.cli:main"
+[[tool.bumpversion.files]]
+filename = "Cargo.toml"
+search = "[workspace.package]\nversion = \"{current_version}\""
+replace = "[workspace.package]\nversion = \"{new_version}\""
+
+# Keep --locked release builds valid, without changing third-party crate versions.
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-cli\"\nversion = \"{current_version}\""
+replace = "name = \"papper-cli\"\nversion = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-core\"\nversion = \"{current_version}\""
+replace = "name = \"papper-core\"\nversion = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-dev\"\nversion = \"{current_version}\""
+replace = "name = \"papper-dev\"\nversion = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-document\"\nversion = \"{current_version}\""
+replace = "name = \"papper-document\"\nversion = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-engine\"\nversion = \"{current_version}\""
+replace = "name = \"papper-engine\"\nversion = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-platform\"\nversion = \"{current_version}\""
+replace = "name = \"papper-platform\"\nversion = \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-server\"\nversion = \"{current_version}\""
+replace = "name = \"papper-server\"\nversion = \"{new_version}\""
 
 [project.urls]
 Homepage = "https://github.com/cesaryuan/papper"
@@ -66,43 +110,6 @@ Repository = "https://github.com/cesaryuan/papper"
 Issues = "https://github.com/cesaryuan/papper/issues"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[dependency-groups]
-dev = [
-    "pytest>=9.1.1",
-]
-
-[tool.hatch.build]
-exclude = [
-  ".git",
-  ".pmt",
-  ".papper",
-  ".pandoc-cache",
-  ".vscode",
-  "output",
-  "tmp",
-  "**/__pycache__",
-  "**/*.pyc",
-  "scripts/mathtype-rust/target",
-  "scripts/latex2wmf/target",
-]
-
-[tool.hatch.build.hooks.custom]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/pandoc_manuscript"]
-exclude = [
-  "src/pandoc_manuscript/mathtype/ole_helper/**",
-  "src/pandoc_manuscript/mathtype/bin/mathtype-rust",
-  "src/pandoc_manuscript/mathtype/bin/mathtype-rust.exe",
-  "src/pandoc_manuscript/mathtype/bin/latex2wmf",
-  "src/pandoc_manuscript/mathtype/bin/latex2wmf.exe",
-  "src/pandoc_manuscript/mathtype/bin/*latex2wmf*.dll",
-  "src/pandoc_manuscript/mathtype/bin/*latex2wmf*.so",
-  "src/pandoc_manuscript/mathtype/bin/*latex2wmf*.dylib",
-]
-
-[tool.hatch.build.targets.wheel.force-include]
-"pandoc" = "pandoc_manuscript/pandoc"
+requires = []
+build-backend = "papper_build"
+backend-path = ["tools"]

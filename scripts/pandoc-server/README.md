@@ -21,10 +21,12 @@ version for Papper diagnostics. Public CLI parsing/error handling follows
 Pandoc 3.12's entry point; it is not a promise of byte-identical output across
 different platforms or dependency builds.
 
-Python owns metadata preparation, dependency discovery, bounded HTML caching,
-HTTP responses, and normal HTML postprocessing. The serialized native worker
-keeps Pandoc and citation assets alive between conversions. Markdown is parsed
-from a fresh immutable snapshot. Public HTTP conversions return exact documents.
+Rust owns the public CLI and HTTP service, metadata preparation, dependency
+discovery, bounded HTML caching, and normal HTML postprocessing. The serialized
+Haskell worker keeps Pandoc and citation assets alive between conversions.
+Markdown is parsed from a fresh immutable snapshot. Public HTTP conversions
+return exact documents. The former Python application is retained only under
+`tests/legacy` as a development oracle; installed commands do not start Python.
 
 ## Installed wheels
 
@@ -35,17 +37,24 @@ downloading tools. `PMT_PANDOC_SERVER_WORKER_COMMAND` overrides only worker exec
 profiling or development. Without an override, the bundled worker takes priority
 over an older manually installed executable in `~/.papper/tools/bin`.
 
-The Hatch wheel hook builds the current checkout with static Haskell libraries.
-CI pins GHC 9.14.1 and Cabal 3.18.1.0, caches Cabal dependencies, and builds Linux
-inside manylinux 2.28. Auditwheel on Linux and delocate on macOS bundle required
-non-system C libraries. Every installed wheel is exercised by
-`scripts/check_packaged_html_server.py`: actual citation/cross-reference output,
-HTTP input fetching, warm HTML reuse, and source-edit invalidation must pass
-before publication. HTTP verification uses a local fixture and needs no internet.
+The Rust `papper-dev` builder compiles the current checkout and the retained
+Haskell worker with static Haskell libraries. A small PEP 517/660 build interface
+delegates `uv build` and editable installation to this builder. CI pins Rust
+1.98.0, GHC 9.14.1, and Cabal 3.18.1.0, caches native dependencies, and builds
+Linux inside manylinux 2.28.
 
-Linux setup pins the PyPI `patchelf` package to 0.19.1.0 before auditwheel runs.
-The manylinux image's 0.17.2 RPATH rewrite can cause GHC executables to exit with
-SIGSEGV before `main`, even when auditwheel reports a successful repair.
+`tools/papper-dev/src/portability.rs` stages non-system native dependencies and
+repairs their loader paths before creating the embedded runtime archive.
+Linux uses `ldd` and `patchelf`; macOS uses `otool`, `install_name_tool`, and
+ad-hoc signing; Windows stages validated PE dependencies. This replaces the old
+Hatch hook and post-wheel auditwheel/delocate repair: dependencies hidden inside
+the executable's resource archive must be repaired before embedding.
+`cargo run --locked -p papper-dev -- smoke --wheel PATH.whl` installs a wheel in
+an isolated environment and checks actual native commands, document output,
+warm HTML reuse, source-edit invalidation, and service shutdown before release.
+
+Linux setup pins the PyPI `patchelf` package to 0.19.1.0. The manylinux image's
+0.17.2 RPATH rewrite can cause GHC executables to exit with SIGSEGV before `main`.
 
 ## Build and install from source
 
@@ -97,13 +106,20 @@ these caches. Cabal can use `--offline` when dependencies are already available.
   note conversion, and bibliography placement run against the current document.
   This preserves edits around citations and fresh footnote context.
 - Five bundled HTML Lua scripts can share one Lua state and sequential document
-  walks, with separate script environments. Python verifies audited content
+  walks, with separate script environments. Rust verifies audited content
   hashes; the worker checks the exact contiguous filter order. Edited, reordered,
   or custom scripts use Pandoc's normal independent filter boundaries.
-- The Python HTML cache holds at most eight successful results and 32 MiB.
+- The Rust HTML cache holds at most eight successful results and 32 MiB.
   Its key includes mode, source, effective metadata, dependencies, and referenced
   local resources. Missing and recreated dependencies, template partials, and
   higher-priority assets created after startup invalidate the relevant result.
+- Authored CSS files, local `@import` chains, and local CSS `url()` resources
+  participate in the same dependency validation. Remote CSS resources, escaped
+  CSS tokens, and non-UTF-8 stylesheets conservatively disable whole-HTML reuse
+  because their embedded dependency bytes cannot be validated by this parser.
+- With `embed-resources` or `self-contained` enabled, unmanaged remote resources
+  disable whole-HTML reuse so changed bytes at the same URL are fetched again.
+  Ordinary remote links retain HTML caching when resource embedding is disabled.
 - Remote citation resources use exact URL-to-local mappings. Downloaded CSL
   parents are validated as CSL before publication. Conditional HTTP validation
   happens every five minutes; an unavailable remote preserves the last valid
@@ -116,22 +132,25 @@ The public HTTP API only accepts source paths inside the project. A failed
 conversion is not published to the HTML cache; a dead native child restarts on
 the next uncached conversion. The CLI decodes a successful response before
 opening its output destination, preserving existing HTML when conversion fails.
-Detached Windows services close unrelated inherited handles so captured CLI
-output can reach EOF. PID liveness checks use a process query rather than the
-Windows termination behavior of `os.kill(pid, 0)`; managed tree shutdown can
-therefore stop both the service and its native child.
+Detached Windows services prevent unrelated captured handles from being
+inherited so CLI output can reach EOF. Concurrent first clients record the PID
+of the service that answers the health request. Cleanup validates that PID and
+the canonical project against the live service before requesting shutdown; the
+service then stops and reaps its owned native worker.
 
 ## Profiling and reproducible measurements
 
-Run from the repository root:
+The historical worker benchmark runs from the development checkout with the
+frozen Python HTTP oracle. It compares Haskell worker changes under that same
+frontend and does not measure native Rust CLI or HTTP startup latency:
 
 ```powershell
 uv run python scripts/benchmark_html_server.py --manuscript template/manuscript.md
 uv run python scripts/benchmark_html_server.py --manuscript ../1-3d-mesh/manuscript.md
-uv run pytest tests/test_html_server.py -q
+uv run pytest tests/test_rust_cli_contract.py tests/test_rust_server_regressions.py -q
 ```
 
-Use `--baseline-worker PATH` for a saved pre-change executable. The same corrected
+Use `--baseline-worker PATH` for a saved pre-change executable. The same development
 HTTP frontend serves both workers; legacy worker intermediates stay inside the
 temporary project because its old path guard rejects system-temp outputs.
 Each scenario uses two warmups and fifteen retained samples by default. Changed
@@ -162,8 +181,9 @@ These adapted modules and the linked native worker use GPL-2.0-or-later. The
 upstream license and copyright notices are retained in `vendor/pandoc/` and at
 the top of the adapted modules. Wheels retain the worker sources and notices,
 plus exact resolved dependency versions and upstream source links, under
-`pandoc_manuscript/bin/pandoc-worker-source`. The Python package's existing license is
-unchanged. A future Pandoc upgrade must reconcile these adapters against its
+`share/papper/bin/pandoc-worker-source`, with the same notices retained in the
+embedded runtime. The Rust application's MIT license is unchanged. A future
+Pandoc upgrade must reconcile these adapters against its
 upstream implementations and rerun the complete HTML output tests.
 
 The CLI dispatch in `Main.hs` also follows Pandoc 3.12's

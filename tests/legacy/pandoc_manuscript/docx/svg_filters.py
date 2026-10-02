@@ -85,7 +85,7 @@ def python_filter_wrapper(filter_path: Path, name: str) -> Path:
 
 def svg_filter_path(name: str) -> Path:
     """Return the repository or package path for one bundled SVG filter."""
-    filter_path = template_root() / "pandoc" / "filters" / "docx" / name
+    filter_path = template_root() / "tests" / "legacy" / "pandoc" / "filters" / "docx" / name
     if not filter_path.exists():
         raise FileNotFoundError(f"SVG Pandoc filter not found: {filter_path}")
     return filter_path

@@ -197,6 +197,19 @@ def resource_path(path: str | Path) -> Path:
         return path
     if path.parts and path.parts[0] == "mathtype":
         return package_resource_path(path)
+    if path == Path("pandoc/pandoc-latex.yml"):
+        # Keep this frozen oracle runnable after Python filters move out of the
+        # product tree. Only resource locations change; filter order stays intact.
+        root = template_root()
+        text = (root / path).read_text(encoding="utf-8")
+        for name in ("emf_to_pdf", "resource_move", "table_convert"):
+            relocated = root / "tests/legacy/pandoc/filters/latex" / f"{name}.py"
+            text = text.replace(f"${{.}}/filters/latex/{name}.py", relocated.as_posix())
+        text = text.replace("${.}", (root / "pandoc").as_posix())
+        target = process_temp_dir() / "pandoc-latex-legacy.yml"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        return target
     return template_root() / path
 
 

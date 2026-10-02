@@ -10,7 +10,7 @@ import panflute as pf
 
 def load_svg_embed_filter():
     """Load the repository Pandoc filter as a normal Python module."""
-    path = Path(__file__).resolve().parents[1] / "pandoc" / "filters" / "docx" / "svg_embed_images.py"
+    path = Path(__file__).resolve().parent / "legacy" / "pandoc" / "filters" / "docx" / "svg_embed_images.py"
     spec = importlib.util.spec_from_file_location("svg_embed_images_filter_for_tests", path)
     assert spec is not None
     assert spec.loader is not None
@@ -22,7 +22,7 @@ def load_svg_embed_filter():
 
 def load_svg_to_png_filter():
     """Load the following SVG-to-PNG filter for pipeline regression tests."""
-    path = Path(__file__).resolve().parents[1] / "pandoc" / "filters" / "docx" / "svg_to_png.py"
+    path = Path(__file__).resolve().parent / "legacy" / "pandoc" / "filters" / "docx" / "svg_to_png.py"
     spec = importlib.util.spec_from_file_location("svg_to_png_filter_for_embed_tests", path)
     assert spec is not None
     assert spec.loader is not None
