@@ -1,4 +1,4 @@
-"""Resolve and install external Pandoc command-line tools."""
+"""Prefer Papper's shared native CLI/worker; install legacy tools for unbuilt checkouts."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from ...runtime.logging import log_info, should_log
+from ...runtime.resources import native_pandoc_executable, package_resource_path, source_tree_root
 from ...runtime.paths import (
     PMT_TOOLS_BIN_DIR,
     PMT_TOOLS_DIR,
@@ -48,6 +49,7 @@ class ResolvedTool:
     name: str
     executable: Path
     source: str
+    version_args: tuple[str, ...] = ("--version",)
 
 
 @dataclass(frozen=True)
@@ -426,8 +428,46 @@ def pandoc_release_for_crossref(version: str | None) -> dict[str, Any] | None:
         return None
 
 
+def native_pandoc_tools() -> tuple[ResolvedTool, ResolvedTool] | None:
+    """Select one compiled engine for conversions and its embedded crossref diagnostics."""
+    executable = native_pandoc_executable()
+    if executable is None:
+        if source_tree_root() is None:
+            raise RuntimeError("Papper's platform wheel is missing its native Pandoc engine; reinstall a current wheel")
+        return None
+    cached = TOOL_CACHE.get("pandoc")
+    crossref = TOOL_CACHE.get("pandoc-crossref")
+    if cached is not None and cached.executable == executable and crossref is not None and crossref.source == "embedded":
+        return cached, crossref
+    if not usable_tool(executable, "pandoc"):
+        # An old worker has no CLI. Do not hide a stale/incomplete wheel by
+        # downloading another Pandoc and silently changing the conversion engine.
+        raise RuntimeError(
+            f"Papper's native engine has no usable Pandoc CLI: {executable}. "
+            "Reinstall a current platform wheel or rebuild scripts/pandoc-server."
+        )
+    version_args = ("--pmt-crossref-version",)
+    try:
+        result = subprocess.run(
+            [str(executable), *version_args], capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=15, check=True,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError(f"Rebuild Papper's native engine for embedded crossref: {executable}") from exc
+    if not result.stdout.startswith("pandoc-crossref v"):
+        raise RuntimeError(f"Papper's native engine is missing embedded crossref: {executable}")
+    source = "bundled" if executable.parent == package_resource_path("bin") else "native build"
+    pandoc = ResolvedTool("pandoc", executable, source)
+    crossref = ResolvedTool("pandoc-crossref", executable, "embedded", version_args)
+    TOOL_CACHE.update({"pandoc": pandoc, "pandoc-crossref": crossref})
+    return pandoc, crossref
+
+
 def resolve_pandoc(required_version: str | None = None) -> ResolvedTool:
     """Resolve Pandoc, using pandoc-crossref's version when installing locally."""
+    native = native_pandoc_tools()
+    if native is not None:
+        return native[0]
     if "pandoc" in TOOL_CACHE:
         return TOOL_CACHE["pandoc"]
 
@@ -460,6 +500,10 @@ def resolve_tool(tool: str) -> ResolvedTool:
     """Resolve a required external command, installing it locally if missing."""
     if tool == "pandoc":
         return resolve_pandoc()
+    if tool == "pandoc-crossref":
+        native = native_pandoc_tools()
+        if native is not None:
+            return native[1]
     if tool in TOOL_CACHE:
         return TOOL_CACHE[tool]
 
@@ -482,7 +526,10 @@ def resolve_tool(tool: str) -> ResolvedTool:
 
 
 def ensure_pandoc_tools() -> tuple[ResolvedTool, ResolvedTool]:
-    """Resolve both Pandoc tools, running the managed setup for old Pandoc installs."""
+    """Resolve the shared engine or legacy tools for an unbuilt source checkout."""
+    native = native_pandoc_tools()
+    if native is not None:
+        return native
     if "pandoc" in TOOL_CACHE and "pandoc-crossref" in TOOL_CACHE:
         return TOOL_CACHE["pandoc"], TOOL_CACHE["pandoc-crossref"]
     system_pandoc = shutil.which("pandoc")
@@ -504,8 +551,12 @@ def ensure_pandoc_tools() -> tuple[ResolvedTool, ResolvedTool]:
 
 
 def setup_pandoc_tools(*, force: bool = False) -> tuple[ResolvedTool, ResolvedTool]:
-    """Prepare user-scoped managed Pandoc tools shared by all Papper projects."""
+    """Validate the bundled engine, or install legacy tools for an unbuilt checkout."""
     TOOL_CACHE.clear()
+    native = native_pandoc_tools()
+    if native is not None:
+        log_info("[TOOLS] Using Papper's native Pandoc CLI and embedded crossref; no tool downloads needed")
+        return native
     crossref = install_managed_tool("pandoc-crossref", force=force)
     pandoc_release = pandoc_release_for_crossref(crossref_pandoc_version(crossref.executable))
     pandoc = install_managed_tool("pandoc", release=pandoc_release, force=force)
@@ -515,7 +566,7 @@ def setup_pandoc_tools(*, force: bool = False) -> tuple[ResolvedTool, ResolvedTo
 
 
 def pandoc_command() -> str:
-    """Return the resolved Pandoc executable path and ensure filters are available."""
+    """Return the shared Pandoc CLI path, ensuring crossref is available in the selected engine."""
     pandoc, _ = ensure_pandoc_tools()
     return str(pandoc.executable)
 

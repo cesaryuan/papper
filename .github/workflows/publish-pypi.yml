@@ -15,6 +15,9 @@ on:
       - "scripts/pandoc-server/**"
       - "scripts/check_packaged_html_server.py"
       - "src/pandoc_manuscript/commands/pandoc_server_runtime.py"
+      - "src/pandoc_manuscript/commands/setup/**"
+      - "src/pandoc_manuscript/commands/doctor.py"
+      - "src/pandoc_manuscript/runtime/resources.py"
       - "src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp"
       - "src/pandoc_manuscript/mathtype/ole_helper/**"
       - "hatch_build.py"
@@ -159,7 +162,7 @@ jobs:
           uv run --isolated --no-project --with $wheel python -c "from pandoc_manuscript.mathtype.native import latex_to_equation, render_latex_to_wmf; assert latex_to_equation('x_1')['ole']; assert render_latex_to_wmf('x_1')['wmf']"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged native library conversion failed' }
 
-      - name: Build HTML through the installed wheel's server
+      - name: Smoke test installed Pandoc CLI and HTML server
         shell: pwsh
         run: |
           $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
@@ -313,7 +316,7 @@ jobs:
           uv run --isolated --no-project --with $wheel python -c "from pandoc_manuscript.mathtype.native import latex_to_equation, render_latex_to_wmf; assert latex_to_equation('x_1')['ole']; assert render_latex_to_wmf('x_1')['wmf']"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged native library conversion failed' }
 
-      - name: Build HTML through the installed Linux wheel's server
+      - name: Smoke test installed Linux Pandoc CLI and HTML server
         shell: pwsh
         run: |
           $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName

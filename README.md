@@ -38,7 +38,7 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 - **One-command project bootstrap**: `papper init` creates a reusable paper workspace with manuscript files, style metadata, references, and agent guidance.
 - **Submission-oriented post-processing**: Papper applies format-specific cleanup and formatting after Pandoc runs.
 - **Reviewer reply support**: build response letters as DOCX or TXT, while resolving manuscript references and citations.
-- **Managed Pandoc tools**: if `pandoc` or `pandoc-crossref` are missing, Papper can install user-scoped copies under `~/.papper/tools`.
+- **Bundled Pandoc engine**: one native binary provides the Pandoc CLI, embedded crossref, and the persistent HTML worker; platform wheels need no separate Pandoc downloads.
 - **Optional HTML, LaTeX, and JSON output**: keep a Markdown-centered workflow without giving up other export targets.
 
 ## What You Get
@@ -97,13 +97,24 @@ available as `python` on Pandoc's PATH.
 Install these tools first:
 
 1. `uv` for running the CLI and Python environment
-2. `pandoc` 3.11+ and `pandoc-crossref`
+2. A Papper platform wheel, which includes Pandoc 3.11 and embedded crossref
 3. For line-number source workflows, Windows requires Microsoft Word; other platforms can use `soffice`.
 4. Optional: MathType on Windows only if you select `rust-sdk`, `set-data`, `auto`, or `both`; the default `rust` path is self-contained
 
-Papper requires Pandoc 3.11 or newer. Older or unusable `pandoc` executables on `PATH`
-are ignored; Papper automatically runs the managed setup and downloads a shared copy into
-`~/.papper/tools` instead. The same copy is reused by every Papper project for this user.
+Platform wheels use the bundled `pmt-pandoc-worker` for all Pandoc conversions,
+including DOCX/LaTeX/HTML/JSON builds, reviewer replies, and DOCX imports. Ordinary
+arguments use Pandoc's CLI; the HTML service uses the same binary's private worker
+mode. The standard `pandoc-crossref` filter runs in-process. `papper setup` and
+`papper init --setup` validate this engine locally, even with `--force`; they do
+not download additional Pandoc or crossref executables. `papper doctor` reports
+the linked versions. Lua filters and custom external JSON filters remain supported.
+
+Source checkouts prefer a binary built under `scripts/pandoc-server/dist-newstyle`,
+then a worker installed in `~/.papper/tools/bin`. Rebuild older workers to enable
+the CLI. An unbuilt checkout retains the legacy PATH/managed-tool fallback,
+requiring Pandoc 3.11+ and a separate crossref; it can install shared copies into
+`~/.papper/tools` when missing. An unusable bundled engine fails explicitly rather
+than silently downloading a different conversion engine.
 Reusable caches and persistent build state live under
 `~/.papper/projects/<project-id>/cache` and `~/.papper/projects/<project-id>/work`.
 The project ID is derived from its absolute directory, so projects cannot overwrite
@@ -112,8 +123,7 @@ line-source conversion files use the system temporary directory and are removed
 when the Papper process exits. `papper clean` clears the current project's work;
 `papper distclean` also clears its cache. Existing project-local `.pmt` or `.papper`
 directories are not migrated or deleted automatically.
-Missing or unusable `pandoc-crossref` executables are also installed automatically.
-Downloads and executable installation use temporary files followed by atomic
+Legacy tool downloads and executable installation use temporary files followed by atomic
 replacement, so an interrupted build can be rerun. Invalid cached archives are
 discarded and downloaded again once; unusable managed executables are reinstalled.
 Bundled Python filters run with Papper's Python interpreter and its installed
@@ -121,7 +131,7 @@ dependencies.
 On Windows, Papper puts that interpreter first on Pandoc's `PATH` and runs the
 Python filters directly, including for manuscript projects on UNC network paths.
 
-Tool downloads automatically use `HTTPS_PROXY` (or `https_proxy`) when set,
+Legacy tool downloads automatically use `HTTPS_PROXY` (or `https_proxy`) when set,
 otherwise the configured Windows/macOS system HTTP/HTTPS proxy, and otherwise
 a direct connection. This applies to both GitHub release metadata and archive
 downloads during `papper build docx`, `papper setup`, and `papper init --setup`.
@@ -369,11 +379,11 @@ $env:PMT_PANDOC_SERVER_COMMAND = 'C:\path\to\pandoc-server.exe'
 papper build html --start-server --server-port 3030
 ```
 
-The native wrapper under `scripts/pandoc-server` links Pandoc 3.11 and
+The native engine under `scripts/pandoc-server` links Pandoc 3.11 and
 pandoc-crossref 0.3.25, with a dependency-aware citeproc adapter. Platform wheels
-include this worker, so PyPI installations need no GHC/Cabal or separate worker
-installation. Runtime discovery prefers `PMT_PANDOC_SERVER_WORKER_COMMAND`, then
-the bundled worker, then `~/.papper/tools/bin` for source-checkout development.
+include this CLI/worker, so PyPI installations need no GHC/Cabal or separate tool
+installation. Worker discovery prefers `PMT_PANDOC_SERVER_WORKER_COMMAND`, then
+the bundled engine, a source build, and `~/.papper/tools/bin` for development.
 An older manually installed worker cannot shadow a newer wheel's worker.
 Server configuration records the package version so a later release restarts
 an existing background service instead of retaining its old native worker.

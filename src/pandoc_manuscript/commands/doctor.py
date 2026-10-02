@@ -21,7 +21,7 @@ def command_status(command: list[str]) -> tuple[bool, str]:
         else:
             tool = resolve_tool(command[0])
         result = subprocess.run(
-            [str(tool.executable), *command[1:]],
+            [str(tool.executable), *(tool.version_args if command[1:] == ["--version"] else command[1:])],
             capture_output=True,
             text=True,
             check=False,

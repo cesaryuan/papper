@@ -30,8 +30,8 @@ from pydantic_settings import BaseSettings, CliApp, SettingsConfigDict
 from ..html.postprocess import postprocess_html_text
 from ..html.server_metadata import ProjectMetadataCache
 from ..runtime.logging import log_debug, log_warning
-from ..runtime.paths import PMT_TOOLS_BIN_DIR, process_temp_dir, project_state_dir
-from ..runtime.resources import package_resource_path
+from ..runtime.paths import process_temp_dir, project_state_dir
+from ..runtime.resources import native_pandoc_executable
 from .server_assets import ProjectAssetCache
 from .pandoc_server import split_server_command
 
@@ -85,18 +85,13 @@ class PandocWorker:
 
     @staticmethod
     def _resolve_command(config: dict[str, Any]) -> list[str]:
-        """Prefer an explicit worker, then the installed wheel, then development tools."""
+        """Prefer an explicit worker, then the shared wheel/source/native engine."""
         configured = os.environ.get("PMT_PANDOC_SERVER_WORKER_COMMAND")
         if configured:
             return split_server_command(configured)
-        names = ("pmt-pandoc-worker.exe", "pmt-pandoc-worker") if os.name == "nt" else ("pmt-pandoc-worker",)
-        # The bundled worker matches this package's private protocol. A stale
-        # manually installed binary must not shadow it after a PyPI upgrade.
-        for directory in (package_resource_path("bin"), PMT_TOOLS_BIN_DIR):
-            for name in names:
-                candidate = directory / name
-                if candidate.is_file():
-                    return [str(candidate)]
+        native = native_pandoc_executable()
+        if native is not None:
+            return [str(native)]
         raise FileNotFoundError(
             "Papper Pandoc worker not found. Install a platform wheel, or build scripts/pandoc-server and install "
             "pmt-pandoc-worker into ~/.papper/tools/bin, or set PMT_PANDOC_SERVER_WORKER_COMMAND"

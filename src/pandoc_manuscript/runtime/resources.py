@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from importlib import resources
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -29,6 +30,26 @@ def source_tree_root() -> Path | None:
     if (root / "pyproject.toml").is_file() and (root / "src" / PACKAGE_NAME).is_dir():
         return root
     return None
+
+
+def native_pandoc_executable() -> Path | None:
+    """Locate the wheel's shared CLI/worker, then a source build or installed worker."""
+    from .paths import PMT_TOOLS_BIN_DIR
+
+    name = "pmt-pandoc-worker.exe" if os.name == "nt" else "pmt-pandoc-worker"
+    bundled = package_resource_path("bin") / name
+    if bundled.is_file():
+        return bundled
+    root = source_tree_root()
+    if root is not None:
+        builds = (root / "scripts/pandoc-server/dist-newstyle/build").glob(
+            f"*/ghc-*/pmt-pandoc-server-*/x/pmt-pandoc-worker/build/pmt-pandoc-worker/{name}"
+        )
+        candidates = [path for path in builds if path.is_file()]
+        if candidates:
+            return max(candidates, key=lambda path: path.stat().st_mtime)
+    installed = PMT_TOOLS_BIN_DIR / name
+    return installed if installed.is_file() else None
 
 
 def template_root() -> Path:

@@ -1,20 +1,26 @@
 {-
-  Long-lived Pandoc worker for the PMT HTML server.
+  Pandoc-compatible CLI and long-lived worker for the PMT HTML server.
 
-  Build with `cabal build exe:pmt-pandoc-worker`, then run with --config PATH.
+  Build with `cabal build exe:pmt-pandoc-worker`. Ordinary arguments use the
+  Pandoc 3.11 CLI; --pmt-worker --config PATH starts the private worker.
   JSON lines specify an input snapshot, output, and dependency fingerprint.
   Pandoc and crossref run in this process; the citation adapter caches CSL,
   references, and evaluated citations while applying Pandoc's document
   mutations to fresh prose on every request. Changed assets reload defaults.
+
+  CLI dispatch is adapted from Pandoc 3.11's pandoc-cli/src/pandoc.hs,
+  Copyright (C) 2006-2024 John MacFarlane, GPL-2.0-or-later.
 -}
 
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Main where
 
 import Control.Exception (SomeException, evaluate, try)
+import qualified Control.Exception as E
 import Control.DeepSeq (force)
 import Control.Monad.IO.Class (liftIO)
 import Control.Applicative ((<|>))
@@ -33,12 +39,15 @@ import Text.Pandoc.CrossRef (runCrossRefIO, defaultCrossRefAction)
 import qualified Papper.Citeproc as Citations
 import Text.Pandoc.Filter (Filter (..))
 import System.Directory (canonicalizePath, createDirectoryIfMissing, makeAbsolute)
-import System.Environment (getArgs, setEnv, unsetEnv)
+import System.Environment (getArgs, getProgName, setEnv, unsetEnv, withProgName)
+import qualified System.Info as System
 import System.FilePath (isRelative, makeRelative, normalise, takeBaseName, takeDirectory, splitDirectories, (</>))
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stdin, stdout)
 import Text.Pandoc.App (Opt (..), convertWithOpts,
-                        defaultOpts, options, parseOptionsFromArgs)
-import Text.Pandoc.Lua (getEngine)
+                        defaultOpts, options, parseOptionsFromArgs, handleOptInfo, versionInfo)
+import Text.Pandoc.Error (handleError)
+import PandocCLI.Lua (getEngine, runLuaInterpreter)
+import PandocCLI.Server (runCGI, runServer)
 import Text.Pandoc.Scripting (ScriptingEngine (..))
 
 data Config = Config
@@ -65,12 +74,60 @@ data Request = Request
 
 instance FromJSON Request
 
--- | Initialize one persistent worker and consume its private JSON-line protocol.
+-- | Dispatch the private worker separately from Pandoc's official CLI modes.
 main :: IO ()
-main = do
+main = E.handle (handleError . Left) $ do
+  args <- getArgs
+  case args of
+    "--pmt-worker" : workerArgs -> runWorker workerArgs
+    -- Retain the old private launch convention for developer worker overrides.
+    "--config" : _ -> runWorker args
+    ["--pmt-crossref-version"] ->
+      putStrLn $ "pandoc-crossref v" ++ VERSION_pandoc_crossref ++ " (embedded)"
+    _ -> do
+      program <- getProgName
+      -- Upstream help and server option handlers read getProgName themselves.
+      -- Present the official name so diagnostics do not expose the worker name.
+      let cliName = if program `elem` ["pandoc-server.cgi", "pandoc-server", "pandoc-lua"]
+            then program
+            else if System.os == "mingw32" then "pandoc.exe" else "pandoc"
+      withProgName cliName $ runCLI args
+
+-- | Follow Pandoc 3.11's CLI dispatch, changing only standard crossref execution.
+runCLI :: [String] -> IO ()
+runCLI rawArgs = do
+  program <- getProgName
+  let hasVersion = any (`elem` ["-v", "--version"]) (takeWhile (/= "--") rawArgs)
+      versionAction = do
+        engine <- getEngine
+        versionInfo ["+server", "+lua"] (Just $ T.unpack $ engineName engine) ""
+      versionOr action = if hasVersion then versionAction else action
+      convert args = do
+        engine <- getEngine
+        parsed <- parseOptionsFromArgs options defaultOpts program args
+        case parsed of
+          Left info -> handleOptInfo engine info
+          Right opts -> do
+            timings <- newIORef []
+            citationCache <- Citations.newCitationCache
+            -- CLI citeproc retains Pandoc's native behavior; only the worker
+            -- substitutes the adapter that caches citation evaluation.
+            convertWithOpts (embeddedEngine engine timings citationCache)
+              opts {optFilters = map embedCrossrefFilter (optFilters opts)}
+  case program of
+    "pandoc-server.cgi" -> versionOr runCGI
+    "pandoc-server" -> versionOr $ runServer rawArgs
+    "pandoc-lua" -> runLuaInterpreter program rawArgs
+    _ -> case rawArgs of
+      "lua" : args -> runLuaInterpreter "pandoc lua" args
+      "server" : args -> versionOr $ runServer args
+      args -> versionOr $ convert args
+
+-- | Initialize one persistent worker and consume its private JSON-line protocol.
+runWorker :: [String] -> IO ()
+runWorker args = do
   hSetBuffering stdin LineBuffering
   hSetBuffering stdout LineBuffering
-  args <- getArgs
   configPath <- argumentValue "--config" args
   config <- decodeFile configPath
   baseOpts <- loadOptions config
@@ -91,10 +148,14 @@ loadOptions config = do
 -- Replace only the standard crossref executable; custom JSON filters retain
 -- Pandoc's existing subprocess behavior and their original order.
 embedFilter :: Filter -> Filter
-embedFilter (JSONFilter path)
-  | path == "pandoc-crossref" = LuaFilter "papper-embedded-crossref"
 embedFilter CiteprocFilter = LuaFilter "papper-embedded-citeproc"
-embedFilter filt = filt
+embedFilter filt = embedCrossrefFilter filt
+
+-- | Embed the standard crossref filter while preserving explicit custom programs.
+embedCrossrefFilter :: Filter -> Filter
+embedCrossrefFilter (JSONFilter path)
+  | path `elem` ["pandoc-crossref", "pandoc-crossref.exe"] = LuaFilter "papper-embedded-crossref"
+embedCrossrefFilter filt = filt
 
 -- Run the crossref library in this process while preserving config-file
 -- handling. Force results within the timer because Haskell evaluates lazily.

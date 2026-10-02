@@ -111,6 +111,7 @@ class CustomBuildHook(BuildHookInterface):
         for relative in (
             "Main.hs", "Papper/Citeproc.hs", "Papper/Locator.hs", "cabal.project",
             "pmt-pandoc-server.cabal", "README.md", "vendor/pandoc/COPYING.md", "vendor/pandoc/COPYRIGHT",
+            "vendor/pandoc-cli/PandocCLI/Lua.hs", "vendor/pandoc-cli/PandocCLI/Server.hs",
         ):
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)

@@ -16,6 +16,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from pandoc_manuscript.commands.setup import pandoc_tools as tools
 
 
+@pytest.fixture(autouse=True)
+def unbuilt_checkout(monkeypatch) -> None:
+    """Exercise legacy download recovery without a developer's compiled native engine."""
+    monkeypatch.setattr(tools, "native_pandoc_executable", lambda: None)
+
+
 def test_pandoc_asset_selection_uses_platform_preferences(monkeypatch) -> None:
     """Select the platform-specific Pandoc archive from GitHub release metadata."""
     monkeypatch.setattr(tools, "current_platform_key", lambda: ("windows", "x64"))

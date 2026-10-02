@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -24,6 +25,10 @@ from lxml import html
 
 from pandoc_manuscript.commands import build, pandoc_server as client
 from pandoc_manuscript.commands.pandoc_server_runtime import PandocWorker
+from pandoc_manuscript.commands.setup import pandoc_command, setup_pandoc_tools
+from pandoc_manuscript.commands.doctor import command_status
+from pandoc_manuscript.commands.convert import ConvertSettings
+from pandoc_manuscript.commands.build_reply import resolve as reply_resolve
 from pandoc_manuscript.html.build import prepare_html_metadata
 from pandoc_manuscript.runtime.metadata import write_pandoc_metadata
 from pandoc_manuscript.runtime.paths import project_state_dir
@@ -76,11 +81,44 @@ class PackagedServerSmoke:
         assert "@tbl:values" not in text, "An unresolved cross-reference reached the HTML"
 
     @staticmethod
+    def check_cli(worker: Path, source: Path, config: Path) -> None:
+        """Require offline setup, conversions, and reply JSON probes through the same binary."""
+        pandoc, crossref = setup_pandoc_tools(force=True)
+        assert Path(pandoc_command()).resolve() == worker, "The CLI selected a second Pandoc engine"
+        assert crossref.source == "embedded", "Setup selected an external crossref"
+        for name in ("pandoc", "pandoc-crossref"):
+            ok, detail = command_status([name, "--version"])
+            assert ok, detail
+        args = json.loads(config.read_text(encoding="utf-8"))["pandoc_args"]
+        output = source.parent / "cli.html"
+        subprocess.run([str(pandoc.executable), *args, str(source), "-o", str(output)], check=True)
+        PackagedServerSmoke.check_output(output.read_text(encoding="utf-8"), "Original wheel prose")
+        docx = source.parent / "cli.docx"
+        subprocess.run([
+            str(pandoc.executable), str(source), "--filter", "pandoc-crossref", "--citeproc", "-o", str(docx),
+        ], check=True)
+        result = subprocess.run([str(pandoc.executable), str(docx), "-t", "plain"],
+                                capture_output=True, text=True, encoding="utf-8", check=True)
+        assert "Bundled citation entry" in result.stdout, "The CLI did not render the DOCX bibliography"
+        assert "@tbl:values" not in result.stdout, "The CLI did not resolve the DOCX cross-reference"
+        converted = source.parent / "imported"
+        assert ConvertSettings(docx=docx, o=converted).run() == 0
+        markdown = (converted / "cli.md").read_text(encoding="utf-8")
+        assert "Original wheel prose" in markdown, "DOCX import did not use the shared engine successfully"
+        style = source.parent / "metadata.yml"
+        references = reply_resolve.resolve_reference_map(source, style, ["tbl:values"], "markdown")
+        citations = reply_resolve.resolve_citation_map(source, style, ["packaged"], "markdown")
+        assert references.get("tbl:values"), "The reply's JSON probe did not resolve its table reference"
+        assert citations.get("packaged"), "The reply's JSON probe did not resolve its citation"
+        print(f"Packaged Pandoc CLI passed: {worker.name}; offline setup, HTML, DOCX, import, reply probes, crossref")
+
+    @staticmethod
     def run(project: Path) -> None:
         """Start the real service and verify cold, repeated, and edited builds."""
         worker = Path(PandocWorker._resolve_command({})[0]).resolve()
         assert worker.parent == package_resource_path("bin").resolve(), "The wheel's worker was not selected"
         source, config = PackagedServerSmoke.prepare(project)
+        PackagedServerSmoke.check_cli(worker, source, config)
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             port = listener.getsockname()[1]

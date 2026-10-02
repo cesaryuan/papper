@@ -48,7 +48,7 @@ def native_command() -> str:
         candidates = list((ROOT / "scripts/pandoc-server/dist-newstyle/build").glob(f"**/{name}"))
         if candidates:
             return f'"{candidates[0]}"'
-        candidate = runtime.PMT_TOOLS_BIN_DIR / name
+        candidate = paths.PMT_TOOLS_BIN_DIR / name
         if candidate.is_file():
             return f'"{candidate}"'
     pytest.skip("HTML server output tests require a compiled pmt-pandoc-worker")
@@ -57,8 +57,6 @@ def native_command() -> str:
 @pytest.fixture
 def server_factory(tmp_path: Path, monkeypatch, native_command: str):
     """Create isolated copies and stop all native workers when the test ends."""
-    if shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None:
-        pytest.skip("CLI parity checks require pandoc and pandoc-crossref")
     monkeypatch.setenv("PMT_PANDOC_SERVER_WORKER_COMMAND", native_command)
     monkeypatch.setattr(paths, "PAPPER_HOME_DIR", tmp_path / "state")
     workers = []
@@ -605,8 +603,6 @@ def test_http_concurrent_requests_and_worker_recovery(server_factory, tmp_path: 
 
 def test_cli_reuses_service_when_its_output_is_captured(tmp_path: Path, native_command: str) -> None:
     """Let captured CLI calls exit and reuse one service across edits and repeats."""
-    if shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None:
-        pytest.skip("CLI parity checks require pandoc and pandoc-crossref")
     project = tmp_path / "cli-project"
     original, filename = CASES["references"]
     shutil.copytree(original, project)

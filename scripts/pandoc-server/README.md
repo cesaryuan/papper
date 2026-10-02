@@ -1,6 +1,26 @@
-# Persistent HTML worker
+# Shared Pandoc CLI and persistent HTML worker
 
-This executable is the native half of Papper's project-bound HTTP service.
+This executable provides a Pandoc 3.11 CLI and the native half of Papper's
+project-bound HTTP service. Ordinary arguments follow the upstream CLI, including
+stdin/stdout, binary outputs, information requests, Lua and HTTP server modes.
+The standard `pandoc-crossref` filter is replaced by an in-process library call;
+explicit custom filter paths keep their upstream behavior. CLI citeproc uses
+Pandoc's native implementation; the persistent worker uses the caching adapter.
+
+```powershell
+pmt-pandoc-worker manuscript.md -o manuscript.docx --filter pandoc-crossref --citeproc
+pmt-pandoc-worker --help
+pmt-pandoc-worker lua -e "print(pandoc.version)"
+pmt-pandoc-worker server --port 3031
+pmt-pandoc-worker --pmt-worker --config config.json
+```
+
+The old private `--config PATH` launch convention remains supported for existing
+developer overrides. `--pmt-crossref-version` reports the compiled crossref
+version for Papper diagnostics. Public CLI parsing/error handling follows
+Pandoc 3.11's entry point; it is not a promise of byte-identical output across
+different platforms or dependency builds.
+
 Python owns metadata preparation, dependency discovery, bounded HTML caching,
 HTTP responses, and normal HTML postprocessing. The serialized native worker
 keeps Pandoc and citation assets alive between conversions. Markdown is parsed
@@ -9,8 +29,9 @@ from a fresh immutable snapshot. Public HTTP conversions return exact documents.
 ## Installed wheels
 
 The PyPI platform wheels bundle `pmt-pandoc-worker` (with `.exe` on Windows).
-`papper build html --start-server` uses it directly; users do not install GHC or
-Cabal. `PMT_PANDOC_SERVER_WORKER_COMMAND` overrides the bundled executable for
+All Papper conversions use it directly; users do not install GHC, Cabal, Pandoc,
+or crossref. Setup validates the bundled CLI and embedded crossref without
+downloading tools. `PMT_PANDOC_SERVER_WORKER_COMMAND` overrides only worker execution for
 profiling or development. Without an override, the bundled worker takes priority
 over an older manually installed executable in `~/.papper/tools/bin`.
 
@@ -130,3 +151,9 @@ plus exact resolved dependency versions and upstream source links, under
 `pandoc_manuscript/bin/pandoc-worker-source`. The Python package's existing license is
 unchanged. A future Pandoc upgrade must reconcile these adapters against its
 upstream implementations and rerun the complete HTML output tests.
+
+The CLI dispatch in `Main.hs` also follows Pandoc 3.11's
+`pandoc-cli/src/pandoc.hs`. `vendor/pandoc-cli/PandocCLI/` retains the upstream
+Lua and server launch modules with their original GPL notices. They and the
+adapted entry point are included in wheel source notices. The linked conversion
+library is shared by all modes rather than compiled into separate executables.

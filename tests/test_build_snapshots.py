@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from snapshot_utils import assert_snapshot, canonical_docx, canonical_html
+from pandoc_manuscript.runtime.resources import native_pandoc_executable
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,8 +49,8 @@ CASES = {
 DOCX_ONLY_CASES = {"native_crossrefs", "equation_attributes"}
 
 pytestmark = pytest.mark.skipif(
-    shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None,
-    reason="snapshot builds require pandoc and pandoc-crossref",
+    native_pandoc_executable() is None and (shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None),
+    reason="snapshot builds require the native engine or legacy Pandoc tools",
 )
 
 

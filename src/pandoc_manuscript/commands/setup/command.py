@@ -14,10 +14,10 @@ class SetupSettings(VerboseCommandSettings):
 
     model_config = SettingsConfigDict(cli_kebab_case=True, cli_implicit_flags=True)
 
-    force: bool = Field(default=False, description="Redownload and reinstall managed Pandoc tools.")
+    force: bool = Field(default=False, description="Refresh legacy tool downloads when no native engine is available.")  # Bundled engines are validated locally
 
     def run(self) -> int:
-        """Download user-scoped Pandoc tools into ``~/.papper/tools``."""
+        """Validate the bundled engine or prepare tools for an unbuilt source checkout."""
         pandoc, crossref = setup_pandoc_tools(force=self.force)
 
         log(f"[OK] pandoc: {pandoc.executable} [{pandoc.source}]")

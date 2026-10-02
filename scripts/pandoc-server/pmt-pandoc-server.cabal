@@ -3,20 +3,26 @@ name: pmt-pandoc-server
 version: 0.1.0.0
 build-type: Simple
 license: GPL-2.0-or-later
-synopsis: Pandoc worker for the PMT project HTML server
-description: Long-lived Pandoc worker used by Papper's project-bound HTML service.
+synopsis: Shared Pandoc CLI and worker for Papper
+description: Pandoc-compatible CLI and long-lived worker for Papper's HTML service.
 extra-source-files: vendor/pandoc/COPYING.md, vendor/pandoc/COPYRIGHT
 
 executable pmt-pandoc-worker
   main-is: Main.hs
-  hs-source-dirs: .
-  other-modules: Papper.Citeproc, Papper.Locator
+  hs-source-dirs: ., vendor/pandoc-cli
+  other-modules: Papper.Citeproc, Papper.Locator, PandocCLI.Lua, PandocCLI.Server
   default-language: Haskell2010
+  cpp-options: -DREPL
   ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-A16m
   build-depends:
       base >= 4.12 && < 5
     , pandoc >= 3.11 && < 3.12
     , pandoc-lua-engine >= 0.5.4 && < 0.6
+    , pandoc-server >= 0.1.1 && < 0.2
+    , wai-extra >= 3.0.24
+    , warp
+    , hslua-cli >= 1.4.1 && < 1.5
+    , temporary >= 1.1 && < 1.4
     , pandoc-crossref == 0.3.25
     , pandoc-types >= 1.23 && < 1.24
     , deepseq >= 1.4 && < 1.6
