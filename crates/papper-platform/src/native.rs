@@ -1,7 +1,7 @@
 //! Safe, directly linked Rust equation conversion and DOCX equation extraction.
 
 use anyhow::{Context, Result};
-pub use latex2wmf::{FormulaStyle, SvgBackend, WmfPreview, WmfRenderOptions};
+pub use latex2wmf::{FormulaStyle, MathFontSelection, SvgBackend, WmfPreview, WmfRenderOptions};
 pub use mathtype_rust::EquationPayload;
 use serde_json::{Value, json};
 use sha1::{Digest, Sha1};
@@ -31,8 +31,12 @@ pub fn mtef_from_ole(ole: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Render a typed preview directly in process while retaining upstream error recovery.
-pub fn render_wmf(latex: &str, options: WmfRenderOptions, math_font: &str) -> Result<WmfPreview> {
-    conversion_result(|| latex2wmf::render_latex_to_wmf_with_font(latex, options, math_font))
+pub fn render_wmf(
+    latex: &str,
+    options: WmfRenderOptions,
+    math_font: MathFontSelection<'_>,
+) -> Result<WmfPreview> {
+    conversion_result(|| latex2wmf::render_latex_to_wmf_with_fonts(latex, options, math_font))
 }
 
 /// Recover source TeX from OLE, then retain structural fallback for source-free equations.

@@ -179,7 +179,12 @@ formula SVG. `ratex` (the default) parses LaTeX directly, embeds glyph outlines,
 and reports its exact layout depth for Word baseline placement. `typst` converts
 LaTeX math with the pinned MiTeX 0.2.7 Rust converter and evaluates it against
 the matching complete official MiTeX Typst scope embedded in the executable.
-It renders the result with the bundled XITS Math font,
+`mathtypeTypstMathFont` accepts a string for one font used throughout, or an object
+with required `font` and `calligraphicFont` fields. The default object selects
+XITS Math for `font` and New Computer Modern Math for `calligraphicFont`.
+The latter controls `\mathcal`, `\mathscr`, and `\cal`. Both fields accept installed
+family names or font file paths relative to their owning style file.
+It renders the result as vector outlines,
 reads the labelled formula frame's actual descent before page composition drops
 child baselines, and expands the transparent canvas to include glyph ink that
 overhangs that frame. Both backends reject SVG features outside the formula vector

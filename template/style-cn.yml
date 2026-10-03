@@ -16,7 +16,12 @@ mathtypeSvgBackend: typst
 # 其他字体可先安装后填写名称，或直接填写文件路径，无需安装。
 # 相对路径以本 style.yml 所在目录为基准，例如 fonts/STIXTwoMath-Regular.otf。
 # 仅影响 rust 路径的公式预览；both 最终采用 MathType 原生结果，不使用此字体设置。
-mathtypeTypstMathFont: New Computer Modern Math
+# 字符串表示主体与花体都使用同一字体。例如：
+# mathtypeTypstMathFont: XITS Math
+# 对象的 font、calligraphicFont 都必须填写，以下也是未配置时的默认值。
+mathtypeTypstMathFont:
+  font: XITS Math
+  calligraphicFont: New Computer Modern Math
 
 # true 使用 Word 原生 REF/SEQ 域和章节多级列表编号。
 # false 保留原有 Pandoc 编号和超链接引用行为。

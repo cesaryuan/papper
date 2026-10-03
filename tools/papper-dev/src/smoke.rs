@@ -434,10 +434,22 @@ pub fn run(wheel: &Path) -> Result<()> {
         .contains("Response"),
         "Installed reply DOCX missing content"
     );
+    let project_state = installed
+        .home
+        .join("projects")
+        .join(papper_core::paths::project_key(&installed.project)?);
+    ensure!(
+        project_state.join("cache").is_dir(),
+        "Installed builds did not create reusable project caches"
+    );
     installed.command(&["clean"])?;
     ensure!(
         !installed.project.join("output").exists(),
         "Installed clean retained generated outputs"
+    );
+    ensure!(
+        !project_state.exists(),
+        "Installed clean retained project work or caches"
     );
     ensure!(
         agent.get(&format!("{address}/version")).call().is_err(),

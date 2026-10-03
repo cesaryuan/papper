@@ -107,7 +107,8 @@ worker，或 Pandoc 3.11+ 配合独立 crossref；需要时下载受管工具到
 可复用缓存和持久构建状态分别保存在 `~/.papper/projects/<project-id>/cache` 与
 `~/.papper/projects/<project-id>/work`。项目 ID 由项目绝对路径计算，不同项目不会互相覆盖。
 MathType OLE/WMF 预览图、行号来源转换文件等单次构建中间产物存放在系统临时目录，Papper
-进程退出时清理。`papper clean` 清理当前项目的 work；`papper distclean` 还会清理其缓存。
+进程退出时清理。`papper clean` 删除生成结果，并清理当前项目的 work 和缓存，
+包括 MathType 公式缓存及旧版 `.pandoc-cache`。
 原有项目内的 `.pmt` 和 `.papper` 目录不会自动迁移或删除。
 
 六个原 Python filters 现在由 Pandoc 进程内的 Lua 执行，共享资源查找和 SVG
@@ -150,8 +151,8 @@ Windows C# helper 保留 SDK 桥接职责。
 原来的 `pandoc_manuscript` Python 导入 API 和 `python -m` 工具不随原生 wheel
 发布。集成使用原生 CLI 或 Rust workspace 库；旧实现仅供仓库测试对照。
 已有稿件和样式配置继续使用，原生服务状态单独保存在 `work/rust-v1`。
-升级时，先在运行 HTML 服务的项目执行 `papper clean`，停止该项目服务并保留可复用
-缓存；升级后的 `papper build html --start-server` 再启动新版本程序。
+升级时，先在运行 HTML 服务的项目执行 `papper clean`，停止该项目服务并清理构建状态
+和缓存；升级后的 `papper build html --start-server` 再启动新版本程序。
 
 ### 创建第一个项目
 
@@ -280,7 +281,6 @@ papper build latex
 papper build json
 papper build-reply reply.md -o output/docx/reply.docx
 papper clean
-papper distclean
 ```
 
 完整 CLI 请查看 `papper --help`。

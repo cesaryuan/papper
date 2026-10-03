@@ -362,7 +362,7 @@ def _wait_for_exit(pids: set[int], timeout: float = 10) -> bool:
 def test_native_first_concurrent_cli_start_records_serving_pid_and_clean_stops_worker(
     tmp_path: Path, rust_executable: Path,
 ) -> None:
-    """Two first clients must share a recorded owner that clean can stop without erasing caches."""
+    """Two first clients must share an owner that clean stops before removing project caches."""
     for round_number in range(3):
         directory = tmp_path / f"project-{round_number}"
         directory.mkdir()
@@ -399,16 +399,16 @@ def test_native_first_concurrent_cli_start_records_serving_pid_and_clean_stops_w
             saved = json.loads(states[0].read_text(encoding="utf-8"))
             assert saved["pid"] == version["pid"]
             assert all(_process_alive(pid) for pid in owned)
-            cache = states[0].parents[2] / "cache/preserved.bin"
+            state = states[0].parents[2]
+            cache = state / "cache/result.bin"
             cache.parent.mkdir(parents=True, exist_ok=True)
             cache.write_bytes(b"Reusable project data")
             cleaned = subprocess.run([str(rust_executable), "clean"], cwd=directory, env=project.environment,
                                      capture_output=True, text=True, encoding="utf-8", timeout=30)
             assert cleaned.returncode == 0, cleaned.stdout + cleaned.stderr
             assert _wait_for_exit(owned), f"Owned service or worker survived clean: {owned}"
-            assert not states[0].parent.parent.exists()
+            assert not state.exists()
             assert not (directory / "output").exists()
-            assert cache.read_bytes() == b"Reusable project data"
             assert source.read_text(encoding="utf-8") == original
         finally:
             # Record the actual responding owner even when a failed first CLI

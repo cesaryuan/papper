@@ -9,6 +9,73 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{PmtSettings, canonical_field_name};
 
+/// Keep effective primary and calligraphic fonts explicit, regardless of input shorthand.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MathFontConfig {
+    pub font: String,
+    pub calligraphic_font: String,
+}
+
+impl Default for MathFontConfig {
+    /// Describe the complete bundled default instead of hiding a rendering exception.
+    fn default() -> Self {
+        Self {
+            font: "XITS Math".into(),
+            calligraphic_font: "New Computer Modern Math".into(),
+        }
+    }
+}
+
+impl MathFontConfig {
+    /// Normalize string shorthand and reject incomplete or misspelled object fields.
+    pub fn from_value(value: &Value) -> Result<Self> {
+        /// Validate each font independently so errors identify the affected configuration field.
+        fn name(value: Option<&Value>, field: &str) -> Result<String> {
+            let Some(value) = value.and_then(Value::as_str) else {
+                bail!("{field} must be a font name or font file path string")
+            };
+            if value.trim().is_empty() {
+                bail!("{field} must not be blank")
+            }
+            Ok(value.trim().into())
+        }
+        match value {
+            Value::String(_) => {
+                let font = name(Some(value), "mathtypeTypstMathFont")?;
+                Ok(Self {
+                    calligraphic_font: font.clone(),
+                    font,
+                })
+            }
+            Value::Object(fields) => {
+                for field in fields.keys() {
+                    if !matches!(field.as_str(), "font" | "calligraphicFont") {
+                        bail!("Unknown mathtypeTypstMathFont field: {field}")
+                    }
+                }
+                Ok(Self {
+                    font: name(fields.get("font"), "mathtypeTypstMathFont.font")?,
+                    calligraphic_font: name(
+                        fields.get("calligraphicFont"),
+                        "mathtypeTypstMathFont.calligraphicFont",
+                    )?,
+                })
+            }
+            _ => bail!(
+                "mathtypeTypstMathFont must be a string or an object with font and calligraphicFont"
+            ),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for MathFontConfig {
+    /// Accept historical string values at JSON boundaries while retaining canonical typed state.
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        Self::from_value(&Value::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Identify a supported setting independently of its historical YAML spelling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -212,7 +279,7 @@ impl<'de> Deserialize<'de> for DocxStyles {
 pub struct SettingsValues {
     pub mathtype: bool,
     pub mathtype_conversion_method: ConversionMethod,
-    pub mathtype_typst_math_font: String,
+    pub mathtype_typst_math_font: MathFontConfig,
     pub mathtype_svg_backend: SvgBackend,
     pub docx_embed_svg_images: bool,
     pub docx_convert_svg_to_png: bool,
@@ -234,7 +301,7 @@ impl Default for SettingsValues {
         Self {
             mathtype: false,
             mathtype_conversion_method: ConversionMethod::Auto,
-            mathtype_typst_math_font: "New Computer Modern Math".into(),
+            mathtype_typst_math_font: MathFontConfig::default(),
             mathtype_svg_backend: SvgBackend::Typst,
             docx_embed_svg_images: true,
             docx_convert_svg_to_png: false,
@@ -436,11 +503,8 @@ impl PmtSettings {
     }
 
     /// Validate a font override before publishing it, preserving the previous value on failure.
-    pub fn set_math_font(&mut self, font: String) -> Result<()> {
-        if font.trim().is_empty() {
-            bail!("mathtypeTypstMathFont must not be blank")
-        }
-        self.fields.mathtype_typst_math_font = font.trim().into();
+    pub fn set_math_font(&mut self, font: MathFontConfig) -> Result<()> {
+        self.fields.mathtype_typst_math_font = MathFontConfig::from_value(&json!(font))?;
         Ok(())
     }
 }

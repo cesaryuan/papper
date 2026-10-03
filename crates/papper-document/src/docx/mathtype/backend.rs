@@ -2,9 +2,13 @@
 
 use super::{Binding, Equation, wmf_size};
 use anyhow::{Context, Result, bail, ensure};
-use papper_core::metadata::{ConversionMethod, EffectiveMetadata, SvgBackend as ConfigSvgBackend};
+use papper_core::metadata::{
+    ConversionMethod, EffectiveMetadata, MathFontConfig, SvgBackend as ConfigSvgBackend,
+};
 use papper_core::resources::ResourcePaths;
-use papper_platform::native::{self, FormulaStyle, SvgBackend, WmfRenderOptions};
+use papper_platform::native::{
+    self, FormulaStyle, MathFontSelection, SvgBackend, WmfRenderOptions,
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::io::Read;
@@ -18,7 +22,7 @@ const SET_DATA_FAILURE: &str = "由于 Exception.ToString() 失败，因此无�
 struct Options {
     method: ConversionMethod,
     backend: ConfigSvgBackend,
-    font: String,
+    font: MathFontConfig,
 }
 
 impl Options {
@@ -46,6 +50,7 @@ pub(super) struct Generator {
     cache: PathBuf,
     helper_digest: Option<String>,
     font_digest: Option<String>,
+    calligraphic_font_digest: Option<String>,
     auto_sdk: bool,
     sdk_disabled: bool,
     sdk_failure_streak: usize,
@@ -126,8 +131,15 @@ impl Generator {
         let cache = state.join("cache/mathtype/native-v2");
         std::fs::create_dir_all(&work)?;
         let auto_sdk = options.method == ConversionMethod::Auto && sdk_available(resources);
-        let font_digest = if Path::new(&options.font).is_file() {
-            digest_file(Path::new(&options.font))?
+        let font_digest = if Path::new(&options.font.font).is_file() {
+            digest_file(Path::new(&options.font.font))?
+        } else {
+            None
+        };
+        let calligraphic_font_digest = if options.font.calligraphic_font == options.font.font {
+            font_digest.clone()
+        } else if Path::new(&options.font.calligraphic_font).is_file() {
+            digest_file(Path::new(&options.font.calligraphic_font))?
         } else {
             None
         };
@@ -139,6 +151,7 @@ impl Generator {
             work,
             cache,
             font_digest,
+            calligraphic_font_digest,
             auto_sdk,
             sdk_disabled: false,
             sdk_failure_streak: 0,
@@ -300,6 +313,7 @@ impl Generator {
             "style": if portable { Some(&binding.style) } else { None },
             "font": if portable && self.options.backend == ConfigSvgBackend::Typst { Some(&self.options.font) } else { None },
             "font_digest": if portable && self.options.backend == ConfigSvgBackend::Typst { &self.font_digest } else { &None },
+            "calligraphic_font_digest": if portable && self.options.backend == ConfigSvgBackend::Typst { &self.calligraphic_font_digest } else { &None },
         }))?);
         let folder = self.cache.join(&key[..2]).join(&key);
         if let Ok(mut equation) = restore(&folder) {
@@ -327,7 +341,10 @@ impl Generator {
                             .map_err(anyhow::Error::msg)?,
                         font_size_pt: binding.size.unwrap_or(12.0),
                     },
-                    &self.options.font,
+                    MathFontSelection {
+                        font: &self.options.font.font,
+                        calligraphic_font: &self.options.font.calligraphic_font,
+                    },
                 )?;
                 let metadata = serde_json::from_slice(&preview.metadata_json)?;
                 Equation {
@@ -613,4 +630,137 @@ fn capture(mut pipe: impl Read) -> Vec<u8> {
         result.extend_from_slice(&buffer[..keep]);
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use papper_core::metadata::PmtSettings;
+
+    /// Reject changed calligraphic files instead of serving a stale preview, then reuse restored bytes.
+    #[test]
+    fn calligraphic_font_changes_invalidate_document_cache() -> Result<()> {
+        let project = tempfile::tempdir()?;
+        let resources = ResourcePaths {
+            root: project.path().join("resources"),
+            pandoc: project.path().join("resources/pandoc"),
+            template: project.path().join("resources/template"),
+        };
+        let original = std::fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../scripts/latex2wmf/assets/fonts/XITSMath-Regular.otf"),
+        )?;
+        let font_path = project.path().join("calligraphy.otf");
+        std::fs::write(&font_path, &original)?;
+        let effective = EffectiveMetadata {
+            pmt_settings: PmtSettings::from_mapping(
+                json!({
+                    "mathtypeConversionMethod": "rust",
+                    "mathtypeSvgBackend": "typst",
+                    "mathtypeTypstMathFont": {
+                        "font": "New Computer Modern Math",
+                        "calligraphicFont": font_path.to_string_lossy(),
+                    },
+                })
+                .as_object()
+                .unwrap(),
+            )?,
+            pandoc_metadata: Default::default(),
+            has_yaml_header: false,
+        };
+        let binding = Binding {
+            latex: r"\mathcal{F}".into(),
+            style: "inline".into(),
+            marker: Vec::new(),
+            math: Vec::new(),
+            size: Some(12.0),
+        };
+        let first =
+            Generator::new(&resources, &effective, project.path(), None)?.generate(&binding, 0)?;
+        assert!(!first.cache_hit);
+        std::fs::write(&font_path, b"invalid replacement font")?;
+        assert!(
+            Generator::new(&resources, &effective, project.path(), None)?
+                .generate(&binding, 0)
+                .is_err(),
+            "a changed font file must be validated rather than hidden by a cache hit"
+        );
+        std::fs::write(&font_path, original)?;
+        let restored =
+            Generator::new(&resources, &effective, project.path(), None)?.generate(&binding, 0)?;
+        assert!(restored.cache_hit);
+        assert!(first.wmf == restored.wmf);
+        Ok(())
+    }
+
+    /// Share caches for equivalent string/object values while separating different effective font pairs.
+    #[test]
+    fn font_override_changes_preview_and_keeps_separate_cache_entries() -> Result<()> {
+        let project = tempfile::tempdir()?;
+        let resources = ResourcePaths {
+            root: project.path().join("resources"),
+            pandoc: project.path().join("resources/pandoc"),
+            template: project.path().join("resources/template"),
+        };
+        let binding = Binding {
+            latex: r"\mathcal{F}_i+x".into(),
+            style: "inline".into(),
+            marker: Vec::new(),
+            math: Vec::new(),
+            size: Some(12.0),
+        };
+        let mut previews = Vec::new();
+        let mixed = json!({"font": "XITS Math", "calligraphicFont": "New Computer Modern Math"});
+        let single = json!({"font": "XITS Math", "calligraphicFont": "XITS Math"});
+        let selections = [
+            (None, false),
+            (Some(json!("XITS Math")), false),
+            (Some(mixed), true),
+            (Some(single), true),
+            (None, true),
+        ];
+        for (font, cache_hit) in selections {
+            let mut values = json!({
+                "mathtypeConversionMethod": "rust",
+                "mathtypeSvgBackend": "typst",
+            });
+            if let Some(font) = font {
+                values["mathtypeTypstMathFont"] = font;
+            }
+            let effective = EffectiveMetadata {
+                pmt_settings: PmtSettings::from_mapping(values.as_object().unwrap())?,
+                pandoc_metadata: Default::default(),
+                has_yaml_header: false,
+            };
+            let mut generator = Generator::new(&resources, &effective, project.path(), None)?;
+            let equation = generator.generate(&binding, 0)?;
+            assert_eq!(equation.cache_hit, cache_hit);
+            previews.push(equation);
+        }
+        assert!(
+            previews[0].wmf != previews[1].wmf,
+            "an explicit font must affect calligraphy"
+        );
+        assert!(
+            previews[0].wmf == previews[2].wmf,
+            "default cache must restore its original preview"
+        );
+        assert!(
+            previews[1].wmf == previews[3].wmf,
+            "override cache must restore its original preview"
+        );
+        assert_eq!(
+            previews[0].metadata["renderer"]["calligraphic_font"],
+            "New Computer Modern Math"
+        );
+        assert_eq!(
+            previews[1].metadata["renderer"]["calligraphic_font"],
+            "XITS Math"
+        );
+        assert_eq!(
+            previews[0].ole, previews[1].ole,
+            "preview fonts must not alter editable MTEF"
+        );
+        Ok(())
+    }
 }

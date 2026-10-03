@@ -160,9 +160,9 @@ staging，再只修暂存副本：
 runtime ID 为 `a0717f352578625ccf36b066fda66d26f98f16e231d2163d4c19d97c8ff2d2b6`。
 实际归档 CRC 和组件清单见 `wheel-report-final.json`，没有 Python 产品脚本或公式 DLL。
 
-MathType 子模块的安全 API 与默认偏好嵌入以本地 `papper-safe-api` 分支提交
-`a4ac2700a24467a779d51215ad830818d559d3f5` 固定；子仓库干净。源补丁和发布顺序见
-`patches/README.md`，远程发布父仓库前应先使该子模块 commit 可获取。当前没有推送。
+MathType 子模块的安全 API 与默认偏好嵌入最初以提交
+`a4ac2700a24467a779d51215ad830818d559d3f5` 固定。后续公式字体改动直接在
+MathType Rust 和 latex2wmf 各自的 `main` 分支维护，不再保留额外的补丁文件。
 
 本轮最终制品对真实论文执行完整 `build html --start-server` 配对重测。每个场景
 15 对正式样本及 2 对预热：正文编辑中位从 Python **558.44 ms** 到 Rust **243.70 ms**，

@@ -189,7 +189,7 @@ Rust 应用与保留组件之间的边界按以下方式实现：
 - 先处理和接受当前待提交的工作，再冻结完整基线；不覆盖已有暂存内容。
 - 保存参考实现于独立 checkout/归档，原稿只读，对照使用临时项目副本。
 - 跑当前完整测试，记录实际通过/跳过/外部依赖；历史“235 通过”不代表当前版本已验证。
-- 覆盖 `init/setup/build/convert/build-reply/clean/distclean/doctor` 和两个入口，记录实际输入、结果与错误。
+- 覆盖 `init/setup/build/convert/build-reply/clean/doctor` 和两个入口，记录实际输入、结果与错误。
 - 核实 wheel 中原生引擎、数据、SDK helper 与共享库的实际组成。
 - 定义 Python API 的支持策略和当前支持的平台/架构，不把 CI runner 名称当成实际二进制架构。
 - 重新测量 HTML、DOCX、LaTeX、JSON、公式和审稿回复的代表性工作负载。
@@ -225,12 +225,12 @@ Rust 应用与保留组件之间的边界按以下方式实现：
 
 ### 阶段 3：其他目标、工具管理和 Python filters
 
-交付：Rust `build latex/json`、模板初始化、setup/doctor、clean/distclean、更新检查，六个旧 Python filters 的 Lua 替代与小型 Rust 图像 helper。
+交付：Rust `build latex/json`、模板初始化、setup/doctor、clean、更新检查，六个旧 Python filters 的 Lua 替代与小型 Rust 图像 helper。
 
 - 复现 JSON AST、LaTeX 资源复制与图像转换行为；不只验证构建退出码。
 - 保持源码与安装包两种资源加载方式，发布资源清单带版本及摘要。
 - 以原子替换处理工具下载/解包/修复，保留系统代理和显式代理的优先级及失败恢复。
-- `clean/distclean` 只操作正确项目的既定状态，不扩大删除范围；兼容旧状态时先识别版本。
+- `clean` 清除正确项目的输出、工作文件和缓存，不扩大删除范围；兼容旧状态时先识别版本。
 - 以 Lua 移植 SVG 内嵌、公式/LaTeX filters 和 SVG→PNG 的 AST/缓存规则，像素处理调用小型 Rust helper；保留尺寸、字号、字体和 per-image 控制。
 - 诊断输出基于实际可用能力，不把所有平台都宣称支持 Windows SDK 路径。
 

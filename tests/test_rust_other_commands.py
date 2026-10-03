@@ -89,10 +89,10 @@ def test_native_init_matches_complete_reference_and_preserves_user_edits(
     assert (native / "manuscript.md").read_text(encoding="utf-8") == "user manuscript\n"
 
 
-def test_native_clean_preserves_cache_and_distclean_preserves_other_projects(
+def test_native_clean_removes_project_caches_and_preserves_other_projects(
     tmp_path: Path, rust_executable: Path,
 ) -> None:
-    """Delete transient work separately from reusable data, retaining another project on deep clean."""
+    """Remove output and all project caches while preserving manuscripts and another project's data."""
     home = tmp_path / "home"
     first = tmp_path / "first"
     second = tmp_path / "second"
@@ -115,14 +115,15 @@ def test_native_clean_preserves_cache_and_distclean_preserves_other_projects(
     assert cleaned.returncode == 0, cleaned.stdout + cleaned.stderr
     assert not (first / "output").exists()
     assert not work.exists()
-    assert (_state(home, first) / "cache/result.bin").read_bytes() == b"first"
-    assert (first / ".pandoc-cache/legacy.bin").read_bytes() == b"legacy cache"
-    deep = _native(rust_executable, ["distclean"], first, home)
-    assert deep.returncode == 0, deep.stdout + deep.stderr
     assert not _state(home, first).exists()
     assert not (first / ".pandoc-cache").exists()
     assert (_state(home, second) / "cache/result.bin").read_bytes() == b"second"
     assert (first / "manuscript.md").read_text(encoding="utf-8") == "user content"
+    repeated = _native(rust_executable, ["clean"], first, home)
+    assert repeated.returncode == 0, repeated.stdout + repeated.stderr
+    removed = _native(rust_executable, ["distclean"], first, home)
+    assert removed.returncode != 0
+    assert "unrecognized subcommand" in removed.stderr
 
 
 @pytest.mark.parametrize("target", [".", ".."])
@@ -134,7 +135,7 @@ def test_native_clean_rejects_project_or_ancestor_without_deleting_user_data(
     project.mkdir()
     manuscript = project / "manuscript.md"
     manuscript.write_bytes(b"must remain intact")
-    result = _native(rust_executable, ["distclean", "--output-dir", target], project, tmp_path / "home")
+    result = _native(rust_executable, ["clean", "--output-dir", target], project, tmp_path / "home")
     assert result.returncode != 0
     assert "Refusing to clean unsafe" in result.stderr
     assert manuscript.read_bytes() == b"must remain intact"

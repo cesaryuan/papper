@@ -13,8 +13,8 @@ use yaml_rust::scanner::{TScalarStyle, TokenType};
 
 mod settings;
 pub use settings::{
-    ConversionMethod, DocxStyles, LengthInput, LineNumberMode, SettingField, SettingsOverrides,
-    SettingsValues, SvgBackend,
+    ConversionMethod, DocxStyles, LengthInput, LineNumberMode, MathFontConfig, SettingField,
+    SettingsOverrides, SettingsValues, SvgBackend,
 };
 
 /// Store canonical configuration while tracking explicitly supplied fields.
@@ -540,12 +540,7 @@ fn validate_field(name: &str, value: &Value) -> Result<Value> {
         "docxShowPageNumbers" if value.is_null() => Ok(Value::Null),
         "docxShowPageNumbers" => parse_bool(value, name),
         "mathtypeConversionMethod" => conversion_method(value),
-        "mathtypeTypstMathFont" => {
-            let Some(raw) = value.as_str().filter(|raw| !raw.trim().is_empty()) else {
-                bail!("mathtypeTypstMathFont must not be blank")
-            };
-            Ok(json!(raw.trim()))
-        }
+        "mathtypeTypstMathFont" => Ok(json!(MathFontConfig::from_value(value)?)),
         "mathtypeSvgBackend" => match value.as_str() {
             Some("ratex" | "typst") => Ok(value.clone()),
             _ => bail!("mathtypeSvgBackend must be ratex or typst"),
@@ -743,6 +738,36 @@ impl Default for PmtSettings {
     }
 }
 
+/// Resolve both font paths against their owning style without treating family names as paths.
+fn resolve_math_font_paths(fonts: &MathFontConfig, source: &Path) -> Result<MathFontConfig> {
+    /// Preserve family names and resolve font files independently for body and calligraphy.
+    fn resolve(font: &str, source: &Path) -> Result<String> {
+        let font_path = expand_home(font);
+        let suffix = font_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if font.contains('/')
+            || font.contains('\\')
+            || matches!(suffix.as_str(), "otf" | "ttf" | "ttc" | "otc")
+        {
+            let path = if font_path.is_absolute() {
+                font_path
+            } else {
+                source.parent().unwrap_or(Path::new(".")).join(font_path)
+            };
+            Ok(absolute_path(&path)?.to_string_lossy().into())
+        } else {
+            Ok(font.into())
+        }
+    }
+    Ok(MathFontConfig {
+        font: resolve(&fonts.font, source)?,
+        calligraphic_font: resolve(&fonts.calligraphic_font, source)?,
+    })
+}
+
 impl PmtSettings {
     /// Validate only Papper-owned fields, rejecting unknown application settings.
     pub fn from_mapping(mapping: &Map<String, Value>) -> Result<Self> {
@@ -798,26 +823,10 @@ impl PmtSettings {
             let mut settings = Self::from_mapping(&values)?;
             settings.pandoc_metadata = pandoc_metadata;
             settings.reply = reply;
-            if let Some(font) = settings.get_str("mathtypeTypstMathFont") {
-                let font_path = expand_home(font);
-                let suffix = font_path
-                    .extension()
-                    .and_then(|extension| extension.to_str())
-                    .unwrap_or("")
-                    .to_lowercase();
-                if font.contains('/')
-                    || font.contains('\\')
-                    || matches!(suffix.as_str(), "otf" | "ttf" | "ttc" | "otc")
-                {
-                    // Font files are relative to their owning style, not the build cwd.
-                    let path = if font_path.is_absolute() {
-                        font_path
-                    } else {
-                        source.parent().unwrap_or(Path::new(".")).join(font_path)
-                    };
-                    settings.set_math_font(absolute_path(&path)?.to_string_lossy().into())?;
-                }
-            }
+            settings.set_math_font(resolve_math_font_paths(
+                &settings.fields.mathtype_typst_math_font,
+                source,
+            )?)?;
             Ok(settings)
         })();
         result.with_context(|| format!("Invalid style settings in {}", source.display()))
@@ -861,7 +870,6 @@ impl PmtSettings {
                 Some(self.fields.mathtype_conversion_method.as_str())
             }
             SettingField::MathtypeSvgBackend => Some(self.fields.mathtype_svg_backend.as_str()),
-            SettingField::MathtypeTypstMathFont => Some(&self.fields.mathtype_typst_math_font),
             SettingField::CitationNumberRangeDelimiter => {
                 self.fields.citation_number_range_delimiter.as_deref()
             }
@@ -921,7 +929,11 @@ impl ReplySettings {
     /// Validate reply fields as an override layer rather than installing fresh defaults.
     pub fn from_mapping(raw: &Map<String, Value>, source: &Path) -> Result<Self> {
         let (pmt, pandoc_metadata, _) = split_style_mapping(raw, source, "reply")?;
-        let settings = PmtSettings::from_mapping(&pmt)?;
+        let mut settings = PmtSettings::from_mapping(&pmt)?;
+        settings.set_math_font(resolve_math_font_paths(
+            &settings.fields.mathtype_typst_math_font,
+            source,
+        )?)?;
         Ok(Self {
             pmt_overrides: SettingsOverrides {
                 fields: settings.fields,
@@ -1388,5 +1400,64 @@ mod tests {
             assert!(serde_json::from_value::<PmtSettings>(wire).is_err());
         }
         Ok(())
+    }
+
+    /// Preserve both style-relative font paths and reply overrides through effective metadata serialization.
+    #[test]
+    fn math_font_objects_resolve_both_paths_and_survive_roundtrip() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let source = directory.path().join("style.yml");
+        let text = "mathtypeTypstMathFont:\n  font: fonts/body.otf\n  calligraphicFont: fonts/script.ttf\nreply:\n  mathtypeTypstMathFont:\n    font: fonts/reply.otf\n    calligraphicFont: New Computer Modern Math\n";
+        let settings = PmtSettings::from_yaml_text(text, &source)?;
+        let restored: PmtSettings = serde_json::from_value(serde_json::to_value(&settings)?)?;
+        let fonts = &restored.fields().mathtype_typst_math_font;
+        assert_eq!(
+            Path::new(&fonts.font),
+            directory.path().join("fonts/body.otf")
+        );
+        assert_eq!(
+            Path::new(&fonts.calligraphic_font),
+            directory.path().join("fonts/script.ttf")
+        );
+        let reply = restored.for_reply()?;
+        assert_eq!(
+            Path::new(&reply.fields().mathtype_typst_math_font.font),
+            directory.path().join("fonts/reply.otf")
+        );
+        assert_eq!(
+            reply.fields().mathtype_typst_math_font.calligraphic_font,
+            "New Computer Modern Math"
+        );
+        let string = PmtSettings::from_yaml_text("mathtypeTypstMathFont: ' XITS Math '", &source)?;
+        let object = PmtSettings::from_yaml_text(
+            "mathtypeTypstMathFont: {font: XITS Math, calligraphicFont: XITS Math}",
+            &source,
+        )?;
+        assert_eq!(
+            string.fields().mathtype_typst_math_font,
+            object.fields().mathtype_typst_math_font
+        );
+        Ok(())
+    }
+
+    /// Reject incomplete or misspelled font objects rather than silently changing rendered glyphs.
+    #[test]
+    fn math_font_configuration_rejects_invalid_objects() {
+        for font in [
+            json!({"font": "XITS Math"}),
+            json!({"calligraphicFont": "New Computer Modern Math"}),
+            json!({"font": "XITS Math", "calligraphicFont": " "}),
+            json!({"font": 12, "calligraphicFont": "XITS Math"}),
+            json!({"font": "XITS Math", "calligraphicFont": "XITS Math", "scriptFont": "XITS Math"}),
+            json!(null),
+            json!(false),
+        ] {
+            assert!(
+                PmtSettings::from_mapping(
+                    json!({"mathtypeTypstMathFont": font}).as_object().unwrap()
+                )
+                .is_err()
+            );
+        }
     }
 }

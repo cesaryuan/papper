@@ -30,8 +30,7 @@ pub fn dispatch(command: CliCommand) -> Result<()> {
         }
         CliCommand::Build(args) => build(args),
         CliCommand::Init(args) => initialize(args),
-        CliCommand::Clean(args) => clean(args, false),
-        CliCommand::Distclean(args) => clean(args, true),
+        CliCommand::Clean(args) => clean(args),
         CliCommand::Setup(args) => crate::tools::setup(&ResourcePaths::discover()?, args.force),
         CliCommand::Doctor(_) => doctor(),
         CliCommand::NativeUpdate => crate::tools::run_update_worker(),
@@ -621,8 +620,8 @@ fn copy_tree(source: &Path, destination: &Path, merge: bool) -> Result<()> {
     Ok(())
 }
 
-/// Refuse project/ancestor/symlink escapes before deleting any generated output.
-fn clean(args: CleanArgs, deep: bool) -> Result<()> {
+/// Stop the project service and remove outputs, work, and caches, refusing unsafe output paths.
+fn clean(args: CleanArgs) -> Result<()> {
     let project = canonical_project(&std::env::current_dir()?)?;
     let output = absolute(&args.output_dir, &project);
     papper_server::stop_project_server(&project)?;
@@ -635,16 +634,12 @@ fn clean(args: CleanArgs, deep: bool) -> Result<()> {
         );
         std::fs::remove_dir_all(&output).context("Could not clean generated output")?;
     }
-    let state = if deep {
-        project_state_dir(&project)?
-    } else {
-        project_state_dir(&project)?.join("work")
-    };
+    let state = project_state_dir(&project)?;
     if state.exists() {
         std::fs::remove_dir_all(state)?;
     }
     let legacy_cache = project.join(".pandoc-cache");
-    if deep && legacy_cache.exists() {
+    if legacy_cache.exists() {
         let resolved = PathBuf::from(display_path(&legacy_cache.canonicalize()?));
         anyhow::ensure!(
             resolved.starts_with(&project) && resolved != project,
@@ -652,9 +647,6 @@ fn clean(args: CleanArgs, deep: bool) -> Result<()> {
         );
         std::fs::remove_dir_all(legacy_cache)?;
     }
-    println!(
-        "[OK] {} complete.",
-        if deep { "Deep clean" } else { "Clean" }
-    );
+    println!("[OK] Clean complete (outputs, work and project caches).");
     Ok(())
 }

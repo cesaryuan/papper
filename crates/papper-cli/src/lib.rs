@@ -29,10 +29,8 @@ pub enum CliCommand {
     Convert(ConvertArgs),
     /// Build a reply to reviewers.
     BuildReply(ReplyArgs),
-    /// Remove generated outputs and transient project state.
+    /// Remove generated outputs, work files, and reusable project caches.
     Clean(CleanArgs),
-    /// Remove generated outputs and reusable project caches.
-    Distclean(CleanArgs),
     /// Diagnose available tools and project resources.
     Doctor(VerboseArgs),
     #[command(name = "__server", hide = true)]

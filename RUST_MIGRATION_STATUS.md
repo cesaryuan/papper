@@ -8,7 +8,7 @@
 
 | 模块 | 实现与交付 |
 | --- | --- |
-| CLI 与项目命令 | 原生 `papper` / `pmt`，支持 init、setup、doctor、build、convert、build-reply、clean、distclean |
+| CLI 与项目命令 | 原生 `papper` / `pmt`，支持 init、setup、doctor、build、convert、build-reply、clean；clean 默认清除项目缓存 |
 | 配置与元数据 | 16 个 typed Rust 设置、受控更新和显式提供集合；YAML 别名/合并、语言与环境变量优先级；任意 Pandoc metadata 单独保留 |
 | HTML CLI 与 Server | Rust HTTP 服务、完整命令客户端、项目身份与进程状态、后台启动、持久 Haskell worker、配置重载、失败恢复及退出 |
 | HTML 缓存 | 不可变元数据文件、依赖图、远程 CSL 条件验证、文件字节/摘要、有限 HTML 结果缓存；每请求验证依赖与缺失的高优先候选 |
@@ -63,7 +63,7 @@ SHA-256：`b0ec1e2e616f09ef75c0a8d18e493e2b70887c2029ba030187c6d4607b0bb021`。
 
 产品 `dependencies` 为空。Python 依赖仅在 `dev` 组中；`tools/papper_build.py` 是源码安装所需的 PEP 517/660 构建桥接，委托 Rust 打包，不安装到产品运行路径。原来的 Python 导入 API 和 `python -m` 工具从原生 wheel 移除，集成使用 CLI 或 Rust 库。
 
-运行 HTML 服务的项目在升级前执行 `papper clean` 停止自己的后台进程，保留可复用缓存，升级后再构建并启动新程序。当前没有实现在线替换已经运行的 Rust 服务进程；不能让旧进程自动获得新二进制的业务代码。
+运行 HTML 服务的项目在升级前执行 `papper clean` 停止自己的后台进程并清理项目缓存，升级后再构建并启动新程序。当前没有实现在线替换已经运行的 Rust 服务进程；不能让旧进程自动获得新二进制的业务代码。
 
 安装方式仍为 `uv tool install papper`。wheel 的 scripts 中放置原生可执行文件；Windows 上 uv 将其复制到工具入口目录。引擎、动态库和模板内嵌后按归档摘要解包到 `PAPPER_HOME/runtime/<digest>`，首次成功发布完成标记后复用。普通产品命令直接运行 Rust，不因 uv 的安装环境而启动 Python。
 
@@ -114,7 +114,7 @@ Rust 工作区的 **23 个测试**已通过，验证配置优先级、YAML 合�
 
 - A → B → A 头信息切换后仍读取正确的不可变元数据文件。
 - 次要源文件使用自己的资源路径；后来创建的优先图片和恢复 mtime 后的字节编辑会失效。
-- 同时首次启动两次 CLI 时保存真实服务 PID，失败子进程不会提前中止等待；clean 退出 server 和 worker 并保留项目缓存。
+- 同时首次启动两次 CLI 时保存真实服务 PID，失败子进程不会提前中止等待；clean 退出 server 和 worker 后清理项目缓存。
 - Windows 原子发布在瞬时共享锁和超出 MAX_PATH 的 Unicode 路径下保持完整输出。
 - 嵌入 CSS 的本地 `@import`、图片资源变化会失效；无法可靠验证的 CSS 依赖关闭整份 HTML 复用。
 - 启用资源内嵌后，正文中的远程图片变化不能被整份 HTML 复用遮住；普通非内嵌 URL 继续允许缓存。

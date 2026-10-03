@@ -127,8 +127,9 @@ Reusable caches and persistent build state live under
 The project ID is derived from its absolute directory, so projects cannot overwrite
 each other's state. One-build intermediates such as MathType OLE/WMF previews and
 line-source conversion files use the system temporary directory and are removed
-when the Papper process exits. `papper clean` clears the current project's work;
-`papper distclean` also clears its cache. Existing project-local `.pmt` or `.papper`
+when the Papper process exits. `papper clean` removes generated outputs and clears
+the current project's work and caches, including MathType equation caches and the
+legacy `.pandoc-cache`. Existing project-local `.pmt` or `.papper`
 directories are not migrated or deleted automatically.
 Legacy tool downloads and executable installation use temporary files followed by atomic
 replacement, so an interrupted build can be rerun. Invalid cached archives are
@@ -190,7 +191,7 @@ workspace libraries for integrations. The reference remains available to
 repository tests only. Existing manuscript files and style configuration
 continue to work; native state uses a separate `work/rust-v1` namespace.
 Before upgrading a project with a running HTML service, run `papper clean` in
-that project to stop the owned service while retaining reusable caches. The
+that project to stop the owned service and clear its build state and caches. The
 next `papper build html --start-server` launches the newly installed program.
 
 ### Create Your First Project
@@ -377,7 +378,6 @@ papper build latex
 papper build json
 papper build-reply reply.md -o output/docx/reply.docx
 papper clean
-papper distclean
 ```
 
 Use `papper --help` to see the full CLI.
@@ -537,13 +537,34 @@ source before it can be published. GHC/Cabal are build-time tools only.
 For MathType, the CLI directly links `mathtype-rust` and the same pinned Git
 revision of `latex2wmf`. A safe Rust API returns owned OLE/MTEF bytes and previews;
 no formula DLL, dynamic symbol lookup, or binary hex/JSON C ABI is shipped.
-The renderer retains backend, style, font size, and math-font options. Formula
-caches use `native-v2` and a compile-time engine fingerprint, plus the current
-preferences, font and optional helper inputs. The standalone `latex2wmf` crate
+The renderer retains backend, style, font size, and math-font options.
+`mathtypeTypstMathFont` accepts a string for one font throughout, or an object with
+required `font` and `calligraphicFont` fields. Its default value explicitly selects
+XITS Math and New Computer Modern Math respectively. Both default fonts are bundled.
+Formula caches use `native-v2` and a compile-time engine fingerprint, plus the current
+preferences, normalized font pair, both font-file digests, and optional helper inputs.
+Equivalent string/object selections share cached previews. The standalone `latex2wmf` crate
 and CLI remain available for development. The separate image helper is built
 without `papper-core` or the embedded runtime archive. MuPDF is linked into the
 CLI through `mupdf-sys`; the optional Windows C# helper remains a packaged
 external component.
+
+```yaml
+# One font for ordinary math and calligraphy:
+mathtypeTypstMathFont: XITS Math
+```
+
+```yaml
+# Explicit default, with separate calligraphy for \mathcal, \mathscr, and \cal:
+mathtypeTypstMathFont:
+  font: XITS Math
+  calligraphicFont: New Computer Modern Math
+```
+
+Both object fields accept a family name or `.otf`, `.ttf`, `.ttc`, or `.otc` file
+path. Relative paths resolve from the owning style file. Effective metadata
+normalizes string shorthand to the same two-field object used for rendering and
+cache keys; the renderer metadata reports both selected fonts.
 
 CI sets `CARGO_TARGET_DIR` to persist native build artifacts. On Linux this directory and Cargo's download cache live on the host via
 the container's `/host` mount, so they survive the manylinux container. Local
