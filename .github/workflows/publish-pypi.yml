@@ -252,7 +252,15 @@ jobs:
               wheels=(dist/*.whl)
               test "${#wheels[@]}" = 1
               cargo run --locked -p papper-dev -- smoke --wheel "${wheels[0]}"
+              # Atomic writes leave root-owned wheels at 0600; the host runner
+              # needs read access when upload-artifact opens them outside Docker.
+              chmod 0644 -- "${wheels[@]}"
             '
+          # Check the container-to-host handoff as the user that uploads artifacts.
+          for wheel in dist/*.whl; do
+            test -r "$wheel"
+            stat -c '%U:%G %a %n' "$wheel"
+          done
 
       - name: Prepare Linux cache for archiving
         if: github.ref == 'refs/heads/main' && (steps.rust-cache.outputs.cache-hit != 'true' || steps.haskell-cache.outputs.cache-hit != 'true')
