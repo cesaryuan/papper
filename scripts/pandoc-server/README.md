@@ -27,7 +27,8 @@ discovery, bounded HTML caching, and normal HTML postprocessing. The serialized
 Haskell worker keeps Pandoc and citation assets alive between conversions.
 Markdown is parsed from a fresh immutable snapshot. Public HTTP conversions
 return exact documents. The former Python application is retained only under
-`tests/legacy` as a development oracle; installed commands do not start Python.
+`tests/legacy` as a historical archive excluded from active tests and development
+installations; installed commands do not start Python.
 
 ## Installed wheels
 

@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
 from snapshot_utils import assert_snapshot, canonical_docx, canonical_html
-from pandoc_manuscript.runtime.resources import native_pandoc_executable
+from native_support import native_pandoc_executable, papper_command
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,7 +50,7 @@ DOCX_ONLY_CASES = {"native_crossrefs", "equation_attributes"}
 
 pytestmark = pytest.mark.skipif(
     native_pandoc_executable() is None and (shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None),
-    reason="snapshot builds require the native engine or legacy Pandoc tools",
+    reason="snapshot builds require the native engine or standalone Pandoc and crossref",
 )
 
 
@@ -60,11 +59,7 @@ def build_case(
 ) -> None:
     """Build one fixture through the public Papper CLI into a temporary file."""
     command = [
-        "uv",
-        "run",
-        "--project",
-        str(ROOT),
-        "papper",
+        *papper_command(),
         "build",
         target,
         "-m",
@@ -139,7 +134,7 @@ def test_build_reply_output_matches_snapshot(
     output = tmp_path / f"reply.{target}"
     result = subprocess.run(
         [
-            "uv", "run", "--project", str(ROOT), "papper", "build-reply",
+            *papper_command(), "build-reply",
             str(case_dir / "reply.md"),
             "--manuscript-line-source", str(line_source),
             "-o", str(output),

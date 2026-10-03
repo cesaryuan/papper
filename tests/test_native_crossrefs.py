@@ -7,7 +7,7 @@ from collections import Counter
 from pathlib import Path
 import shutil
 import subprocess
-import sys
+from native_support import native_pandoc_executable, papper_command
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
@@ -18,8 +18,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 pytestmark = pytest.mark.skipif(
-    shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None,
-    reason="native cross-reference builds require Pandoc and pandoc-crossref",
+    native_pandoc_executable() is None and
+    (shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None),
+    reason="cross-reference builds require the native engine or standalone Pandoc and crossref",
 )
 
 
@@ -34,11 +35,11 @@ def prepare_project(project: Path, manuscript: str, native_crossref: bool, **met
 
 
 def build_document(project: Path, target: str = "docx") -> tuple[Path, str]:
-    """Run the installed CLI so tests cover style parsing and the actual filter chain."""
+    """Run the current Rust CLI to cover style parsing and the actual filter chain."""
     output = project / f"result.{target}"
     environment = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     result = subprocess.run(
-        [sys.executable, "-m", "pandoc_manuscript.cli", "build", target, "paper.md", "-o", str(output)],
+        [*papper_command(), "build", target, "paper.md", "-o", str(output)],
         cwd=project,
         env=environment,
         capture_output=True,

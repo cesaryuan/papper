@@ -18,7 +18,7 @@ from urllib.parse import quote
 
 import pytest
 
-from pandoc_manuscript.runtime.resources import native_pandoc_executable
+from native_support import native_pandoc_executable
 
 
 ROOT = Path(__file__).resolve().parents[1]

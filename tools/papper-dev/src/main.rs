@@ -5,7 +5,7 @@
 //! `worker` prepares pinned Pandoc sources and builds the trimmed Haskell engine.
 //! `--prebuilt` reuses explicitly selected native components for local verification.
 //! Wheels contain native scripts and a shared runtime directory; no Python entry
-//! point or application module is included. Python remains only a test oracle.
+//! point or application module is included. Python only drives artifact tests.
 
 use anyhow::{Context, Result, bail};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -36,7 +36,7 @@ enum DevCommand {
     Worker,
     /// Build a Python-runtime-free platform wheel.
     Wheel(WheelArgs),
-    /// Build a native development wheel, retaining the Python oracle only in dev.
+    /// Build a development wheel containing the native debug executables.
     Editable(EditableArgs),
     /// Exercise an installed wheel using only public native commands.
     Smoke(SmokeArgs),
@@ -418,7 +418,7 @@ fn append_entry(
     Ok(())
 }
 
-/// Install direct debug executables for uv run while exposing the frozen test oracle.
+/// Install direct debug executables for uv run without Python application modules.
 fn build_editable(output: &Path) -> Result<()> {
     let root = root()?;
     execute(
@@ -455,14 +455,6 @@ fn build_editable(output: &Path) -> Result<()> {
             true,
         )?;
     }
-    let oracle = root.join("tests/legacy");
-    append_entry(
-        &mut archive,
-        &mut record,
-        "papper_test_oracle.pth",
-        format!("{}\n", oracle.display()).as_bytes(),
-        false,
-    )?;
     append_entry(&mut archive, &mut record, &format!("{info}/METADATA"), format!("Metadata-Version: 2.4\nName: papper\nVersion: {version}\nRequires-Python: >=3.11\nSummary: Native Papper development installation\n").as_bytes(), false)?;
     append_entry(
         &mut archive,

@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 
 from test_build_snapshots import ROOT
-from test_rust_cli_contract import rust_executable
 
 
 def test_native_update_does_not_hold_captured_cli_pipes(

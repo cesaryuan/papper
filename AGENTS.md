@@ -1,7 +1,7 @@
 This repository is the `papper` tool, not a manuscript project.
 
 - Native core implementation lives in the Rust workspace under `crates/`.
-- Release/development tooling lives in `tools/papper-dev/`; `tests/legacy/` is a frozen Python test reference and must not become a product backend.
+- Release/development tooling lives in `tools/papper-dev/`; `tests/legacy/` is a frozen historical archive that active tests must not import or execute.
 - Template content for generated paper projects lives in `template/`.
 
 ### 测试规范

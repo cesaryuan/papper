@@ -17,7 +17,6 @@ import pytest
 
 from snapshot_utils import assert_snapshot, canonical_docx
 from test_build_snapshots import CASES, ROOT, SNAPSHOT_ROOT
-from test_rust_cli_contract import rust_executable
 
 
 @pytest.fixture(scope="module")
@@ -132,7 +131,6 @@ def test_native_mathtype_preserves_failed_formulas_layout_and_invalidates_corrup
     from docx.shared import Pt
     from lxml import etree
     from zipfile import ZipFile, ZIP_DEFLATED
-    from pandoc_manuscript.mathtype import marked_docx, ole_parts
 
     document = Document()
     formulas = [("inline", "x_1"), ("display", r"\frac{"), ("display", "y+2"), ("inline", "x_1")]
@@ -177,31 +175,31 @@ def test_native_mathtype_preserves_failed_formulas_layout_and_invalidates_corrup
 
     first = convert()
     assert first == {"total": 4, "converted": 3, "failures": 1, "cache_hits": 1}
-    monkeypatch.setattr(ole_parts, "mathtype_cache_dir", lambda: tmp_path / "python-cache")
-    # The frozen Python reference still uses its DLL, allowing byte comparisons
-    # against independently called conversion code without recompiling the oracle.
-    converter = ole_parts.native.NativeConverter("mathtype-rust", ole_parts.native.library_path("mathtype-rust"))
-    monkeypatch.setattr(ole_parts.native, "get_converter", lambda project: converter)
-    requests = marked_docx.extract_marked_equation_requests(source)
-    expected = ole_parts.generate_equation_parts(requests, tmp_path / "python", conversion_method="rust", svg_backend="typst")
-    assert expected[1] is None
+    original_parts = {}
     with ZipFile(target) as archive:
         assert archive.read("customXml/attachment.bin") == payload
         xml = etree.fromstring(archive.read("word/document.xml"))
         assert b"MTLATEX:" not in archive.read("word/document.xml")
-        ns = marked_docx.NS
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+              "m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
+              "o": "urn:schemas-microsoft-com:office:office"}
         assert xml.xpath("count(.//o:OLEObject)", namespaces=ns) == 3
         assert xml.xpath(".//m:oMath//m:t/text()", namespaces=ns) == [r"\frac{"]
         for index in (0, 2, 3):
-            equation = expected[index]
-            assert equation is not None
-            assert archive.read(f"word/embeddings/mathtype_formula_{index + 1}.bin") == equation.ole_path.read_bytes()
-            assert archive.read(f"word/media/mathtype_formula_{index + 1}.wmf") == equation.wmf_path.read_bytes()
+            ole = archive.read(f"word/embeddings/mathtype_formula_{index + 1}.bin")
+            wmf = archive.read(f"word/media/mathtype_formula_{index + 1}.wmf")
+            assert ole.startswith(bytes.fromhex("d0cf11e0a1b11ae1"))
+            assert wmf.startswith(bytes.fromhex("d7cdc69a"))
+            original_parts[index] = (ole, wmf)
+        assert original_parts[0] == original_parts[3]
         # A display formula must not inherit inline baseline positioning.
         display = xml.xpath(".//w:r[o:OLEObject or w:object/o:OLEObject[@ShapeID='_x0000_i3003']]", namespaces=ns)
         assert display and not display[0].xpath("w:rPr/w:position", namespaces=ns)
         inline = xml.xpath(".//w:r[w:object/o:OLEObject[@ShapeID='_x0000_i3001']]/w:rPr/w:position/@w:val", namespaces=ns)
-        assert inline == [str(-round(expected[0].baseline_from_bottom_pt * 2))]
+        metadata_path = next(preview.parent / "metadata.json" for preview in (tmp_path / "home").rglob("preview.wmf")
+                             if preview.read_bytes() == original_parts[0][1])
+        baseline = json.loads(metadata_path.read_bytes())["mathtype"]["baseline_from_bottom_pt"]
+        assert inline == [str(-round(baseline * 2))]
     assert convert()["cache_hits"] == 3
     caches = list((tmp_path / "home").rglob("equation.ole.bin"))
     assert len(caches) == 2
@@ -210,7 +208,8 @@ def test_native_mathtype_preserves_failed_formulas_layout_and_invalidates_corrup
     recovered = convert()
     assert recovered == first
     with ZipFile(target) as archive:
-        assert archive.read("word/embeddings/mathtype_formula_1.bin") == expected[0].ole_path.read_bytes()
+        assert archive.read("word/embeddings/mathtype_formula_1.bin") == original_parts[0][0]
+        assert archive.read("word/media/mathtype_formula_1.wmf") == original_parts[0][1]
 
 
 def test_native_docx_rejects_unrendered_reference_syntax_without_replacing_existing_output(

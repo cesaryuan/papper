@@ -35,7 +35,6 @@ from test_rust_cli_contract import (
     _stop_owned_pid,
     native_project_factory,
     native_service_factory,
-    rust_executable,
 )
 
 

@@ -1,7 +1,6 @@
 """Verify the native migration against real documents and the retained engine.
 
-The Python implementation remains a development reference only. These tests
-invoke the Rust executable and its HTTP service directly, compare existing
+These tests invoke the Rust executable and its HTTP service directly, compare existing
 snapshots without rewriting them, and exercise observable cache/recovery rules.
 """
 
@@ -23,27 +22,8 @@ from typing import Any
 
 import pytest
 
-from pandoc_manuscript.runtime.resources import native_pandoc_executable
 from snapshot_utils import assert_snapshot, canonical_html
 from test_build_snapshots import CASES, DOCX_ONLY_CASES, ROOT, SNAPSHOT_ROOT
-
-
-@pytest.fixture(scope="module")
-def rust_executable(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Build the actual native executable once, failing on compilation errors."""
-    if shutil.which("cargo") is None:
-        pytest.skip("native migration contracts require Cargo")
-    if native_pandoc_executable() is None:
-        pytest.skip("native migration contracts require the retained native Pandoc engine")
-    command = ["cargo", "build", "--offline", "-p", "papper-cli"]
-    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=180)
-    assert result.returncode == 0, result.stdout + result.stderr
-    built = ROOT / "target/debug" / ("papper.exe" if os.name == "nt" else "papper")
-    executable = tmp_path_factory.mktemp("native-cli-binary") / built.name
-    # Windows locks running executables. Owned service copies let independent
-    # migration work rebuild Cargo targets while these contracts are executing.
-    shutil.copy2(built, executable)
-    return executable
 
 
 def _available_port() -> int:
@@ -57,6 +37,23 @@ def _stop_owned_pid(pid: int) -> None:
     """Stop only a process explicitly recorded as belonging to a test service."""
     try:
         os.kill(pid, signal.SIGTERM)
+        if os.name == "nt":
+            # TerminateProcess returns before exit completes; wait so the next
+            # request tests a dead worker rather than racing its closing pipe.
+            from ctypes import wintypes
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            kernel.OpenProcess.restype = wintypes.HANDLE
+            kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            kernel.WaitForSingleObject.restype = wintypes.DWORD
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel.CloseHandle.restype = wintypes.BOOL
+            handle = kernel.OpenProcess(0x00100000, False, pid)
+            if handle:
+                try:
+                    assert kernel.WaitForSingleObject(handle, 5000) == 0, "Owned worker did not exit"
+                finally:
+                    kernel.CloseHandle(handle)
     except ProcessLookupError:
         pass
     except OSError as error:

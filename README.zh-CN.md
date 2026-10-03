@@ -122,13 +122,19 @@ MathType OLE/WMF 预览图、行号来源转换文件等单次构建中间产物
 ```bash
 cargo check --workspace --locked
 cargo test --workspace --locked
+cargo run -p papper-dev -- worker
 uv sync
 uv run pytest
 ```
 
-`uv sync` 安装原生开发 CLI。Python 及其依赖只用于既有测试和 `tests/legacy/`
-中的冻结对照实现。修改 CLI 后，运行 `uv sync --reinstall-package papper` 刷新开发
+`uv sync` 安装原生开发 CLI。Python 只用于驱动集成测试并检查 Rust 和现用
+Haskell/Lua 组件生成的实际产物。Pytest 每次会话都会编译当前 Rust CLI，测试
+不依赖已安装的开发程序是否最新。`tests/legacy/` 仅作为历史归档，不参与测试，
+也不会加入开发安装的 Python 搜索路径。修改 CLI 后，运行
+`uv sync --reinstall-package papper` 刷新开发
 可执行文件。发布 wheel 不包含旧 Python 实现，也不依赖 Python 运行库。
+源码集成测试需要 GHC 9.14.1 和 Cabal 3.18.1.0，先用上面的 worker 命令构建
+当前锁定的格式配置，避免测试误用以前保留全部格式的开发程序。
 完整打包和安装验证分别使用 `cargo run -p papper-dev -- wheel --output dist` 和
 `cargo run -p papper-dev -- smoke --wheel <wheel-path>`。
 

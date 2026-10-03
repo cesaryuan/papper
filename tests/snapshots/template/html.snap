@@ -798,7 +798,7 @@ two columns.</p>
 <p>The proposed approach can be expressed mathematically. Consider a
 function <span class="math inline">f(x)</span> defined as:</p>
 <p><span id="eq:linear"><span class="math display">
-f(\boldsymbol{x}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b}
+f(\boldsymbol{x+z}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b}
 \tag{1}</span></span></p>
 <div data-custom-style="Para Where">
 <p>where <span class="math inline">w_i</span> represents the weight
@@ -912,11 +912,9 @@ relative paths in a reusable template repository.</p>
 a synthetic performance trend across evaluation steps.</figcaption>
 </figure>
 <p>For most multi-panel layouts, prepare one SVG file that references
-the child image files with relative paths. The SVG example in Figure <a href="#fig:subfigure-svg-example">2</a> composes two synthetic panels
-from <code>examples/images/subfigure-a-example.png</code> and
-<code>examples/images/subfigure-b-example.png</code>, while Markdown
-treats the result as one normal figure with one caption and one
-cross-reference label.</p>
+the child image files with relative paths. The SVG example in Figure <a href="#fig:subfigure-svg-example">2</a> composes two synthetic panels,
+while Markdown treats the result as one normal figure with one caption
+and one cross-reference label.</p>
 <figure id="fig:subfigure-svg-example">
 <img src="examples/images/subfigure-svg-layout-example.svg" style="width:90.0%" alt="Figure 2 An SVG-based multi-panel layout whose child panels are referenced by relative image paths inside the SVG file.">
 <figcaption aria-hidden="true">Figure 2 An SVG-based multi-panel layout

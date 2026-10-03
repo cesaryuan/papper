@@ -1,16 +1,14 @@
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import zipfile
+import json
 
 import pytest
 from docx import Document
 from docx.oxml.ns import qn
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from pandoc_manuscript.docx.postprocess.process_equation_metadata import process_equation_metadata
+from test_rust_docx_contract import rust_postprocessor
 
 
 def test_equation_revision_attr_filter_wraps_display_equation_and_keeps_label() -> None:
@@ -108,7 +106,7 @@ $$
     assert "MTLATEX:display:t" not in document_xml
 
 
-def test_process_equation_metadata_colors_native_word_display_equations(tmp_path) -> None:
+def test_native_equation_metadata_colors_word_display_equations(tmp_path, rust_postprocessor) -> None:
     """Color native Word display-equation runs red when the hidden marker is present."""
     pandoc = shutil.which("pandoc")
     if pandoc is None:
@@ -131,10 +129,17 @@ def test_process_equation_metadata_colors_native_word_display_equations(tmp_path
     )
     equation_paragraph.insert_paragraph_before('PMT_EQUATION_METADATA:{"revision":"true"}')
 
-    processed, updated_runs = process_equation_metadata(doc)
-
-    assert processed == 1
-    assert updated_runs > 0
+    doc.save(docx_path)
+    metadata = tmp_path / "metadata.json"
+    metadata.write_text(json.dumps({"pmt_settings": {"values": {}, "provided": [],
+                         "pandoc_metadata": {}, "reply": None}, "pandoc_metadata": {},
+                         "has_yaml_header": False}), encoding="utf-8")
+    output = tmp_path / "processed.docx"
+    result = subprocess.run([str(rust_postprocessor), str(docx_path), str(output), str(metadata)],
+                            capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    doc = Document(output)
+    equation_paragraph = next(p for p in doc.paragraphs if p._p.findall(f".//{qn('m:oMathPara')}"))
     assert all("PMT_EQUATION_METADATA:" not in paragraph.text for paragraph in doc.paragraphs)
 
     math_runs = equation_paragraph._p.findall(f".//{qn('m:r')}")

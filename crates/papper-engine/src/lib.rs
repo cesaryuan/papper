@@ -188,6 +188,11 @@ impl PandocCli {
                 String::from_utf8_lossy(&output.stderr).trim()
             );
         }
+        // Successful conversions can still warn about unsupported numbering or
+        // other recoverable filter cases; keep those diagnostics visible to users.
+        if !output.stderr.is_empty() {
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
+        }
         Ok(output)
     }
 }

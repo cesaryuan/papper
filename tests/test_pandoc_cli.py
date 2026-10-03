@@ -23,7 +23,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from pandoc_manuscript.runtime.resources import native_pandoc_executable
+from native_support import native_pandoc_executable
 
 
 @pytest.fixture(scope="module")

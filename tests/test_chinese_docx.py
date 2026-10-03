@@ -5,7 +5,7 @@ import os
 import re
 import shutil
 import subprocess
-import sys
+from native_support import papper_command
 
 import pytest
 from docx import Document
@@ -24,7 +24,7 @@ def run_docx_build(project: Path, cli_args: list[str]) -> tuple[str, Path]:
     environment = os.environ.copy()
     environment["LANG"] = "en-US"
     result = subprocess.run(
-        [sys.executable, "-m", "pandoc_manuscript.cli", "build", "docx", "paper.md", "--no-mathtype", "-o", str(output), *cli_args],
+        [*papper_command(), "build", "docx", "paper.md", "--no-mathtype", "-o", str(output), *cli_args],
         cwd=project,
         text=True,
         encoding="utf-8",

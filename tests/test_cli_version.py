@@ -1,18 +1,14 @@
-from pathlib import Path
-import sys
-import importlib.metadata as importlib_metadata
+"""Validate version reporting from the current native executable."""
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+import importlib.metadata
+import subprocess
 
-from pandoc_manuscript import cli
+from native_support import papper_command
 
 
-def test_cli_version_uses_distribution_metadata(monkeypatch, capsys) -> None:
-    """Keep `papper --version` synchronized with the installed package metadata."""
-    expected = importlib_metadata.version("papper")
-    monkeypatch.setattr(cli, "notify_and_schedule_update_check", lambda version: None)
-
-    result = cli.main(["--version"])
-
-    assert result == 0
-    assert capsys.readouterr().out.strip() == f"papper {expected}"
+def test_cli_version_matches_distribution_metadata() -> None:
+    """Keep the shipped native command and installed distribution version synchronized."""
+    result = subprocess.run([*papper_command(), "--version"], capture_output=True,
+                            text=True, encoding="utf-8", timeout=15)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"papper {importlib.metadata.version('papper')}"

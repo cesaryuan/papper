@@ -1,96 +1,55 @@
+"""Verify configured page geometry in actual native DOCX builds."""
+
+import os
+import subprocess
 from pathlib import Path
-import sys
-import tempfile
+from zipfile import ZipFile
 
 import pytest
 from docx import Document
+from docx.oxml.ns import qn
+from lxml import etree
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from pandoc_manuscript.commands import build
-from pandoc_manuscript.commands.build_reply import output as reply_output
-from pandoc_manuscript.docx import build as docx_build
-from pandoc_manuscript.docx.page_margins import (
-    apply_page_margin_settings,
-)
-from pandoc_manuscript.runtime.metadata import PmtSettings
+from native_support import ROOT, papper_command
 
 
-def test_apply_page_margin_settings_updates_all_docx_sections() -> None:
-    """Apply docxPageMargins values to every generated DOCX section."""
-    doc = Document()
-    doc.add_section()
-
-    result = apply_page_margin_settings(
-        doc,
-        PmtSettings.model_validate({
-            "docxPageMargins": {
-                "top": "2.54cm",
-                "bottom": "2.54cm",
-                "left": "3.17cm",
-                "right": "3.17cm",
-            }
-        }),
-    )
-
-    assert result == {
-        "margins": {
-            "top": "2.54cm",
-            "bottom": "2.54cm",
-            "left": "3.17cm",
-            "right": "3.17cm",
-        },
-        "sections": 2,
-    }
-    for section in doc.sections:
+@pytest.mark.parametrize("mathtype", [False, True])
+def test_docx_page_margins_and_equation_tabs_follow_text_width(tmp_path: Path, mathtype: bool) -> None:
+    """Apply page margins while keeping numbered equations inside the resulting text area."""
+    source = tmp_path / "paper.md"
+    source.write_text("---\ntitle: Geometry\n---\n\n$$ x+y $$ {#eq:sum}\n", encoding="utf-8")
+    (tmp_path / "style.yml").write_text(
+        "docxPageMargins:\n  top: 2.54cm\n  bottom: 2.54cm\n  left: 3.17cm\n  right: 3.17cm\n",
+        encoding="utf-8")
+    reference = ROOT / "pandoc/manuscript-template/reference-doc.docx"
+    original = reference.read_bytes()
+    output = tmp_path / "paper.docx"
+    command = [*papper_command(), "build", "docx", str(source), "-o", str(output)]
+    if not mathtype:
+        command.append("--no-mathtype")
+    result = subprocess.run(command, cwd=tmp_path,
+                            env={**os.environ, "PAPPER_HOME": str(tmp_path / "state"),
+                                 "PAPPER_RESOURCE_ROOT": str(ROOT)},
+                            capture_output=True, text=True, encoding="utf-8", timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    document = Document(output)
+    for section in document.sections:
         assert section.top_margin.cm == pytest.approx(2.54, abs=0.001)
         assert section.bottom_margin.cm == pytest.approx(2.54, abs=0.001)
         assert section.left_margin.cm == pytest.approx(3.17, abs=0.001)
         assert section.right_margin.cm == pytest.approx(3.17, abs=0.001)
-
-
-def test_build_reference_doc_args_uses_margin_adjusted_reference(tmp_path: Path, monkeypatch) -> None:
-    """Pass Pandoc a generated reference DOCX when docxPageMargins is configured."""
-    source = tmp_path / "reference.docx"
-    Document().save(source)
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(build.SETTINGS, "reference_doc", str(source))
-    monkeypatch.setattr(build.SETTINGS, "project_name", "paper")
-
-    args = docx_build.docx_reference_doc_args(
-        build.SETTINGS,
-        PmtSettings.model_validate(
-            {"docxPageMargins": {"left": "3.17cm", "right": "3.17cm"}}
-        ),
-        build.resource_path,
-        build.to_pandoc_path,
-    )
-
-    assert args[0] == "--reference-doc"
-    assert Path(args[1]).is_relative_to(Path(tempfile.gettempdir()))
-    assert Path(args[1]).parent.name == "reference-doc"
-    section = Document(args[1]).sections[0]
-    assert section.left_margin.cm == pytest.approx(3.17, abs=0.001)
-    assert section.right_margin.cm == pytest.approx(3.17, abs=0.001)
-
-
-def test_reply_reference_doc_for_pandoc_uses_margin_adjusted_reference(tmp_path: Path, monkeypatch) -> None:
-    """Prepare a generated reply reference DOCX when docxPageMargins is configured."""
-    source = tmp_path / "reference.docx"
-    output = tmp_path / "reply.docx"
-    Document().save(source)
-    monkeypatch.chdir(tmp_path)
-
-    reference = reply_output.reply_reference_doc_for_pandoc(
-        source,
-        output,
-        PmtSettings.model_validate(
-            {"docxPageMargins": {"left": "3.17cm", "right": "3.17cm"}}
-        ),
-    )
-
-    assert reference.is_relative_to(Path(tempfile.gettempdir()))
-    assert reference.parent.name == "reference-doc"
-    section = Document(str(reference)).sections[0]
-    assert section.left_margin.cm == pytest.approx(3.17, abs=0.001)
-    assert section.right_margin.cm == pytest.approx(3.17, abs=0.001)
+    if mathtype:
+        section = document.sections[0]
+        text_width = section.page_width.twips - section.left_margin.twips - section.right_margin.twips
+        with ZipFile(output) as archive:
+            xml = etree.fromstring(archive.read("word/document.xml"))
+        paragraphs = xml.xpath(".//w:p[.//o:OLEObject]", namespaces={
+            "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+            "o": "urn:schemas-microsoft-com:office:office"})
+        assert len(paragraphs) == 1
+        tabs = paragraphs[0].find(f".//{qn('w:tabs')}")
+        assert tabs is not None
+        positions = {tab.get(qn("w:val")): int(tab.get(qn("w:pos"))) for tab in tabs}
+        assert positions["center"] == round(text_width / 2)
+        assert positions["right"] == text_width
+    assert reference.read_bytes() == original

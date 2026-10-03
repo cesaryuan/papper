@@ -91,13 +91,6 @@ fn build(mut args: BuildArgs) -> Result<()> {
         source.display()
     );
     let source = PathBuf::from(display_path(&source.canonicalize()?));
-    if let Some(style) = &args.style_file {
-        anyhow::ensure!(
-            absolute(style, &project).is_file(),
-            "Style file not found: {}",
-            style.display()
-        );
-    }
     let name = if source_arg.is_some() {
         source
             .file_stem()
@@ -126,6 +119,19 @@ fn build(mut args: BuildArgs) -> Result<()> {
     // Explicit CLI settings still win, and metadata fields never inherit env vars.
     if args.style_file.is_none() {
         args.style_file = std::env::var_os("PMT_STYLE_FILE").map(PathBuf::from);
+    }
+    if let Some(style) = &args.style_file {
+        let selected = absolute(style, &project);
+        anyhow::ensure!(
+            selected.exists(),
+            "Style file not found: {}",
+            style.display()
+        );
+        anyhow::ensure!(
+            selected.is_file(),
+            "Style path is not a file: {}",
+            style.display()
+        );
     }
     if args.reference_doc.is_none() {
         args.reference_doc = std::env::var_os("PMT_REFERENCE_DOC").map(PathBuf::from);
@@ -180,8 +186,16 @@ fn build_other(
     resources: &ResourcePaths,
 ) -> Result<()> {
     let temporary = tempfile::Builder::new().prefix("papper-build-").tempdir()?;
-    let style = args.style_file.as_deref().unwrap_or(Path::new("style.yml"));
-    let mut styles = vec![source.parent().unwrap().join(style), project.join(style)];
+    // An explicit style (including style.yml) selects exactly one project-relative
+    // file; source-directory discovery must not override that user selection.
+    let mut styles = if let Some(style) = &args.style_file {
+        vec![absolute(style, project)]
+    } else {
+        vec![
+            source.parent().unwrap().join("style.yml"),
+            project.join("style.yml"),
+        ]
+    };
     styles.dedup();
     let roots = vec![
         source.parent().unwrap().to_path_buf(),

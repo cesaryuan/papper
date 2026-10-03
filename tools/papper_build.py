@@ -2,7 +2,7 @@
 
 uv invokes this small standard build interface; Cargo owns compilation, runtime
 staging and wheel contents. Installed executables never import this module or
-start Python. Editable builds expose the frozen Python test oracle separately.
+start Python. Editable builds install the native development executables.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def build_wheel(wheel_directory: str, config_settings=None, metadata_directory=N
 
 
 def build_editable(wheel_directory: str, config_settings=None, metadata_directory=None) -> str:
-    """Build direct development executables for uv run and the Python test oracle."""
+    """Build direct development executables for uv run and native integration tests."""
     return _build(wheel_directory, editable=True)
 
 

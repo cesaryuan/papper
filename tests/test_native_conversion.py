@@ -1,33 +1,46 @@
 """Exercise the real C ABI against CLI artifacts when native builds are available."""
 
 import json
+import ctypes
 import os
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
-from pandoc_manuscript.mathtype import native, ole_parts
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize("project", ["mathtype-rust"])
-def test_missing_library_never_launches_cli(monkeypatch, tmp_path, project):
-    """An executable-only installation must fail explicitly without starting its CLI."""
-    (tmp_path / f"{project}.exe").write_bytes(b"legacy executable")
-    monkeypatch.setattr(native, "source_tree_root", lambda: None)
-    monkeypatch.setattr(native, "library_path", lambda name: tmp_path / native.library_name(name))
+class NativeConverter:
+    """Call the Rust library's public C ABI directly, without the archived Python adapter."""
 
-    def forbid_process(*args, **kwargs):
-        """Catch any attempt to fall back to a subprocess."""
-        pytest.fail("Missing native libraries must not launch a CLI")
+    def __init__(self, path: Path) -> None:
+        """Load the native library and declare its response ownership boundary."""
+        self.library = ctypes.CDLL(str(path))
+        self.convert = self.library.mathtype_rust_convert_v1
+        self.convert.argtypes = [ctypes.c_char_p]
+        self.convert.restype = ctypes.c_void_p
+        self.free = self.library.mathtype_rust_free_v1
+        self.free.argtypes = [ctypes.c_void_p]
+        self.free.restype = None
 
-    monkeypatch.setattr(subprocess, "run", forbid_process)
-    native._load_converter.cache_clear()
-    with pytest.raises(FileNotFoundError, match="native library is missing"):
-        native.get_converter(project)
+    def call(self, **request) -> dict:
+        """Copy Rust artifacts before releasing each owned native response."""
+        pointer = self.convert(json.dumps(request).encode("utf-8"))
+        assert pointer
+        try:
+            response = json.loads(ctypes.string_at(pointer))
+        finally:
+            self.free(pointer)
+        if "error" in response:
+            raise RuntimeError(response["error"])
+        result = response["result"]
+        for name in ("ole", "mtef", "wmf"):
+            if name in result:
+                result[name] = bytes.fromhex(result[name])
+        return result
 
 
 @pytest.fixture
@@ -35,10 +48,15 @@ def converters():
     """Load prebuilt libraries without triggering Cargo in ordinary Python tests."""
     result = {}
     for project in ("mathtype-rust",):
-        path = ROOT / "scripts" / project / "target/release" / native.library_name(project)
-        if not path.exists():
+        library = ("mathtype_rust.dll" if os.name == "nt" else
+                   "libmathtype_rust.dylib" if sys.platform == "darwin" else "libmathtype_rust.so")
+        path = ROOT / "scripts" / project / "target/release" / library
+        suffix = ".exe" if os.name == "nt" else ""
+        required = [path, ROOT / f"scripts/{project}/target/release/{project}{suffix}",
+                    ROOT / f"scripts/latex2wmf/target/release/latex2wmf{suffix}"]
+        if not all(candidate.is_file() for candidate in required):
             pytest.skip("Build the mathtype-rust release cdylib and both reference CLIs first")
-        result[project] = native.NativeConverter(project, path)
+        result[project] = NativeConverter(path)
     return result
 
 
@@ -66,33 +84,6 @@ def test_preview_matches_cli(converters, tmp_path, backend, style):
     assert result["wmf"] == (tmp_path / "eq.wmf").read_bytes()
     assert result["svg"] == (tmp_path / "eq.svg").read_text(encoding="utf-8")
     assert json.loads(result["metadata_json"]) == json.loads((tmp_path / "eq.json").read_text())
-
-
-def test_pipeline_is_in_process_and_recovers_from_errors(converters, monkeypatch, tmp_path):
-    """A failed formula removes stale files without breaking subsequent native calls."""
-    monkeypatch.setattr(native, "get_converter", converters.get)
-
-    def forbid_process(*args, **kwargs):
-        """Reject process launches after the shared libraries have loaded."""
-        pytest.fail("Native formula conversion must not start a subprocess")
-
-    monkeypatch.setattr(subprocess, "run", forbid_process)
-    source = tmp_path / "eq.tex"
-    source.write_text(r"\frac{x}{2}", encoding="utf-8-sig")
-    ole, mtef, wmf, metadata = [tmp_path / name for name in ("eq.ole", "eq.mtef", "eq.wmf", "eq.json")]
-    ole_parts.make_ole_from_mathtype_rust(source, ole, mtef)
-    ole_parts.make_wmf_metadata_cross_platform(source, wmf, metadata)
-    assert ole.read_bytes().startswith(bytes.fromhex("d0cf11e0a1b11ae1"))
-    assert wmf.read_bytes().startswith(bytes.fromhex("d7cdc69a"))
-    with pytest.raises(ole_parts.FormulaPreviewError):
-        ole_parts.make_wmf_metadata_cross_platform(source, wmf, metadata, svg_backend="invalid")
-    assert not wmf.exists() and not metadata.exists()
-    with pytest.raises(ole_parts.FormulaConversionError):
-        ole_parts.make_ole_from_mathtype_rust(source, ole, mtef, prefs_file=tmp_path / "missing.eqp")
-    assert not ole.exists() and not mtef.exists()
-    ole_parts.make_ole_from_mathtype_rust(source, ole, mtef)
-    ole_parts.make_wmf_metadata_cross_platform(source, wmf, metadata)
-    assert ole.exists() and wmf.exists()
 
 
 def test_cached_typst_keeps_each_requests_layout(converters, tmp_path):

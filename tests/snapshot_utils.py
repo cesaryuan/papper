@@ -11,7 +11,7 @@ from zipfile import ZipFile
 
 from lxml import etree
 
-from pandoc_manuscript.runtime.paths import project_cache_dir
+from native_support import project_cache_dir
 
 
 _VOLATILE_DOCX_TAGS = {"created", "modified"}
@@ -140,7 +140,7 @@ def canonical_docx(
     entries: dict[str, object] = {}
     with ZipFile(path) as archive:
         # Native builds randomize all bookmark IDs. Canonicalize only this fixture;
-        # existing legacy snapshots retain their original bookmark serialization.
+        # other snapshots retain their original bookmark serialization.
         bookmarks = NativeBookmarkNormalizer(archive) if normalize_native_crossrefs else None
         for info in sorted(archive.infolist(), key=lambda item: item.filename):
             data = archive.read(info.filename)

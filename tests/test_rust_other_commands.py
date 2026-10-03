@@ -1,7 +1,6 @@
 """Compare remaining native CLI commands using isolated projects and real output.
 
-The legacy Python API is a development reference. Product operations run only
-through the Rust executable; cleanup contracts create and remove their own
+Product operations run through the Rust executable; cleanup contracts create and remove their own
 temporary projects, and conversion checks real MathType OLE and extracted media.
 """
 
@@ -12,14 +11,13 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
 
 from test_build_snapshots import ROOT
-from test_rust_cli_contract import rust_executable
+from native_support import native_pandoc_executable
 from test_rust_docx_contract import rust_mathtype_converter
 
 
@@ -35,18 +33,6 @@ def _native(executable: Path, arguments: list[str], project: Path, home: Path) -
                           capture_output=True, text=True, encoding="utf-8", timeout=90)
 
 
-def _python(arguments: list[str], project: Path, home: Path) -> subprocess.CompletedProcess[str]:
-    """Invoke the retained Python reference explicitly even after PyPI entry-point migration."""
-    script = ("import json,sys; from pathlib import Path; from pandoc_manuscript.runtime import paths; "
-              "paths.PAPPER_HOME_DIR=Path(sys.argv[2]); from pandoc_manuscript.cli import main; "
-              "raise SystemExit(main(json.loads(sys.argv[1])))")
-    environment = _environment(home)
-    oracle = ROOT / "tests/legacy"
-    environment["PYTHONPATH"] = str(oracle if oracle.is_dir() else ROOT / "src")
-    return subprocess.run([sys.executable, "-c", script, json.dumps(arguments), str(home)], cwd=project,
-                          env=environment, capture_output=True, text=True, encoding="utf-8", timeout=90)
-
-
 def _tree(directory: Path) -> dict[str, bytes]:
     """Compare complete initialized/exported files rather than template path wiring."""
     return {path.relative_to(directory).as_posix(): path.read_bytes()
@@ -60,20 +46,20 @@ def _state(home: Path, project: Path) -> Path:
 
 
 @pytest.mark.parametrize("language", [None, "zh-cn"])
-def test_native_init_matches_complete_reference_and_preserves_user_edits(
+def test_native_init_preserves_localized_templates_and_user_edits(
     tmp_path: Path, rust_executable: Path, language: str | None,
 ) -> None:
     """Match real localized templates and merge missing guidance without replacing edited files."""
     native = tmp_path / "native"
-    reference = tmp_path / "reference"
     native.mkdir()
-    reference.mkdir()
     arguments = ["init", *( ["--lang", language] if language else [] )]
     actual = _native(rust_executable, arguments, native, tmp_path / "home")
-    expected = _python(arguments, reference, tmp_path / "python-home")
     assert actual.returncode == 0, actual.stdout + actual.stderr
-    assert expected.returncode == 0, expected.stdout + expected.stderr
-    assert _tree(native) == _tree(reference)
+    manuscript = "manuscript-cn.md" if language else "manuscript.md"
+    reply = "reply_to_reviewers-cn.md" if language else "reply_to_reviewers.md"
+    assert (native / "manuscript.md").read_bytes() == (ROOT / "template" / manuscript).read_bytes()
+    assert (native / "reply_to_reviewers.md").read_bytes() == (ROOT / "template" / reply).read_bytes()
+    assert (native / "style.yml").read_bytes() == (ROOT / "template/style-project.yml").read_bytes()
     edited = native / ".agents/word-manuscript-fix/SKILL.md"
     edited.write_text("local project guidance\n", encoding="utf-8")
     (native / "manuscript.md").write_text("user manuscript\n", encoding="utf-8")
@@ -83,7 +69,7 @@ def test_native_init_matches_complete_reference_and_preserves_user_edits(
     assert merged.returncode == 0, merged.stdout + merged.stderr
     assert edited.read_text(encoding="utf-8") == "local project guidance\n"
     assert (native / "manuscript.md").read_text(encoding="utf-8") == "user manuscript\n"
-    assert missing.read_bytes() == (reference / ".agents/manuscript-review/SKILL.md").read_bytes()
+    assert missing.read_bytes() == (ROOT / "template/.agents/manuscript-review/SKILL.md").read_bytes()
     rejected = _native(rust_executable, arguments, native, tmp_path / "home")
     assert rejected.returncode != 0
     assert (native / "manuscript.md").read_text(encoding="utf-8") == "user manuscript\n"
@@ -142,28 +128,43 @@ def test_native_clean_rejects_project_or_ancestor_without_deleting_user_data(
 
 
 @pytest.mark.parametrize("target", ["json", "latex"])
-def test_native_json_and_latex_match_real_reference_with_relative_resources(
+def test_native_json_and_latex_preserve_crossrefs_and_relative_resources(
     tmp_path: Path, rust_executable: Path, target: str,
 ) -> None:
-    """Match filtered AST/LaTeX and copied figure resources from an actual isolated manuscript."""
+    """Publish resolved references and portable figure resources from an isolated manuscript."""
     native = tmp_path / "native"
-    reference = tmp_path / "reference"
     source = ROOT / "tests/snapshot_cases/crossrefs"
     shutil.copytree(source, native)
-    shutil.copytree(source, reference)
     extension = "json" if target == "json" else "tex"
     arguments = ["build", target, "-m", "crossrefs.md", "-o", f"output/result.{extension}"]
     actual = _native(rust_executable, arguments, native, tmp_path / "home")
-    expected = _python(arguments, reference, tmp_path / "python-home")
     assert actual.returncode == 0, actual.stdout + actual.stderr
-    assert expected.returncode == 0, expected.stdout + expected.stderr
     native_bytes = (native / f"output/result.{extension}").read_bytes()
-    reference_bytes = (reference / f"output/result.{extension}").read_bytes()
     if target == "json":
-        assert json.loads(native_bytes) == json.loads(reference_bytes)
+        ast = json.loads(native_bytes)
+        assert ast["blocks"] and ast["meta"]
+        assert "Unknown reference" not in json.dumps(ast)
+        links = []
+
+        def collect_links(value) -> None:
+            """Read crossref destinations from the public Pandoc JSON document."""
+            if isinstance(value, dict):
+                if value.get("t") == "Link":
+                    links.append(value["c"][2][0])
+                for child in value.values():
+                    collect_links(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect_links(child)
+
+        collect_links(ast["blocks"])
+        assert {"#fig:trend", "#tbl:values", "#eq:circle", "#sec:overview"} <= set(links)
     else:
-        assert native_bytes == reference_bytes
-        assert _tree(native / "output/latex") == _tree(reference / "output/latex")
+        text = native_bytes.decode("utf-8")
+        assert r"\begin{document}" in text and r"\end{document}" in text
+        assert "Unknown reference" not in text
+        assert any(data == (source / "figure.svg").read_bytes()
+                   for data in _tree(native / "output/latex").values())
 
 
 def test_native_convert_recovers_mathtype_tex_and_extracts_media_without_overwriting_user_files(
@@ -173,7 +174,6 @@ def test_native_convert_recovers_mathtype_tex_and_extracts_media_without_overwri
     from docx import Document
     from docx.oxml import OxmlElement
     from docx.shared import Inches
-    from pandoc_manuscript.mathtype import native as native_reference
 
     project = tmp_path / "project"
     project.mkdir()
@@ -222,19 +222,8 @@ def test_native_convert_recovers_mathtype_tex_and_extracts_media_without_overwri
     assert (destination / "user-notes.txt").read_bytes() == b"existing user notes"
     media = [path for path in (destination / "media").iterdir() if path.is_file()]
     assert any(path.read_bytes() == image.read_bytes() for path in media)
-    # Avoid rebuilding the already loaded native DLL while deriving a real reference result.
-    converter = native_reference.NativeConverter("mathtype-rust", native_reference.library_path("mathtype-rust"))
-    monkeypatch.setattr(native_reference, "get_converter", lambda project: converter)
-    from pandoc_manuscript.commands.convert import ConvertSettings
-    expected = project / "reference-converted"
-    ConvertSettings(docx=source, **{"o": expected}).run()
-    assert (expected / "paper.md").read_bytes() == (destination / "paper.md").read_bytes()
-    expected_files = _tree(expected)
-    actual_files = {name: data for name, data in _tree(destination).items() if name != "user-notes.txt"}
-    assert actual_files == expected_files
     # The standalone Lua path must decode in one native batch without a Python
     # interpreter. With no predecoded map, Pandoc invokes PAPPER_EXECUTABLE.
-    from pandoc_manuscript.runtime.resources import native_pandoc_executable
     pandoc = native_pandoc_executable()
     assert pandoc is not None
     standalone = project / "standalone"
@@ -292,7 +281,8 @@ def test_native_mathtype_explicit_work_directory_retains_reviewed_parts(
     tmp_path: Path, rust_executable: Path,
 ) -> None:
     """Keep requested intermediate formulas inspectable while custom output names preserve source identity."""
-    from pandoc_manuscript.mathtype.compound_file import CompoundFile
+    from io import BytesIO
+    import olefile
 
     project = tmp_path / "project"
     project.mkdir()
@@ -312,7 +302,8 @@ def test_native_mathtype_explicit_work_directory_retains_reviewed_parts(
     assert (parts / "eq_001.tex").read_text(encoding="utf-8") == "$x_1$"
     assert (parts / "eq_001.ole.bin").read_bytes() == ole
     assert (parts / "eq_001.wmf").read_bytes() == preview
-    native_stream = CompoundFile(ole).read_stream("Equation Native")
+    with olefile.OleFileIO(BytesIO(ole)) as compound:
+        native_stream = compound.openstream("Equation Native").read()
     assert (parts / "eq_001.mtef.bin").read_bytes() == native_stream[28:]
     assert json.loads((parts / "eq_001.json").read_bytes())["mathtype"]["baseline_from_bottom_pt"] >= 0
     with ZipFile(debug / "paper.marked.docx") as archive:

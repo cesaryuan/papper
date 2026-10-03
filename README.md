@@ -152,19 +152,25 @@ evaluated by this downloader.
 
 ### Source Development and Validation
 
-Install the pinned Rust toolchain, then run:
+Install the pinned Rust toolchain, GHC 9.14.1 and Cabal 3.18.1.0, then run:
 
 ```bash
 cargo check --workspace --locked
 cargo test --workspace --locked
+cargo run -p papper-dev -- worker
 uv sync
 uv run pytest
 ```
 
-`uv sync` installs a native development CLI. Python and its dependencies are
-used for the existing test suite and the frozen reference in `tests/legacy/`.
+`uv sync` installs a native development CLI. Python only drives integration
+tests and inspects artifacts produced by Rust and the active Haskell/Lua filters.
+Pytest builds the current Rust CLI once per session, so tests do not depend on
+the installed development executable being up to date. `tests/legacy/` is a
+historical archive excluded from active tests and development installations.
+Build the worker once with the command above so native format checks use the
+current pinned profile rather than an older full-format development binary.
 After changing native CLI code, use `uv sync --reinstall-package papper` to
-refresh that development executable. Release wheels omit the reference and
+refresh that development executable. Release wheels omit the archive and
 have no Python runtime dependencies. Build and validate a release wheel with
 `cargo run -p papper-dev -- wheel --output dist` and
 `cargo run -p papper-dev -- smoke --wheel <wheel-path>`.

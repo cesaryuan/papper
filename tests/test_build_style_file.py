@@ -2,13 +2,13 @@
 
 import json
 import shutil
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from pandoc_manuscript import cli
-from pandoc_manuscript.commands import build
-from pandoc_manuscript.runtime import paths
+from native_support import ROOT, native_pandoc_executable, papper_command
 
 
 @pytest.fixture
@@ -26,15 +26,21 @@ def style_project(tmp_path: Path, monkeypatch) -> Path:
         "pandocMetadata:\n  title: Working\n  workingOnly: true\n", encoding="utf-8"
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(build, "SETTINGS", build.BuildSettings(style_file="style.yml"))
-    monkeypatch.setattr(paths, "PAPPER_HOME_DIR", tmp_path / "state")
-    monkeypatch.setattr(cli, "notify_and_schedule_update_check", lambda version: None)
+    monkeypatch.setenv("PAPPER_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("PAPPER_RESOURCE_ROOT", str(ROOT))
     return tmp_path
 
 
+def run_build(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run the current Rust CLI and capture user-visible selection errors."""
+    return subprocess.run([*papper_command(), *arguments], env=os.environ,
+                          capture_output=True, text=True, encoding="utf-8", timeout=45)
+
+
 @pytest.mark.skipif(
-    shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None,
-    reason="JSON builds require pandoc and pandoc-crossref",
+    native_pandoc_executable() is None and
+    (shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None),
+    reason="JSON builds require the native engine or standalone Pandoc and crossref",
 )
 @pytest.mark.parametrize("path_kind", ["relative", "absolute", "explicit_default"])
 def test_build_uses_only_explicit_style_for_one_invocation(
@@ -55,14 +61,16 @@ def test_build_uses_only_explicit_style_for_one_invocation(
     output = style_project / "selected.json"
     arguments = ["build", "json", "chapters/paper.md"]
 
-    assert cli.main([*arguments, "--style-file", style_arg, "-o", str(output)]) == 0
+    result = run_build([*arguments, "--style-file", style_arg, "-o", str(output)])
+    assert result.returncode == 0, result.stdout + result.stderr
     metadata = json.loads(output.read_text(encoding="utf-8"))["meta"]
     assert metadata["title"]["c"] == [{"t": "Str", "c": "Selected"}]
     assert metadata["subtitle"]["c"] == [{"t": "Str", "c": "Manuscript"}]
     assert "localOnly" not in metadata
     assert "workingOnly" not in metadata
 
-    assert cli.main([*arguments, "-o", str(output)]) == 0
+    result = run_build([*arguments, "-o", str(output)])
+    assert result.returncode == 0, result.stdout + result.stderr
     metadata = json.loads(output.read_text(encoding="utf-8"))["meta"]
     assert metadata["title"]["c"] == [{"t": "Str", "c": "Local"}]
     assert metadata["localOnly"]["c"] is True
@@ -75,13 +83,14 @@ def test_build_uses_only_explicit_style_for_one_invocation(
     [("missing.yml", "Style file not found"), ("chapters", "Style path is not a file")],
 )
 def test_build_rejects_invalid_explicit_style(
-    style_project: Path, style_arg: str, message: str, capsys
+    style_project: Path, style_arg: str, message: str
 ) -> None:
     """Report invalid explicit paths instead of silently falling back to default styles."""
     output = style_project / "result.json"
 
-    assert cli.main(
+    result = run_build(
         ["build", "json", "chapters/paper.md", "--style-file", style_arg, "-o", str(output)]
-    ) == 1
-    assert message in capsys.readouterr().err
+    )
+    assert result.returncode != 0
+    assert message in result.stderr
     assert not output.exists()

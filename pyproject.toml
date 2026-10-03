@@ -22,20 +22,14 @@ classifiers = [
 dependencies = []
 
 [dependency-groups]
-# Frozen Python implementation dependencies exist only for differential tests.
+# Python inspects native output artifacts; the product implementation is Rust.
 dev = [
   "pytest>=9.1.1",
   "python-docx>=1.1.0",
   "pyyaml>=6.0",
   "lxml>=4.9.0",
-  "panflute>=2.3.0",
   "pymupdf>=1.26.0",
-  "pydantic-settings>=2.2.1",
-  "packaging>=24.2",
-  "python-dotenv>=1.0.0",
-  "py7zr>=0.22.0",
-  "resvg-py>=0.3.3",
-  "tqdm>=4.68.3",
+  "olefile>=0.47",
 ]
 
 [tool.ruff]
@@ -43,6 +37,7 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["legacy"]
 
 [tool.ruff.lint]
 select = ["E9"]
