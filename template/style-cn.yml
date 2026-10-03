@@ -12,7 +12,7 @@ mathtypeConversionMethod: rust
 # 并读取公式框的实际基线深度。
 mathtypeSvgBackend: typst
 # Typst 数学字体：可填写字体名称，或 .otf/.ttf/.ttc/.otc 字体文件路径。
-# 开箱即用的数学字体：XITS Math（本工具内置）、New Computer Modern Math（Typst 内置）。
+# 开箱即用的数学字体：XITS Math、STIX Two Math（本工具内置）、New Computer Modern Math（Typst 内置）。
 # 其他字体可先安装后填写名称，或直接填写文件路径，无需安装。
 # 相对路径以本 style.yml 所在目录为基准，例如 fonts/STIXTwoMath-Regular.otf。
 # 仅影响 rust 路径的公式预览；both 最终采用 MathType 原生结果，不使用此字体设置。

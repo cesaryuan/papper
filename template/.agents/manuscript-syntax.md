@@ -183,7 +183,10 @@ the matching complete official MiTeX Typst scope embedded in the executable.
 with required `font` and `calligraphicFont` fields. The default object selects
 XITS Math for `font` and New Computer Modern Math for `calligraphicFont`.
 The latter controls `\mathcal`, `\mathscr`, and `\cal`. Both fields accept installed
-family names or font file paths relative to their owning style file.
+family names or font file paths relative to their owning style file. XITS Math,
+New Computer Modern Math, and STIX Two Math are bundled and require no system
+installation. For example, `mathtypeTypstMathFont: STIX Two Math` selects STIX
+for both roles; an object can instead select STIX for either role independently.
 It renders the result as vector outlines,
 reads the labelled formula frame's actual descent before page composition drops
 child baselines, and expands the transparent canvas to include glyph ink that

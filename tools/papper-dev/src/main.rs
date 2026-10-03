@@ -554,7 +554,14 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         format!("{prefix}/mathtype/Times+Symbol 12.eqp"),
         root.join("src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp"),
     );
-    for name in ["XITS-NOTICE.txt", "XITS-OFL.txt", "XITS-README.txt"] {
+    for name in [
+        "XITS-NOTICE.txt",
+        "XITS-OFL.txt",
+        "XITS-README.txt",
+        "STIXTwo-NOTICE.txt",
+        "STIXTwo-LICENSE.txt",
+        "STIXTwo-README.txt",
+    ] {
         files.insert(
             format!("{prefix}/mathtype/bin/{name}"),
             root.join("scripts/latex2wmf/assets/fonts").join(name),

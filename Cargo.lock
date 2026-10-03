@@ -1880,7 +1880,7 @@ dependencies = [
 [[package]]
 name = "latex2wmf"
 version = "0.1.0"
-source = "git+https://github.com/cesaryuan/latex2wmf?rev=2ba1b2d34c6d0d78f45f60999da66f271d792409#2ba1b2d34c6d0d78f45f60999da66f271d792409"
+source = "git+https://github.com/cesaryuan/latex2wmf?rev=8b249492ac43d9635f381c8dfa74565b64a7649d#8b249492ac43d9635f381c8dfa74565b64a7649d"
 dependencies = [
  "lyon_path",
  "mitex",

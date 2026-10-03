@@ -606,7 +606,10 @@ mathtypeSvgBackend: typst
 mathtypeTypstMathFont: Cambria Math
 ```
 
-Bundled math families are `XITS Math` (the default) and `New Computer Modern Math`.
+Bundled math families are `XITS Math` (the default primary font),
+`New Computer Modern Math` (the default calligraphic font), and `STIX Two Math`.
+Use `mathtypeTypstMathFont: STIX Two Math` for STIX throughout, or select it for
+either role in the object configuration. These families require no system installation.
 You can also set `mathtypeTypstMathFont: fonts/STIXTwoMath-Regular.otf` to load a font
 file without installing it. Relative paths resolve beside the style file; absolute
 paths are supported. Accepted files are `.otf`, `.ttf`, `.ttc`, and `.otc`, and must
