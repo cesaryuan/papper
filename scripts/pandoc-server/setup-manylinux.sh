@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Prepare the native toolchains inside cibuildwheel's manylinux_2_28 container.
-# GHC and Cabal are pinned by the workflow; compiled Haskell dependencies and
-# Cargo outputs persist under /host. Building here lets auditwheel repair the
-# worker's system-library dependencies without raising the glibc baseline.
-# Invoke through CIBW_BEFORE_ALL_LINUX, after CIBW_ENVIRONMENT_LINUX is applied.
+# Prepare native toolchains in the workflow's manylinux_2_28 container.
+# Run with bash after the workflow exports toolchain versions and cache paths.
+# Install the pinned ELF repairer, system libraries, Rust, GHC, and Cabal;
+# Cargo and Cabal dependencies persist in the workflow-mounted cache.
+# Building here keeps bundled native dependencies at the glibc 2.28 baseline.
 set -euo pipefail
 
-# The cibuildwheel image ships patchelf 0.17.2, whose RPATH rewrite can make
+# The manylinux image ships patchelf 0.17.2, whose RPATH rewrite can make
 # GHC executables segfault before main with no stderr. Pin a verified repairer.
-pipx install --force 'patchelf==0.19.1.0'
+# manylinux hardlinks files under /opt/_internal. Recreating its pipx venv
+# can fail with SameFileError on Activate.ps1, so use a separate uv environment.
+# Replace only the PATH entry; leave the image's pipx environment untouched.
+UV_TOOL_DIR=/opt/papper-tools UV_TOOL_BIN_DIR=/usr/local/bin \
+  uv tool install --force --python /opt/python/cp311-cp311/bin/python 'patchelf==0.19.1.0'
+hash -r
 patchelf --version
 
 dnf install -y gcc gcc-c++ make perl clang clang-devel llvm-devel pkgconf-pkg-config gmp-devel libffi-devel ncurses-devel numactl-devel zlib-devel

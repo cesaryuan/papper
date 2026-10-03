@@ -73,6 +73,9 @@ warm HTML reuse, source-edit invalidation, and service shutdown before release.
 
 Linux setup pins the PyPI `patchelf` package to 0.19.1.0. The manylinux image's
 0.17.2 RPATH rewrite can cause GHC executables to exit with SIGSEGV before `main`.
+It installs the pin with uv into `/opt/papper-tools` and replaces the executable
+in `/usr/local/bin`. This avoids rebuilding the image's hardlinked pipx virtual
+environment, which can fail with `SameFileError` while copying `Activate.ps1`.
 
 ## Build and install from source
 
