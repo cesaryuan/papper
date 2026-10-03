@@ -145,7 +145,7 @@ $$ {#eq:loss}
 
 ![展示评估步骤中合成性能趋势的单图示例。](examples/images/single-figure-example.png){#fig:single-example width=85%}
 
-对于大多数多面板布局，建议准备一个通过相对路径引用子图像的 SVG 文件。@fig:subfigure-svg-example 中的 SVG 示例由 `examples/images/subfigure-a-example.png` 和 `examples/images/subfigure-b-example.png` 两个合成面板组成；在 Markdown 中，它仍然是一个带有单个题注和交叉引用标签的普通图形。
+对于大多数多面板布局，建议准备一个通过相对路径引用子图像的 SVG 文件。@fig:subfigure-svg-example 中的 SVG 示例由两个合成面板组成；在 Markdown 中，它仍然是一个带有单个题注和交叉引用标签的普通图形。
 
 ![基于 SVG 的多面板布局，其子面板通过 SVG 文件中的相对图像路径引用。](examples/images/subfigure-svg-layout-example.svg){#fig:subfigure-svg-example width=90%}
 
