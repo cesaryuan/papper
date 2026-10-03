@@ -1,9 +1,10 @@
-"""End-to-end snapshots for Papper's HTML and DOCX build contracts."""
+"""End-to-end snapshots for manuscript HTML/DOCX and reviewer-reply DOCX/TXT."""
 
 from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -123,3 +124,34 @@ def test_build_output_matches_snapshot(
     )
     snapshot_path = SNAPSHOT_ROOT / case_name / f"{target}.snap"
     assert_snapshot(actual, snapshot_path, update=snapshot_update)
+
+
+@pytest.mark.parametrize("target", ["docx", "txt"])
+def test_build_reply_output_matches_snapshot(
+    target: str,
+    tmp_path: Path,
+    snapshot_update: bool,
+) -> None:
+    """Snapshot real reply builds with manuscript numbering, PDF lines, and styles."""
+    case_dir = ROOT / "tests" / "snapshot_cases" / "reply"
+    # Keep Word COM out of test execution by using the real manuscript's
+    # checked-in export, which must be refreshed when the source changes.
+    line_source = case_dir / "manuscript.pdf"
+
+    output = tmp_path / f"reply.{target}"
+    result = subprocess.run(
+        [
+            "uv", "run", "--project", str(ROOT), "papper", "build-reply",
+            str(case_dir / "reply.md"),
+            "--manuscript-line-source", str(line_source),
+            "-o", str(output),
+        ],
+        cwd=tmp_path, check=False, capture_output=True, text=True, encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    actual = (
+        canonical_docx(output, repository_root=ROOT, project_dir=tmp_path)
+        if target == "docx"
+        else output.read_text(encoding="utf-8")
+    )
+    assert_snapshot(actual, SNAPSHOT_ROOT / "reply" / f"{target}.snap", update=snapshot_update)

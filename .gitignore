@@ -278,3 +278,4 @@ work/
 tests/.pytest-tmp-init/
 scripts/pandoc-server/dist-newstyle/
 .pytest-basetemp-styles/
+target/

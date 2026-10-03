@@ -79,6 +79,7 @@ policy, so this is not a clean-room native compilation benchmark.
 
 The build snapshots cover the manuscript template and focused fixtures for
 citations, cross-references and metadata, using both standalone HTML and DOCX.
+They also cover `build-reply` output in DOCX and TXT.
 DOCX snapshots list every decompressed ZIP entry: canonical XML is split at tag
 boundaries for readable diffs, while binary entries retain their SHA-256 and
 size. Refreshing snapshots is explicit; review the changes before accepting
@@ -129,6 +130,30 @@ Check or refresh only this case with:
 ```bash
 uv run pytest tests/test_build_snapshots.py -k native_crossrefs -p no:cacheprovider
 uv run pytest tests/test_build_snapshots.py -k native_crossrefs -p no:cacheprovider --snapshot-update
+```
+
+The `reply` case builds through the public `build-reply` CLI. Its manuscript
+contains baseline and revised content so copied figure, table, equation, section,
+and citation numbers must follow the manuscript rather than restart in the reply.
+The checked-in `tests/snapshot_cases/reply/manuscript.pdf` is a real export of
+the companion `manuscript.md`, built to DOCX by Papper and then exported by
+Microsoft Word. It provides stable numbered lines for both line placeholders
+(currently 7 and 13). Tests read this PDF directly and never invoke Word COM;
+Microsoft Word is not required to run them. These reply snapshots remain scoped
+to Windows. When changing the manuscript, rebuild its DOCX with the fixture's
+`style.yml`, export a replacement PDF with line numbers enabled, and refresh the
+reply snapshots together. MathType is disabled in the fixture.
+The DOCX snapshot retains reply styles, blue caption/table formatting, equation
+layout, and reply-specific
+page/line-number overrides. The TXT snapshot covers resolved references and
+removal of answer-style wrappers, HTML breaks, image markup, and caption/equation
+labels. The header's custom-style wrapper is retained by the current TXT renderer.
+
+Check or refresh only the reply outputs with:
+
+```bash
+uv run pytest tests/test_build_snapshots.py -k reply -p no:cacheprovider
+uv run pytest tests/test_build_snapshots.py -k reply -p no:cacheprovider --snapshot-update
 ```
 
 ## Private native submodules

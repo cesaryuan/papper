@@ -1,0 +1,44 @@
+# Reply to reviewers
+
+::: {custom-style="Reply Header"}
+**Title:** Revised method
+
+**Manuscript Number:** SNAPSHOT-2026-0001
+
+Thank you for the constructive comments.
+:::
+
+## Reviewer 1
+
+1. Please explain the revised method and compare it with prior work.
+
+_Answer:_
+
+We revised Section 2 (Line 7).
+The comparison follows [2,3], with the baseline from [1].
+The bare citation [1] also identifies the baseline study.
+See Figure 2, Table 2, and Equation 2.
+The corresponding bracketed references are Figure 2 and Table 2.
+
+The revised excerpts are reproduced below.
+
+[Image: Figure 2 Revised trend.]
+
+| Method | Score |
+| ------ | ----: |
+| Revised | 2 |
+
+: Table 2 Revised scores.
+
+$$
+y = x + 1
+$$
+
+where $x$ is the baseline score.
+
+2. Please identify the updated conclusion.
+
+_Answer:_
+
+The conclusion now states that the revised method improves the baseline
+(Line 13).
