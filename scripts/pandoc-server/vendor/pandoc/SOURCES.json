@@ -1,0 +1,21 @@
+{
+  "name": "pandoc",
+  "version": "3.12",
+  "source": "https://hackage.haskell.org/package/pandoc-3.12/pandoc-3.12.tar.gz",
+  "source_sha256": "ef4475d2b137c72340d36723d6d694c5bd7b823d7a214efc1d5b7634d5bea9b1",
+  "overrides": [
+    "src/Text/Pandoc/Readers.hs",
+    "src/Text/Pandoc/Writers.hs"
+  ],
+  "readers": [
+    "native", "json", "markdown", "markdown_strict", "markdown_phpextra",
+    "markdown_github", "markdown_mmd", "commonmark", "commonmark_x", "gfm",
+    "html", "latex", "docx", "csljson", "bibtex", "biblatex", "endnotexml", "ris"
+  ],
+  "writers": [
+    "native", "json", "markdown", "markdown_strict", "markdown_phpextra",
+    "markdown_github", "markdown_mmd", "commonmark", "commonmark_x", "gfm",
+    "html", "html4", "html5", "latex", "docx", "plain", "csljson", "bibtex", "biblatex"
+  ],
+  "synthetic_writers": ["pdf"]
+}

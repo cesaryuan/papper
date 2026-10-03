@@ -1,5 +1,8 @@
 # 原生 PDF 接入与 Pandoc Worker 体积实验
 
+> 历史实验：本文的 MuPDF 实现已由 `pdf_oxide` 后端取代。当前 PDF 接入见
+> [Rust PDF 文本后端](PDF_BACKEND.md)；下文的 EXE/wheel 体积不能用于描述新后端。
+
 日期：2026-10-03，Windows x86-64，`rust-migration` 分支，代码基线 `964a180`。
 本文中 MB 为十进制字节数 / 1,000,000。实验与日志位于
 `output/native-pdf-worker-review/`，该目录不参与发布。

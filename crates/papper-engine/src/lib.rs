@@ -35,6 +35,23 @@ pub fn discover_engine(resource_root: &Path) -> Result<EngineLocation> {
             return Ok(engine_location(candidate, true, "bundled"));
         }
     }
+    let source_runtime = resource_root.join(".pmt/pandoc-worker");
+    let selected = source_runtime.join("current.json");
+    if selected.is_file() {
+        // Source builds publish immutable copies, keeping running services from
+        // locking Cabal's mutable linker output. The identity is computed at build time.
+        let record: serde_json::Value = serde_json::from_slice(&fs::read(selected)?)?;
+        let relative = record["executable"]
+            .as_str()
+            .context("Native Worker path missing")?;
+        let candidate = source_runtime.join(relative);
+        anyhow::ensure!(
+            candidate.is_file(),
+            "Prepared native Worker missing: {}",
+            candidate.display()
+        );
+        return Ok(engine_location(candidate, true, "native build"));
+    }
     let source_build = resource_root.join("scripts/pandoc-server/dist-newstyle/build");
     let mut builds = Vec::new();
     collect_native_builds(&source_build, &worker_name, 9, &mut builds);

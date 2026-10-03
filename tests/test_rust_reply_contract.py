@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import shutil
@@ -133,6 +134,27 @@ def test_native_reply_real_pdf_line_geometry_and_regex(reply_project: ReplyProje
     assert (project.directory / "native.txt").read_text(encoding="utf-8") == expected
     assert "Changes (Line 101)" in expected and "spanning (Line 101)" in expected
     assert "(Line `[`)" in expected and "(Line `repeated`)" in expected
+
+
+def test_native_pdf_extract_cjk_metadata(reply_executable: Path, tmp_path: Path) -> None:
+    """Decode predefined Chinese CMaps and Unicode metadata from an unencrypted PDF."""
+    import pymupdf
+
+    source = tmp_path / "中文稿件.pdf"
+    expected = "中文测试：论文第十六行，方法改进。"
+    with pymupdf.open() as document:
+        document.set_metadata({"producer": "Microsoft Word", "title": "中文论文标题"})
+        page = document.new_page()
+        # Predefined Chinese CMaps must decode without an embedded ToUnicode map.
+        page.insert_text((75, 70), expected, fontname="china-s")
+        document.save(source)
+    result = subprocess.run([str(reply_executable), "__pdf_extract", str(source)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    extracted = json.loads(result.stdout)
+    assert extracted["metadata"]["Title"] == "中文论文标题"
+    assert extracted["metadata"]["Producer"] == "Microsoft Word"
+    assert len(extracted["pages"]) == 1
+    assert extracted["pages"][0]["text"].strip() == expected
 
 
 def test_native_reply_bad_pdf_and_missing_input_preserve_output(reply_project: ReplyProject) -> None:

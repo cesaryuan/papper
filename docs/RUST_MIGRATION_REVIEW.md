@@ -35,9 +35,10 @@ JSON/hex C ABI 传输，不再解析动态符号、管理跨库裸指针或重�
 的公式实现、渲染器及资源、门面、Cargo.lock 和目标平台；运行时继续验证用户偏好、字体
 及 helper 等可变输入，不再扫描公式库文件和整份源码。旧 DLL 缓存不会被新实现误用。
 
-MuPDF 的 C FFI 边界保留，但后续改动已经通过 `mupdf-sys` 0.8.0 直接链接 MuPDF
-1.27.2，删除运行时动态加载和单独分发的 MuPDF DLL。独立 PDF helper 使用该 crate 的
-C 异常包装器；Reader/Writer 体积实验见 [原生 PDF 与 Worker 体积检查](NATIVE_PDF_WORKER_SIZE_REVIEW.md)。
+PDF 后端已进一步改为 `pdf_oxide` 0.3.78，删除 MuPDF C FFI、`mupdf-sys`、bindgen
+和 libclang 构建要求。独立 PDF helper 保留页面文本、元数据和行坐标接口；接入说明见
+[Rust PDF 文本后端](PDF_BACKEND.md)。此前的 MuPDF 与 Reader/Writer 体积数据保留于
+[原生 PDF 与 Worker 体积检查](NATIVE_PDF_WORKER_SIZE_REVIEW.md)，属于历史实验。
 Windows 文件身份和 Office COM 仍需要系统接口。
 
 ## 2. 六个旧 Python filters 已迁移到 Lua
@@ -118,7 +119,7 @@ staging，再只修暂存副本：
 
 公式 DLL 的 staging 已删除。Windows 不再无条件预置三项 CRT 或重复复制到
 `mathtype/bin`，而是沿实际依赖图定位需要的文件和组件目录。Haskell worker、
-保留 C# helper 及图像 helper 的分发仍需审计；MuPDF 后续已直接链接进 Rust CLI。
+保留 C# helper 及图像 helper 的分发仍需审计；PDF 后端现已使用直连 Rust PDF Oxide。
 模块继续生成
 `bin/native-notices/dependencies.json` 和许可记录，不假设开发机 PATH/Homebrew
 目录也存在于用户机器。

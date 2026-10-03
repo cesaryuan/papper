@@ -29,6 +29,11 @@ from pandoc_manuscript.runtime.resources import native_pandoc_executable
 @pytest.fixture(scope="module")
 def engine() -> Path:
     """Require a real shared native binary; never replace conversion with a mock."""
+    root = Path(__file__).resolve().parents[1]
+    selected = root / ".pmt/pandoc-worker/current.json"
+    if selected.is_file():
+        record = json.loads(selected.read_text(encoding="utf-8"))
+        return selected.parent / record["executable"]
     executable = native_pandoc_executable()
     if executable is None:
         pytest.skip("Build scripts/pandoc-server to exercise the native Pandoc CLI")
@@ -102,8 +107,6 @@ class NativeCLI:
     ["--version"],
     ["server", "--help"],
     ["server", "--version"],
-    ["--list-input-formats"],
-    ["--list-output-formats"],
     ["--print-default-data-file", "templates/styles.citations.html"],
     ["--unknown-papper-test-option"],
     ["-f", "unsupported-papper-reader", "-t", "html"],
@@ -114,6 +117,18 @@ def test_cli_matches_upstream_streams_and_exit_codes(engine, official_pandoc, tm
     expected = NativeCLI.run(official_pandoc, args, tmp_path, source)
     actual = NativeCLI.run(engine, args, tmp_path, source)
     assert (actual.returncode, actual.stdout, actual.stderr) == (expected.returncode, expected.stdout, expected.stderr)
+
+
+@pytest.mark.parametrize("arguments", [["-f", "org", "-t", "html"], ["-f", "markdown", "-t", "org"]])
+def test_removed_format_preserves_existing_output(engine, tmp_path, arguments) -> None:
+    """Removed registry formats must fail explicitly without replacing a user's file."""
+    output = tmp_path / "existing-output.txt"
+    previous = b"Keep the previously built document\n"
+    output.write_bytes(previous)
+    actual = NativeCLI.run(engine, [*arguments, "-o", str(output)], tmp_path, "* Test document\n")
+    assert actual.returncode != 0
+    assert "org" in actual.stderr.lower()
+    assert output.read_bytes() == previous
 
 
 def test_cli_docx_binary_stdout_and_media_extraction(engine, tmp_path) -> None:

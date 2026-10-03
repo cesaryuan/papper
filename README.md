@@ -178,6 +178,12 @@ return native errors to the isolated Rust PDF helper; no MuPDF DLL is loaded.
 Source builds require a C/C++ compiler and libclang, as described in
 [DEVELOPMENT.md](DEVELOPMENT.md).
 
+The bundled Worker registers Papper's Markdown, HTML, LaTeX, DOCX, JSON/native
+and bibliography formats. Other Pandoc formats such as Org, EPUB, ODT, PPTX and
+RST are excluded from its registry. This also applies to Lua reader/writer calls.
+The source profile and build procedure are documented in
+[scripts/pandoc-server/README.md](scripts/pandoc-server/README.md).
+
 The former `pandoc_manuscript` Python import API and `python -m` utilities are
 not included in native wheels. Use the public native commands or the Rust
 workspace libraries for integrations. The reference remains available to

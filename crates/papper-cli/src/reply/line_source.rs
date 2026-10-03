@@ -170,7 +170,7 @@ fn normalized(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Accept MuPDF rectangle arrays or its structured-text x/y/w/h object representation.
+/// Accept rectangle arrays and the existing x/y/w/h layout representation.
 fn rectangle(value: &Value) -> Option<[f64; 4]> {
     if let Some(items) = value.as_array().filter(|items| items.len() == 4) {
         return Some([
@@ -185,7 +185,7 @@ fn rectangle(value: &Value) -> Option<[f64; 4]> {
     Some([x, y, x + value["w"].as_f64()?, y + value["h"].as_f64()?])
 }
 
-/// Collect actual MuPDF lines without conflating block text and line text.
+/// Collect physical text lines without conflating block text and line text.
 fn collect_lines(value: &Value, lines: &mut Vec<TextLine>) {
     if let Some(text) = value["text"].as_str()
         && let Some(bbox) = rectangle(&value["bbox"])

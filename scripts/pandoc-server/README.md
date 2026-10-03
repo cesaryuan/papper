@@ -2,7 +2,8 @@
 
 This executable provides a Pandoc 3.12 CLI and the native half of Papper's
 project-bound HTTP service. Ordinary arguments follow the upstream CLI, including
-stdin/stdout, binary outputs, information requests, Lua and HTTP server modes.
+stdin/stdout, binary outputs, information requests, Lua and HTTP server modes
+within Papper's supported format profile.
 The standard `pandoc-crossref` filter is replaced by an in-process library call;
 explicit custom filter paths keep their upstream behavior. CLI citeproc uses
 Pandoc's native implementation; the persistent worker uses the caching adapter.
@@ -45,10 +46,20 @@ Linux inside manylinux 2.28.
 
 The wheel builder strips symbols from a staging copy of the worker before
 embedding it; the original Cabal output remains available for debugging. This
-keeps every upstream input/output format supported by the normal worker.
-Reader/Writer registry reduction was measured in a separate experimental build,
-not applied to the shipped worker; see
-[the size review](../../docs/NATIVE_PDF_WORKER_SIZE_REVIEW.md).
+uses the trimmed Reader/Writer registries maintained in `vendor/pandoc`.
+The builder verifies the SHA-256 of Pandoc 3.12's source archive and prepares
+an independent local package before Cabal builds it. All upstream modules still
+compile; removing unused registry roots lets the linker discard unrelated
+formats. A prebuilt full-format worker is rejected during wheel packaging.
+
+Supported input names are `native`, `json`, `markdown`, `markdown_strict`,
+`markdown_phpextra`, `markdown_github`, `markdown_mmd`, `commonmark`, `commonmark_x`,
+`gfm`, `html`, `latex`, `docx`, `csljson`, `bibtex`, `biblatex`, `endnotexml`, and
+`ris`. Output supports these names except `endnotexml`/`ris`, plus `plain`,
+`html4` and `html5`; Pandoc additionally lists the external-program PDF target.
+Other formats, including Org, EPUB, ODT, PPTX, RST and Typst, are not registered.
+Lua `pandoc.read`/`pandoc.write` share this supported profile.
+See [the registry source record](vendor/pandoc/README.md).
 
 `tools/papper-dev/src/portability.rs` stages non-system native dependencies and
 repairs their loader paths before creating the embedded runtime archive.
@@ -84,9 +95,9 @@ breaking HTTP/2 timeout renewal. GHC bootstrap libraries retain the compiler's
 own versions; application dependencies are rebuilt with the newer libraries.
 
 ```powershell
+cargo run --locked -p papper-dev -- worker
 Push-Location .\scripts\pandoc-server
-cabal build exe:pmt-pandoc-worker
-cabal install . --installdir "$HOME\.papper\tools\bin" --overwrite-policy=always
+cabal install . --builddir ../../.pmt/pandoc-worker --installdir "$HOME\.papper\tools\bin" --overwrite-policy=always
 Pop-Location
 uv run papper build html --start-server
 ```

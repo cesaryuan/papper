@@ -2,6 +2,7 @@
 //!
 //! `cargo run -p papper-dev -- wheel --output dist` compiles the Rust CLI, existing
 //! linked Rust equation crates, image helper, Haskell worker and Windows C# helper.
+//! `worker` prepares pinned Pandoc sources and builds the trimmed Haskell engine.
 //! `--prebuilt` reuses explicitly selected native components for local verification.
 //! Wheels contain native scripts and a shared runtime directory; no Python entry
 //! point or application module is included. Python remains only a test oracle.
@@ -19,6 +20,7 @@ use zip::write::SimpleFileOptions;
 mod pdf_notices;
 mod portability;
 mod smoke;
+mod worker_sources;
 
 /// Keep build-time operations separate from the product's native command parser.
 #[derive(Parser)]
@@ -30,6 +32,8 @@ struct Cli {
 /// Native development operations with no package installation or publication.
 #[derive(Subcommand)]
 enum DevCommand {
+    /// Build the retained worker with Papper's supported format registry.
+    Worker,
     /// Build a Python-runtime-free platform wheel.
     Wheel(WheelArgs),
     /// Build a native development wheel, retaining the Python oracle only in dev.
@@ -80,6 +84,11 @@ fn main() {
 /// Dispatch build operations after resolving the source checkout once.
 fn run() -> Result<()> {
     match Cli::parse().command {
+        DevCommand::Worker => {
+            let executable = build_worker(&root()?)?;
+            println!("[papper package] Worker built: {}", executable.display());
+            Ok(())
+        }
         DevCommand::Wheel(args) => build_wheel(&args),
         DevCommand::Editable(args) => build_editable(&args.output),
         DevCommand::Smoke(args) => smoke::run(&args.wheel),
@@ -116,7 +125,9 @@ fn execute(command: &mut Command, description: &str) -> Result<()> {
 
 /// Build the worker from the same source revision that is shipped in the wheel.
 fn build_worker(root: &Path) -> Result<PathBuf> {
+    worker_sources::prepare(root)?;
     let source = root.join("scripts/pandoc-server");
+    let build_directory = root.join(".pmt/pandoc-worker");
     let flags = [
         "exe:pmt-pandoc-worker",
         "--disable-executable-dynamic",
@@ -126,6 +137,8 @@ fn build_worker(root: &Path) -> Result<PathBuf> {
         Command::new("cabal")
             .arg("build")
             .args(flags)
+            .arg("--builddir")
+            .arg(&build_directory)
             .arg("--jobs=2")
             .current_dir(&source),
         "build retained Haskell worker",
@@ -133,6 +146,8 @@ fn build_worker(root: &Path) -> Result<PathBuf> {
     let output = Command::new("cabal")
         .arg("list-bin")
         .args(flags)
+        .arg("--builddir")
+        .arg(&build_directory)
         .arg("-v0")
         .current_dir(source)
         .output()?;
@@ -147,7 +162,13 @@ fn build_worker(root: &Path) -> Result<PathBuf> {
         "Cabal did not create {}",
         executable.display()
     );
-    Ok(executable)
+    worker_sources::verify_formats(root, &executable)?;
+    // Source services use immutable copies so Windows never locks Cabal's output.
+    let temporary = tempfile::Builder::new()
+        .prefix("papper-worker-")
+        .tempdir()?;
+    let stripped = strip_worker(&executable, temporary.path())?;
+    worker_sources::publish(root, &stripped)
 }
 
 /// Strip a staged Worker copy while preserving the developer's original executable.
@@ -186,6 +207,16 @@ fn strip_worker(source: &Path, directory: &Path) -> Result<PathBuf> {
             "Worker stripping failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+        if cfg!(target_os = "macos") {
+            // Stripping changes Mach-O bytes; source Workers must be runnable
+            // before the wheel's later dependency repair/signing stage.
+            execute(
+                Command::new("codesign")
+                    .args(["--force", "--sign", "-"])
+                    .arg(&destination),
+                "sign stripped source Worker",
+            )?;
+        }
         println!(
             "[papper package] Worker symbols stripped: {} -> {} bytes",
             std::fs::metadata(source)?.len(),
@@ -294,6 +325,10 @@ fn add_worker_sources(
         "README.md",
         "vendor/pandoc/COPYING.md",
         "vendor/pandoc/COPYRIGHT",
+        "vendor/pandoc/README.md",
+        "vendor/pandoc/SOURCES.json",
+        "vendor/pandoc/src/Text/Pandoc/Readers.hs",
+        "vendor/pandoc/src/Text/Pandoc/Writers.hs",
         "vendor/pandoc-cli/PandocCLI/Lua.hs",
         "vendor/pandoc-cli/PandocCLI/Server.hs",
     ] {
@@ -308,7 +343,7 @@ fn add_worker_sources(
     // Preserve the resolved provenance formerly written by the wheel hook;
     // exclude build-machine paths and record the actual Cabal source revision.
     let plan: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(source.join("dist-newstyle/cache/plan.json"))
+        &std::fs::read(root.join(".pmt/pandoc-worker/cache/plan.json"))
             .context("Worker build plan is required to publish source provenance")?,
     )?;
     let mut packages = BTreeMap::new();
@@ -340,9 +375,18 @@ fn add_worker_sources(
         }
         packages.insert((name.to_string(), version.to_string()), entry);
     }
+    let mut pandoc_provenance = worker_sources::provenance(root)?;
+    if let Some(package) = plan["install-plan"].as_array().and_then(|packages| {
+        packages
+            .iter()
+            .find(|package| package["pkg-name"] == "pandoc")
+    }) {
+        pandoc_provenance["flags"] = package["flags"].clone();
+    }
     let manifest = serde_json::json!({
         "compiler":plan["compiler-id"], "cabal":plan["cabal-version"],
         "repository":"https://github.com/cesaryuan/papper/tree/main/scripts/pandoc-server",
+        "local_overrides": {"pandoc": pandoc_provenance},
         "packages":packages.into_values().collect::<Vec<_>>()
     });
     let mut bytes = serde_json::to_vec_pretty(&manifest)?;
@@ -478,6 +522,8 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
             path.display()
         );
     }
+    // A prebuilt full-format worker must not bypass the published format profile.
+    worker_sources::verify_formats(&root, &worker)?;
     let temporary = tempfile::Builder::new().prefix("papper-wheel-").tempdir()?;
     let worker = strip_worker(&worker, temporary.path())?;
     let version = env!("CARGO_PKG_VERSION");
@@ -573,10 +619,6 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
                 "RUSTFLAGS",
                 format!("{flags} -C target-feature=+crt-static"),
             );
-            // mupdf-sys's MSBuild projects default to /MD independently of Cargo.
-            // MSVC appends _CL_ after project options, so /MT also fixes their CRT.
-            let compiler_flags = std::env::var("_CL_").unwrap_or_default();
-            build.env("_CL_", format!("{compiler_flags} /MT"));
         }
         execute(&mut build, "build portable native Papper executables")?;
         // uv copies Windows tool executables outside their environment. Keeping
@@ -585,7 +627,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         files.retain(|name, _| {
             name.contains("/licenses/")
                 || name.contains("/pandoc-worker-source/")
-                || name.contains("/mupdf-notices/")
+                || name.contains("/pdf-notices/")
                 || name.contains("/native-notices/")
                 || name.ends_with("-NOTICE.txt")
                 || name.ends_with("-OFL.txt")

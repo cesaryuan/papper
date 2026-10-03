@@ -292,8 +292,8 @@ pub fn run(wheel: &Path) -> Result<()> {
     );
     installed.command(&["init", ".", "--setup"])?;
     installed.command(&["doctor"])?;
-    // Exercise the packaged C library in its isolated child, with no Python PDF
-    // module or development DLL path available to hide a missing dependency.
+    // Exercise the packaged Rust PDF engine in its isolated child, with no Python
+    // PDF module or development DLL path available to hide a missing dependency.
     let fixture = installed.project.join("input.pdf");
     std::fs::copy(
         super::root()?.join("tests/fixtures/template-manuscript.pdf"),

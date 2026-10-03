@@ -142,6 +142,11 @@ MuPDF DLL。源码构建需要 C/C++ 编译器与 libclang，见 [DEVELOPMENT.md
 Windows C# helper 保留 SDK 桥接职责。
 打包器仅按原生组件实际 PE imports 和目录分发 Windows CRT，保留跨平台依赖审计。
 
+内置 Worker 保留 Markdown 系列、HTML、LaTeX、DOCX、JSON/native 和文献格式，
+不再注册 Org、EPUB、ODT、PPTX、RST 等其他 Pandoc 格式；Lua Reader/Writer
+调用也使用这一格式集。源码配置与构建方法见
+[scripts/pandoc-server/README.md](scripts/pandoc-server/README.md)。
+
 原来的 `pandoc_manuscript` Python 导入 API 和 `python -m` 工具不随原生 wheel
 发布。集成使用原生 CLI 或 Rust workspace 库；旧实现仅供仓库测试对照。
 已有稿件和样式配置继续使用，原生服务状态单独保存在 `work/rust-v1`。
