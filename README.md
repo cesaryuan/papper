@@ -172,8 +172,11 @@ Papper-owned configuration uses typed Rust fields and controlled updates;
 historical YAML aliases and explicit false/null precedence remain supported.
 Arbitrary Pandoc metadata stays separate. MathType OLE/MTEF conversion and
 LaTeX-to-WMF rendering link Rust libraries directly, with owned results and
-ordinary Rust errors. The external MuPDF C library retains its FFI boundary
-for PDF geometry extraction.
+ordinary Rust errors. PDF geometry extraction links MuPDF 1.27.2 through
+`mupdf-sys` 0.8.0 with PDF and Base14 fonts enabled. Its C exception wrappers
+return native errors to the isolated Rust PDF helper; no MuPDF DLL is loaded.
+Source builds require a C/C++ compiler and libclang, as described in
+[DEVELOPMENT.md](DEVELOPMENT.md).
 
 The former `pandoc_manuscript` Python import API and `python -m` utilities are
 not included in native wheels. Use the public native commands or the Rust
@@ -532,8 +535,9 @@ The renderer retains backend, style, font size, and math-font options. Formula
 caches use `native-v2` and a compile-time engine fingerprint, plus the current
 preferences, font and optional helper inputs. The standalone `latex2wmf` crate
 and CLI remain available for development. The separate image helper is built
-without `papper-core` or the embedded runtime archive; MuPDF and the optional
-Windows C# helper remain packaged external components.
+without `papper-core` or the embedded runtime archive. MuPDF is linked into the
+CLI through `mupdf-sys`; the optional Windows C# helper remains a packaged
+external component.
 
 CI sets `CARGO_TARGET_DIR` to persist native build artifacts. On Linux this directory and Cargo's download cache live on the host via
 the container's `/host` mount, so they survive the manylinux container. Local

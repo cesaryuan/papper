@@ -612,7 +612,7 @@ fn prepare_linux(
                 continue;
             }
             // Preserve the actual SONAME even when the primary component is
-            // packaged under a generic filename such as libmupdf.so.
+            // packaged under a generic filename without its version suffix.
             let library = stage_dependency(files, prefix, stage, &source, &name)?;
             if !staged.iter().any(|item| item.staged == library.staged) {
                 report.push(json!({"name":name,"source":source,"destination":library.key}));
@@ -906,7 +906,7 @@ fn prepare_macos(
     Ok(())
 }
 
-/// Copy third-party notices from their installed package or previously extracted MuPDF wheel.
+/// Copy third-party notices from their installed package or standalone distribution.
 fn add_dependency_notices(
     files: &mut BTreeMap<String, PathBuf>,
     prefix: &str,
@@ -914,9 +914,6 @@ fn add_dependency_notices(
     source: &Path,
     name: &str,
 ) -> Result<()> {
-    if name.starts_with("libmupdf") && files.keys().any(|key| key.contains("/mupdf-notices/")) {
-        return Ok(());
-    }
     let mut candidates = Vec::new();
     if cfg!(target_os = "linux") {
         if let Ok(package) = output(

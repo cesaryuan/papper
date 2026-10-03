@@ -36,7 +36,7 @@ xz2.workspace = true
 sevenz-rust2.workspace = true
 pep440_rs.workspace = true
 fancy-regex.workspace = true
-libloading.workspace = true
+mupdf-sys = { version = "=0.8.0", default-features = false, features = ["base14-fonts"] }
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true

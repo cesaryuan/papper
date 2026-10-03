@@ -136,7 +136,10 @@ false/null 的优先级；任意 Pandoc 元数据单独处理。MathType OLE/MTE
 LaTeX→WMF 通过安全 Rust API 直接链接，不再使用公式 DLL 或二进制 hex/JSON
 C ABI。公式缓存采用 `native-v2` 和构建期引擎指纹，仍验证用户偏好、字体与可选
 helper 输入。独立图像 helper 不依赖 `papper-core`，不内嵌运行时资源归档。
-MuPDF 是外部 C 库，PDF 几何提取仍通过 FFI；Windows C# helper 保留 SDK 桥接职责。
+PDF 几何提取通过 `mupdf-sys` 0.8.0 直接链接 MuPDF 1.27.2，仅开启 PDF 和
+Base14 字体。C 异常包装器将原生错误返回独立 Rust PDF helper，不再动态加载
+MuPDF DLL。源码构建需要 C/C++ 编译器与 libclang，见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+Windows C# helper 保留 SDK 桥接职责。
 打包器仅按原生组件实际 PE imports 和目录分发 Windows CRT，保留跨平台依赖审计。
 
 原来的 `pandoc_manuscript` Python 导入 API 和 `python -m` 工具不随原生 wheel

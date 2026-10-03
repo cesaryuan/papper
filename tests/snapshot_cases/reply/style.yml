@@ -1,0 +1,9 @@
+# Use native Word equations so the snapshots do not require MathType tools.
+mathtype: false
+docxNativeCrossref: false
+docxShowLineNumbers: true
+reply:
+  docxShowLineNumbers: false
+  docxShowPageNumbers: false
+  pandocMetadata:
+    lang: en-US

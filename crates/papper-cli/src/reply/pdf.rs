@@ -1,194 +1,256 @@
-//! Extract PDF text and geometry with MuPDF 1.27.2 in a dedicated native process.
+//! Extract PDF text and geometry through the linked MuPDF 1.27.2 engine.
 //!
-//! MuPDF errors use C longjmp; the hidden __pdf_extract process isolates malformed
-//! documents instead of allowing a C exception to cross Rust stack frames.
+//! The isolated `__pdf_extract` command uses mupdf-sys's C exception wrappers,
+//! keeping longjmp inside C and releasing every owned object on Rust errors.
+//! Preserve the original extraction flags and JSON shape for reply line matching.
 
-use anyhow::{Context, Result};
-use libloading::Library;
+use anyhow::{Context, Result, anyhow};
+use mupdf_sys as sys;
 use papper_core::paths::display_path;
-use papper_core::resources::ResourcePaths;
 use serde_json::{Value, json};
-use std::ffi::{CString, c_char, c_int, c_void};
-use std::path::{Path, PathBuf};
+use std::ffi::{CStr, CString};
+use std::path::Path;
+use std::ptr::NonNull;
 
-type Pointer = *mut c_void;
-type NewContext = unsafe extern "C" fn(Pointer, Pointer, usize, *const c_char) -> Pointer;
-type DropContext = unsafe extern "C" fn(Pointer);
-type Register = unsafe extern "C" fn(Pointer);
-type OpenDocument = unsafe extern "C" fn(Pointer, *const c_char) -> Pointer;
-type DropObject = unsafe extern "C" fn(Pointer, Pointer);
-type CountPages = unsafe extern "C" fn(Pointer, Pointer) -> c_int;
-type Metadata = unsafe extern "C" fn(Pointer, Pointer, *const c_char, *mut c_char, c_int) -> c_int;
-type NewText = unsafe extern "C" fn(Pointer, Pointer, c_int, Pointer) -> Pointer;
-type NewBuffer = unsafe extern "C" fn(Pointer, usize) -> Pointer;
-type NewOutput = unsafe extern "C" fn(Pointer, Pointer) -> Pointer;
-type PrintJson = unsafe extern "C" fn(Pointer, Pointer, Pointer, f32);
-type PrintText = unsafe extern "C" fn(Pointer, Pointer, Pointer);
-type BufferStorage = unsafe extern "C" fn(Pointer, Pointer, *mut *mut u8) -> usize;
+/// Own the single engine context used by this isolated extraction process.
+struct PdfContext(NonNull<sys::fz_context>);
 
-/// Match MuPDF 1.27.2's public structured-text options ABI.
-#[repr(C)]
-struct TextOptions {
-    flags: c_int,
-    scale: f32,
-    clip: [f32; 4],
-}
-
-/// Locate bundled native libraries, with an explicit source-checkout development path.
-fn library_path() -> Result<PathBuf> {
-    if let Some(path) = std::env::var_os("PAPPER_MUPDF_LIBRARY") {
-        return Ok(path.into());
+impl PdfContext {
+    /// Initialize handlers through the crate's exception-aware C wrapper.
+    fn new() -> Result<Self> {
+        // Each hidden command extracts once; the base wrapper's locks are global.
+        let raw = unsafe { sys::mupdf_new_base_context() };
+        Ok(Self(
+            NonNull::new(raw).context("Could not initialize MuPDF")?,
+        ))
     }
-    let resources = ResourcePaths::discover()?;
-    let names = if cfg!(windows) {
-        vec!["mupdfcpp64.dll", "mupdf.dll"]
-    } else if cfg!(target_os = "macos") {
-        vec!["libmupdf.dylib"]
-    } else {
-        vec!["libmupdf.so"]
-    };
-    for directory in [
-        resources.root.join("bin"),
-        resources.root.join("native"),
-        resources.root.clone(),
-    ] {
-        for name in &names {
-            let path = directory.join(name);
-            if path.is_file() {
-                return Ok(path);
-            }
-        }
-    }
-    // A source checkout may reuse its development DLL; installed wheels never search Python.
-    if resources.root.join("Cargo.toml").is_file()
-        && resources
-            .root
-            .join("crates/papper-cli/Cargo.toml")
-            .is_file()
-    {
-        let development = resources
-            .root
-            .join(".venv/Lib/site-packages/pymupdf/mupdfcpp64.dll");
-        if development.is_file() {
-            return Ok(development);
-        }
-    }
-    anyhow::bail!(
-        "MuPDF native library is missing; install the complete Papper native resources or set PAPPER_MUPDF_LIBRARY"
-    )
-}
 
-/// Copy one serialized structured-text buffer before releasing its MuPDF ownership.
-unsafe fn serialize_page(
-    library: &Library,
-    context: Pointer,
-    page: Pointer,
-    json_output: bool,
-) -> Result<Vec<u8>> {
-    // All pointers originate from this DLL and stay alive until the copied bytes are owned.
-    unsafe {
-        let new_buffer = library.get::<NewBuffer>(b"fz_new_buffer\0")?;
-        let new_output = library.get::<NewOutput>(b"fz_new_output_with_buffer\0")?;
-        let storage = library.get::<BufferStorage>(b"fz_buffer_storage\0")?;
-        let close = library.get::<DropObject>(b"fz_close_output\0")?;
-        let drop_output = library.get::<DropObject>(b"fz_drop_output\0")?;
-        let drop_buffer = library.get::<DropObject>(b"fz_drop_buffer\0")?;
-        let buffer = new_buffer(context, 1024);
-        let output = new_output(context, buffer);
-        if json_output {
-            library.get::<PrintJson>(b"fz_print_stext_page_as_json\0")?(context, output, page, 1.0);
-        } else {
-            library.get::<PrintText>(b"fz_print_stext_page_as_text\0")?(context, output, page);
+    /// Turn a caught native exception into an owned Rust error and free it.
+    fn call<T>(&self, operation: impl FnOnce(*mut *mut sys::mupdf_error_t) -> T) -> Result<T> {
+        let mut error = std::ptr::null_mut();
+        let result = operation(&mut error);
+        if let Some(error) = NonNull::new(error) {
+            // The wrapper owns both the message and error until drop_error.
+            let message = unsafe { CStr::from_ptr(error.as_ref().message) }
+                .to_string_lossy()
+                .into_owned();
+            unsafe { sys::mupdf_drop_error(error.as_ptr()) };
+            return Err(anyhow!("MuPDF: {message}"));
         }
-        close(context, output);
-        let mut bytes = std::ptr::null_mut();
-        let length = storage(context, buffer, &mut bytes);
-        let result = if length == 0 {
-            Vec::new()
-        } else {
-            std::slice::from_raw_parts(bytes, length).to_vec()
-        };
-        drop_output(context, output);
-        drop_buffer(context, buffer);
         Ok(result)
     }
 }
 
-/// Read real PDF text, bounding boxes and producer metadata without an interpreter.
-pub fn extract(path: &Path) -> Result<Value> {
-    let library_path = library_path()?;
-    // The explicitly selected native library must export the pinned MuPDF C ABI.
-    unsafe {
-        let library = papper_platform::dynamic::load_library(&library_path)
-            .with_context(|| format!("Could not load MuPDF {}", library_path.display()))?;
-        let context = library.get::<NewContext>(b"fz_new_context_imp\0")?(
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-            256 << 20,
-            c"1.27.2".as_ptr(),
-        );
-        anyhow::ensure!(
-            !context.is_null(),
-            "MuPDF 1.27.2 context initialization failed"
-        );
-        library.get::<Register>(b"fz_register_document_handlers\0")?(context);
+impl Drop for PdfContext {
+    /// Release the context after all document and page borrows have ended.
+    fn drop(&mut self) {
+        // mupdf-sys 0.8.0's base destructor deletes its global locks first,
+        // crashing when MuPDF subsequently locks during context teardown.
+        // Keep those process-owned locks alive until this isolated helper exits.
+        unsafe { sys::fz_drop_context(self.0.as_ptr()) };
+    }
+}
+
+/// Keep the document alive while reading its metadata and structured pages.
+struct PdfDocument<'a> {
+    context: &'a PdfContext,
+    raw: NonNull<sys::fz_document>,
+}
+
+impl<'a> PdfDocument<'a> {
+    /// Open a PDF without depending on Python or a runtime-loaded DLL.
+    fn open(context: &'a PdfContext, path: &Path) -> Result<Self> {
         let filename = CString::new(display_path(path))?;
-        let document =
-            library.get::<OpenDocument>(b"fz_open_document\0")?(context, filename.as_ptr());
-        anyhow::ensure!(!document.is_null(), "Could not open PDF {}", path.display());
-        let lookup = library.get::<Metadata>(b"fz_lookup_metadata\0")?;
-        let mut metadata = serde_json::Map::new();
-        for key in [
-            "Producer", "Creator", "Title", "Author", "Subject", "Keywords",
-        ] {
-            let name = CString::new(format!("info:{key}"))?;
-            let mut value = vec![0u8; 8192];
-            let length = lookup(
-                context,
-                document,
-                name.as_ptr(),
-                value.as_mut_ptr().cast(),
-                value.len() as c_int,
-            );
-            if length > 0 {
-                let length = value
-                    .iter()
-                    .position(|byte| *byte == 0)
-                    .unwrap_or(value.len());
-                metadata.insert(
-                    key.into(),
-                    String::from_utf8_lossy(&value[..length])
-                        .into_owned()
-                        .into(),
+        let raw = context.call(|error| unsafe {
+            sys::mupdf_open_document(context.0.as_ptr(), filename.as_ptr(), error)
+        })?;
+        Ok(Self {
+            context,
+            raw: NonNull::new(raw)
+                .with_context(|| format!("Could not open PDF {}", path.display()))?,
+        })
+    }
+
+    /// Copy one optional metadata value before freeing its C-owned string.
+    fn metadata(&self, key: &str) -> Result<Option<String>> {
+        let key = CString::new(format!("info:{key}"))?;
+        let value = self.context.call(|error| unsafe {
+            sys::mupdf_lookup_metadata(
+                self.context.0.as_ptr(),
+                self.raw.as_ptr(),
+                key.as_ptr(),
+                error,
+            )
+        })?;
+        let Some(value) = NonNull::new(value) else {
+            return Ok(None);
+        };
+        let text = unsafe { CStr::from_ptr(value.as_ptr()) }
+            .to_string_lossy()
+            .into_owned();
+        unsafe { sys::mupdf_drop_str(value.as_ptr()) };
+        Ok(Some(text))
+    }
+
+    /// Count pages through a wrapper that catches corrupt-document exceptions.
+    fn page_count(&self) -> Result<i32> {
+        self.context.call(|error| unsafe {
+            sys::mupdf_document_page_count(self.context.0.as_ptr(), self.raw.as_ptr(), error)
+        })
+    }
+
+    /// Extract a page with the legacy ligature, whitespace, clip and CID policy.
+    fn text_page(&self, number: i32) -> Result<TextPage<'a>> {
+        let context = self.context;
+        let page = context.call(|error| unsafe {
+            sys::mupdf_load_page(context.0.as_ptr(), self.raw.as_ptr(), number, error)
+        })?;
+        let page = NonNull::new(page).context("MuPDF returned an empty PDF page")?;
+        let options = sys::fz_stext_options {
+            flags: sys::FZ_STEXT_PRESERVE_LIGATURES
+                | sys::FZ_STEXT_PRESERVE_WHITESPACE
+                | sys::FZ_STEXT_CLIP
+                | sys::FZ_STEXT_USE_CID_FOR_UNKNOWN_UNICODE,
+            scale: 1.0,
+            clip: sys::fz_rect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 0.0,
+                y1: 0.0,
+            },
+        };
+        let text = context.call(|error| unsafe {
+            sys::mupdf_new_stext_page_from_page(context.0.as_ptr(), page.as_ptr(), &options, error)
+        });
+        // Page loading succeeds before text extraction; release it even on error.
+        unsafe { sys::fz_drop_page(context.0.as_ptr(), page.as_ptr()) };
+        Ok(TextPage {
+            context,
+            raw: NonNull::new(text?).context("MuPDF returned no structured PDF text")?,
+        })
+    }
+}
+
+impl Drop for PdfDocument<'_> {
+    /// Release the document while its borrowed context remains alive.
+    fn drop(&mut self) {
+        unsafe { sys::fz_drop_document(self.context.0.as_ptr(), self.raw.as_ptr()) };
+    }
+}
+
+/// Own extracted text independently of the temporary source page.
+struct TextPage<'a> {
+    context: &'a PdfContext,
+    raw: NonNull<sys::fz_stext_page>,
+}
+
+impl TextPage<'_> {
+    /// Serialize the existing text or geometry contract using C exception wrappers.
+    fn serialize(&self, json_output: bool) -> Result<Vec<u8>> {
+        let output = TextOutput::new(self.context)?;
+        let stream = output.stream.expect("TextOutput initializes its stream");
+        self.context.call(|error| unsafe {
+            if json_output {
+                sys::mupdf_print_stext_page_as_json(
+                    self.context.0.as_ptr(),
+                    stream.as_ptr(),
+                    self.raw.as_ptr(),
+                    1.0,
+                    error,
+                );
+            } else {
+                sys::mupdf_print_stext_page_as_text(
+                    self.context.0.as_ptr(),
+                    stream.as_ptr(),
+                    self.raw.as_ptr(),
+                    error,
                 );
             }
-        }
-        let count = library.get::<CountPages>(b"fz_count_pages\0")?(context, document);
-        let text_page = library.get::<NewText>(b"fz_new_stext_page_from_page_number\0")?;
-        let drop_text = library.get::<DropObject>(b"fz_drop_stext_page\0")?;
-        let mut pages = Vec::new();
-        // Match existing PDF text extraction: preserve ligatures/whitespace,
-        // clip to the media box and retain unknown glyph CIDs. A null options
-        // pointer expands ligatures and can change users' line regex matches.
-        let mut options = TextOptions {
-            flags: 1 | 2 | 64 | 128,
-            scale: 1.0,
-            clip: [0.0; 4],
-        };
-        for number in 0..count {
-            let page = text_page(
-                context,
-                document,
-                number,
-                (&mut options as *mut TextOptions).cast(),
-            );
-            let layout = serialize_page(&library, context, page, true)?;
-            let text = serialize_page(&library, context, page, false)?;
-            drop_text(context, page);
-            pages.push(json!({"layout":serde_json::from_slice::<Value>(&layout).context("Invalid MuPDF structured-text JSON")?,"text":String::from_utf8_lossy(&text)}));
-        }
-        library.get::<DropObject>(b"fz_drop_document\0")?(context, document);
-        library.get::<DropContext>(b"fz_drop_context\0")?(context);
-        Ok(json!({"metadata":metadata,"pages":pages}))
+        })?;
+        Ok(output.bytes())
     }
+}
+
+impl Drop for TextPage<'_> {
+    /// Release the structured text before its context.
+    fn drop(&mut self) {
+        unsafe { sys::fz_drop_stext_page(self.context.0.as_ptr(), self.raw.as_ptr()) };
+    }
+}
+
+/// Own both serialization resources, including partially initialized outputs.
+struct TextOutput<'a> {
+    context: &'a PdfContext,
+    buffer: NonNull<sys::fz_buffer>,
+    stream: Option<NonNull<sys::fz_output>>,
+}
+
+impl<'a> TextOutput<'a> {
+    /// Allocate an empty buffer and its output through exception-safe wrappers.
+    fn new(context: &'a PdfContext) -> Result<Self> {
+        let raw = context.call(|error| unsafe {
+            sys::mupdf_buffer_from_str(context.0.as_ptr(), c"".as_ptr(), error)
+        })?;
+        let mut output = Self {
+            context,
+            buffer: NonNull::new(raw).context("Could not allocate PDF text buffer")?,
+            stream: None,
+        };
+        let raw = context.call(|error| unsafe {
+            sys::mupdf_new_output_with_buffer(context.0.as_ptr(), output.buffer.as_ptr(), error)
+        })?;
+        output.stream = Some(NonNull::new(raw).context("Could not allocate PDF text output")?);
+        Ok(output)
+    }
+
+    /// Copy already-written memory-buffer bytes without native allocation.
+    fn bytes(&self) -> Vec<u8> {
+        let mut data = std::ptr::null_mut();
+        let length = unsafe {
+            sys::fz_buffer_storage(self.context.0.as_ptr(), self.buffer.as_ptr(), &mut data)
+        };
+        if length == 0 {
+            return Vec::new();
+        }
+        unsafe { std::slice::from_raw_parts(data, length) }.to_vec()
+    }
+}
+
+impl Drop for TextOutput<'_> {
+    /// Close the memory-only stream and free it before its backing buffer.
+    fn drop(&mut self) {
+        unsafe {
+            if let Some(stream) = self.stream {
+                // Unbuffered memory outputs have no close callback or pending flush.
+                sys::fz_close_output(self.context.0.as_ptr(), stream.as_ptr());
+                sys::fz_drop_output(self.context.0.as_ptr(), stream.as_ptr());
+            }
+            sys::fz_drop_buffer(self.context.0.as_ptr(), self.buffer.as_ptr());
+        }
+    }
+}
+
+/// Read real PDF text, bounding boxes and producer metadata in the isolated helper.
+pub fn extract(path: &Path) -> Result<Value> {
+    let context = PdfContext::new()?;
+    let document = PdfDocument::open(&context, path)?;
+    let mut metadata = serde_json::Map::new();
+    for key in [
+        "Producer", "Creator", "Title", "Author", "Subject", "Keywords",
+    ] {
+        if let Some(value) = document.metadata(key)? {
+            metadata.insert(key.into(), value.into());
+        }
+    }
+    let mut pages = Vec::new();
+    for number in 0..document.page_count()? {
+        let page = document.text_page(number)?;
+        let layout = page.serialize(true)?;
+        let text = page.serialize(false)?;
+        pages.push(json!({
+            "layout": serde_json::from_slice::<Value>(&layout).context("Invalid MuPDF structured-text JSON")?,
+            "text": String::from_utf8_lossy(&text),
+        }));
+    }
+    Ok(json!({"metadata": metadata, "pages": pages}))
 }

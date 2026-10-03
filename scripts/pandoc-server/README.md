@@ -43,6 +43,13 @@ delegates `uv build` and editable installation to this builder. CI pins Rust
 1.98.0, GHC 9.14.1, and Cabal 3.18.1.0, caches native dependencies, and builds
 Linux inside manylinux 2.28.
 
+The wheel builder strips symbols from a staging copy of the worker before
+embedding it; the original Cabal output remains available for debugging. This
+keeps every upstream input/output format supported by the normal worker.
+Reader/Writer registry reduction was measured in a separate experimental build,
+not applied to the shipped worker; see
+[the size review](../../docs/NATIVE_PDF_WORKER_SIZE_REVIEW.md).
+
 `tools/papper-dev/src/portability.rs` stages non-system native dependencies and
 repairs their loader paths before creating the embedded runtime archive.
 Linux uses `ldd` and `patchelf`; macOS uses `otool`, `install_name_tool`, and

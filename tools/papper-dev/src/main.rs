@@ -12,10 +12,11 @@ use clap::{Args, Parser, Subcommand};
 use papper_core::paths::display_path;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use zip::write::SimpleFileOptions;
+mod pdf_notices;
 mod portability;
 mod smoke;
 
@@ -64,8 +65,6 @@ struct WheelArgs {
     executable: Option<PathBuf>,
     #[arg(long)]
     worker: Option<PathBuf>,
-    #[arg(long)]
-    pdf_library: Option<PathBuf>,
     #[arg(long)]
     platform: Option<String>,
 }
@@ -149,6 +148,52 @@ fn build_worker(root: &Path) -> Result<PathBuf> {
         executable.display()
     );
     Ok(executable)
+}
+
+/// Strip a staged Worker copy while preserving the developer's original executable.
+fn strip_worker(source: &Path, directory: &Path) -> Result<PathBuf> {
+    let destination = directory.join(source.file_name().context("Worker filename missing")?);
+    std::fs::copy(source, &destination)?;
+    let mut candidates = Vec::new();
+    if cfg!(windows) {
+        // GHC ships the matching LLVM tools even when they are absent from PATH.
+        if let Ok(output) = Command::new("ghc").arg("--print-libdir").output()
+            && output.status.success()
+        {
+            let libdir = PathBuf::from(String::from_utf8(output.stdout)?.trim());
+            if let Some(root) = libdir.parent() {
+                candidates.push(root.join("mingw/bin/llvm-strip.exe"));
+            }
+        }
+        candidates.push(PathBuf::from("llvm-strip"));
+    }
+    candidates.push(PathBuf::from("strip"));
+    for program in candidates {
+        let mut command = Command::new(&program);
+        if cfg!(target_os = "macos") {
+            // Apple strip preserves dynamic imports and required global symbols.
+            command.args(["-S", "-x"]);
+        } else {
+            command.arg("--strip-all");
+        }
+        let output = match command.arg(&destination).output() {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            result => result
+                .with_context(|| format!("Could not strip Worker using {}", program.display()))?,
+        };
+        anyhow::ensure!(
+            output.status.success(),
+            "Worker stripping failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        println!(
+            "[papper package] Worker symbols stripped: {} -> {} bytes",
+            std::fs::metadata(source)?.len(),
+            std::fs::metadata(&destination)?.len()
+        );
+        return Ok(destination);
+    }
+    bail!("Worker stripping requires LLVM strip or binutils (included with GHC on Windows)")
 }
 
 /// Rebuild the retained C# SDK bridge without copying source/debug files into wheels.
@@ -311,141 +356,6 @@ fn add_worker_sources(
     Ok(())
 }
 
-/// Download pinned MuPDF native code from its published wheel without installing Python.
-fn download_pdf_library(directory: &Path) -> Result<(PathBuf, Vec<PathBuf>)> {
-    const VERSION: &str = "1.27.2.3";
-    let metadata: serde_json::Value =
-        ureq::get(&format!("https://pypi.org/pypi/PyMuPDF/{VERSION}/json"))
-            .call()?
-            .into_json()?;
-    let architecture = std::env::consts::ARCH;
-    let os = std::env::consts::OS;
-    let filename_matches = |name: &str| {
-        name.ends_with(".whl")
-            && match (os, architecture) {
-                ("windows", "x86_64") => name.ends_with("win_amd64.whl"),
-                ("windows", "aarch64") => name.ends_with("win_arm64.whl"),
-                ("macos", "aarch64") => {
-                    name.contains("macosx")
-                        && (name.ends_with("arm64.whl") || name.ends_with("universal2.whl"))
-                }
-                ("macos", "x86_64") => {
-                    name.contains("macosx")
-                        && (name.ends_with("x86_64.whl") || name.ends_with("universal2.whl"))
-                }
-                ("linux", "x86_64") => name.contains("manylinux") && name.ends_with("x86_64.whl"),
-                ("linux", "aarch64") => name.contains("manylinux") && name.ends_with("aarch64.whl"),
-                _ => false,
-            }
-    };
-    let asset = metadata["urls"]
-        .as_array()
-        .context("MuPDF release has no artifacts")?
-        .iter()
-        .find(|asset| asset["filename"].as_str().is_some_and(filename_matches))
-        .context("No compatible published MuPDF wheel")?;
-    let mut bytes = Vec::new();
-    ureq::get(asset["url"].as_str().context("MuPDF URL missing")?)
-        .call()?
-        .into_reader()
-        .take(150 * 1024 * 1024)
-        .read_to_end(&mut bytes)?;
-    let actual = Sha256::digest(&bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
-    anyhow::ensure!(
-        asset["digests"]["sha256"].as_str() == Some(actual.as_str()),
-        "MuPDF download checksum mismatch"
-    );
-    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes))?;
-    let mut library = None;
-    let mut notices = Vec::new();
-    for index in 0..archive.len() {
-        let mut entry = archive.by_index(index)?;
-        let filename = Path::new(entry.name())
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("")
-            .to_string();
-        let is_library = filename == "mupdfcpp64.dll"
-            || filename.starts_with("libmupdf.so")
-            || (filename.starts_with("libmupdf.")
-                && filename.ends_with(".dylib")
-                && !filename.contains("cpp"));
-        let is_dependency =
-            filename.ends_with(".dylib") || filename.contains(".so") || filename.ends_with(".dll");
-        let is_notice = entry.name().contains("/licenses/")
-            || filename == "COPYING"
-            || filename == "COPYING.txt";
-        if !entry.is_file() || (!is_dependency && !is_notice) {
-            continue;
-        }
-        let destination = if is_dependency {
-            directory.join(
-                entry
-                    .enclosed_name()
-                    .context("MuPDF wheel path escaped extraction root")?,
-            )
-        } else {
-            directory.join(&filename)
-        };
-        if let Some(parent) = destination.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let mut file = std::fs::File::create(&destination)?;
-        std::io::copy(&mut entry, &mut file)?;
-        if is_library {
-            library = Some(destination);
-        } else if is_notice {
-            notices.push(destination);
-        }
-    }
-    anyhow::ensure!(
-        !notices.is_empty(),
-        "Published MuPDF wheel omitted license notices"
-    );
-    Ok((
-        library.context("Published wheel omitted its standalone MuPDF library")?,
-        notices,
-    ))
-}
-
-/// Copy installed MuPDF notices only for a deliberately selected prebuilt library.
-fn local_pdf_notices(library: &Path) -> Vec<PathBuf> {
-    let Some(parent) = library.parent().and_then(Path::parent) else {
-        return Vec::new();
-    };
-    let Ok(entries) = std::fs::read_dir(parent) else {
-        return Vec::new();
-    };
-    let mut notices = Vec::new();
-    for entry in entries.flatten() {
-        if !entry
-            .file_name()
-            .to_string_lossy()
-            .to_lowercase()
-            .starts_with("pymupdf-")
-        {
-            continue;
-        }
-        let licenses = entry.path().join("licenses");
-        let copying = entry.path().join("COPYING");
-        if copying.is_file() {
-            notices.push(copying);
-        }
-        if let Ok(files) = std::fs::read_dir(licenses) {
-            notices.extend(
-                files
-                    .flatten()
-                    .filter(|file| file.path().is_file())
-                    .map(|file| file.path()),
-            );
-        }
-    }
-    notices
-}
-
 /// Write one wheel entry and its PEP 427 content digest without a Python packager.
 fn append_entry(
     archive: &mut zip::ZipWriter<std::fs::File>,
@@ -569,20 +479,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         );
     }
     let temporary = tempfile::Builder::new().prefix("papper-wheel-").tempdir()?;
-    let (pdf, pdf_notices) = if let Some(path) = args
-        .pdf_library
-        .clone()
-        .or_else(|| std::env::var_os("PAPPER_MUPDF_LIBRARY").map(PathBuf::from))
-    {
-        let notices = local_pdf_notices(&path);
-        anyhow::ensure!(
-            !notices.is_empty(),
-            "Selected MuPDF library has no accompanying notices; use its original wheel directory"
-        );
-        (path, notices)
-    } else {
-        download_pdf_library(temporary.path())?
-    };
+    let worker = strip_worker(&worker, temporary.path())?;
     let version = env!("CARGO_PKG_VERSION");
     let platform = args.platform.clone().unwrap_or(platform_tag()?);
     let tag = format!("py3-none-{platform}");
@@ -606,23 +503,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         worker,
     );
     files.insert(format!("{prefix}/bin/papper-svg{exe_suffix}"), renderer);
-    let pdf_name = if cfg!(windows) {
-        "mupdfcpp64.dll"
-    } else if cfg!(target_os = "macos") {
-        "libmupdf.dylib"
-    } else {
-        "libmupdf.so"
-    };
-    files.insert(format!("{prefix}/bin/{pdf_name}"), pdf);
-    for notice in pdf_notices {
-        files.insert(
-            format!(
-                "{prefix}/bin/mupdf-notices/{}",
-                notice.file_name().unwrap().to_string_lossy()
-            ),
-            notice,
-        );
-    }
+    pdf_notices::stage(&mut files, &root, &prefix)?;
     files.insert(
         format!("{prefix}/mathtype/Times+Symbol 12.eqp"),
         root.join("src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp"),
@@ -692,6 +573,10 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
                 "RUSTFLAGS",
                 format!("{flags} -C target-feature=+crt-static"),
             );
+            // mupdf-sys's MSBuild projects default to /MD independently of Cargo.
+            // MSVC appends _CL_ after project options, so /MT also fixes their CRT.
+            let compiler_flags = std::env::var("_CL_").unwrap_or_default();
+            build.env("_CL_", format!("{compiler_flags} /MT"));
         }
         execute(&mut build, "build portable native Papper executables")?;
         // uv copies Windows tool executables outside their environment. Keeping

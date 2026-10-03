@@ -1,5 +1,26 @@
 # Development
 
+## Native PDF extraction
+
+The CLI links MuPDF 1.27.2 through the locked `mupdf-sys` 0.8.0 crate with
+only PDF and Base14 fonts enabled. It does not load a MuPDF DLL or use Python
+for extraction. The isolated PDF helper keeps native errors from replacing an
+existing reply; the crate's C wrappers catch MuPDF exceptions before returning
+to Rust.
+
+Source builds require a C/C++ compiler and libclang for bindgen. On Windows,
+install Visual Studio C++ Build Tools and LLVM, then point `LIBCLANG_PATH` at
+the directory containing `libclang.dll` before `uv sync` or Cargo builds:
+
+```powershell
+$env:LIBCLANG_PATH = 'C:/Program Files/LLVM/bin'
+uv sync
+```
+
+On macOS use the LLVM library directory from `brew --prefix llvm`; Linux
+builders need Clang/libclang development packages. The release workflow
+prepares these tools. Installed wheels need none of these build tools.
+
 ## Build benchmark
 
 Benchmark the current Papper/Pandoc toolchain against `template/manuscript.md`:
@@ -79,6 +100,11 @@ policy, so this is not a clean-room native compilation benchmark.
 
 The build snapshots cover the manuscript template and focused fixtures for
 citations, cross-references and metadata, using both standalone HTML and DOCX.
+The cases imported from commit `910f0b9` also cover `build-reply` DOCX/TXT,
+including manuscript reference numbering and real PDF lines. Their checked-in
+Word export avoids COM during snapshot execution. Verify them with
+`uv run pytest tests/test_build_snapshots.py -k reply`; do not refresh the
+expected output merely to accept a new extraction backend.
 DOCX snapshots list every decompressed ZIP entry: canonical XML is split at tag
 boundaries for readable diffs, while binary entries retain their SHA-256 and
 size. Refreshing snapshots is explicit; review the changes before accepting

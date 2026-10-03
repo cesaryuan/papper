@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture(scope="module")
 def reply_executable(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Build and copy the actual executable so child processes cannot lock Cargo outputs."""
-    completed = subprocess.run(["cargo", "build", "--offline", "-p", "papper-cli"], cwd=ROOT, capture_output=True, text=True, timeout=180)
+    # Cargo emits UTF-8; Windows' GBK default cannot decode native linker diagnostics.
+    completed = subprocess.run(["cargo", "build", "--offline", "-p", "papper-cli"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
     assert completed.returncode == 0, completed.stdout + completed.stderr
     executable = tmp_path_factory.mktemp("native-reply-bin") / ("papper.exe" if os.name == "nt" else "papper")
     shutil.copy2(ROOT / "target/debug" / executable.name, executable)

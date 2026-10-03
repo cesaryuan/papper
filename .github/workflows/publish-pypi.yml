@@ -66,6 +66,23 @@ jobs:
           # cannot load when the floating macos-latest image advances.
           echo "MACOSX_DEPLOYMENT_TARGET=14.0" >> "$GITHUB_ENV"
 
+      - name: Locate Windows libclang for MuPDF bindings
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $clangLibraryDirectory = Join-Path $env:ProgramFiles 'LLVM/bin'
+          if (!(Test-Path (Join-Path $clangLibraryDirectory 'libclang.dll'))) {
+            throw 'The Windows builder requires LLVM with libclang.dll'
+          }
+          "LIBCLANG_PATH=$clangLibraryDirectory" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install macOS libclang for MuPDF bindings
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew install llvm
+          echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
+
       # Cargo fetches Git dependencies in its own cache, outside checkout's
       # credential scope. Keep the rewrite limited to the private dependency.
       - name: Authenticate private Cargo dependencies

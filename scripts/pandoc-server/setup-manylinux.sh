@@ -11,7 +11,7 @@ set -euo pipefail
 pipx install --force 'patchelf==0.19.1.0'
 patchelf --version
 
-dnf install -y gcc gcc-c++ make perl pkgconf-pkg-config gmp-devel libffi-devel ncurses-devel numactl-devel zlib-devel
+dnf install -y gcc gcc-c++ make perl clang clang-devel llvm-devel pkgconf-pkg-config gmp-devel libffi-devel ncurses-devel numactl-devel zlib-devel
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
   -y --profile minimal --default-toolchain "$RUSTUP_TOOLCHAIN"
 curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | \
