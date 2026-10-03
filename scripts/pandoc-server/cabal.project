@@ -1,4 +1,5 @@
-packages: .
+-- papper-dev prepares this pinned upstream source with tracked registry overrides.
+packages: . ../../.pmt/pandoc-source/pandoc-3.12
 
 -- Keep Hackage versions and Cabal revisions consistent across wheel platforms.
 index-state: 2026-10-02T10:13:07Z
@@ -6,6 +7,7 @@ index-state: 2026-10-02T10:13:07Z
 -- The wheel ships only the worker executable, so Pandoc's templates and other
 -- data files must be embedded instead of looked up in Cabal's build store.
 package pandoc
+  ghc-options: -split-sections
   -- Keep resource fetching mandatory: the solver may otherwise disable HTTP
   -- to satisfy stale TLS bounds, silently breaking remote CSL and images.
   flags: +embed_data_files +http

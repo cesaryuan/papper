@@ -2,11 +2,11 @@
 -- Pandoc's DOCX reader keeps an OLE object's preview image in the AST but
 -- discards its MTEF payload. This native Lua filter reads the source DOCX with
 -- pandoc.zip, matches each preview image to its embedded OLE relationship,
--- reads LaTeX decoded through Papper's Rust DLL, and replaces the Image with Math.
+-- reads LaTeX decoded by Papper's linked Rust library, and replaces Image with Math.
 -- Run with: pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua
--- Install Papper in the Python environment used by this command.
--- papper convert supplies a predecoded map; standalone Pandoc starts one Python
--- batch helper (PAPPER_PYTHON selects its interpreter) to load the same DLL.
+-- Install the native Papper CLI on PATH before using this standalone filter.
+-- papper convert supplies a predecoded map; standalone Pandoc starts one native
+-- batch helper (PAPPER_EXECUTABLE overrides its path) using the same linked decoder.
 
 --- Return the local part of an XML name, independent of namespace prefix.
 local function local_name(name)
@@ -174,20 +174,22 @@ local function collect_previews()
   return previews
 end
 
---- Read in-process conversion results or decode the documents in one Python call.
+--- Read in-process conversion results or decode documents in one native batch call.
 local function read_latex_map()
-  local mapping = os.getenv('MATHTYPE_LATEX_MAP')
+  -- Lua's C getenv uses ANSI on Windows; native map and executable paths can be Unicode.
+  local environment = pandoc.system.environment()
+  local mapping = environment.MATHTYPE_LATEX_MAP
   if mapping and mapping ~= '' then
     return pandoc.json.decode(pandoc.system.read_file(mapping), false)
   end
-  local args = { '-m', 'pandoc_manuscript.mathtype.decode_docx' }
+  local args = { '__decode_docx' }
   for _, input in ipairs(PANDOC_STATE.input_files) do
     if input:lower():match('%.docx$') then
       args[#args + 1] = input
     end
   end
-  local python = os.getenv('PAPPER_PYTHON') or 'python'
-  return pandoc.json.decode(pandoc.pipe(python, args, ''), false)
+  local executable = environment.PAPPER_EXECUTABLE or 'papper'
+  return pandoc.json.decode(pandoc.pipe(executable, args, ''), false)
 end
 
 --- Remove one outer TeX math delimiter pair before constructing a Pandoc Math.

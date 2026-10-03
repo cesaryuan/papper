@@ -134,10 +134,8 @@ def test_build_reply_output_matches_snapshot(
 ) -> None:
     """Snapshot real reply builds with manuscript numbering, PDF lines, and styles."""
     case_dir = ROOT / "tests" / "snapshot_cases" / "reply"
-    # Keep Word COM out of test execution by using the real manuscript's
-    # checked-in export, which must be refreshed when the source changes.
+    # The original checked-in Word export keeps line geometry stable without COM.
     line_source = case_dir / "manuscript.pdf"
-
     output = tmp_path / f"reply.{target}"
     result = subprocess.run(
         [

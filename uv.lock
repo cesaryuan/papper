@@ -453,13 +453,16 @@ wheels = [
 name = "papper"
 version = "0.9.2"
 source = { editable = "." }
-dependencies = [
+
+[package.dev-dependencies]
+dev = [
     { name = "lxml" },
     { name = "packaging" },
     { name = "panflute" },
     { name = "py7zr" },
     { name = "pydantic-settings" },
     { name = "pymupdf" },
+    { name = "pytest" },
     { name = "python-docx" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -467,28 +470,23 @@ dependencies = [
     { name = "tqdm" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
 [package.metadata]
-requires-dist = [
+
+[package.metadata.requires-dev]
+dev = [
     { name = "lxml", specifier = ">=4.9.0" },
     { name = "packaging", specifier = ">=24.2" },
     { name = "panflute", specifier = ">=2.3.0" },
     { name = "py7zr", specifier = ">=0.22.0" },
     { name = "pydantic-settings", specifier = ">=2.2.1" },
     { name = "pymupdf", specifier = ">=1.26.0" },
+    { name = "pytest", specifier = ">=9.1.1" },
     { name = "python-docx", specifier = ">=1.1.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "resvg-py", specifier = ">=0.3.3" },
     { name = "tqdm", specifier = ">=4.68.3" },
 ]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.1.1" }]
 
 [[package]]
 name = "pluggy"

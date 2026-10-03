@@ -6,6 +6,10 @@
 
 Papper 是一个面向 AI 时代的、以 DOCX 为核心输出的学术写作工作流。现在 AI 很擅长起草、改写和整理 Markdown，但很多期刊、编辑和合作者最终仍然要 `.docx`。Papper 解决的正是这个错位问题：你继续用清晰、可版本控制、对 AI 友好的 Markdown 写作，在需要提交的时候再稳定地产出接近期刊工作流的 Word 文档。
 
+CLI、配置、HTML Server、文档后处理和集成层由 Rust 实现。Lua filters、Haskell
+Pandoc worker 和 Windows C# MathType helper 保留原实现。通过 `uv tool` 安装
+PyPI wheel 后，`papper` 和 `pmt` 直接运行原生可执行文件，构建时不启动 Python。
+
 <!--
 README 首图建议，方便你后面自己截图或绘制：
 - 用一个横向 3 面板流程图，不要只放 logo。
@@ -38,8 +42,8 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 - **一条命令初始化项目**：`papper init` 可以直接生成论文目录结构、稿件、样式元数据、参考文献和 agent 指南。
 - **面向投稿的后处理**：Pandoc 结束后，Papper 还会做 DOCX 侧的格式整理和增强。
 - **支持审稿回复**：`build-reply` 可以生成 DOCX 或 TXT，并自动解析正文中的引用和交叉引用。
-- **自管理 Pandoc 工具链**：如果系统里没有 `pandoc` 或 `pandoc-crossref`，Papper 可以把它们下载到用户目录 `~/.papper/tools`，供所有项目复用。
-- **保留其他输出**：虽然以 DOCX 为核心，但仍然支持 LaTeX 和 JSON 输出。
+- **内置 Pandoc 工具链**：平台 wheel 内置 Pandoc 3.12、crossref 和持久 HTML worker，无需另外下载；源码开发环境也支持受管工具。
+- **保留其他输出**：虽然以 DOCX 为核心，但仍然支持 HTML、LaTeX 和 JSON 输出。
 
 ## 你能得到什么
 
@@ -53,7 +57,7 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 - 基于 CSL 的参考文献格式
 - 通过 reference DOCX 控制 Word 样式
 - 面向 DOCX 的后处理：作者信息、表格行为、样式、行号相关工作流
-- 制表符排版的公式段落自动应用 `Para Equation` 样式，继承“正文文本”，段后间距为 0.5 行，使用单倍行距。对已有 DOCX 单独执行此步骤并原地保存：`uv run python -m pandoc_manuscript.docx.postprocess.para_equation_style path/to/file.docx`（加 `--no-save` 可仅检查而不保存）。
+- `papper build docx` 中，制表符排版的公式段落自动应用 `Para Equation` 样式，继承“正文文本”，段后间距为 0.5 行，使用单倍行距。
   样式的居中、右对齐制表位分别设在 DOCX 第一节正文可用宽度（页面宽度减左右页边距）的一半和末端；移除公式段落上的直接制表位，使其继承样式。修改页边距后需重新执行此步骤。
 - Word 不友好图片场景下的 SVG 处理和回退方案
 - 需要时支持 MathType 相关的 DOCX 工作流
@@ -72,18 +76,19 @@ uv run papper convert "测试文档.docx" -o converted
 或 `@eq:_Ref241620691` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
 Pandoc 的结果；公式无法解码时会保留预览图片。
 
-MathType 反向解码复用 LaTeX 转 MTEF 时使用的同一份 Rust 动态库。
-`papper convert` 在当前 Python 进程中完成解码，再把结果交给 Lua；wheel
-不再额外包含 `mathtype-rust` 可执行文件。
+MathType 反向解码复用 LaTeX 转 MTEF 时直接链接的同一份 Rust 公式库。
+`papper convert` 在当前 Rust 进程中完成解码，再把结果交给 Lua；wheel
+无需独立 MathType DLL 或公式转换可执行文件。
 
-在源码仓库中也可以直接运行 MathType Lua 过滤器，使用已安装 Papper 的 Python 环境：
+在源码仓库中也可以直接运行 MathType Lua 过滤器，将原生 `papper` 放到 Pandoc 的 PATH：
 
 ```powershell
-uv run pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
+pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
 ```
 
-此时 Lua 一次启动一个 Python 批量解码模块，由它加载同一份动态库。若 Pandoc 的
-PATH 中没有对应的 `python`，可将 `PAPPER_PYTHON` 设置为该解释器的路径。
+此时 Lua 一次调用原生批量解码入口，使用直接链接的公式库。若 `papper` 不在 Pandoc 的
+PATH 中，可将 `PAPPER_EXECUTABLE` 设置为原生可执行文件路径。DOCX 公式转换为
+Pandoc Math 节点后，Markdown writer 直接生成数学分隔符，不需要再次反转义。
 
 ## 快速开始
 
@@ -91,27 +96,62 @@ PATH 中没有对应的 `python`，可将 `PAPPER_PYTHON` 设置为该解释器�
 
 建议准备以下工具：
 
-1. `uv`
-2. `pandoc` 3.11+ 和 `pandoc-crossref`
+1. `uv`，用于安装平台 wheel
+2. Papper 平台 wheel，已内置 Pandoc 3.12 和 crossref
 3. 行号来源工作流在 Windows 上需要安装 Microsoft Word；其他平台可以使用 `soffice`
-4. 可选：MathType，用于需要 MathType 公式的 DOCX 输出
+4. 可选：Windows MathType，仅 `rust-sdk`、`set-data`、`auto` 或 `both` 方式需要；默认 `rust` 方式可独立工作
 
-Papper 要求 `pandoc` 3.11 或更高版本。如果检测到 `PATH` 中的 Pandoc 版本过低或不可用，Papper 会自动启动工具配置流程，并将受管工具下载到 `~/.papper/tools`；同一用户的所有项目都会复用这份安装。
+平台 wheel 的 `papper setup` 和 `papper init --setup` 在本地验证内置引擎，包含
+`--force` 时也不另外下载。源码开发环境可以使用本地编译的 worker、用户目录中的
+worker，或 Pandoc 3.11+ 配合独立 crossref；需要时下载受管工具到 `~/.papper/tools`。
 可复用缓存和持久构建状态分别保存在 `~/.papper/projects/<project-id>/cache` 与
 `~/.papper/projects/<project-id>/work`。项目 ID 由项目绝对路径计算，不同项目不会互相覆盖。
 MathType OLE/WMF 预览图、行号来源转换文件等单次构建中间产物存放在系统临时目录，Papper
 进程退出时清理。`papper clean` 清理当前项目的 work；`papper distclean` 还会清理其缓存。
 原有项目内的 `.pmt` 和 `.papper` 目录不会自动迁移或删除。
 
-### Python 版本粗检
+六个原 Python filters 现在由 Pandoc 进程内的 Lua 执行，共享资源查找和 SVG
+处理模块。仅 SVGZ 解压与 PNG 像素渲染按需调用独立的原生 `papper-svg` helper；
+它不内嵌整份运行时，也不复制或启动完整 `papper` 来执行 AST JSON filter。
 
-如果你只是想快速做一次面向语法的 Python 版本检查，可以直接用 Ruff：
+### 源码开发与验证
+
+安装固定版本的 Rust 工具链后运行：
 
 ```bash
-uvx ruff check .
+cargo check --workspace --locked
+cargo test --workspace --locked
+uv sync
+uv run pytest
 ```
 
-这只是粗略检查，能发现不符合当前 Python 目标版本的语法，但不能证明运行时一定兼容。
+`uv sync` 安装原生开发 CLI。Python 及其依赖只用于既有测试和 `tests/legacy/`
+中的冻结对照实现。修改 CLI 后，运行 `uv sync --reinstall-package papper` 刷新开发
+可执行文件。发布 wheel 不包含旧 Python 实现，也不依赖 Python 运行库。
+完整打包和安装验证分别使用 `cargo run -p papper-dev -- wheel --output dist` 和
+`cargo run -p papper-dev -- smoke --wheel <wheel-path>`。
+
+Papper 自有配置使用真实 Rust 字段和受控更新，保留历史 YAML 别名与显式
+false/null 的优先级；任意 Pandoc 元数据单独处理。MathType OLE/MTEF 编解码和
+LaTeX→WMF 通过安全 Rust API 直接链接，不再使用公式 DLL 或二进制 hex/JSON
+C ABI。公式缓存采用 `native-v2` 和构建期引擎指纹，仍验证用户偏好、字体与可选
+helper 输入。独立图像 helper 不依赖 `papper-core`，不内嵌运行时资源归档。
+PDF 几何提取通过 `mupdf-sys` 0.8.0 直接链接 MuPDF 1.27.2，仅开启 PDF 和
+Base14 字体。C 异常包装器将原生错误返回独立 Rust PDF helper，不再动态加载
+MuPDF DLL。源码构建需要 C/C++ 编译器与 libclang，见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+Windows C# helper 保留 SDK 桥接职责。
+打包器仅按原生组件实际 PE imports 和目录分发 Windows CRT，保留跨平台依赖审计。
+
+内置 Worker 保留 Markdown 系列、HTML、LaTeX、DOCX、JSON/native 和文献格式，
+不再注册 Org、EPUB、ODT、PPTX、RST 等其他 Pandoc 格式；Lua Reader/Writer
+调用也使用这一格式集。源码配置与构建方法见
+[scripts/pandoc-server/README.md](scripts/pandoc-server/README.md)。
+
+原来的 `pandoc_manuscript` Python 导入 API 和 `python -m` 工具不随原生 wheel
+发布。集成使用原生 CLI 或 Rust workspace 库；旧实现仅供仓库测试对照。
+已有稿件和样式配置继续使用，原生服务状态单独保存在 `work/rust-v1`。
+升级时，先在运行 HTML 服务的项目执行 `papper clean`，停止该项目服务并保留可复用
+缓存；升级后的 `papper build html --start-server` 再启动新版本程序。
 
 ### 创建第一个项目
 

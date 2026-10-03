@@ -8,19 +8,21 @@ on:
     # Default-branch builds warm caches that later release tags can restore.
     # GitHub does not apply path filters to tag pushes.
     paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/**"
+      - "crates/**"
+      - "tools/**"
+      - "pyproject.toml"
+      - "pandoc/**"
+      - "template/**"
       - "scripts/mathtype-rust"
       - "scripts/mathtype-rust/**"
       - "scripts/latex2wmf"
       - "scripts/latex2wmf/**"
       - "scripts/pandoc-server/**"
-      - "scripts/check_packaged_html_server.py"
-      - "src/pandoc_manuscript/commands/pandoc_server_runtime.py"
-      - "src/pandoc_manuscript/commands/setup/**"
-      - "src/pandoc_manuscript/commands/doctor.py"
-      - "src/pandoc_manuscript/runtime/resources.py"
       - "src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp"
       - "src/pandoc_manuscript/mathtype/ole_helper/**"
-      - "hatch_build.py"
       - ".github/workflows/publish-pypi.yml"
       - ".gitmodules"
     tags:
@@ -55,9 +57,6 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.2.0
-
-      - name: Install Python
-        run: uv python install 3.11
 
       - name: Set macOS 14 deployment target
         if: runner.os == 'macOS'
@@ -98,8 +97,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .pmt/native-target
-          key: native-v1-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('scripts/mathtype-rust/Cargo.lock', 'scripts/latex2wmf/Cargo.lock', 'hatch_build.py', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
+          key: native-v2-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', 'scripts/mathtype-rust/Cargo.lock', 'scripts/latex2wmf/Cargo.lock', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
           restore-keys: |
+            native-v2-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-
             native-v1-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-
 
       - name: Check .NET SDK for the Windows helper
@@ -120,90 +120,25 @@ jobs:
           path: |
             ${{ steps.haskell.outputs.cabal-store }}
             scripts/pandoc-server/dist-newstyle
-          key: pandoc-worker-v1-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'hatch_build.py', '.github/workflows/publish-pypi.yml') }}
+            .pmt/pandoc-worker
+            .pmt/pandoc-source
+          key: pandoc-worker-v2-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}
           restore-keys: |
+            pandoc-worker-v2-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
             pandoc-worker-v1-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
 
-      - name: Build platform wheel
-        run: uv build --wheel
+      - name: Build native platform wheel
+        # Dependencies are repaired before runtime.zip is embedded. Wheel repair
+        # cannot inspect the binaries hidden inside the native CLI's archive.
+        run: cargo run --locked -p papper-dev -- wheel --output dist
 
-      - name: Bundle macOS worker shared-library dependencies
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          # Haskell libraries are static; GMP and other C dependencies may still
-          # come from Homebrew. Repair their paths before testing or publishing.
-          uvx --from delocate delocate-wheel --check-archs -v -w repaired dist/*.whl
-          mv repaired/*.whl dist/
-
-      - name: Verify macOS 14 native helper compatibility
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          wheel="$(find dist -name '*.whl' -print -quit)"
-          helper_dir="$(mktemp -d)"
-          trap 'rm -rf "$helper_dir"' EXIT
-          unzip -q "$wheel" 'pandoc_manuscript/mathtype/bin/libmathtype_rust.dylib' -d "$helper_dir"
-          for helper in "$helper_dir"/pandoc_manuscript/mathtype/bin/*; do
-            min_os="$(otool -l "$helper" | awk '$1 == "minos" || $1 == "version" { print $2; exit }')"
-            if [[ "$min_os" != 14.* ]]; then
-              echo "Expected macOS 14 deployment target for $helper, got ${min_os:-missing}." >&2
-              exit 1
-            fi
-          done
-
-      - name: Smoke test packaged native helpers
+      - name: Smoke test installed native wheel
         shell: pwsh
         run: |
-          $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
-          uv run --isolated --no-project --with $wheel papper --help
-          uv run --isolated --no-project --with $wheel pmt --help
-          uv run --isolated --no-project --with $wheel python -c "from pandoc_manuscript.mathtype.ole_parts import check_mathtype_availability; assert check_mathtype_availability('rust').usable"
-          uv run --isolated --no-project --with $wheel python -c "from pandoc_manuscript.mathtype.native import latex_to_equation, render_latex_to_wmf; assert latex_to_equation('x_1')['ole']; assert render_latex_to_wmf('x_1')['wmf']"
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged native library conversion failed' }
-
-      - name: Smoke test installed Pandoc CLI and HTML server
-        shell: pwsh
-        run: |
-          $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
-          uv run --isolated --no-project --with $wheel python scripts/check_packaged_html_server.py
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged HTML server conversion failed' }
-
-      - name: Verify binary-only wheel contents
-        shell: pwsh
-        run: |
-          $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
-          # Wheels are ZIP archives. GNU tar on Ubuntu cannot read them, unlike
-          # the BSD tar implementations currently available on macOS and Windows.
-          $entries = python -c @'
-          import sys
-          from zipfile import ZipFile
-
-          # Windows CI can redirect Python output through cp1252 even when a
-          # wheel contains Unicode paths. Escaping keeps the archive listing
-          # readable by PowerShell without changing its ASCII runtime entries.
-          sys.stdout.reconfigure(errors="backslashreplace")
-          with ZipFile(sys.argv[1]) as wheel:
-              print("\n".join(wheel.namelist()))
-          '@ $wheel
-          $libraries = if ($IsWindows) { @('mathtype_rust.dll') } else { @('libmathtype_rust.dylib') }
-          foreach ($name in $libraries) {
-            if (-not ($entries -match "pandoc_manuscript/mathtype/bin/$name")) {
-              throw "Wheel is missing native runtime: $name"
-            }
-          }
-          if ($IsWindows -and -not ($entries -match 'pandoc_manuscript/mathtype/ole_helper/bin/Release/net48/MathTypeOleHelper.exe')) {
-            throw 'Windows wheel is missing MathTypeOleHelper.exe'
-          }
-          $forbidden = $entries | Where-Object {
-            $_ -match '^pandoc_manuscript/mathtype/bin/(mathtype-rust|latex2wmf)(\.exe)?$' -or
-            $_ -match '^pandoc_manuscript/mathtype/bin/(lib)?latex2wmf\.(dll|so|dylib)$' -or
-            $_ -match 'scripts/(mathtype-rust|latex2wmf)/' -or
-            $_ -match 'pandoc_manuscript/mathtype/ole_helper/.*\.(cs|csproj|pdb|config)$'
-          }
-          if ($forbidden) {
-            throw "Wheel contains native helper source/debug files: $($forbidden -join ', ')"
-          }
+          $wheels = @(Get-ChildItem dist/*.whl)
+          if ($wheels.Count -ne 1) { throw 'Expected one newly built platform wheel' }
+          cargo run --locked -p papper-dev -- smoke --wheel $wheels[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Native wheel installation and conversion checks failed' }
 
       # Save only on main: caches written under one tag cannot serve another tag.
       - name: Save Rust build cache
@@ -223,6 +158,8 @@ jobs:
           path: |
             ${{ steps.haskell.outputs.cabal-store }}
             scripts/pandoc-server/dist-newstyle
+            .pmt/pandoc-worker
+            .pmt/pandoc-source
           key: ${{ steps.haskell-cache.outputs.cache-primary-key }}
 
       - name: Upload wheel
@@ -258,8 +195,9 @@ jobs:
             ${{ runner.temp }}/pmt-native-cache/cargo/registry
             ${{ runner.temp }}/pmt-native-cache/cargo/git
             ${{ runner.temp }}/pmt-native-cache/target
-          key: native-v1-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('scripts/mathtype-rust/Cargo.lock', 'scripts/latex2wmf/Cargo.lock', 'hatch_build.py', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
+          key: native-v2-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', 'scripts/mathtype-rust/Cargo.lock', 'scripts/latex2wmf/Cargo.lock', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
           restore-keys: |
+            native-v2-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-
             native-v1-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-
 
       - name: Restore manylinux Haskell dependency cache
@@ -269,88 +207,52 @@ jobs:
           path: |
             ${{ runner.temp }}/pmt-native-cache/cabal/packages
             ${{ runner.temp }}/pmt-native-cache/cabal/store
-          key: pandoc-worker-v1-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'hatch_build.py', '.github/workflows/publish-pypi.yml') }}
+          key: pandoc-worker-v2-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}
           restore-keys: |
+            pandoc-worker-v2-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
             pandoc-worker-v1-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
 
-      # Build inside manylinux to preserve the glibc 2.28 compatibility baseline.
-      - name: Build Linux wheel
-        uses: pypa/cibuildwheel@v4.1.0
-        env:
-          CIBW_ARCHS_LINUX: x86_64
-          CIBW_BUILD: cp311-manylinux_x86_64
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
-          CIBW_BEFORE_ALL_LINUX: bash /project/scripts/pandoc-server/setup-manylinux.sh
-          # The Cargo build happens in the manylinux container rather than on
-          # the runner, so pass its private-repository token explicitly.
-          PRIVATE_SUBMODULES_TOKEN: ${{ secrets.PRIVATE_SUBMODULES_TOKEN }}
-          # /host persists Cargo downloads and compiled artifacts outside Docker.
-          # Do not cache Git configuration: it contains the private access token.
-          CIBW_ENVIRONMENT_LINUX: >-
-            CARGO_HOME=/host${{ runner.temp }}/pmt-native-cache/cargo
-            CARGO_TARGET_DIR=/host${{ runner.temp }}/pmt-native-cache/target
-            CABAL_DIR=/host${{ runner.temp }}/pmt-native-cache/cabal
-            GHCUP_INSTALL_BASE_PREFIX=/opt/papper-haskell
-            PATH=/opt/papper-haskell/.ghcup/bin:$CARGO_HOME/bin:$PATH
-          CIBW_ENVIRONMENT_PASS_LINUX: PRIVATE_SUBMODULES_TOKEN RUSTUP_TOOLCHAIN CARGO_INCREMENTAL GHC_VERSION CABAL_VERSION
-          CIBW_BEFORE_BUILD_LINUX: >-
-            git config --global
-            url."https://x-access-token:${PRIVATE_SUBMODULES_TOKEN}@github.com/cesaryuan/latex2wmf".insteadOf
-            "https://github.com/cesaryuan/latex2wmf"
-        with:
-          output-dir: dist
-
-      - name: Install uv
+      - name: Install uv for container installation checks
         uses: astral-sh/setup-uv@v8.2.0
 
-      - name: Install Python
-        run: uv python install 3.11
-
-      - name: Smoke test packaged native helpers
-        shell: pwsh
+      # Native builds and installed-wheel checks share the glibc 2.28 baseline.
+      - name: Build and smoke test inside manylinux 2.28
+        shell: bash
+        env:
+          PRIVATE_SUBMODULES_TOKEN: ${{ secrets.PRIVATE_SUBMODULES_TOKEN }}
+          NATIVE_CACHE_DIR: ${{ runner.temp }}/pmt-native-cache
         run: |
-          $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
-          uv run --isolated --no-project --with $wheel papper --help
-          uv run --isolated --no-project --with $wheel pmt --help
-          uv run --isolated --no-project --with $wheel python -c "from pandoc_manuscript.mathtype.ole_parts import check_mathtype_availability; assert check_mathtype_availability('rust').usable"
-          uv run --isolated --no-project --with $wheel python -c "from pandoc_manuscript.mathtype.native import latex_to_equation, render_latex_to_wmf; assert latex_to_equation('x_1')['ole']; assert render_latex_to_wmf('x_1')['wmf']"
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged native library conversion failed' }
-
-      - name: Smoke test installed Linux Pandoc CLI and HTML server
-        shell: pwsh
-        run: |
-          $wheel = (Get-ChildItem dist/*.whl | Select-Object -First 1).FullName
-          uv run --isolated --no-project --with $wheel python scripts/check_packaged_html_server.py
-          if ($LASTEXITCODE -ne 0) { throw 'Packaged HTML server conversion failed' }
-
-      - name: Verify Linux wheel contents and compatibility tag
-        shell: pwsh
-        run: |
-          $wheel = Get-ChildItem dist/*.whl | Select-Object -First 1
-          if ($wheel.Name -notmatch 'manylinux_2_28_x86_64') {
-            throw "Linux wheel does not have the expected manylinux_2_28_x86_64 tag: $($wheel.Name)"
-          }
-          $entries = python -c @'
-          import sys
-          from zipfile import ZipFile
-
-          with ZipFile(sys.argv[1]) as wheel:
-              print("\n".join(wheel.namelist()))
-          '@ $wheel.FullName
-          foreach ($name in @("libmathtype_rust.so")) {
-            if (-not ($entries -match "pandoc_manuscript/mathtype/bin/$name")) {
-              throw "Wheel is missing native runtime: $name"
-            }
-          }
-          $forbidden = $entries | Where-Object {
-            $_ -match '^pandoc_manuscript/mathtype/bin/(mathtype-rust|latex2wmf)(\.exe)?$' -or
-            $_ -match '^pandoc_manuscript/mathtype/bin/(lib)?latex2wmf\.(dll|so|dylib)$' -or
-            $_ -match 'scripts/(mathtype-rust|latex2wmf)/' -or
-            $_ -match 'pandoc_manuscript/mathtype/ole_helper/.*\.(cs|csproj|pdb|config)$'
-          }
-          if ($forbidden) {
-            throw "Wheel contains native helper source/debug files: $($forbidden -join ', ')"
-          }
+          set -euo pipefail
+          mkdir -p "$NATIVE_CACHE_DIR"
+          # The token is passed by environment name. Global Git config remains
+          # in the disposable container and is never included in cached paths.
+          docker run --rm --platform linux/amd64 \
+            --volume "$GITHUB_WORKSPACE:/project" \
+            --volume "$NATIVE_CACHE_DIR:$NATIVE_CACHE_DIR" \
+            --volume "$(command -v uv):/usr/local/bin/uv:ro" \
+            --workdir /project \
+            --env CARGO_HOME="$NATIVE_CACHE_DIR/cargo" \
+            --env CARGO_TARGET_DIR="$NATIVE_CACHE_DIR/target" \
+            --env CABAL_DIR="$NATIVE_CACHE_DIR/cabal" \
+            --env GHCUP_INSTALL_BASE_PREFIX=/opt/papper-haskell \
+            --env UV_PYTHON=/opt/python/cp311-cp311/bin/python \
+            --env PRIVATE_SUBMODULES_TOKEN \
+            --env RUSTUP_TOOLCHAIN --env CARGO_INCREMENTAL \
+            --env GHC_VERSION --env CABAL_VERSION \
+            quay.io/pypa/manylinux_2_28_x86_64 \
+            bash -euo pipefail -c '
+              export PATH="$GHCUP_INSTALL_BASE_PREFIX/.ghcup/bin:$CARGO_HOME/bin:/opt/python/cp311-cp311/bin:$PATH"
+              git config --global --add safe.directory /project
+              git config --global \
+                url."https://x-access-token:${PRIVATE_SUBMODULES_TOKEN}@github.com/cesaryuan/latex2wmf".insteadOf \
+                "https://github.com/cesaryuan/latex2wmf"
+              bash scripts/pandoc-server/setup-manylinux.sh
+              cargo run --locked -p papper-dev -- wheel --output dist --platform manylinux_2_28_x86_64
+              shopt -s nullglob
+              wheels=(dist/*.whl)
+              test "${#wheels[@]}" = 1
+              cargo run --locked -p papper-dev -- smoke --wheel "${wheels[0]}"
+            '
 
       - name: Prepare Linux cache for archiving
         if: github.ref == 'refs/heads/main' && (steps.rust-cache.outputs.cache-hit != 'true' || steps.haskell-cache.outputs.cache-hit != 'true')
@@ -436,7 +338,7 @@ jobs:
       - name: Download distributions
         uses: actions/download-artifact@v4
         with:
-          pattern: "*"
+          pattern: "wheel-*"
           path: dist
           merge-multiple: true
 
