@@ -4,7 +4,10 @@ pub mod postprocess;
 pub mod styles;
 
 pub use postprocess::postprocess_html_text;
-pub use styles::{build_reference_style_css, build_reference_style_css_text};
+pub use styles::{
+    build_reference_style_css, build_reference_style_css_text,
+    build_reference_style_css_with_settings,
+};
 
 use anyhow::Result;
 use papper_core::metadata::EffectiveMetadata;
@@ -81,7 +84,7 @@ pub fn prepare_html_metadata(
     ] {
         effective.pandoc_metadata.insert(name.into(), value);
     }
-    let css = build_reference_style_css(styles_path, effective.pmt_settings.get("docxStyle"))?;
+    let css = build_reference_style_css_with_settings(styles_path, &effective.pmt_settings)?;
     append_reference_style_block(&mut effective.pandoc_metadata, &css);
     apply_html_page_metadata(effective)
 }

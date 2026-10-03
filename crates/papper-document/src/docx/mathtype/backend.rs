@@ -2,9 +2,9 @@
 
 use super::{Binding, Equation, wmf_size};
 use anyhow::{Context, Result, bail, ensure};
-use papper_core::metadata::EffectiveMetadata;
+use papper_core::metadata::{ConversionMethod, EffectiveMetadata, SvgBackend as ConfigSvgBackend};
 use papper_core::resources::ResourcePaths;
-use papper_platform::native::{NativeConverter, unhex};
+use papper_platform::native::{self, FormulaStyle, SvgBackend, WmfRenderOptions};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::io::Read;
@@ -16,77 +16,36 @@ const SET_DATA_FAILURE: &str = "由于 Exception.ToString() 失败，因此无�
 
 /// Resolve selected options before generating any document artifacts.
 struct Options {
-    method: String,
-    backend: String,
+    method: ConversionMethod,
+    backend: ConfigSvgBackend,
     font: String,
 }
 
 impl Options {
-    /// Preserve the established backend aliases while rejecting unsupported values.
+    /// Read validated configuration once and enforce the platform-specific SDK constraint.
     fn read(effective: &EffectiveMetadata) -> Result<Self> {
-        let method = match effective
-            .pmt_settings
-            .get_str("mathtypeConversionMethod")
-            .unwrap_or("auto")
-            .trim()
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "rust" | "mathtype-rust" | "mtef" => "rust",
-            "rust-sdk" | "sdk" | "sdk-xform-ole" => "rust-sdk",
-            "set-data" | "setdata" | "tex" | "tex-input" | "mathtype" | "ole" => "set-data",
-            "auto" | "fallback" => "auto",
-            "both" => "both",
-            value => bail!("Unsupported MathType conversion method: {value}"),
-        }
-        .to_owned();
-        let backend = effective
-            .pmt_settings
-            .get_str("mathtypeSvgBackend")
-            .unwrap_or("typst")
-            .trim()
-            .to_ascii_lowercase();
-        let backend = if backend == "typst-as-lib" {
-            "typst".into()
-        } else {
-            backend
-        };
+        let fields = effective.pmt_settings.fields();
         ensure!(
-            matches!(backend.as_str(), "typst" | "ratex"),
-            "Unsupported MathType SVG backend: {backend}"
-        );
-        let font = effective
-            .pmt_settings
-            .get_str("mathtypeTypstMathFont")
-            .unwrap_or("XITS Math")
-            .trim()
-            .to_owned();
-        ensure!(!font.is_empty(), "mathtypeTypstMathFont must not be blank");
-        ensure!(
-            method != "both" || cfg!(windows),
+            fields.mathtype_conversion_method != ConversionMethod::Both || cfg!(windows),
             "mathtypeConversionMethod=both is only supported on Windows"
         );
         Ok(Self {
-            method,
-            backend,
-            font,
+            method: fields.mathtype_conversion_method,
+            backend: fields.mathtype_svg_backend,
+            font: fields.mathtype_typst_math_font.clone(),
         })
     }
 }
 
-/// Own one loaded converter and backend health state across all document equations.
+/// Keep equation options, SDK health, and output paths together across one document.
 pub(super) struct Generator {
     options: Options,
-    resources: ResourcePaths,
-    converter: Option<NativeConverter>,
     helper: Option<PathBuf>,
     template: Option<String>,
     work: PathBuf,
     cache: PathBuf,
-    native_digest: Option<String>,
     helper_digest: Option<String>,
     font_digest: Option<String>,
-    source_digest: Option<String>,
     auto_sdk: bool,
     sdk_disabled: bool,
     sdk_failure_streak: usize,
@@ -125,20 +84,20 @@ fn sdk_available(resources: &ResourcePaths) -> bool {
 /// Confirm required backends while keeping auto mode usable without a MathType installation.
 pub(super) fn check(resources: &ResourcePaths, effective: &EffectiveMetadata) -> Result<()> {
     let options = Options::read(effective)?;
-    if matches!(options.method.as_str(), "rust-sdk" | "set-data" | "both") {
+    if matches!(
+        options.method,
+        ConversionMethod::RustSdk | ConversionMethod::SetData | ConversionMethod::Both
+    ) {
         ensure!(
             sdk_available(resources),
             "MathType SDK requires Windows, Equation.DSMT4 registration, and the installed C# helper"
         );
     }
-    if options.method != "set-data" {
-        NativeConverter::load(resources, "mathtype-rust")?;
-    }
     Ok(())
 }
 
 impl Generator {
-    /// Derive project-local work and cache directories and fingerprint executable inputs once.
+    /// Derive project-local cache/work directories and fingerprint optional SDK/font inputs once.
     pub(super) fn new(
         resources: &ResourcePaths,
         effective: &EffectiveMetadata,
@@ -150,7 +109,6 @@ impl Generator {
         let template = resource(resources, "mathtype/Times+Symbol 12.eqp")
             .map(std::fs::read_to_string)
             .transpose()?;
-        let native = library_path(resources);
         let state = papper_core::paths::project_state_dir(project)?;
         let temporary = if work_dir.is_none() {
             Some(
@@ -164,9 +122,10 @@ impl Generator {
         let work = work_dir
             .map(Path::to_path_buf)
             .unwrap_or_else(|| temporary.as_ref().unwrap().path().to_path_buf());
-        let cache = state.join("cache/mathtype/native-v1");
+        // v2 separates compile-time engine identity from the former DLL/source cache keys.
+        let cache = state.join("cache/mathtype/native-v2");
         std::fs::create_dir_all(&work)?;
-        let auto_sdk = options.method == "auto" && sdk_available(resources);
+        let auto_sdk = options.method == ConversionMethod::Auto && sdk_available(resources);
         let font_digest = if Path::new(&options.font).is_file() {
             digest_file(Path::new(&options.font))?
         } else {
@@ -174,11 +133,7 @@ impl Generator {
         };
         Ok(Self {
             options,
-            resources: resources.clone(),
-            converter: None,
-            native_digest: native.as_deref().map(digest_file).transpose()?.flatten(),
             helper_digest: helper.as_deref().map(digest_file).transpose()?.flatten(),
-            source_digest: source_digest(resources)?,
             helper,
             template,
             work,
@@ -194,28 +149,28 @@ impl Generator {
     /// Select valid backends per equation and disable the known repeated SDK diagnostic failure.
     pub(super) fn generate(&mut self, binding: &Binding, index: usize) -> Result<Equation> {
         let prefs = self.preferences(binding.size)?;
-        let methods = match self.options.method.as_str() {
-            "both" => vec!["rust", "set-data"],
-            "auto" if self.auto_sdk && !self.sdk_disabled => vec!["set-data", "rust"],
-            "auto" => vec!["rust"],
-            method => vec![method],
-        }
-        .into_iter()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+        let requested = self.options.method;
+        let methods: &[ConversionMethod] = match requested {
+            ConversionMethod::Both => &[ConversionMethod::Rust, ConversionMethod::SetData],
+            ConversionMethod::Auto if self.auto_sdk && !self.sdk_disabled => {
+                &[ConversionMethod::SetData, ConversionMethod::Rust]
+            }
+            ConversionMethod::Auto => &[ConversionMethod::Rust],
+            _ => std::slice::from_ref(&requested),
+        };
         let mut successful_rust = None;
         let mut last_error = None;
-        for method in methods {
-            if method == "set-data" && self.sdk_disabled {
+        for &method in methods {
+            if method == ConversionMethod::SetData && self.sdk_disabled {
                 continue;
             }
-            match self.cached(binding, index, &method, prefs.as_deref()) {
+            match self.cached(binding, index, method, prefs.as_deref()) {
                 Ok(equation) => {
-                    self.write_debug_parts(index, binding, &equation, &method, prefs.as_deref())?;
-                    if method == "set-data" {
+                    self.write_debug_parts(index, binding, &equation, method)?;
+                    if method == ConversionMethod::SetData {
                         self.sdk_failure_streak = 0;
                     }
-                    if self.options.method == "both" && method == "rust" {
+                    if requested == ConversionMethod::Both && method == ConversionMethod::Rust {
                         successful_rust = Some(equation);
                         continue;
                     }
@@ -229,7 +184,7 @@ impl Generator {
                     return Ok(equation);
                 }
                 Err(error) => {
-                    if method == "set-data" {
+                    if method == ConversionMethod::SetData {
                         if format!("{error:#}").contains(SET_DATA_FAILURE) {
                             self.sdk_failure_streak += 1;
                         } else {
@@ -242,7 +197,10 @@ impl Generator {
                             );
                         }
                     }
-                    eprintln!("[WARN] MathType {method} failed for equation {index}: {error:#}");
+                    eprintln!(
+                        "[WARN] MathType {} failed for equation {index}: {error:#}",
+                        method.as_str()
+                    );
                     last_error = Some(error);
                 }
             }
@@ -254,21 +212,21 @@ impl Generator {
 
     /// Preserve reviewed TeX and artifacts only when the caller opts into persistent work.
     fn write_debug_parts(
-        &mut self,
+        &self,
         index: usize,
         binding: &Binding,
         equation: &Equation,
-        method: &str,
-        prefs: Option<&Path>,
+        method: ConversionMethod,
     ) -> Result<()> {
         if self._temporary.is_some() {
             return Ok(());
         }
-        let prefix = if self.options.method == "both" && method == "rust" {
-            format!("eq_{index:03}.rust")
-        } else {
-            format!("eq_{index:03}")
-        };
+        let prefix =
+            if self.options.method == ConversionMethod::Both && method == ConversionMethod::Rust {
+                format!("eq_{index:03}.rust")
+            } else {
+                format!("eq_{index:03}")
+            };
         let payload = tex_payload(&binding.latex)?;
         let metadata = serde_json::to_vec(&equation.metadata)?;
         for (suffix, bytes) in [
@@ -279,20 +237,10 @@ impl Generator {
         ] {
             papper_core::paths::atomic_write(&self.work.join(format!("{prefix}.{suffix}")), bytes)?;
         }
-        if method != "set-data" {
-            // Explicit work directories are for inspection, so also retain bare
-            // MTEF even when a warm cache avoided the normal conversion request.
-            if self.converter.is_none() {
-                self.converter = Some(NativeConverter::load(&self.resources, "mathtype-rust")?);
-            }
-            let parts = self.converter.as_ref().unwrap().call(
-                &json!({"latex":payload,"prefs_file":prefs.map(papper_core::paths::display_path)}),
-            )?;
-            let mtef = unhex(
-                parts["mtef"]
-                    .as_str()
-                    .context("Native converter omitted MTEF")?,
-            )?;
+        if method != ConversionMethod::SetData {
+            // Cached OLE already carries the exact MTEF; extracting it avoids
+            // defeating a warm equation cache merely to write debug sidecars.
+            let mtef = native::mtef_from_ole(&equation.ole)?;
             papper_core::paths::atomic_write(&self.work.join(format!("{prefix}.mtef.bin")), &mtef)?;
         }
         Ok(())
@@ -334,25 +282,24 @@ impl Generator {
 
     /// Cache exact conversion inputs and verify all sidecars before reusing any artifact.
     fn cached(
-        &mut self,
+        &self,
         binding: &Binding,
         index: usize,
-        method: &str,
+        method: ConversionMethod,
         prefs: Option<&Path>,
     ) -> Result<Equation> {
         let payload = tex_payload(&binding.latex)?;
-        let native = method != "set-data";
-        let portable = method == "rust";
+        let native = method != ConversionMethod::SetData;
+        let portable = method == ConversionMethod::Rust;
         let key = digest(&serde_json::to_vec(&json!({
-            "version": 1, "payload": payload, "font_size": binding.size,
+            "version": 2, "payload": payload, "font_size": binding.size,
             "prefs": prefs.map(digest_file).transpose()?.flatten(),
-            "method": method, "native": if native { &self.native_digest } else { &None },
-            "source": if native { &self.source_digest } else { &None },
+            "method": method.as_str(), "engine": if native { Some(native::EQUATION_ENGINE_FINGERPRINT) } else { None },
             "helper": if portable { &None } else { &self.helper_digest },
-            "backend": if portable { Some(&self.options.backend) } else { None },
+            "backend": if portable { Some(self.options.backend.as_str()) } else { None },
             "style": if portable { Some(&binding.style) } else { None },
-            "font": if portable && self.options.backend == "typst" { Some(&self.options.font) } else { None },
-            "font_digest": if portable && self.options.backend == "typst" { &self.font_digest } else { &None },
+            "font": if portable && self.options.backend == ConfigSvgBackend::Typst { Some(&self.options.font) } else { None },
+            "font_digest": if portable && self.options.backend == ConfigSvgBackend::Typst { &self.font_digest } else { &None },
         }))?);
         let folder = self.cache.join(&key[..2]).join(&key);
         if let Ok(mut equation) = restore(&folder) {
@@ -360,43 +307,32 @@ impl Generator {
             equation.cache_hit = true;
             return Ok(equation);
         }
-        let equation = if method == "set-data" {
-            self.sdk(binding, index, &payload, None, prefs)?
+        let equation = if method == ConversionMethod::SetData {
+            self.sdk(index, &payload, None, prefs)?
         } else {
-            if self.converter.is_none() {
-                self.converter = Some(NativeConverter::load(&self.resources, "mathtype-rust")?);
-            }
-            let converter = self.converter.as_ref().unwrap();
-            let parts = converter.call(&json!({"latex": payload, "prefs_file": prefs.map(papper_core::paths::display_path)}))?;
-            let ole = unhex(
-                parts["ole"]
-                    .as_str()
-                    .context("Native converter omitted OLE")?,
-            )?;
-            if method == "rust-sdk" {
-                let mtef = unhex(
-                    parts["mtef"]
-                        .as_str()
-                        .context("Native converter omitted MTEF")?,
-                )?;
-                let mut equation = self.sdk(binding, index, &payload, Some(&mtef), prefs)?;
-                equation.ole = ole;
+            let parts = native::encode_latex(&payload, prefs)?;
+            if method == ConversionMethod::RustSdk {
+                let mut equation = self.sdk(index, &payload, Some(&parts.mtef), prefs)?;
+                equation.ole = parts.ole;
                 equation
             } else {
-                let preview = converter.call(&json!({"operation":"render_wmf", "latex": payload, "svg_backend": self.options.backend, "math_style": binding.style, "font_size_pt": binding.size.unwrap_or(12.0), "math_font": self.options.font}))?;
-                let wmf = unhex(
-                    preview["wmf"]
-                        .as_str()
-                        .context("Native converter omitted WMF")?,
+                let preview = native::render_wmf(
+                    &payload,
+                    WmfRenderOptions {
+                        svg_backend: match self.options.backend {
+                            ConfigSvgBackend::Typst => SvgBackend::Typst,
+                            ConfigSvgBackend::Ratex => SvgBackend::Ratex,
+                        },
+                        formula_style: FormulaStyle::parse(&binding.style)
+                            .map_err(anyhow::Error::msg)?,
+                        font_size_pt: binding.size.unwrap_or(12.0),
+                    },
+                    &self.options.font,
                 )?;
-                let metadata = serde_json::from_str(
-                    preview["metadata_json"]
-                        .as_str()
-                        .context("Native converter omitted preview metadata")?,
-                )?;
+                let metadata = serde_json::from_slice(&preview.metadata_json)?;
                 Equation {
-                    ole,
-                    wmf,
+                    ole: parts.ole,
+                    wmf: preview.wmf,
                     metadata,
                     cache_hit: false,
                 }
@@ -424,7 +360,6 @@ impl Generator {
     /// Invoke the existing helper for TeX import or SDK MTEF previews, with owned-process timeout.
     fn sdk(
         &self,
-        _binding: &Binding,
         index: usize,
         payload: &str,
         mtef: Option<&[u8]>,
@@ -492,71 +427,6 @@ impl Generator {
             cache_hit: false,
         })
     }
-}
-
-/// Identify the same compiled library selected by NativeConverter for cache invalidation.
-fn library_path(resources: &ResourcePaths) -> Option<PathBuf> {
-    let name = if cfg!(windows) {
-        "mathtype_rust.dll"
-    } else if cfg!(target_os = "macos") {
-        "libmathtype_rust.dylib"
-    } else {
-        "libmathtype_rust.so"
-    };
-    [
-        resources.root.join("mathtype/bin").join(name),
-        resources
-            .root
-            .join("src/pandoc_manuscript/mathtype/bin")
-            .join(name),
-        resources
-            .root
-            .join("scripts/mathtype-rust/target/release")
-            .join(name),
-    ]
-    .into_iter()
-    .find(|path| path.is_file())
-}
-
-/// Hash retained native sources too, so development source changes cannot reuse stale artifacts.
-fn source_digest(resources: &ResourcePaths) -> Result<Option<String>> {
-    let root = resources.root.join("scripts/mathtype-rust");
-    if !root.is_dir() {
-        return Ok(None);
-    }
-    let mut files = Vec::new();
-    collect_sources(&root.join("src"), &mut files)?;
-    for name in ["Cargo.toml", "Cargo.lock"] {
-        if root.join(name).is_file() {
-            files.push(root.join(name));
-        }
-    }
-    files.sort();
-    let mut hash = Sha256::new();
-    for file in files {
-        hash.update(file.strip_prefix(&root)?.to_string_lossy().as_bytes());
-        hash.update([0]);
-        hash.update(std::fs::read(file)?);
-        hash.update([0]);
-    }
-    Ok(Some(papper_platform::native::hex(&hash.finalize())))
-}
-
-/// Collect Rust implementation files deterministically without following directory symlinks.
-fn collect_sources(directory: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
-    if !directory.is_dir() {
-        return Ok(());
-    }
-    for item in std::fs::read_dir(directory)? {
-        let item = item?;
-        let kind = item.file_type()?;
-        if kind.is_dir() {
-            collect_sources(&item.path(), files)?;
-        } else if kind.is_file() && item.path().extension().is_some_and(|value| value == "rs") {
-            files.push(item.path());
-        }
-    }
-    Ok(())
 }
 
 /// Hash bytes using a stable lowercase content digest.

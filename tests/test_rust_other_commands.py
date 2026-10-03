@@ -196,8 +196,15 @@ def test_native_convert_recovers_mathtype_tex_and_extracts_media_without_overwri
     metadata.write_text(json.dumps({"pmt_settings": {"values": {"mathtypeConversionMethod": "rust"}, "provided": [], "pandoc_metadata": {}, "reply": None},
                                     "pandoc_metadata": {}, "has_yaml_header": False}), encoding="utf-8")
     source = project / "paper.docx"
+    # Exercise the Lua map's Unicode temporary path: Windows ANSI getenv formerly
+    # corrupted that path despite successful native equation decoding.
+    state = tmp_path / "中文 状态"
+    temporary = tmp_path / "中文 临时"
+    temporary.mkdir()
+    for variable in ("TMP", "TEMP", "TMPDIR"):
+        monkeypatch.setenv(variable, str(temporary))
     converted = subprocess.run([str(rust_mathtype_converter), str(marked), str(source), str(metadata), str(project)],
-                               env=_environment(tmp_path / "home"), capture_output=True, text=True, encoding="utf-8", timeout=90)
+                               env=_environment(state), capture_output=True, text=True, encoding="utf-8", timeout=90)
     assert converted.returncode == 0, converted.stdout + converted.stderr
     assert json.loads(converted.stdout)["converted"] == 1
     with ZipFile(source) as archive:
@@ -205,7 +212,7 @@ def test_native_convert_recovers_mathtype_tex_and_extracts_media_without_overwri
     destination = project / "native-converted"
     destination.mkdir()
     (destination / "user-notes.txt").write_bytes(b"existing user notes")
-    result = _native(rust_executable, ["convert", str(source), "-o", str(destination)], project, tmp_path / "home")
+    result = _native(rust_executable, ["convert", str(source), "-o", str(destination)], project, state)
     assert result.returncode == 0, result.stdout + result.stderr
     markdown = (destination / "paper.md").read_text(encoding="utf-8")
     assert "$x^2+y^2$" in markdown

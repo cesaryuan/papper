@@ -5,6 +5,11 @@
 状态：已在 `rust-migration` 分支实施；实施结果与验证边界见 [RUST_MIGRATION_STATUS.md](RUST_MIGRATION_STATUS.md)
 目标：将 Papper 的 Python 应用与业务逻辑迁移至 Rust，保留现有 Lua filters、Haskell worker 和 C# MathType helper，保持现有文档行为、命令使用方式和 PyPI/uv 安装体验，消除 Python 产品运行时
 
+2026-10-03 修订：按用户的新要求，六个旧 Python filters 使用 Pandoc 进程内 Lua
+实现，仅 SVGZ 解压和 PNG 像素渲染保留独立小型 Rust helper；公式组件以 Rust crate
+直接链接，配置使用真实 Rust 字段。本计划以下目标架构与阶段清单已同步修正；
+初次迁移 `9f4dabc` 的测试、wheel 和性能记录仍是历史验收，新的整合验证另行记录。
+
 ## 1. 决策与完成定义
 
 采用分阶段全量迁移 Python 产品代码。先建立可验证的 Rust CLI 与配置核心，再迁移 HTML 服务、其他输出目标、DOCX 后处理、MathType/Office 的 Python 调用层和发布工具链。每个阶段交付可运行的功能，而最终交付不依赖 Python 后端或 Python 启动包装。
@@ -14,7 +19,7 @@
 | 内容 | 最终处理方式 | 是否属于迁移完成条件 |
 | --- | --- | --- |
 | `src/pandoc_manuscript/` 中的应用、配置、服务、文档后处理与集成逻辑 | Rust 实现替代 | 是 |
-| `pandoc/filters/` 中的 Python filters | Rust filter 实现替代 | 是 |
+| `pandoc/filters/` 中的 Python filters | Lua filters 替代；SVGZ/PNG 像素处理使用小型 Rust helper | 是 |
 | 自有 Lua filters 中的排版、语法解释和文档变换 | 保留现有 Lua 实现，由 Pandoc 引擎继续执行 | 不要求语言迁移；调用顺序、资源交付和行为必须验证 |
 | 自有 Haskell worker 的项目业务逻辑、缓存策略及扩展 | 保留现有 Haskell 实现，由 Rust 服务管理并通过协议调用 | 不要求语言迁移；协议、生命周期和性能必须验证 |
 | 自有 C# MathType helper | 保留现有 C# 实现，由 Rust 调用并随平台制品交付 | 不要求语言迁移；调用、依赖和打包必须验证 |
@@ -70,15 +75,13 @@ flowchart TD
     Cache --> Engine
     Engine --> Worker[现有 Haskell Pandoc worker]
     Engine --> Process[Pandoc 原生 CLI]
-    Worker <--> AST[替代 Python filters 的 Rust filters]
-    Process <--> AST
-    Worker --> Lua[现有 Lua filters]
+    Worker --> Lua[现有及替代 Python 的 Lua filters]
     Process --> Lua
+    Lua --> Images[小型 Rust papper-svg 图像 helper]
     Worker --> Transform[Rust 输出后处理]
     Process --> Transform
     Transform --> Output[HTML / DOCX / LaTeX / JSON]
-    AST --> Formula[既有 Rust 公式组件]
-    Transform --> Formula
+    Transform --> Formula[直接链接的 Rust 公式组件]
     Transform --> Platform[Rust 平台与 Office 集成]
     Platform --> Helper[现有 C# MathType helper]
 ```
@@ -92,12 +95,13 @@ CLI、单次构建和 Server 共用配置及文档业务模块，避免出现两
 ```text
 Cargo.toml / Cargo.lock / rust-toolchain.toml
 crates/
-  papper-cli/       papper、pmt 入口与内部 server/filter 子命令
+  papper-cli/       papper、pmt 入口与内部 server/解码/PDF 子命令
   papper-core/      配置、项目上下文、资源、工具管理、构建请求
   papper-engine/    Pandoc CLI/worker 协议与生命周期
   papper-server/    HTTP、任务调度、缓存、服务状态
-  papper-document/  AST 变换、HTML、DOCX、LaTeX 后处理
+  papper-document/  HTML/DOCX 后处理与公式集成
   papper-platform/  Windows COM、SDK、PDF 与跨平台适配
+  papper-svg/       SVGZ 解压与 PNG 像素渲染，不依赖 core 或内嵌运行时
 tools/
   papper-dev/       对照、快照、基准、资源检查与发布辅助
 ```
@@ -110,7 +114,7 @@ tools/
 
 ### 3.2 配置与项目上下文
 
-Rust 中使用一个共享配置核心，明确区分“没有提供”“显式 false”“显式空值/auto”和“有效值”，保留 CLI 是否显式设置某个选项的信息。
+Rust 中使用一个共享配置核心，以真实字段、枚举和 Option 表达自有设置，受控更新并保留显式提供集合。明确区分“没有提供”“显式 false”“显式空值/auto”和“有效值”，保留 CLI 是否显式设置某个选项的信息；任意 Pandoc 元数据保留映射。
 
 阶段 0 从现有代码和行为实验记录完整优先级，不在迁移时假设所有场景都采用一种简单覆盖顺序。至少涵盖：
 
@@ -130,11 +134,11 @@ Rust 中使用一个共享配置核心，明确区分“没有提供”“显式
 Rust 应用与保留组件之间的边界按以下方式实现：
 
 1. 记录现有 Lua filters、Haskell worker 和 C# helper 的输入、输出、调用顺序、协议与生命周期，不改变其语言归属。
-2. Python filters 优先移植为 Rust JSON filter；保持 Pandoc 文档格式和输出顺序。
+2. 六个 Python filters 改为 Pandoc 进程内 Lua，保持文档格式、顺序和作用域，不再启动主 CLI 来传输 AST JSON。
 3. Lua filters 继续由现有 Pandoc 引擎执行，保持顺序、全局环境、资源路径和自定义第三方 filter 支持。
 4. Haskell worker 保留现有 citeproc/crossref 扩展与缓存。Rust 管理 worker 进程、请求调度与应用层缓存，不重写 Haskell 内部引擎业务。
 5. C# helper 保留现有 MathType SDK 接入。Rust 替换 Python 调用层，保留参数、结果、错误、超时与平台依赖语义。
-6. 测量替代 Python filters 后的进程启动、AST 序列化与拷贝成本；只有出现实际热点时再评估合并调用或常驻 Rust filter host。
+6. Lua 共享资源和 SVG 处理逻辑，仅按需调用不内嵌 runtime 的 `papper-svg` 完成 SVGZ 解压/PNG 渲染；宽图使用 `pandoc.write`，不逐图启动 writer。
 
 明确两层缓存的职责：Rust Server 负责项目状态、配置、文件依赖、远程资源与构建结果；Haskell worker 负责现有引擎内部对象及转换缓存。协议携带必要的配置、依赖与版本信息，避免配置变化后仍复用旧引擎结果。
 
@@ -167,7 +171,7 @@ Rust 应用与保留组件之间的边界按以下方式实现：
 | 格式转换 | `commands/convert.py` | DOCX→Markdown、公式解码、输出资源和现有工具调用 |
 | 审稿回复 | `commands/build_reply/` | 回复目标、配置、蓝色/斜体、行号来源、DOCX/PDF→行号匹配 |
 | 平台适配 | Word COM、SDK、PDF/soffice、图像处理 | 各平台当前支持范围、明确错误、资源/应用所有权 |
-| filters | `pandoc/filters/` | Python filters 改为 Rust；Lua filters 保留，所有自定义语法、属性和处理顺序兼容 |
+| filters | `pandoc/filters/` | Python filters 改为 Lua，既有 Lua 保留；小型 Rust helper 仅处理图像，所有自定义语法、属性和顺序兼容 |
 | 保留组件集成 | Haskell worker、Lua filters、C# MathType helper | Rust 调用、生命周期、版本、资源和平台制品兼容；组件不要求改写 |
 | Python 对外 API | `mathtype/native.py` 等 | 逐项决定兼容层或版本化移除，不能无公告破坏已有调用方 |
 | 分发与开发工具 | `hatch_build.py`、CI、测试/基准脚本 | 原生 wheel、资源定位、签名/版本、平台构建、快照和基准 |
@@ -215,19 +219,19 @@ Rust 应用与保留组件之间的边界按以下方式实现：
 - 建立项目任务事务，限界队列/缓存；读取源与依赖形成一致快照，避免同时编辑或并发请求污染结果。
 - 迁移 CSS、作者信息和表格后处理；HTML 解析器/序列化差异先定位再决定是否属于允许的输出变化。
 - 从旧版本继承所有已确认的服务端接口，是否有 preview/未保存 source text 等能力以阶段 0 清单为准。
-- 完成至少一个 Python filter 的 Rust 替代接入实验，测量启动与 AST 传输成本；验证保留 Lua filters 和 Haskell worker 的调用顺序与缓存行为。
+- 完成至少一个 Python filter 的 Lua 替代接入实验，验证进程内 AST 处理、保留 filters 的顺序与 Haskell worker 缓存行为；图像 helper 单独测量启动成本。
 
 退出条件：完整 HTML CLI/Server 输出与基线一致；不启动 Python；缓存失效、失败恢复和性能目标通过；不是仅用固定配置的原型演示。
 
 ### 阶段 3：其他目标、工具管理和 Python filters
 
-交付：Rust `build latex/json`、模板初始化、setup/doctor、clean/distclean、更新检查、所有 Python filters。
+交付：Rust `build latex/json`、模板初始化、setup/doctor、clean/distclean、更新检查，六个旧 Python filters 的 Lua 替代与小型 Rust 图像 helper。
 
 - 复现 JSON AST、LaTeX 资源复制与图像转换行为；不只验证构建退出码。
 - 保持源码与安装包两种资源加载方式，发布资源清单带版本及摘要。
 - 以原子替换处理工具下载/解包/修复，保留系统代理和显式代理的优先级及失败恢复。
 - `clean/distclean` 只操作正确项目的既定状态，不扩大删除范围；兼容旧状态时先识别版本。
-- 移植 SVG 内嵌、SVG→PNG、公式/LaTeX filters，保留图像尺寸、字号、字体和 per-image 控制。
+- 以 Lua 移植 SVG 内嵌、公式/LaTeX filters 和 SVG→PNG 的 AST/缓存规则，像素处理调用小型 Rust helper；保留尺寸、字号、字体和 per-image 控制。
 - 诊断输出基于实际可用能力，不把所有平台都宣称支持 Windows SDK 路径。
 
 退出条件：上述命令和 Python filters 的行为契约通过；这些路径无 Python 回退。
@@ -250,7 +254,8 @@ Rust 应用与保留组件之间的边界按以下方式实现：
 
 交付：Rust 公式调用层、OLE/文档转换、`convert`、`build-reply`、PDF/Office 平台实现。
 
-- 复用现有 Rust 公式库，先验证共享库/进程与 Rust crate 直连方案；避免无必要重复编译和 ABI 重写。
+- 通过安全 Rust 门面直接链接现有公式 crate 和相同固定 revision 的 `latex2wmf`，不为自有 Rust→Rust 调用保留动态加载及 JSON/hex C ABI。
+- 公式缓存采用构建期引擎指纹和独立 schema；偏好、字体和 helper 等可变输入仍在运行时验证，不扫描 DLL 或整份源码。
 - 保留 `rust`、`rust-sdk`、`set-data`、`auto`、`both` 等当前支持的方法，逐项标注平台前提。
 - 保留现有 C# MathType helper，Rust 替换其 Python 调用层；验证参数、输出、错误、超时、SDK 前提与平台打包，不要求将 helper 业务改写为 Rust。
 - COM 优先附加已有 Office 实例，只管理本次打开的文档，绝不调用 `Application.Quit()` 或关闭用户已有文档；不启动 Office 来跑普通无 Office 构建。
@@ -264,11 +269,11 @@ Rust 应用与保留组件之间的边界按以下方式实现：
 
 交付：Rust 应用与现有 Lua filters、Haskell worker、C# MathType helper 的完整集成，固定组件协议与制品清单，以及迁移后性能报告。
 
-- 按读者/AST/交叉引用/引用处理/写者阶段，验证 Rust filters 与现有 Lua filters 的位置和作用域。
+- 按读者/AST/交叉引用/引用处理/写者阶段，验证新迁 Lua filters 与既有 filters 的位置和作用域；图像 helper 不承载 AST JSON。
 - 对嵌套表格、重复标题、脚注、全局链接、修订语法和中英文编号验证完整输出，不通过改写 Lua 来绕过调用差异。
 - 验证 Haskell worker 的版本协商、配置更新、citeproc 原生缓存、crossref 嵌入、并发限制与崩溃恢复。
 - 自定义第三方 Lua/JSON filters 保持可用，内置优化不得吞掉用户 filter 或改变其顺序。
-- 在安装包中验证 C# helper、SDK 前提、共享库、Lua 资源和 worker 数据均可定位。
+- 在安装包中验证 C# helper、SDK 前提、MuPDF 共享库、小型图像 helper、Lua 资源和 worker 数据均可定位。
 - 对完整链路进行 profile，优化 Rust 应用层与组件交互；若需修复保留组件，沿用其现有语言，不扩大 Rust 重写范围。
 
 退出条件：三个保留组件的集成与发布验证通过；所有 Python 产品路径已替换；性能目标及输出契约通过，没有新增跨组件开销导致总体性能退化。
@@ -337,7 +342,8 @@ Rust 应用与保留组件之间的边界按以下方式实现：
 ## 8. PyPI、uv 与资源交付
 
 原设计采用 Maturin `bin` 模式。实施时改为 `papper-dev` Rust wheel builder：
-Haskell、C#、公式库、MuPDF 和平台运行库需要在资源归档内嵌前统一暂存和修复，
+Haskell、C#、MuPDF、图像 helper 和平台运行库需要在资源归档内嵌前统一暂存和修复；
+公式库直接编译进 CLI，不再作为 DLL 资源暂存，
 因此由同一个原生工具完成组件构建、依赖审计、PEP 427 wheel 和安装 smoke。
 wheel 的脚本目录仍包含真正的 Rust 可执行文件。源码安装保留一个仅在构建时运行的
 PEP 517/660 Python 桥接模块，正式 wheel 和普通产品命令不包含或调用它。
@@ -356,7 +362,7 @@ PEP 517/660 Python 桥接模块，正式 wheel 和普通产品命令不包含或
 
 - 平台/架构和最低系统版本匹配；Linux manylinux/musllinux 选择与当前引擎原生依赖一致，不只给 wheel 改标签。[Maturin 分发要求](https://www.maturin.rs/distribution.html)。
 - 主程序被 uv 复制到另一目录后，仍能找到引擎和模板。优先编译内嵌只读资源，或按版本/摘要解包到管理目录；需要真实路径的文件有清晰生命周期。
-- 引擎/公式库与主程序的版本协商；DLL/dylib/so 修复及加载路径；不依赖开发机 PATH 和 Homebrew 安装。
+- worker/helper 与主程序的版本协商；直接链接公式的构建身份；MuPDF 等外部 DLL/dylib/so 的加载和依赖修复；不依赖开发机 PATH 和 Homebrew 安装。
 - `papper` 与 `pmt` 原生入口交付、Unicode 路径、只读安装目录和离线运行。
 - 初次解包/安装时间与热运行时间分别报告，不把每次资源展开放在普通请求上。
 - 预编译 wheels 覆盖正式支持平台；源码包构建要求和私有子模块访问要如实说明，不能承诺未授权的用户能重建私有源。
@@ -370,7 +376,7 @@ PEP 517/660 Python 桥接模块，正式 wheel 和普通产品命令不包含或
 | --- | --- | --- |
 | 配置重写改变默认值、别名或优先级 | 单一配置核心、显式 provided 信息、参考版黑盒对照 | 同输入不同有效配置/输出 |
 | DOCX 读写损坏或丢失未知对象 | 包/XML 局部修改、entry/二进制保全、真实应用检查 | 未知部件丢失、关系/字段错误 |
-| Rust filters 与保留 Lua filters 的调用顺序或 AST 边界改变行为 | 固定引擎与 Lua 版本、保持顺序、输出对照与阶段级 profile | 输出差异或跨边界性能回归 |
+| 新迁 Lua filters 与既有 filters 的顺序或图像 helper 边界改变行为 | 固定引擎/Lua/渲染器版本、保持顺序、AST与像素对照及阶段 profile | 输出差异或跨边界性能回归 |
 | Rust 调用现有 worker/helper 时破坏协议或生命周期 | 保留协议、能力协商、错误/超时/恢复与安装制品验证 | 引擎缓存失效错误、helper 调用失败或组件不可定位 |
 | 引用缓存误复用 | 上游对象生命周期明确、依赖 key、失败不发布缓存 | 编辑引用/CSL 后仍旧内容 |
 | PDF/Office 绑定行为不等价 | 先验证位置数据、SDK 调用与 COM 所有权 | 用户文档被关闭、行号映射错误 |

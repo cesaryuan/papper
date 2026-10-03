@@ -11,5 +11,10 @@ serde_json.workspace = true
 roxmltree.workspace = true
 zip.workspace = true
 libloading.workspace = true
+mathtype-rust.workspace = true
+latex2wmf.workspace = true
 sha1.workspace = true
 papper-core.workspace = true
+
+[build-dependencies]
+sha2.workspace = true

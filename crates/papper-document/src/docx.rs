@@ -10,7 +10,7 @@ mod xml;
 
 use anyhow::{Context, Result, bail};
 use package::Package;
-use papper_core::metadata::{EffectiveMetadata, is_chinese_language};
+use papper_core::metadata::{EffectiveMetadata, LineNumberMode, is_chinese_language};
 use papper_core::resources::ResourcePaths;
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
@@ -35,16 +35,12 @@ pub fn prepare_docx_metadata(effective: &EffectiveMetadata) -> Result<EffectiveM
         .pandoc_metadata
         .get("lang")
         .is_some_and(is_chinese_language)
-        && (!effective
-            .pmt_settings
-            .provided
-            .contains("docxShowLineNumbers")
-            || effective.pmt_settings.get_str("docxShowLineNumbers") == Some("连续"))
+        && (!effective.pmt_settings.was_provided("docxShowLineNumbers")
+            || matches!(&effective.pmt_settings.fields().docx_show_line_numbers, LineNumberMode::Named(mode) if mode == "连续"))
     {
         prepared
             .pmt_settings
-            .values
-            .insert("docxShowLineNumbers".into(), json!(false));
+            .set_line_numbers(LineNumberMode::Enabled(false));
     }
     Ok(prepared)
 }
@@ -56,11 +52,7 @@ pub fn prepare_reference(
     override_path: Option<&Path>,
     work_dir: &Path,
 ) -> Result<Option<PathBuf>> {
-    let Some(margins) = effective
-        .pmt_settings
-        .get("docxPageMargins")
-        .and_then(Value::as_object)
-    else {
+    let Some(margins) = &effective.pmt_settings.fields().docx_page_margins else {
         return Ok(override_path.map(Path::to_path_buf));
     };
     if margins.is_empty() {
@@ -79,12 +71,8 @@ pub fn prepare_reference(
         ("left", vec!["left", "inside"]),
         ("right", vec!["right", "outside"]),
     ] {
-        if let Some(value) = aliases
-            .iter()
-            .find_map(|alias| margins.get(*alias))
-            .filter(|value| !value.is_null())
-        {
-            let amount = formatting::length_twips(value)?;
+        if let Some(value) = aliases.iter().find_map(|alias| margins.get(*alias)) {
+            let amount = formatting::configured_length_twips(value)?;
             if amount < 0 {
                 bail!("docxPageMargins.{side} must be greater than or equal to 0");
             }

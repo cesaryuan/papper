@@ -104,6 +104,11 @@ filename = "Cargo.lock"
 search = "name = \"papper-server\"\nversion = \"{current_version}\""
 replace = "name = \"papper-server\"\nversion = \"{new_version}\""
 
+[[tool.bumpversion.files]]
+filename = "Cargo.lock"
+search = "name = \"papper-svg\"\nversion = \"{current_version}\""
+replace = "name = \"papper-svg\"\nversion = \"{new_version}\""
+
 [project.urls]
 Homepage = "https://github.com/cesaryuan/papper"
 Repository = "https://github.com/cesaryuan/papper"

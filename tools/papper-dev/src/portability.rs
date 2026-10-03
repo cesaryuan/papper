@@ -86,12 +86,11 @@ pub fn prepare_runtime_libraries(
 
 /// Recognize runtime executables and versioned shared-library filenames, excluding notices.
 fn is_native_file(name: &str) -> bool {
-    name.ends_with(".exe")
+    super::runtime_executable(name)
         || name.ends_with(".dll")
         || name.ends_with(".dylib")
         || name.ends_with(".so")
         || name.contains(".so.")
-        || name.ends_with("/pmt-pandoc-worker")
 }
 
 /// Make only staged Unix copies owner-writable because packaged bottles can ship read-only binaries.
@@ -430,7 +429,7 @@ fn windows_system_library(name: &str) -> bool {
         )
 }
 
-/// Bundle official VC release runtimes beside both PDF and formula libraries and audit every PE import.
+/// Audit PE imports and stage only required CRTs beside the components that load them.
 fn prepare_windows(
     files: &mut BTreeMap<String, PathBuf>,
     prefix: &str,
@@ -453,18 +452,24 @@ fn prepare_windows(
             );
         }
     }
-    let mut needed = BTreeSet::from([
-        "msvcp140.dll".into(),
-        "vcruntime140.dll".into(),
-        "vcruntime140_1.dll".into(),
-    ]);
-    let mut pending: VecDeque<PathBuf> = components
+    let mut needed: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut pending: VecDeque<(PathBuf, String)> = components
         .iter()
-        .map(|component| component.original.clone())
+        .map(|component| {
+            let directory = component
+                .staged
+                .parent()
+                .unwrap()
+                .strip_prefix(stage)
+                .expect("Native components are staged inside this directory")
+                .to_string_lossy()
+                .replace('\\', "/");
+            (component.original.clone(), directory)
+        })
         .collect();
     let mut inspected = BTreeSet::new();
-    while let Some(path) = pending.pop_front() {
-        if !inspected.insert(path.clone()) {
+    while let Some((path, directory)) = pending.pop_front() {
+        if !inspected.insert((path.clone(), directory.clone())) {
             continue;
         }
         for dependency in pe_dependencies(&path)? {
@@ -473,15 +478,23 @@ fn prepare_windows(
                 continue;
             }
             if let Some(runtime) = crt.get(&lower) {
-                needed.insert(lower);
-                pending.push_back(runtime.clone());
+                needed.entry(lower).or_default().insert(directory.clone());
+                pending.push_back((runtime.clone(), directory.clone()));
             } else if let Some(component) = components.iter().find(|component| {
                 component
                     .original
                     .file_name()
                     .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case(&dependency))
             }) {
-                pending.push_back(component.original.clone());
+                let component_directory = component
+                    .staged
+                    .parent()
+                    .unwrap()
+                    .strip_prefix(stage)
+                    .expect("Native components are staged inside this directory")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                pending.push_back((component.original.clone(), component_directory));
             } else {
                 bail!(
                     "Unbundled Windows dependency {dependency} required by {}",
@@ -490,17 +503,17 @@ fn prepare_windows(
             }
         }
     }
-    for name in needed {
+    for (name, directories) in needed {
         let source = crt
             .get(&name)
             .with_context(|| format!("Official CRT distribution is missing {name}"))?;
-        for directory in ["bin", "mathtype/bin"] {
+        for directory in &directories {
             let target = stage.join(directory).join(&name);
             fs::create_dir_all(target.parent().unwrap())?;
             fs::copy(source, &target)?;
             files.insert(format!("{prefix}/{directory}/{name}"), target);
         }
-        report.push(json!({"name":name,"source":source,"distribution":"Microsoft Visual C++ release redistributable","destinations":["bin","mathtype/bin"]}));
+        report.push(json!({"name":name,"source":source,"distribution":"Microsoft Visual C++ release redistributable","destinations":directories}));
     }
     let notice = stage.join("bin/native-notices/MICROSOFT-VC-RUNTIME-NOTICE.txt");
     fs::create_dir_all(notice.parent().unwrap())?;

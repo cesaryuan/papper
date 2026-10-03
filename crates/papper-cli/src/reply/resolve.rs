@@ -335,10 +335,7 @@ fn replace_equations(
     references: &BTreeMap<String, String>,
     settings: &PmtSettings,
 ) -> Result<String> {
-    let (center, right) = if settings
-        .get("docxPageMargins")
-        .is_some_and(|value| !value.is_null())
-    {
+    let (center, right) = if settings.fields().docx_page_margins.is_some() {
         papper_document::docx::equation_tab_stops(settings)?
     } else {
         (4888, 9746)

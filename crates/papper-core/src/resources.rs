@@ -3,6 +3,11 @@
 use anyhow::{Result, bail};
 use std::path::{Path, PathBuf};
 
+/// Identify the compiled image implementation without hashing a helper on every build.
+pub fn svg_renderer_id() -> &'static str {
+    env!("PAPPER_SVG_RENDERER_ID")
+}
+
 /// Runtime resources used by native commands and the retained engine.
 #[derive(Debug, Clone)]
 pub struct ResourcePaths {
@@ -73,5 +78,39 @@ impl ResourcePaths {
         } else {
             self.root.join(relative)
         }
+    }
+
+    /// Find the small image helper without copying or relaunching the main executable.
+    pub fn svg_renderer(&self) -> Option<PathBuf> {
+        let name = if cfg!(windows) {
+            "papper-svg.exe"
+        } else {
+            "papper-svg"
+        };
+        let mut candidates = Vec::new();
+        if let Some(path) = std::env::var_os("PAPPER_SVG_RENDERER") {
+            candidates.push(PathBuf::from(path));
+        }
+        candidates.push(self.root.join("bin").join(name));
+        if let Ok(executable) = std::env::current_exe()
+            && let Some(parent) = executable.parent()
+        {
+            candidates.push(parent.join(name));
+        }
+        let target = std::env::var_os("CARGO_TARGET_DIR")
+            .map(PathBuf::from)
+            .map(|path| {
+                if path.is_absolute() {
+                    path
+                } else {
+                    self.root.join(path)
+                }
+            })
+            .unwrap_or_else(|| self.root.join("target"));
+        candidates.extend([
+            target.join("debug").join(name),
+            target.join("release").join(name),
+        ]);
+        candidates.into_iter().find(|path| path.is_file())
     }
 }

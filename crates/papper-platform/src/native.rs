@@ -1,125 +1,46 @@
-//! Reuse the existing Rust equation converters through their versioned native ABI.
+//! Safe, directly linked Rust equation conversion and DOCX equation extraction.
 
-use anyhow::{Context, Result, bail};
-use libloading::Library;
-use papper_core::resources::ResourcePaths;
+use anyhow::{Context, Result};
+pub use latex2wmf::{FormulaStyle, SvgBackend, WmfPreview, WmfRenderOptions};
+pub use mathtype_rust::EquationPayload;
 use serde_json::{Value, json};
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
-use std::ffi::{CStr, CString, c_char};
 use std::io::Read;
+use std::panic::UnwindSafe;
 use std::path::{Path, PathBuf};
 
-/// Load a native component and its staged adjacent dependencies without trusting cwd.
-///
-/// # Safety
-/// The caller must select a trusted compiled component; library initialization
-/// can execute native code before its symbols are resolved.
-pub unsafe fn load_library(path: &Path) -> Result<Library> {
-    let path = path.canonicalize()?;
-    #[cfg(windows)]
-    {
-        use libloading::os::windows::{
-            LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR, LOAD_LIBRARY_SEARCH_SYSTEM32,
-            Library as WindowsLibrary,
-        };
-        // The component directory contains its redistributed dependencies. Limit
-        // resolution to that directory and Windows system DLLs, not manuscript cwd.
-        Ok(unsafe {
-            WindowsLibrary::load_with_flags(
-                &path,
-                LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32,
-            )?
-        }
-        .into())
-    }
-    #[cfg(not(windows))]
-    {
-        Ok(unsafe { Library::new(path)? })
-    }
+/// Build-time identity of equation code, embedded resources, dependency lock, and target.
+pub const EQUATION_ENGINE_FINGERPRINT: &str = env!("PAPPER_EQUATION_ENGINE_FINGERPRINT");
+
+/// Preserve per-equation fallback when an upstream renderer panics, as the old C ABI did.
+fn conversion_result<T>(operation: impl FnOnce() -> Result<T, String> + UnwindSafe) -> Result<T> {
+    std::panic::catch_unwind(operation)
+        .map_err(|_| anyhow::anyhow!("Equation converter panicked"))?
+        .map_err(anyhow::Error::msg)
 }
 
-type Convert = unsafe extern "C" fn(*const c_char) -> *mut c_char;
-type Free = unsafe extern "C" fn(*mut c_char);
-
-/// Own a library for the lifetime of its converter/free function pointers.
-pub struct NativeConverter {
-    _library: Library,
-    convert: Convert,
-    free: Free,
+/// Generate owned OLE/MTEF artifacts without JSON envelopes or allocator-sharing FFI.
+pub fn encode_latex(latex: &str, preferences: Option<&Path>) -> Result<EquationPayload> {
+    conversion_result(|| mathtype_rust::encode_latex(latex, preferences))
 }
 
-impl NativeConverter {
-    /// Load a compiled Rust component with explicit symbols and allocator ownership.
-    pub fn load(resources: &ResourcePaths, project: &str) -> Result<Self> {
-        let stem = project.replace('-', "_");
-        let filename = if cfg!(windows) {
-            format!("{stem}.dll")
-        } else if cfg!(target_os = "macos") {
-            format!("lib{stem}.dylib")
-        } else {
-            format!("lib{stem}.so")
-        };
-        let candidates = [
-            resources.root.join("mathtype/bin").join(&filename),
-            resources
-                .root
-                .join("src/pandoc_manuscript/mathtype/bin")
-                .join(&filename),
-            resources
-                .root
-                .join("scripts")
-                .join(project)
-                .join("target/release")
-                .join(&filename),
-        ];
-        let path = candidates.into_iter().find(|path| path.is_file()).ok_or_else(|| anyhow::anyhow!("Native {project} library is missing; install a platform wheel or compile its Rust source"))?;
-        // Only project-owned compiled native libraries are loaded. Both symbols
-        // are resolved before publishing the object, and the library outlives them.
-        let library = unsafe { load_library(&path) }
-            .with_context(|| format!("Cannot load native converter: {}", path.display()))?;
-        let convert =
-            unsafe { *library.get::<Convert>(format!("{stem}_convert_v1\0").as_bytes())? };
-        let free = unsafe { *library.get::<Free>(format!("{stem}_free_v1\0").as_bytes())? };
-        Ok(Self {
-            _library: library,
-            convert,
-            free,
-        })
-    }
-
-    /// Copy one response and release it exactly once with the matching library allocator.
-    pub fn call(&self, request: &Value) -> Result<Value> {
-        let request = CString::new(serde_json::to_vec(request)?)?;
-        // JSON escapes interior NUL characters; the ABI receives a valid UTF-8 C string.
-        let pointer = unsafe { (self.convert)(request.as_ptr()) };
-        anyhow::ensure!(
-            !pointer.is_null(),
-            "Native converter returned a null response"
-        );
-        let bytes = unsafe { CStr::from_ptr(pointer) }.to_bytes().to_vec();
-        unsafe { (self.free)(pointer) };
-        let response: Value = serde_json::from_slice(&bytes)?;
-        if let Some(error) = response.get("error") {
-            bail!("{}", error.as_str().unwrap_or("Native conversion failed"));
-        }
-        response
-            .get("result")
-            .cloned()
-            .context("Native converter omitted its result")
-    }
-
-    /// Recover TeX from MathType OLE, retaining the native structural fallback.
-    pub fn ole_to_latex(&self, ole: &[u8]) -> Result<String> {
-        let result = self.call(&json!({"operation":"decode_ole","ole":hex(ole),"mode":"auto"}))?;
-        result["latex"]
-            .as_str()
-            .map(str::to_string)
-            .context("Native decoder omitted LaTeX")
-    }
+/// Recover validated MTEF directly from a generated or cached OLE artifact.
+pub fn mtef_from_ole(ole: &[u8]) -> Result<Vec<u8>> {
+    conversion_result(|| mathtype_rust::mtef_from_ole(ole))
 }
 
-/// Encode artifact bytes without exposing allocator-backed native memory to callers.
+/// Render a typed preview directly in process while retaining upstream error recovery.
+pub fn render_wmf(latex: &str, options: WmfRenderOptions, math_font: &str) -> Result<WmfPreview> {
+    conversion_result(|| latex2wmf::render_latex_to_wmf_with_font(latex, options, math_font))
+}
+
+/// Recover source TeX from OLE, then retain structural fallback for source-free equations.
+pub fn ole_to_latex(ole: &[u8]) -> Result<String> {
+    conversion_result(|| mathtype_rust::decode_ole(ole, mathtype_rust::DecodeMode::Auto))
+}
+
+/// Format small content digests used by cache keys and the Lua equation map.
 pub fn hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8] = b"0123456789abcdef";
     let mut result = String::with_capacity(bytes.len() * 2);
@@ -128,23 +49,6 @@ pub fn hex(bytes: &[u8]) -> String {
         result.push(DIGITS[(byte & 15) as usize] as char);
     }
     result
-}
-
-/// Decode validated hex artifacts returned by a native converter.
-pub fn unhex(raw: &str) -> Result<Vec<u8>> {
-    anyhow::ensure!(
-        raw.len().is_multiple_of(2),
-        "Native binary artifact has an odd hex length"
-    );
-    raw.as_bytes()
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|bytes| {
-            let text = std::str::from_utf8(bytes)?;
-            Ok(u8::from_str_radix(text, 16)?)
-        })
-        .collect()
 }
 
 /// Resolve OPC relationship paths within an archive without directory traversal.
@@ -236,23 +140,15 @@ pub fn mathtype_objects(docx: &Path) -> Result<Vec<Vec<u8>>> {
 }
 
 /// Decode unique equation objects once and retain unsupported equations as preview images.
-pub fn decode_documents(
-    documents: &[PathBuf],
-    resources: &ResourcePaths,
-) -> Result<BTreeMap<String, Value>> {
+pub fn decode_documents(documents: &[PathBuf]) -> Result<BTreeMap<String, Value>> {
     let mut result = BTreeMap::new();
-    let mut converter = None;
     for document in documents {
         for ole in mathtype_objects(document)? {
             let key = hex(&Sha1::digest(&ole));
             if result.contains_key(&key) {
                 continue;
             }
-            if converter.is_none() {
-                converter = Some(NativeConverter::load(resources, "mathtype-rust")?);
-            }
-            let latex = converter.as_ref().unwrap().ole_to_latex(&ole);
-            let value = match latex {
+            let value = match ole_to_latex(&ole) {
                 Ok(latex) => json!(latex),
                 Err(error) => {
                     eprintln!(

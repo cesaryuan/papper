@@ -66,8 +66,8 @@ def test_init_merge_agents_directory_keeps_existing_files(tmp_path) -> None:
     InitSettings(directory=str(target), merge=True).run()
 
     assert existing_skill.read_text(encoding="utf-8") == "local skill notes\n"
-    # The former Python helper is now the native repair-math command. Validate
-    # merge's actual resource contents rather than that removed script's path.
+    # Validate the authored template contents and preserve the user's existing
+    # skill instead of depending on obsolete helper-script paths.
     authored = Path(__file__).resolve().parents[1] / "template" / ".agents"
     expected = {path.relative_to(authored): path.read_bytes()
                 for path in authored.rglob("*") if path.is_file()}

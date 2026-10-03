@@ -614,6 +614,28 @@ pub fn build_reference_style_css(styles_path: &Path, docx_style: Option<&Value>)
 
 /// Generate CSS in memory; callers may cache XML bytes after dependency validation.
 pub fn build_reference_style_css_text(xml: &str, docx_style: Option<&Value>) -> Result<String> {
+    let records = docx_style
+        .filter(|value| !value.is_null())
+        .map(normalize_docx_styles)
+        .transpose()?
+        .unwrap_or_default();
+    reference_style_css_text(xml, &records)
+}
+
+/// Generate product CSS directly from validated configuration, preserving authored override order.
+pub fn build_reference_style_css_with_settings(
+    styles_path: &Path,
+    settings: &papper_core::metadata::PmtSettings,
+) -> Result<String> {
+    let xml = std::fs::read_to_string(styles_path)
+        .with_context(|| format!("Cannot read {}", styles_path.display()))?;
+    let records =
+        papper_core::style_values::normalize_docx_style_settings(settings)?.unwrap_or_default();
+    reference_style_css_text(&xml, &records)
+}
+
+/// Combine inherited reference typography with already normalized project overrides.
+fn reference_style_css_text(xml: &str, records: &[Map<String, Value>]) -> Result<String> {
     let styles = read_reference_styles(xml)?;
     let mut rules = Vec::new();
     let default = StyleSpec::default();
@@ -682,10 +704,7 @@ pub fn build_reference_style_css_text(xml: &str, docx_style: Option<&Value>) -> 
             }
         }
     }
-    if let Some(raw) = docx_style.filter(|value| !value.is_null()) {
-        let records = normalize_docx_styles(raw)?;
-        rules.extend(override_css(&records, find_style(&styles, "Table"))?);
-    }
+    rules.extend(override_css(records, find_style(&styles, "Table"))?);
     Ok(rules.join("\n\n"))
 }
 

@@ -23,10 +23,8 @@ pub fn dispatch(command: CliCommand) -> Result<()> {
         CliCommand::NativeServer(args) => {
             papper_server::run_server(&args.config, &args.host, args.port)
         }
-        CliCommand::NativeFilter(args) => run_filter(&args.kind, &args.format),
         CliCommand::NativeDecode(args) => {
-            let resources = ResourcePaths::discover()?;
-            let decoded = papper_platform::native::decode_documents(&args.documents, &resources)?;
+            let decoded = papper_platform::native::decode_documents(&args.documents)?;
             serde_json::to_writer(std::io::stdout().lock(), &decoded)?;
             Ok(())
         }
@@ -38,7 +36,6 @@ pub fn dispatch(command: CliCommand) -> Result<()> {
         CliCommand::Doctor(_) => doctor(),
         CliCommand::NativeUpdate => crate::tools::run_update_worker(),
         CliCommand::Convert(args) => convert_docx(args),
-        CliCommand::RepairMath(args) => crate::repair_math::run(args),
         CliCommand::BuildReply(args) => crate::reply::build(&args),
         CliCommand::NativePdf(args) => crate::reply::extract_pdf_command(&args.input),
     }
@@ -208,7 +205,9 @@ fn build_other(
         "PMT_CITATION_NUMBER_RANGE_DELIMITER".into(),
         effective
             .pmt_settings
-            .get_str("citationNumberRangeDelimiter")
+            .fields()
+            .citation_number_range_delimiter
+            .as_deref()
             .filter(|raw| *raw != "–")
             .map(str::to_string),
     )]);
@@ -216,10 +215,7 @@ fn build_other(
     if args.target == BuildTarget::Docx {
         effective = papper_document::docx::prepare_docx_metadata(&effective)?;
         if args.no_mathtype {
-            effective
-                .pmt_settings
-                .values
-                .insert("mathtype".into(), serde_json::json!(false));
+            effective.pmt_settings.set_mathtype(false);
         }
         if let Some(raw) = &args.mathtype {
             let enabled = match raw.as_str() {
@@ -229,13 +225,10 @@ fn build_other(
                 _ => bail!("--mathtype requires true, false or auto"),
             };
             if let Some(enabled) = enabled {
-                effective
-                    .pmt_settings
-                    .values
-                    .insert("mathtype".into(), serde_json::json!(enabled));
+                effective.pmt_settings.set_mathtype(enabled);
             }
         }
-        if effective.pmt_settings.get_bool("mathtype") == Some(true) {
+        if effective.pmt_settings.fields().mathtype {
             match papper_document::docx::check_mathtype_available(resources, &effective) {
                 Ok(()) => use_mathtype = true,
                 Err(error) => eprintln!(
@@ -251,7 +244,7 @@ fn build_other(
             "PMT_CHINESE_MODE".into(),
             if chinese { Some("true".into()) } else { None },
         );
-        let native = effective.pmt_settings.get_bool("docxNativeCrossref") == Some(true);
+        let native = effective.pmt_settings.fields().docx_native_crossref;
         environment.insert("PMT_DOCX_NATIVE_CROSSREFS".into(), Some(native.to_string()));
         environment.insert(
             "PMT_ENABLE_MATHTYPE_MARKERS".into(),
@@ -347,53 +340,23 @@ fn build_other(
         ]);
         for kind in ["svg_embed_images", "svg_to_png"] {
             command.extend([
-                "--filter".into(),
-                native_filter_executable(kind, temporary.path())?.into_os_string(),
+                "--lua-filter".into(),
+                resources
+                    .resource(format!("pandoc/filters/docx/{kind}.lua"))
+                    .into_os_string(),
             ]);
         }
         let cache = project_state_dir(project)?.join("cache");
-        let bases = [project, source.parent().unwrap()]
-            .iter()
-            .map(|path| display_path(path))
-            .collect::<Vec<_>>()
-            .join(if cfg!(windows) { ";" } else { ":" });
-        let convert_all = effective.pmt_settings.get_bool("docxConvertSvgToPng") == Some(true);
-        let embed =
-            effective.pmt_settings.get_bool("docxEmbedSvgImages") == Some(true) && !convert_all;
-        for (key, value) in [
-            (
-                "PMT_SVG_EMBED_DIR",
-                display_path(&cache.join("svg-embedded")),
-            ),
-            ("PMT_SVG_TO_PNG_DIR", display_path(&cache.join("svg-png"))),
-            ("PMT_SVG_EMBED_BASE_DIRS", bases.clone()),
-            ("PMT_SVG_TO_PNG_BASE_DIRS", bases),
-            ("PMT_SVG_EMBED_IMAGES", embed.to_string()),
-            ("PMT_SVG_TO_PNG_CONVERT_ALL", convert_all.to_string()),
-            (
-                "PMT_SVG_EMBED_PMT_VERSION",
-                env!("CARGO_PKG_VERSION").to_string(),
-            ),
-            (
-                "PMT_SVG_TO_PNG_PMT_VERSION",
-                env!("CARGO_PKG_VERSION").to_string(),
-            ),
-        ] {
-            environment.insert(key.into(), Some(value));
-        }
-        for (field, key, fallback) in [
-            ("docxSvgToPngDpi", "PMT_SVG_TO_PNG_DPI", Some("300")),
-            ("docxSvgToPngScale", "PMT_SVG_TO_PNG_SCALE", Some("1")),
-            ("docxSvgToPngWidth", "PMT_SVG_TO_PNG_WIDTH", None),
-        ] {
-            let value = effective
-                .pmt_settings
-                .get(field)
-                .filter(|value| !value.is_null())
-                .map(|value| value.to_string())
-                .or_else(|| fallback.map(str::to_string));
-            environment.insert(key.into(), value);
-        }
+        environment.extend(crate::images::filter_environment(
+            resources,
+            &effective.pmt_settings,
+            &[
+                project.to_path_buf(),
+                source.parent().unwrap().to_path_buf(),
+            ],
+            &cache.join("svg-embedded"),
+            &cache.join("svg-png"),
+        )?);
     }
     command.push(input.into_os_string());
     PandocCli::new(discover_engine(&resources.root)?).run(&command, project, &environment)?;
@@ -425,8 +388,7 @@ fn build_other(
                 &formatted,
                 &effective,
                 &papper_document::docx::DocxPostprocessOptions {
-                    native_crossrefs: effective.pmt_settings.get_bool("docxNativeCrossref")
-                        == Some(true),
+                    native_crossrefs: effective.pmt_settings.fields().docx_native_crossref,
                     ..Default::default()
                 },
             )?;
@@ -450,40 +412,13 @@ fn build_other(
     }
 }
 
-/// Publish a native filter alias in this build's private workspace.
-fn native_filter_executable(kind: &str, work: &Path) -> Result<PathBuf> {
-    let extension = if cfg!(windows) { ".exe" } else { "" };
-    let target = work.join(format!("papper-filter-{kind}{extension}"));
-    let executable = std::env::current_exe()?;
-    if std::fs::hard_link(&executable, &target).is_err() {
-        std::fs::copy(executable, &target)?;
-    }
-    Ok(target)
-}
-
-/// Replace Python paths in LaTeX defaults while preserving all retained filters and order.
+/// Resolve authored Lua filter paths while preserving LaTeX defaults and order.
 fn native_latex_defaults(resources: &ResourcePaths, work: &Path) -> Result<PathBuf> {
     let mut text = std::fs::read_to_string(resources.resource("pandoc/pandoc-latex.yml"))?;
-    for kind in ["emf_to_pdf", "resource_move", "table_convert"] {
-        let path = native_filter_executable(kind, work)?;
-        text = text.replace(
-            &format!("${{.}}/filters/latex/{kind}.py"),
-            &pandoc_path(&path),
-        );
-    }
     text = text.replace("${.}", &pandoc_path(&resources.pandoc));
     let path = work.join("pandoc-latex.yml");
     atomic_write(&path, text.as_bytes())?;
     Ok(path)
-}
-
-/// Read and write only AST JSON on stdout, keeping status/error logs on stderr.
-pub fn run_filter(kind: &str, format: &str) -> Result<()> {
-    let document: serde_json::Value = serde_json::from_reader(std::io::stdin().lock())?;
-    let resources = ResourcePaths::discover()?;
-    let result = papper_document::filters::apply_filter(kind, document, format, &resources)?;
-    serde_json::to_writer(std::io::stdout().lock(), &result)?;
-    Ok(())
 }
 
 /// Import DOCX with retained Lua filters and the existing native MathType decoder.
@@ -501,8 +436,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     let source = PathBuf::from(display_path(&source.canonicalize()?));
     let destination = absolute(&args.output_dir, &project);
     let resources = ResourcePaths::discover()?;
-    let decoded =
-        papper_platform::native::decode_documents(std::slice::from_ref(&source), &resources)?;
+    let decoded = papper_platform::native::decode_documents(std::slice::from_ref(&source))?;
     let temporary = tempfile::Builder::new()
         .prefix("papper-convert-")
         .tempdir()?;

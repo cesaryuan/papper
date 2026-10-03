@@ -119,7 +119,7 @@ pub fn extract(path: &Path) -> Result<Value> {
     let library_path = library_path()?;
     // The explicitly selected native library must export the pinned MuPDF C ABI.
     unsafe {
-        let library = papper_platform::native::load_library(&library_path)
+        let library = papper_platform::dynamic::load_library(&library_path)
             .with_context(|| format!("Could not load MuPDF {}", library_path.display()))?;
         let context = library.get::<NewContext>(b"fz_new_context_imp\0")?(
             std::ptr::null_mut(),

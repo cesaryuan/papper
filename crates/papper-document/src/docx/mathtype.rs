@@ -1,5 +1,5 @@
 //! Bind hidden TeX to Word equations, generate cached MathType parts, and publish
-//! complete OPC packages atomically. The existing native converter and C# SDK
+//! complete OPC packages atomically. The directly linked Rust core and C# SDK
 //! helper own equation conversion; this module never automates the user's Word.
 
 mod backend;

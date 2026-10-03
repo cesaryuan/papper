@@ -81,9 +81,9 @@ references such as `@fig:_Ref241620557` and `@eq:_Ref241620691`. It keeps
 ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
 
-MathType decoding uses the same Rust shared library as LaTeX-to-MTEF export.
-`papper convert` decodes objects in its Rust process and passes the results
-to Lua; wheels contain no additional `mathtype-rust` executable.
+MathType decoding uses the same directly linked Rust equation library as
+LaTeX-to-MTEF export. `papper convert` decodes objects in its Rust process and
+passes the results to Lua; wheels need no separate MathType DLL or executable.
 
 To run the MathType Lua filter directly from a source checkout, put the native
 `papper` executable on Pandoc's PATH:
@@ -94,8 +94,8 @@ pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua 
 
 In standalone mode Lua invokes the native decoder once for the input batch.
 Set `PAPPER_EXECUTABLE` to the native executable path if `papper` is unavailable
-on Pandoc's PATH. Repair over-escaped imported formulas with
-`papper repair-math converted.md -o repaired.md`; surrounding Markdown is preserved.
+on Pandoc's PATH. DOCX equations are converted to Pandoc Math nodes, so the
+Markdown writer emits their math delimiters without a separate unescaping step.
 
 ## Quick Start
 
@@ -133,9 +133,11 @@ directories are not migrated or deleted automatically.
 Legacy tool downloads and executable installation use temporary files followed by atomic
 replacement, so an interrupted build can be rerun. Invalid cached archives are
 discarded and downloaded again once; unusable managed executables are reinstalled.
-The six formerly Python-based bundled JSON filters are native Rust filters.
-They run through native executable aliases without an interpreter, including
-on Windows and for manuscript projects on UNC network paths.
+The six formerly Python-based bundled filters run as Lua inside Pandoc. AST
+transforms and resource handling share Lua modules; a separate `papper-svg`
+native helper handles SVGZ decompression and PNG rendering when needed. It
+carries no embedded runtime archive, and filters do not copy or launch the
+complete `papper` executable or exchange whole documents through JSON.
 
 Legacy tool downloads automatically use `HTTPS_PROXY` (or `https_proxy`) when set,
 otherwise the configured Windows/macOS system HTTP/HTTPS proxy, and otherwise
@@ -165,6 +167,13 @@ refresh that development executable. Release wheels omit the reference and
 have no Python runtime dependencies. Build and validate a release wheel with
 `cargo run -p papper-dev -- wheel --output dist` and
 `cargo run -p papper-dev -- smoke --wheel <wheel-path>`.
+
+Papper-owned configuration uses typed Rust fields and controlled updates;
+historical YAML aliases and explicit false/null precedence remain supported.
+Arbitrary Pandoc metadata stays separate. MathType OLE/MTEF conversion and
+LaTeX-to-WMF rendering link Rust libraries directly, with owned results and
+ordinary Rust errors. The external MuPDF C library retains its FFI boundary
+for PDF geometry extraction.
 
 The former `pandoc_manuscript` Python import API and `python -m` utilities are
 not included in native wheels. Use the public native commands or the Rust
@@ -509,23 +518,28 @@ The workflow also pins GHC to `9.14.1` and Cabal to `3.18.1.0`, compiles the HTM
 worker on all three platforms, and caches its Haskell dependencies separately.
 Linux compiles native components inside manylinux 2.28. The Rust wheel builder
 stages and audits shared dependencies before embedding the runtime; it repairs
-Linux RUNPATH and macOS load paths, and bundles official Windows CRT dependencies.
+Linux RUNPATH and macOS load paths, and bundles official Windows CRT dependencies
+only where the staged components' PE imports require them.
 The Windows CLI uses a static CRT. The builder leaves original component files intact.
 Each installed wheel must render citations and table cross-references through
 its real background HTML server, reuse unchanged HTML, and invalidate edited
 source before it can be published. GHC/Cabal are build-time tools only.
 
-For MathType, the wheel builds and ships the `mathtype-rust` shared library. Its versioned
-C ABI handles OLE/MTEF conversion and `operation="render_wmf"` requests, linking
-`latex2wmf` once as a pinned Git dependency. The renderer retains backend, style,
-font size, and math-font options. The standalone `latex2wmf` crate and CLI remain
-available for development; its dynamic library is not shipped.
+For MathType, the CLI directly links `mathtype-rust` and the same pinned Git
+revision of `latex2wmf`. A safe Rust API returns owned OLE/MTEF bytes and previews;
+no formula DLL, dynamic symbol lookup, or binary hex/JSON C ABI is shipped.
+The renderer retains backend, style, font size, and math-font options. Formula
+caches use `native-v2` and a compile-time engine fingerprint, plus the current
+preferences, font and optional helper inputs. The standalone `latex2wmf` crate
+and CLI remain available for development. The separate image helper is built
+without `papper-core` or the embedded runtime archive; MuPDF and the optional
+Windows C# helper remain packaged external components.
 
 CI sets `CARGO_TARGET_DIR` to persist native build artifacts. On Linux this directory and Cargo's download cache live on the host via
 the container's `/host` mount, so they survive the manylinux container. Local
 builds retain their normal per-project target directories unless this environment
 variable is set. Cabal dependency caches also persist through the Linux `/host`
-mount. Build logs report elapsed time for the Haskell worker, Rust library, and
+mount. Build logs report elapsed time for the Haskell worker, native Rust executables, and
 Windows .NET helper. A cold cache or a toolchain change still requires compilation;
 actual release speedups should be measured after a successful warm-up.
 
@@ -574,8 +588,8 @@ It has no effect on RaTeX or native MathType previews (`set-data` / `rust-sdk`).
 `both` compares both backends, prefers the native MathType result, and uses the Rust
 result if native conversion fails.
 
-If the `mathtype-rust` native library reports a formula conversion error, the build warns with the
-exit code and LaTeX input and continues. The affected formula retains its original
+If the linked equation library reports a formula conversion error, the build
+warns with the error and LaTeX input and continues. The affected formula retains its original
 Word equation (OMML); other formulas are converted normally. In `both` and `auto`
 modes, conversion tries `set-data` as each formula is converted when that backend
 is available. These modes do not run a separate startup probe for the per-formula

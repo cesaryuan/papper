@@ -76,9 +76,9 @@ uv run papper convert "测试文档.docx" -o converted
 或 `@eq:_Ref241620691` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
 Pandoc 的结果；公式无法解码时会保留预览图片。
 
-MathType 反向解码复用 LaTeX 转 MTEF 时使用的同一份 Rust 动态库。
+MathType 反向解码复用 LaTeX 转 MTEF 时直接链接的同一份 Rust 公式库。
 `papper convert` 在当前 Rust 进程中完成解码，再把结果交给 Lua；wheel
-不再额外包含 `mathtype-rust` 可执行文件。
+无需独立 MathType DLL 或公式转换可执行文件。
 
 在源码仓库中也可以直接运行 MathType Lua 过滤器，将原生 `papper` 放到 Pandoc 的 PATH：
 
@@ -86,9 +86,9 @@ MathType 反向解码复用 LaTeX 转 MTEF 时使用的同一份 Rust 动态库�
 pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
 ```
 
-此时 Lua 一次调用原生批量解码入口，加载同一份动态库。若 `papper` 不在 Pandoc 的
-PATH 中，可将 `PAPPER_EXECUTABLE` 设置为原生可执行文件路径。导入后如有过度转义的
-公式，可运行 `papper repair-math converted.md -o repaired.md`，保留公式外的 Markdown。
+此时 Lua 一次调用原生批量解码入口，使用直接链接的公式库。若 `papper` 不在 Pandoc 的
+PATH 中，可将 `PAPPER_EXECUTABLE` 设置为原生可执行文件路径。DOCX 公式转换为
+Pandoc Math 节点后，Markdown writer 直接生成数学分隔符，不需要再次反转义。
 
 ## 快速开始
 
@@ -110,6 +110,10 @@ MathType OLE/WMF 预览图、行号来源转换文件等单次构建中间产物
 进程退出时清理。`papper clean` 清理当前项目的 work；`papper distclean` 还会清理其缓存。
 原有项目内的 `.pmt` 和 `.papper` 目录不会自动迁移或删除。
 
+六个原 Python filters 现在由 Pandoc 进程内的 Lua 执行，共享资源查找和 SVG
+处理模块。仅 SVGZ 解压与 PNG 像素渲染按需调用独立的原生 `papper-svg` helper；
+它不内嵌整份运行时，也不复制或启动完整 `papper` 来执行 AST JSON filter。
+
 ### 源码开发与验证
 
 安装固定版本的 Rust 工具链后运行：
@@ -126,6 +130,14 @@ uv run pytest
 可执行文件。发布 wheel 不包含旧 Python 实现，也不依赖 Python 运行库。
 完整打包和安装验证分别使用 `cargo run -p papper-dev -- wheel --output dist` 和
 `cargo run -p papper-dev -- smoke --wheel <wheel-path>`。
+
+Papper 自有配置使用真实 Rust 字段和受控更新，保留历史 YAML 别名与显式
+false/null 的优先级；任意 Pandoc 元数据单独处理。MathType OLE/MTEF 编解码和
+LaTeX→WMF 通过安全 Rust API 直接链接，不再使用公式 DLL 或二进制 hex/JSON
+C ABI。公式缓存采用 `native-v2` 和构建期引擎指纹，仍验证用户偏好、字体与可选
+helper 输入。独立图像 helper 不依赖 `papper-core`，不内嵌运行时资源归档。
+MuPDF 是外部 C 库，PDF 几何提取仍通过 FFI；Windows C# helper 保留 SDK 桥接职责。
+打包器仅按原生组件实际 PE imports 和目录分发 Windows CRT，保留跨平台依赖审计。
 
 原来的 `pandoc_manuscript` Python 导入 API 和 `python -m` 工具不随原生 wheel
 发布。集成使用原生 CLI 或 Rust workspace 库；旧实现仅供仓库测试对照。

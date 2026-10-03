@@ -158,7 +158,15 @@ def test_native_mathtype_preserves_failed_formulas_layout_and_invalidates_corrup
                                                    "provided": [], "pandoc_metadata": {}, "reply": None},
                                     "pandoc_metadata": {}, "has_yaml_header": False}), encoding="utf-8")
     target = tmp_path / "native.docx"
-    environment = {**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")}
+    # An authored resource tree without converter DLLs must still produce real
+    # equations: both Rust equation libraries are linked into the executable.
+    native_resources = tmp_path / "native-resources"
+    (native_resources / "pandoc").mkdir(parents=True)
+    (native_resources / "mathtype").mkdir()
+    shutil.copy2(ROOT / "pandoc/pandoc-html.yml", native_resources / "pandoc/pandoc-html.yml")
+    shutil.copy2(ROOT / "src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp",
+                 native_resources / "mathtype/Times+Symbol 12.eqp")
+    environment = {**os.environ, "PAPPER_RESOURCE_ROOT": str(native_resources), "PAPPER_HOME": str(tmp_path / "home")}
 
     def convert() -> dict:
         """Build through the native runner and return its artifact-level conversion report."""
@@ -170,9 +178,8 @@ def test_native_mathtype_preserves_failed_formulas_layout_and_invalidates_corrup
     first = convert()
     assert first == {"total": 4, "converted": 3, "failures": 1, "cache_hits": 1}
     monkeypatch.setattr(ole_parts, "mathtype_cache_dir", lambda: tmp_path / "python-cache")
-    # Use the real existing DLL at the external native boundary. The Python
-    # source-loader otherwise recompiles it mid-test and correctly invalidates
-    # Rust's cache fingerprint, obscuring the cache-reuse contract under test.
+    # The frozen Python reference still uses its DLL, allowing byte comparisons
+    # against independently called conversion code without recompiling the oracle.
     converter = ole_parts.native.NativeConverter("mathtype-rust", ole_parts.native.library_path("mathtype-rust"))
     monkeypatch.setattr(ole_parts.native, "get_converter", lambda project: converter)
     requests = marked_docx.extract_marked_equation_requests(source)

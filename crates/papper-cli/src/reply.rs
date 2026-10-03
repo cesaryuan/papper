@@ -31,20 +31,6 @@ fn companion(reply: &Path, requested: &Path, project: &Path) -> PathBuf {
     project.join(requested)
 }
 
-/// Install a native JSON filter alias without introducing an interpreter wrapper.
-fn filter_alias(kind: &str, work: &Path) -> Result<PathBuf> {
-    let name = format!(
-        "papper-filter-{kind}{}",
-        if cfg!(windows) { ".exe" } else { "" }
-    );
-    let target = work.join(name);
-    let executable = std::env::current_exe()?;
-    if std::fs::hard_link(&executable, &target).is_err() {
-        std::fs::copy(executable, &target)?;
-    }
-    Ok(target)
-}
-
 /// Resolve all reply placeholders and publish a complete DOCX or TXT atomically.
 pub fn build(args: &crate::ReplyArgs) -> Result<()> {
     let project = canonical_project(&std::env::current_dir()?)?;
@@ -130,9 +116,7 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
     };
     let text = std::fs::read_to_string(&reply)?.replace("\r\n", "\n");
     let effective = load_effective_metadata_text(&text, &reply, &options)?;
-    let use_mathtype = if extension == "docx"
-        && effective.pmt_settings.get_bool("mathtype") == Some(true)
-    {
+    let use_mathtype = if extension == "docx" && effective.pmt_settings.fields().mathtype {
         match papper_document::docx::check_mathtype_available(&resources, &effective) {
             Ok(()) => true,
             Err(error) => {
@@ -153,7 +137,9 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         "PMT_CITATION_NUMBER_RANGE_DELIMITER".into(),
         effective
             .pmt_settings
-            .get_str("citationNumberRangeDelimiter")
+            .fields()
+            .citation_number_range_delimiter
+            .as_deref()
             .filter(|raw| *raw != "–")
             .map(str::to_owned),
     )]);
@@ -236,51 +222,19 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         }
         for kind in ["svg_embed_images", "svg_to_png"] {
             command.extend([
-                "--filter".into(),
-                filter_alias(kind, temporary.path())?.into_os_string(),
+                "--lua-filter".into(),
+                resources
+                    .resource(format!("pandoc/filters/docx/{kind}.lua"))
+                    .into_os_string(),
             ]);
         }
-        let convert = effective.pmt_settings.get_bool("docxConvertSvgToPng") == Some(true);
-        let embed = !convert && effective.pmt_settings.get_bool("docxEmbedSvgImages") == Some(true);
-        for (name, value) in [
-            ("PMT_SVG_EMBED_IMAGES", embed),
-            ("PMT_SVG_TO_PNG_CONVERT_ALL", convert),
-        ] {
-            environment.insert(name.into(), Some(value.to_string()));
-        }
-        for name in ["PMT_SVG_EMBED_BASE_DIRS", "PMT_SVG_TO_PNG_BASE_DIRS"] {
-            environment.insert(
-                name.into(),
-                Some(serde_json::to_string(&[
-                    project.as_path(),
-                    reply.parent().unwrap(),
-                ])?),
-            );
-        }
-        environment.insert(
-            "PMT_SVG_EMBED_DIR".into(),
-            Some(display_path(&temporary.path().join("svg-embedded"))),
-        );
-        environment.insert(
-            "PMT_SVG_TO_PNG_DIR".into(),
-            Some(display_path(&temporary.path().join("svg-png"))),
-        );
-        for name in ["PMT_SVG_EMBED_PMT_VERSION", "PMT_SVG_TO_PNG_PMT_VERSION"] {
-            environment.insert(name.into(), Some(env!("CARGO_PKG_VERSION").into()));
-        }
-        for (field, name) in [
-            ("docxSvgToPngDpi", "PMT_SVG_TO_PNG_DPI"),
-            ("docxSvgToPngScale", "PMT_SVG_TO_PNG_SCALE"),
-            ("docxSvgToPngWidth", "PMT_SVG_TO_PNG_WIDTH"),
-        ] {
-            if let Some(value) = effective
-                .pmt_settings
-                .get(field)
-                .filter(|value| !value.is_null())
-            {
-                environment.insert(name.into(), Some(value.to_string()));
-            }
-        }
+        environment.extend(crate::images::filter_environment(
+            &resources,
+            &effective.pmt_settings,
+            &[project.clone(), reply.parent().unwrap().to_path_buf()],
+            &temporary.path().join("svg-embedded"),
+            &temporary.path().join("svg-png"),
+        )?);
         engine.run(&command, &project, &environment)?;
         let processed = temporary.path().join("processed.docx");
         postprocess_docx(

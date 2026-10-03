@@ -352,7 +352,7 @@ fn validate_tool(tool: &ResolvedTool) -> Result<()> {
             .map(str::parse)
             .collect::<std::result::Result<_, _>>()?;
         ensure!(
-            components.as_slice() >= &[3, 11],
+            components.as_slice() >= [3, 11].as_slice(),
             "Pandoc {} is older than 3.11",
             &matched[1]
         );
@@ -681,7 +681,7 @@ fn matching_pandoc_release(crossref: &ResolvedTool) -> Option<Value> {
         .map(str::parse)
         .collect::<std::result::Result<_, _>>()
         .ok()?;
-    if components.as_slice() < &[3, 11] {
+    if components.as_slice() < [3, 11].as_slice() {
         return None;
     }
     match release_metadata("pandoc", Some(version)) {

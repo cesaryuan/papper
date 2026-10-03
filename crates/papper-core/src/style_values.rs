@@ -652,20 +652,14 @@ pub fn normalize_paragraph_style_settings(
 pub fn normalize_docx_style_settings(
     settings: &PmtSettings,
 ) -> Result<Option<Vec<Map<String, Value>>>> {
-    let Some(style_map) = settings.get("docxStyle").filter(|value| !value.is_null()) else {
+    let Some(style_map) = &settings.fields().docx_style else {
         return Ok(None);
     };
-    let style_map = style_map
-        .as_object()
-        .ok_or_else(|| anyhow::anyhow!("docxStyle metadata must be a mapping"))?;
     let mut normalized = Vec::new();
-    for (name, raw) in style_map {
+    for (name, raw) in style_map.iter() {
         if name.trim().is_empty() {
             bail!("docxStyle style names must be non-empty strings")
         }
-        let raw = raw
-            .as_object()
-            .ok_or_else(|| anyhow::anyhow!("docxStyle.{name} metadata must be a mapping"))?;
         let mut entry = Map::new();
         entry.insert("style_name".to_string(), json!(name));
         entry.insert(

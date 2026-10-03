@@ -11,11 +11,17 @@ use std::sync::OnceLock;
 use yaml_rust::parser::{Event, Parser};
 use yaml_rust::scanner::{TScalarStyle, TokenType};
 
+mod settings;
+pub use settings::{
+    ConversionMethod, DocxStyles, LengthInput, LineNumberMode, SettingField, SettingsOverrides,
+    SettingsValues, SvgBackend,
+};
+
 /// Store canonical configuration while tracking explicitly supplied fields.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct PmtSettings {
-    pub values: Map<String, Value>,
-    pub provided: BTreeSet<String>,
+    fields: SettingsValues,
+    provided: BTreeSet<SettingField>,
     pub pandoc_metadata: Map<String, Value>,
     pub reply: Option<ReplySettings>,
 }
@@ -23,7 +29,7 @@ pub struct PmtSettings {
 /// Keep validated reply-specific overrides separate from base configuration.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ReplySettings {
-    pub pmt_overrides: Map<String, Value>,
+    pub pmt_overrides: SettingsOverrides,
     pub pandoc_metadata: Map<String, Value>,
 }
 
@@ -463,31 +469,6 @@ pub fn markdown_without_yaml_header(text: &str) -> &str {
         .unwrap_or(text)
 }
 
-/// Obtain the built-in field defaults without inheriting manuscript environment variables.
-fn field_defaults() -> Map<String, Value> {
-    json!({
-        "mathtype": false,
-        "mathtypeConversionMethod": "auto",
-        "mathtypeSvgBackend": "typst",
-        "mathtypeTypstMathFont": "New Computer Modern Math",
-        "docxNativeCrossref": false,
-        "docxEmbedSvgImages": true,
-        "docxConvertSvgToPng": false,
-        "docxSvgToPngWidth": null,
-        "docxSvgToPngDpi": null,
-        "docxSvgToPngScale": null,
-        "citationNumberRangeDelimiter": null,
-        "docxShowLineNumbers": "continuous",
-        "docxShowPageNumbers": null,
-        "docxPageMargins": null,
-        "docxPageWidth": null,
-        "docxStyle": null
-    })
-    .as_object()
-    .unwrap()
-    .clone()
-}
-
 /// Convert the accepted bool spellings at the typed configuration boundary.
 fn parse_bool(value: &Value, name: &str) -> Result<Value> {
     if let Some(flag) = value.as_bool() {
@@ -754,7 +735,7 @@ impl Default for PmtSettings {
     /// Create typed application defaults with no explicit configuration overrides.
     fn default() -> Self {
         Self {
-            values: field_defaults(),
+            fields: SettingsValues::default(),
             provided: BTreeSet::new(),
             pandoc_metadata: Map::new(),
             reply: None,
@@ -784,23 +765,21 @@ impl PmtSettings {
                 };
                 continue;
             }
-            let canonical = canonical_field_name(name)
+            let field = SettingField::from_name(name)
                 .ok_or_else(|| anyhow::anyhow!("Unknown Papper setting: {name}"))?;
-            if !settings.provided.insert(canonical.to_string()) {
-                bail!("Duplicate aliases supplied for Papper setting: {canonical}")
+            if !settings.provided.insert(field) {
+                bail!(
+                    "Duplicate aliases supplied for Papper setting: {}",
+                    field.name()
+                )
             }
             settings
-                .values
-                .insert(canonical.to_string(), validate_field(canonical, value)?);
+                .fields
+                .assign(field, validate_field(field.name(), value)?)?;
         }
         let controls: Vec<&str> = ["docxSvgToPngWidth", "docxSvgToPngScale", "docxSvgToPngDpi"]
             .into_iter()
-            .filter(|name| {
-                settings
-                    .values
-                    .get(*name)
-                    .is_some_and(|value| !value.is_null())
-            })
+            .filter(|name| settings.get(name).is_some_and(|value| !value.is_null()))
             .collect();
         if controls.len() > 1 {
             bail!(
@@ -836,10 +815,7 @@ impl PmtSettings {
                     } else {
                         source.parent().unwrap_or(Path::new(".")).join(font_path)
                     };
-                    settings.values.insert(
-                        "mathtypeTypstMathFont".to_string(),
-                        json!(absolute_path(&path)?.to_string_lossy()),
-                    );
+                    settings.set_math_font(absolute_path(&path)?.to_string_lossy().into())?;
                 }
             }
             Ok(settings)
@@ -858,28 +834,58 @@ impl PmtSettings {
     }
 
     /// Look up a configuration value by its canonical name or accepted alias.
-    pub fn get(&self, name: &str) -> Option<&Value> {
-        self.values.get(canonical_field_name(name).unwrap_or(name))
+    pub fn get(&self, name: &str) -> Option<Value> {
+        SettingField::from_name(name).map(|field| self.fields.value(field))
     }
 
     /// Read a boolean field without treating a missing or null value as true.
     pub fn get_bool(&self, name: &str) -> Option<bool> {
-        self.get(name).and_then(Value::as_bool)
+        match SettingField::from_name(name)? {
+            SettingField::Mathtype => Some(self.fields.mathtype),
+            SettingField::DocxNativeCrossref => Some(self.fields.docx_native_crossref),
+            SettingField::DocxEmbedSvgImages => Some(self.fields.docx_embed_svg_images),
+            SettingField::DocxConvertSvgToPng => Some(self.fields.docx_convert_svg_to_png),
+            SettingField::DocxShowPageNumbers => self.fields.docx_show_page_numbers,
+            SettingField::DocxShowLineNumbers => match self.fields.docx_show_line_numbers {
+                LineNumberMode::Enabled(value) => Some(value),
+                LineNumberMode::Named(_) => None,
+            },
+            _ => None,
+        }
     }
 
     /// Read a string field while preserving explicit blank metadata where supported.
     pub fn get_str(&self, name: &str) -> Option<&str> {
-        self.get(name).and_then(Value::as_str)
+        match SettingField::from_name(name)? {
+            SettingField::MathtypeConversionMethod => {
+                Some(self.fields.mathtype_conversion_method.as_str())
+            }
+            SettingField::MathtypeSvgBackend => Some(self.fields.mathtype_svg_backend.as_str()),
+            SettingField::MathtypeTypstMathFont => Some(&self.fields.mathtype_typst_math_font),
+            SettingField::CitationNumberRangeDelimiter => {
+                self.fields.citation_number_range_delimiter.as_deref()
+            }
+            SettingField::DocxShowLineNumbers => match &self.fields.docx_show_line_numbers {
+                LineNumberMode::Named(value) => Some(value),
+                LineNumberMode::Enabled(_) => None,
+            },
+            SettingField::DocxPageWidth => match &self.fields.docx_page_width {
+                Some(LengthInput::Text(value)) => Some(value),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     /// Return canonical non-null fields, optionally limited to supplied overrides.
     pub fn to_mapping(&self, exclude_unset: bool) -> Map<String, Value> {
-        self.values
-            .iter()
-            .filter(|(name, value)| {
-                !value.is_null() && (!exclude_unset || self.provided.contains(*name))
+        SettingField::ALL
+            .into_iter()
+            .filter(|field| !exclude_unset || self.provided.contains(field))
+            .filter_map(|field| {
+                let value = self.fields.value(field);
+                (!value.is_null()).then(|| (field.name().into(), value))
             })
-            .map(|(name, value)| (name.clone(), value.clone()))
             .collect()
     }
 
@@ -890,7 +896,7 @@ impl PmtSettings {
         };
         let mut result = Self::from_mapping(&merge_metadata(
             &self.to_mapping(false),
-            &reply.pmt_overrides,
+            &reply.pmt_overrides.to_mapping(),
         ))?;
         result.pandoc_metadata = merge_metadata(&self.pandoc_metadata, &reply.pandoc_metadata);
         Ok(result)
@@ -917,7 +923,10 @@ impl ReplySettings {
         let (pmt, pandoc_metadata, _) = split_style_mapping(raw, source, "reply")?;
         let settings = PmtSettings::from_mapping(&pmt)?;
         Ok(Self {
-            pmt_overrides: settings.to_mapping(true),
+            pmt_overrides: SettingsOverrides {
+                fields: settings.fields,
+                provided: settings.provided,
+            },
             pandoc_metadata,
         })
     }
@@ -1094,7 +1103,8 @@ pub fn load_effective_metadata_text(
             .flatten()
         {
             if let Some(reply) = &settings.reply {
-                settings_mapping = merge_metadata(&settings_mapping, &reply.pmt_overrides);
+                settings_mapping =
+                    merge_metadata(&settings_mapping, &reply.pmt_overrides.to_mapping());
                 pandoc_defaults = merge_metadata(&pandoc_defaults, &reply.pandoc_metadata);
             }
         }
@@ -1338,6 +1348,45 @@ mod tests {
             json!({"left": "manuscript", "right": "keep"})
         );
         assert_eq!(result.pandoc_metadata["custom-list"], json!(["一", "two"]));
+        Ok(())
+    }
+
+    /// Keep explicit false/null precedence intact when effective settings cross a JSON boundary.
+    #[test]
+    fn persisted_settings_preserve_explicit_presence_and_reply_overrides() -> Result<()> {
+        let settings = PmtSettings::from_yaml_text(
+            "mathtype: false\ndocxShowPageNumbers: null\nreply:\n  mathtype: true\n  docxShowPageNumbers: false\n",
+            Path::new("style.yml"),
+        )?;
+        let restored: PmtSettings = serde_json::from_value(serde_json::to_value(&settings)?)?;
+        assert!(!restored.fields().mathtype);
+        assert!(restored.was_provided("mathtype"));
+        assert!(restored.was_provided("docxShowPageNumbers"));
+        assert_eq!(restored.fields().docx_show_page_numbers, None);
+        assert!(!restored.was_provided("docxNativeCrossref"));
+        let reply = restored.for_reply()?;
+        assert!(reply.fields().mathtype);
+        assert_eq!(reply.fields().docx_show_page_numbers, Some(false));
+        Ok(())
+    }
+
+    /// Reject invalid persisted configuration that previously bypassed project-file validation.
+    #[test]
+    fn persisted_settings_reject_invalid_configuration() -> Result<()> {
+        let settings = PmtSettings::default();
+        for invalid in [
+            json!({"docxSvgToPngDpi": 0}),
+            json!({"mathtype": []}),
+            json!({"mathtypeConversionMethod": "unknown"}),
+            json!({"docxSvgToPngDpi": 300, "docxSvgToPngWidth": 600}),
+        ] {
+            let mut wire = serde_json::to_value(&settings)?;
+            wire["values"]
+                .as_object_mut()
+                .unwrap()
+                .extend(invalid.as_object().unwrap().clone());
+            assert!(serde_json::from_value::<PmtSettings>(wire).is_err());
+        }
         Ok(())
     }
 }

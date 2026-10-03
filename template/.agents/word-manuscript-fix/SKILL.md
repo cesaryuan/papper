@@ -5,18 +5,18 @@ description: 当需要将 Word 稿件转换为或修复为本仓库使用的 Pan
 
 # Word 稿件修复
 
-处理从 `.docx` 或 `pandoc` 生成的 Markdown 稿件，将其整理为本仓库要求的 Pandoc Markdown 格式。重点修复转义后的 LaTeX 数学公式、纯文本编号引用、Word 风格 `_Ref...` 交叉引用、基于表格的图片或子图布局、图片尺寸精度过高、不符合项目规范的表格语法，以及缺失的 YAML front matter。
+处理从 `.docx` 或 `pandoc` 生成的 Markdown 稿件，将其整理为本仓库要求的 Pandoc Markdown 格式。重点检查数学公式、纯文本编号引用、Word 风格 `_Ref...` 交叉引用、基于表格的图片或子图布局、图片尺寸精度过高、不符合项目规范的表格语法，以及缺失的 YAML front matter。
 
 如果输入是 `.docx`，先运行：
 
 `papper convert .\input.docx -o converted`
 
-再继续修复生成后的 Markdown。
+`papper convert` 已将 Word/MathType 公式转换为 Pandoc 数学节点，直接输出正确的 Markdown 数学语法。无需再运行公式反转义脚本；继续检查生成后的 Markdown，并仅修复实际残留的问题。
 
 ## 修复流程
 
 1. 检查目标 Markdown，识别公式、引文、交叉引用、图片/子图布局、表格语法、图片尺寸和 front matter 问题。
-2. 运行 `papper repair-math converted/input.md -o manuscript.md` 恢复被转义的数学公式；除这一步外，其余修复都直接编辑 Markdown 和参考文献文件完成，不要再额外编写脚本。输入输出可以指向同一个 Markdown 文件。
+2. 直接编辑 Markdown 和参考文献文件完成必要修复，不要额外编写脚本或对转换结果批量反转义。数学公式应保留合法的 LaTeX 转义，例如 `\%` 和 `\&`；仅在确认某段文字实际是公式时修复其数学语法。
 3. 将纯文本编号引用和参考文献列表重建为 `[@citekey]` 与 `.bib` 文件，citekey 使用有意义的 `authorYearKeyword` 风格，如 `he2016resnet`，并同步替换文中的数字引用。
 4. 将 `[]{#_Ref... .anchor}`、`[表 1](#_Ref...)` 这类 Pandoc-Word 风格交叉引用改写为本仓库使用的 `pandoc-crossref` 语法，如 `[@tbl:*]`、`[@fig:*]`。
 5. 将仅用于布局图片和公式的 Word 表格改写为语义化 Markdown，包括普通图片块、子图组和公式表格；图片尺寸收敛到四位有效数字，能只保留 `width` 时优先只保留 `width`。

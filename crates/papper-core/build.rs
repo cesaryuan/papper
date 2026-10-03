@@ -10,6 +10,32 @@ use std::path::PathBuf;
 
 /// Generate immutable resource bytes and a content-addressed installation key.
 fn main() {
+    // A Lua image cache must change when its separately compiled renderer changes,
+    // including source builds that do not carry an embedded runtime archive.
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut renderer = Sha256::new();
+    for relative in [
+        "Cargo.lock",
+        "crates/papper-svg/Cargo.toml",
+        "crates/papper-svg/src/main.rs",
+    ] {
+        let path = root.join(relative);
+        println!("cargo:rerun-if-changed={}", path.display());
+        renderer.update(relative.as_bytes());
+        renderer.update([0]);
+        renderer.update(std::fs::read(&path).expect("Renderer source must be readable"));
+    }
+    renderer.update(
+        std::env::var("TARGET")
+            .expect("Cargo sets TARGET")
+            .as_bytes(),
+    );
+    let renderer_id: String = renderer
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    println!("cargo:rustc-env=PAPPER_SVG_RENDERER_ID={renderer_id}");
     println!("cargo:rerun-if-env-changed=PAPPER_RUNTIME_ARCHIVE");
     let output = PathBuf::from(std::env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR"));
     let module = match std::env::var_os("PAPPER_RUNTIME_ARCHIVE") {

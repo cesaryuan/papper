@@ -1,8 +1,8 @@
 //! Development runner for complete native MathType package conversion.
 //!
 //! Usage: convert_mathtype_docx INPUT OUTPUT EFFECTIVE_METADATA_JSON PROJECT
-//! It loads the retained converter DLL and converts hidden marker-bound Word
-//! equations without starting Python or controlling an Office application.
+//! It converts hidden marker-bound Word equations through directly linked Rust
+//! libraries without starting Python or controlling an Office application.
 
 use anyhow::{Context, Result};
 use papper_core::metadata::EffectiveMetadata;

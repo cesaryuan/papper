@@ -1,7 +1,7 @@
 //! Build native PyPI wheels and stage their retained engines and authored resources.
 //!
 //! `cargo run -p papper-dev -- wheel --output dist` compiles the Rust CLI, existing
-//! Rust MathType library, Haskell worker and Windows C# helper before packaging.
+//! linked Rust equation crates, image helper, Haskell worker and Windows C# helper.
 //! `--prebuilt` reuses explicitly selected native components for local verification.
 //! Wheels contain native scripts and a shared runtime directory; no Python entry
 //! point or application module is included. Python remains only a test oracle.
@@ -65,8 +65,6 @@ struct WheelArgs {
     #[arg(long)]
     worker: Option<PathBuf>,
     #[arg(long)]
-    formula_library: Option<PathBuf>,
-    #[arg(long)]
     pdf_library: Option<PathBuf>,
     #[arg(long)]
     platform: Option<String>,
@@ -115,17 +113,6 @@ fn execute(command: &mut Command, description: &str) -> Result<()> {
         .with_context(|| format!("Could not run {description}"))?;
     anyhow::ensure!(status.success(), "{description} failed ({status})");
     Ok(())
-}
-
-/// Use the platform filename expected by Cargo and the retained native ABI.
-fn native_library_name() -> &'static str {
-    if cfg!(windows) {
-        "mathtype_rust.dll"
-    } else if cfg!(target_os = "macos") {
-        "libmathtype_rust.dylib"
-    } else {
-        "libmathtype_rust.so"
-    }
 }
 
 /// Build the worker from the same source revision that is shipped in the wheel.
@@ -486,6 +473,14 @@ fn build_editable(output: &Path) -> Result<()> {
             .current_dir(&root),
         "build native development CLI",
     )?;
+    // Build this independent helper with its own dependency features, as release
+    // packaging does; unrelated equation features otherwise alter PNG compression.
+    execute(
+        Command::new("cargo")
+            .args(["build", "--locked", "-p", "papper-svg"])
+            .current_dir(&root),
+        "build native development image helper",
+    )?;
     let version = env!("CARGO_PKG_VERSION");
     let tag = format!("py3-none-{}", platform_tag()?);
     let info = format!("papper-{version}.dist-info");
@@ -539,30 +534,20 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         .executable
         .clone()
         .unwrap_or_else(|| target.join(format!("release/papper{exe_suffix}")));
-    let formula = if let Some(path) = &args.formula_library {
-        path.clone()
-    } else if args.prebuilt {
-        root.join("scripts/mathtype-rust/target/release")
-            .join(native_library_name())
-    } else {
-        target.join("release").join(native_library_name())
-    };
+    let renderer = target.join(format!("release/papper-svg{exe_suffix}"));
     if !args.prebuilt {
-        execute(
-            Command::new("cargo")
-                .args([
-                    "rustc",
-                    "--locked",
-                    "--crate-type",
-                    "cdylib",
-                    "--manifest-path",
-                ])
-                .arg(root.join("scripts/mathtype-rust/Cargo.toml"))
-                .args(["--lib", "--features", "ffi", "--release"])
-                .env("CARGO_TARGET_DIR", &target)
-                .current_dir(&root),
-            "build retained Rust MathType library",
-        )?;
+        let mut build = Command::new("cargo");
+        build
+            .args(["build", "--locked", "--release", "-p", "papper-svg"])
+            .current_dir(&root);
+        if cfg!(windows) {
+            let flags = std::env::var("RUSTFLAGS").unwrap_or_default();
+            build.env(
+                "RUSTFLAGS",
+                format!("{flags} -C target-feature=+crt-static"),
+            );
+        }
+        execute(&mut build, "build small native image helper")?;
     }
     let worker = if let Some(path) = &args.worker {
         path.clone()
@@ -576,7 +561,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
     } else {
         build_worker(&root)?
     };
-    for path in [&formula, &worker] {
+    for path in [&renderer, &worker] {
         anyhow::ensure!(
             path.is_file(),
             "Native runtime component missing: {}",
@@ -620,10 +605,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         format!("{prefix}/bin/pmt-pandoc-worker{exe_suffix}"),
         worker,
     );
-    files.insert(
-        format!("{prefix}/mathtype/bin/{}", native_library_name()),
-        formula,
-    );
+    files.insert(format!("{prefix}/bin/papper-svg{exe_suffix}"), renderer);
     let pdf_name = if cfg!(windows) {
         "mupdfcpp64.dll"
     } else if cfg!(target_os = "macos") {
@@ -687,7 +669,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
             let Some(relative) = name.strip_prefix(&format!("{prefix}/")) else {
                 continue;
             };
-            let executable = relative.ends_with(".exe") || relative.ends_with("/pmt-pandoc-worker");
+            let executable = runtime_executable(relative);
             zip.start_file(
                 relative,
                 SimpleFileOptions::default()
@@ -740,7 +722,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
     for (name, path) in files {
         let bytes =
             std::fs::read(&path).with_context(|| format!("Cannot package {}", path.display()))?;
-        let executable = name.ends_with(".exe") || name.ends_with("/pmt-pandoc-worker");
+        let executable = runtime_executable(&name);
         append_entry(&mut archive, &mut record, &name, &bytes, executable)?;
     }
     let bytes = std::fs::read(&executable)?;
@@ -784,4 +766,13 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
     std::fs::remove_file(unfinished)?;
     println!("[papper package] Created {}", destination.display());
     Ok(())
+}
+
+/// Preserve helper execution permissions in both the wheel and its embedded archive.
+fn runtime_executable(name: &str) -> bool {
+    name.ends_with(".exe")
+        || matches!(
+            name.rsplit('/').next(),
+            Some("pmt-pandoc-worker" | "papper-svg")
+        )
 }

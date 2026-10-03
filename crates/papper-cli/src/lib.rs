@@ -1,7 +1,7 @@
 //! Command definitions and dispatch for both native executable names.
 
 mod commands;
-mod repair_math;
+mod images;
 mod reply;
 mod tools;
 
@@ -27,8 +27,6 @@ pub enum CliCommand {
     Build(BuildArgs),
     /// Convert a DOCX document to Markdown.
     Convert(ConvertArgs),
-    /// Restore over-escaped LaTeX math in Word-derived Markdown.
-    RepairMath(RepairMathArgs),
     /// Build a reply to reviewers.
     BuildReply(ReplyArgs),
     /// Remove generated outputs and transient project state.
@@ -39,8 +37,6 @@ pub enum CliCommand {
     Doctor(VerboseArgs),
     #[command(name = "__server", hide = true)]
     NativeServer(ServerArgs),
-    #[command(name = "__filter", hide = true)]
-    NativeFilter(FilterArgs),
     #[command(name = "__decode_docx", hide = true)]
     NativeDecode(DecodeArgs),
     #[command(name = "__pdf_extract", hide = true)]
@@ -146,14 +142,6 @@ pub struct ConvertArgs {
     pub logging: VerboseArgs,
 }
 
-/// Select math-repair input and an optional atomic output; otherwise print to stdout.
-#[derive(Debug, Args)]
-pub struct RepairMathArgs {
-    pub input: PathBuf,
-    #[arg(short = 'o', long)]
-    pub output: Option<PathBuf>,
-}
-
 /// Preserve the existing reply command's manuscript, line-source and output options.
 #[derive(Debug, Args)]
 pub struct ReplyArgs {
@@ -187,14 +175,6 @@ pub struct ServerArgs {
     pub port: u16,
 }
 
-/// Run native Pandoc JSON filters without a script or interpreter wrapper.
-#[derive(Debug, Args)]
-pub struct FilterArgs {
-    pub kind: String,
-    #[arg(default_value = "docx")]
-    pub format: String,
-}
-
 /// Decode MathType objects for a standalone retained Lua DOCX import filter.
 #[derive(Debug, Args)]
 pub struct DecodeArgs {
@@ -210,24 +190,6 @@ pub struct PdfArgs {
 
 /// Parse and dispatch without forwarding any product path to Python.
 pub fn run() -> i32 {
-    if let Some(kind) = std::env::args_os()
-        .next()
-        .and_then(|path| {
-            std::path::Path::new(&path)
-                .file_stem()
-                .map(|stem| stem.to_string_lossy().to_string())
-        })
-        .and_then(|name| name.strip_prefix("papper-filter-").map(str::to_string))
-    {
-        let format = std::env::args().nth(1).unwrap_or_else(|| "docx".into());
-        return match commands::run_filter(&kind, &format) {
-            Ok(()) => 0,
-            Err(error) => {
-                eprintln!("[ERROR] {error:#}");
-                1
-            }
-        };
-    }
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(error) => {
@@ -243,7 +205,6 @@ pub fn run() -> i32 {
     let public_command = !matches!(
         &command,
         CliCommand::NativeServer(_)
-            | CliCommand::NativeFilter(_)
             | CliCommand::NativePdf(_)
             | CliCommand::NativeDecode(_)
             | CliCommand::NativeUpdate

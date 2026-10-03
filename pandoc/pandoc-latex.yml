@@ -13,9 +13,9 @@ filters:
   - pandoc-crossref  # Must come before citeproc for cross-references
   - ${.}/filters/shared/normalize_chinese_numbering.lua
   - ${.}/filters/shared/merge_table_cells.lua
-  - ${.}/filters/latex/emf_to_pdf.py    # Converts EMF images to PDF for LaTeX
-  - ${.}/filters/latex/resource_move.py # Copies resources to output directory
-  - ${.}/filters/latex/table_convert.py # Converts tables to LaTeX format
+  - ${.}/filters/latex/emf_to_pdf.lua    # Converts EMF image references to PDF for LaTeX
+  - ${.}/filters/latex/resource_move.lua # Copies resources to output directory
+  - ${.}/filters/latex/table_convert.lua # Converts tables and wide figures through Lua
 
 # Template customization (uncomment to use custom template)
 # template: pandoc/default.tex

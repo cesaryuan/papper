@@ -179,7 +179,7 @@ pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element
                     .elements_mut()
                     .filter(|paragraph| paragraph.name == "w:p")
                 {
-                    if paragraph_style(paragraph) == Some(&compact) {
+                    if paragraph_style(paragraph) == Some(compact.as_str()) {
                         paragraph
                             .word("w:pPr")
                             .word("w:pStyle")

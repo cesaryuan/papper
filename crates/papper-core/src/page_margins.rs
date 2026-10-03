@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 
 use crate::metadata::PmtSettings;
-use crate::style_values::{LayoutLength, display_value, first_present, parse_length};
+use crate::style_values::{LayoutLength, display_value, parse_length};
 
 /// Preserve normalized EMUs and the user-supplied display text for each margin side.
 pub type PageMargins = (BTreeMap<String, LayoutLength>, BTreeMap<String, String>);
@@ -31,15 +31,9 @@ pub fn parse_margin_length(value: &Value, field_name: &str) -> Result<LayoutLeng
 
 /// Normalize only configured margin sides, including inside/outside aliases.
 pub fn normalize_page_margins(settings: &PmtSettings) -> Result<Option<PageMargins>> {
-    let Some(raw) = settings
-        .get("docxPageMargins")
-        .filter(|value| !value.is_null())
-    else {
+    let Some(raw) = &settings.fields().docx_page_margins else {
         return Ok(None);
     };
-    let raw = raw
-        .as_object()
-        .ok_or_else(|| anyhow::anyhow!("docxPageMargins must be a mapping"))?;
     let mut margins = BTreeMap::new();
     let mut display_values = BTreeMap::new();
     for (side, aliases) in [
@@ -48,12 +42,13 @@ pub fn normalize_page_margins(settings: &PmtSettings) -> Result<Option<PageMargi
         ("left", &["left", "inside"][..]),
         ("right", &["right", "outside"][..]),
     ] {
-        if let Some(value) = first_present(raw, aliases).filter(|value| !value.is_null()) {
+        if let Some(value) = aliases.iter().find_map(|alias| raw.get(*alias)) {
+            let value = serde_json::to_value(value)?;
             margins.insert(
                 side.to_string(),
-                parse_margin_length(value, &format!("docxPageMargins.{side}"))?,
+                parse_margin_length(&value, &format!("docxPageMargins.{side}"))?,
             );
-            display_values.insert(side.to_string(), display_value(value));
+            display_values.insert(side.to_string(), display_value(&value));
         }
     }
     Ok(Some((margins, display_values)))

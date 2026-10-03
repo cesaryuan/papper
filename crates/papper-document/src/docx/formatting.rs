@@ -3,8 +3,9 @@
 use super::package::Package;
 use super::xml::{Element, Node};
 use anyhow::{Result, bail};
-use papper_core::metadata::PmtSettings;
+use papper_core::metadata::{LengthInput, LineNumberMode, PmtSettings};
 use serde_json::{Map, Value};
+use std::borrow::Cow;
 use std::collections::BTreeSet;
 
 /// Convert shared Word lengths through integer EMUs before rounding to twips.
@@ -23,8 +24,16 @@ fn length_emu(value: &Value) -> Result<i64> {
         .as_str()
         .map(str::to_owned)
         .unwrap_or_else(|| value.to_string());
-    let pattern =
-        regex::Regex::new(r"^(-?\d+(?:\.\d+)?)\s*(pt|磅|cm|厘米|mm|毫米|in|inch|inches|英寸)?$")?;
+    length_emu_text(&raw)
+}
+
+/// Parse physical units identically for typed settings and arbitrary document attributes.
+fn length_emu_text(raw: &str) -> Result<i64> {
+    static PATTERN: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let pattern = PATTERN.get_or_init(|| {
+        regex::Regex::new(r"^(-?\d+(?:\.\d+)?)\s*(pt|磅|cm|厘米|mm|毫米|in|inch|inches|英寸)?$")
+            .expect("valid Word length grammar")
+    });
     let cleaned = raw.trim().to_lowercase();
     let captures = pattern.captures(&cleaned).ok_or_else(|| {
         anyhow::anyhow!("Expected a Word length such as 12pt, 0.5cm, or 1in: {raw}")
@@ -39,27 +48,35 @@ fn length_emu(value: &Value) -> Result<i64> {
     Ok((amount * factor) as i64)
 }
 
+/// Convert a configured length without recreating the generic settings JSON dictionary.
+pub(crate) fn configured_length_twips(value: &LengthInput) -> Result<i64> {
+    let raw: Cow<'_, str> = match value {
+        LengthInput::Text(raw) => Cow::Borrowed(raw),
+        LengthInput::Number(raw) => Cow::Owned(raw.to_string()),
+    };
+    Ok((length_emu_text(&raw)? as f64 / 635.0).round_ties_even() as i64)
+}
+
 /// Derive MathType template tabs only when explicit page margins are configured.
 pub(crate) fn equation_tabs(settings: &PmtSettings) -> Result<(i64, i64)> {
-    let Some(margins) = settings.get("docxPageMargins").and_then(Value::as_object) else {
+    let Some(margins) = &settings.fields().docx_page_margins else {
         return Ok((4156, 8312));
     };
     let width = settings
-        .get("docxPageWidth")
-        .filter(|value| !value.is_null())
-        .map(length_twips)
+        .fields()
+        .docx_page_width
+        .as_ref()
+        .map(configured_length_twips)
         .transpose()?
         .unwrap_or(11906);
     let left = margins
         .get("left")
-        .filter(|value| !value.is_null())
-        .map(length_twips)
+        .map(configured_length_twips)
         .transpose()?
         .unwrap_or(1080);
     let right = margins
         .get("right")
-        .filter(|value| !value.is_null())
-        .map(length_twips)
+        .map(configured_length_twips)
         .transpose()?
         .unwrap_or(1080);
     let text_width = width - left - right;
@@ -231,13 +248,10 @@ fn color_hex(value: &Value) -> Result<String> {
 
 /// Apply immutable typography settings to paragraph styles without rewriting content.
 pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Result<()> {
-    let Some(configured) = settings.get("docxStyle").and_then(Value::as_object) else {
+    let Some(configured) = &settings.fields().docx_style else {
         return Ok(());
     };
-    for (name, raw) in configured {
-        let raw = raw
-            .as_object()
-            .ok_or_else(|| anyhow::anyhow!("docxStyle.{name} must be a mapping"))?;
+    for (name, raw) in configured.iter() {
         let Some(style) = get_style_mut(styles, name) else {
             eprintln!("[DOCX] Style '{name}' was not found, skipping");
             continue;
@@ -539,13 +553,11 @@ fn apply_paragraph_properties(properties: &mut Element, raw: &Map<String, Value>
 
 /// Enable configured line numbers while preserving disabled reference settings.
 pub(crate) fn apply_line_numbers(document: &mut Element, settings: &PmtSettings) -> Result<()> {
-    let Some(value) = settings.get("docxShowLineNumbers") else {
-        return Ok(());
+    let raw = match &settings.fields().docx_show_line_numbers {
+        LineNumberMode::Enabled(false) => return Ok(()),
+        LineNumberMode::Enabled(true) => "true".to_owned(),
+        LineNumberMode::Named(raw) => raw.trim().to_lowercase().replace(['_', ' '], "-"),
     };
-    let raw = value
-        .as_str()
-        .map(|raw| raw.trim().to_lowercase().replace(['_', ' '], "-"))
-        .unwrap_or_else(|| value.to_string());
     let restart = match raw.as_str() {
         "false" | "off" | "no" | "0" | "none" | "null" | "disable" | "disabled" | "不显示"
         | "关闭" | "无" | "" => return Ok(()),
@@ -562,7 +574,6 @@ pub(crate) fn apply_line_numbers(document: &mut Element, settings: &PmtSettings)
         | "每节"
         | "每节重编"
         | "按节重启" => "newSection",
-        _ if value.is_number() => "continuous",
         _ => bail!("Unsupported docxShowLineNumbers value: {raw}"),
     };
     document.visit_mut(&mut |element| {
@@ -582,7 +593,7 @@ pub(crate) fn apply_page_numbers(
     styles: &Element,
     settings: &PmtSettings,
 ) -> Result<()> {
-    let Some(visible) = settings.get_bool("docxShowPageNumbers") else {
+    let Some(visible) = settings.fields().docx_show_page_numbers else {
         return Ok(());
     };
     let mut names: Vec<String> = package
@@ -599,7 +610,7 @@ pub(crate) fn apply_page_numbers(
         let mut index = 1;
         while relationships
             .elements()
-            .any(|relation| relation.attr("Id") == Some(&format!("rId{index}")))
+            .any(|relation| relation.attr("Id") == Some(format!("rId{index}").as_str()))
         {
             index += 1;
         }
@@ -859,7 +870,7 @@ pub(crate) fn apply_para_equation(document: &mut Element, styles: &mut Element) 
     {
         let Some(style) = styles
             .elements()
-            .find(|style| style.attr("w:styleId") == Some(&identifier))
+            .find(|style| style.attr("w:styleId") == Some(identifier.as_str()))
         else {
             break;
         };

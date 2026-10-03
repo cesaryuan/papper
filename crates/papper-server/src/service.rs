@@ -141,7 +141,9 @@ fn normalize_text(text: &str) -> String {
 fn filter_environment(effective: &EffectiveMetadata) -> BTreeMap<String, Option<String>> {
     let delimiter = effective
         .pmt_settings
-        .get_str("citationNumberRangeDelimiter")
+        .fields()
+        .citation_number_range_delimiter
+        .as_deref()
         .filter(|raw| *raw != "–");
     BTreeMap::from([(
         "PMT_CITATION_NUMBER_RANGE_DELIMITER".to_string(),

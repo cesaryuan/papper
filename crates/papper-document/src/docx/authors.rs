@@ -308,7 +308,7 @@ pub(crate) fn insert(
         .and_then(|style| style.attr("w:styleId"))
         .unwrap_or("Title")
         .to_owned();
-    let title=body.children.iter().position(|node|matches!(node,Node::Element(paragraph)if paragraph.name=="w:p"&&paragraph_style(paragraph)==Some(&title_id)))
+    let title=body.children.iter().position(|node|matches!(node,Node::Element(paragraph)if paragraph.name=="w:p"&&paragraph_style(paragraph)==Some(title_id.as_str())))
         .or_else(||body.children.iter().position(|node|matches!(node,Node::Element(paragraph)if paragraph.name=="w:p"))).unwrap_or(0);
     body.children.splice(title + 1..title + 1, inserted);
     Ok(())
@@ -325,7 +325,7 @@ fn add_footnote(package: &mut Package, message: &str) -> Result<()> {
         let mut index = 1;
         while relations
             .elements()
-            .any(|relation| relation.attr("Id") == Some(&format!("rId{index}")))
+            .any(|relation| relation.attr("Id") == Some(format!("rId{index}").as_str()))
         {
             index += 1;
         }
