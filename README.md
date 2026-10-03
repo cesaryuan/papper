@@ -512,25 +512,37 @@ Recorded warm-request improvements and measurement limits are described in
 Release with `uvx bump-my-version bump patch` followed by
 `git push origin main --tags`. The **Publish to PyPI** workflow publishes only
 on `v*` tag pushes. Its `main` builds and manual runs build and verify the same
-three platform wheels without publishing them.
+three platform wheels without publishing them, retaining the tested wheel
+artifacts for seven days. A tag run waits for the `main` build of the exact same
+commit and publishes those wheels without compiling the platforms again. If no
+matching build appears, that build failed, or its artifacts expired, the tag run
+builds and checks fresh wheels. An unfinished matching build has a bounded wait;
+rerun the tag workflow if that wait expires.
 
 Changes to either Rust submodule, the Haskell worker, the native build hook, helper inputs, or the
 publishing workflow trigger cache warming on `main`. To warm or refresh caches
 manually, run **Publish to PyPI** with **Run workflow**, selecting `main`.
-Complete the first warm-up before creating the next release tag: GitHub allows
-tags to restore default-branch caches, but not caches saved under other tags.
-Pushing `main` and a tag together does not make the tag wait for cache warming;
-it can use an older `main` cache and compile any changed dependencies.
+GitHub allows tag builds to restore default-branch caches, but not caches saved
+under other tags. Pushing `main` and a tag together is supported: the tag waits
+for the tested artifacts instead of racing the branch's cache warm-up.
 
 The workflow pins Rust to `1.98.0` and caches Cargo downloads and release build
 outputs separately for Windows, macOS 14, and manylinux 2.28. Cache keys include
-the toolchain, native lockfiles, submodule revisions, build configuration, and
-equation preferences, rather than the Python package version. Only successful
-`main` builds save caches; tag builds restore them and still run Cargo with
-`--locked`, package the wheel, and verify its native libraries.
+the toolchain, native lockfiles, Rust sources, embedded resources, submodule
+revisions, build configuration, and equation preferences. Source changes create
+new immutable snapshots even when dependencies stay unchanged; older compatible
+snapshots seed those builds. Only successful `main` builds save caches. After all
+platform builds succeed, cache housekeeping keeps the newest snapshot per
+platform and cache kind, including replacing the legacy release cache layouts.
+Unrelated workflow caches and caches under tag refs are preserved.
 
 The workflow also pins GHC to `9.14.1` and Cabal to `3.18.1.0`, compiles the HTML
-worker on all three platforms, and caches its Haskell dependencies separately.
+worker on all three platforms, and caches its Haskell dependencies, package
+index, `.pmt/pandoc-worker` build directory and `.pmt/pandoc-source` tree separately
+from Rust. macOS retains the pinned GHC/Cabal installation; Linux retains Rust
+and GHC/Cabal toolchains at stable paths inside the manylinux container. A changed
+source profile or index-state refreshes the Hackage index before resolving
+dependencies. The first run seeds compatible legacy caches where available.
 Linux compiles native components inside manylinux 2.28. The Rust wheel builder
 stages and audits shared dependencies before embedding the runtime; it repairs
 Linux RUNPATH and macOS load paths, and bundles official Windows CRT dependencies

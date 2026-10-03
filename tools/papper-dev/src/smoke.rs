@@ -196,7 +196,7 @@ fn smoke_svg_rasterization(installed: &Installed) -> Result<()> {
 /// Install a wheel into isolated uv directories and run the complete native smoke pipeline.
 pub fn run(wheel: &Path) -> Result<()> {
     let wheel = wheel.canonicalize()?;
-    let archive = zip::ZipArchive::new(std::fs::File::open(&wheel)?)?;
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(&wheel)?)?;
     ensure!(
         !archive.file_names().any(|name| name.ends_with(".py")
             || name.ends_with(".pyc")
@@ -204,6 +204,40 @@ pub fn run(wheel: &Path) -> Result<()> {
             || name.contains("site-packages/pandoc_manuscript")),
         "Production wheel contains Python application code"
     );
+    // PyPI resolves PEP 639 declarations under .dist-info/licenses. uv installation
+    // accepts a missing declared license, so validate the archive before the runtime checks.
+    let metadata_path = archive
+        .file_names()
+        .find(|name| name.ends_with(".dist-info/METADATA"))
+        .context("Production wheel omitted package metadata")?
+        .to_owned();
+    let info = metadata_path
+        .strip_suffix("/METADATA")
+        .context("Wheel metadata has no dist-info directory")?;
+    let mut metadata = String::new();
+    archive
+        .by_name(&metadata_path)?
+        .read_to_string(&mut metadata)?;
+    let headers = metadata.split("\n\n").next().unwrap_or(&metadata);
+    let mut license_count = 0;
+    for line in headers.lines() {
+        if let Some(license) = line.strip_prefix("License-File:") {
+            let path = format!("{info}/licenses/{}", license.trim());
+            let license = archive
+                .by_name(&path)
+                .with_context(|| format!("Declared wheel license is missing: {path}"))?;
+            ensure!(
+                license.size() > 0,
+                "Declared wheel license is empty: {path}"
+            );
+            license_count += 1;
+        }
+    }
+    ensure!(
+        license_count > 0,
+        "Production wheel omitted license declarations"
+    );
+    println!("[papper smoke] Verified {license_count} declared wheel license files");
     let temporary = tempfile::Builder::new()
         .prefix("papper-native-smoke-")
         .tempdir()?;

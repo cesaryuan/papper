@@ -354,6 +354,21 @@ Papper 包装后的服务不会要求扩展重复传 Pandoc 参数。使用 `GET
 `POST /batch` 提交多个 `{"path": ...}`。路径只能位于启动服务的项目目录内。返回的
 HTML 会继续经过与 `papper build html` 相同的 PMT HTML 后处理。
 
+## 维护者发布与构建缓存
+
+提交修改后，使用 `uvx bump-my-version bump patch` 更新版本，再运行
+`git push origin main --tags`。**Publish to PyPI** 的 `main` 运行会构建并验证
+Windows、macOS 和 Linux wheel，保留七天的构建产物；版本 tag 运行等待同一提交的
+`main` 构建完成后，直接复用这些 wheel 发布，不再重复编译三个平台。
+找不到对应构建、构建失败或产物已过期时，tag 运行会重新构建；等待超时则可以在
+`main` 构建完成后重跑 tag 工作流。手动选择 `main` 运行工作流也可以预热缓存。
+
+Rust 缓存键包含源码和嵌入资源，避免只修改源码时一直恢复旧编译产物。Haskell 缓存
+同时保存依赖、包索引、`.pmt/pandoc-worker` 和 `.pmt/pandoc-source`，其中 Linux
+也会保留本地 Pandoc 编译产物。macOS 缓存固定版本的 GHC/Cabal；Linux 缓存容器内
+固定版本的 Rust 和 GHC/Cabal 工具链。三个平台构建成功后，工作流只保留每个平台、
+每类发布缓存的最新快照，清理旧发布缓存；其他工作流和 tag 下的缓存不受影响。
+
 ## 致谢
 
 - [Pandoc](https://pandoc.org/)

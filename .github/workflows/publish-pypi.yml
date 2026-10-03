@@ -30,6 +30,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   RUSTUP_TOOLCHAIN: "1.98.0"
@@ -38,8 +39,29 @@ env:
   CABAL_VERSION: "3.18.1.0"
 
 jobs:
+  prepare:
+    name: Select tested wheels
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    outputs:
+      artifact-run-id: ${{ steps.wheels.outputs.artifact-run-id }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check release artifact selection and cache retention
+        run: node --test tools/ci/release-artifacts.test.cjs
+      - name: Reuse the matching main build for release tags
+        id: wheels
+        uses: actions/github-script@v8
+        with:
+          retries: 3
+          script: |
+            const resolve = require('./tools/ci/release-artifacts.cjs');
+            await resolve({ github, context, core });
+
   build-wheels:
     name: Build ${{ matrix.os }} wheel
+    needs: prepare
+    if: needs.prepare.outputs.artifact-run-id == ''
     strategy:
       fail-fast: false
       matrix:
@@ -97,8 +119,10 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .pmt/native-target
-          key: native-v2-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', 'scripts/mathtype-rust/Cargo.lock', 'scripts/latex2wmf/Cargo.lock', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
+          # Source changes need new immutable snapshots, even without a lockfile change.
+          key: native-v3-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**', 'crates/**', 'tools/papper-dev/**', 'pandoc/**', 'template/**', 'scripts/pandoc-server/**', 'src/pandoc_manuscript/mathtype/ole_helper/**', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
           restore-keys: |
+            native-v3-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-
             native-v2-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-
             native-v1-${{ matrix.os }}-${{ runner.arch }}-rust-${{ env.RUSTUP_TOOLCHAIN }}-
 
@@ -106,12 +130,31 @@ jobs:
         if: runner.os == 'Windows'
         run: dotnet --version
 
+      - name: Restore macOS Haskell toolchain
+        if: runner.os == 'macOS'
+        id: haskell-toolchain
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.ghcup/bin
+            ~/.ghcup/ghc/${{ env.GHC_VERSION }}
+          key: release-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}
+
       - name: Install pinned Haskell toolchain
         id: haskell
         uses: haskell-actions/setup@v2
         with:
           ghc-version: ${{ env.GHC_VERSION }}
           cabal-version: ${{ env.CABAL_VERSION }}
+          cabal-update: false
+
+      - name: Locate Cabal caches
+        id: haskell-paths
+        shell: pwsh
+        run: |
+          $paths = cabal path --output-format=json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not resolve Cabal cache paths' }
+          "packages=$($paths.'remote-repo-cache')" >> $env:GITHUB_OUTPUT
 
       - name: Restore Pandoc worker dependency cache
         id: haskell-cache
@@ -119,13 +162,40 @@ jobs:
         with:
           path: |
             ${{ steps.haskell.outputs.cabal-store }}
+            ${{ steps.haskell-paths.outputs.packages }}
+            .pmt/pandoc-worker
+            .pmt/pandoc-source
+          key: pandoc-worker-v3-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'scripts/pandoc-server/vendor/pandoc/SOURCES.json', 'tools/papper-dev/src/main.rs', 'tools/papper-dev/src/worker_sources.rs') }}
+          restore-keys: |
+            pandoc-worker-v3-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
+
+      # Adding the package index changes the cache archive version. Restore v2
+      # with its original paths once, so migration retains already compiled dependencies.
+      - name: Seed Pandoc cache from the previous layout
+        if: steps.haskell-cache.outputs.cache-matched-key == ''
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ steps.haskell.outputs.cabal-store }}
             scripts/pandoc-server/dist-newstyle
             .pmt/pandoc-worker
             .pmt/pandoc-source
-          key: pandoc-worker-v2-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}
+          key: pandoc-worker-v2-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-migration
           restore-keys: |
             pandoc-worker-v2-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
-            pandoc-worker-v1-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
+
+      - name: Initialize Hackage index on a cold cache
+        shell: pwsh
+        env:
+          CABAL_PACKAGES: ${{ steps.haskell-paths.outputs.packages }}
+          HASKELL_CACHE_HIT: ${{ steps.haskell-cache.outputs.cache-hit }}
+        run: |
+          # A fallback snapshot may predate the index-state pinned in cabal.project.
+          $index = Join-Path $env:CABAL_PACKAGES 'hackage.haskell.org/01-index.tar'
+          if (!(Test-Path -LiteralPath $index) -or $env:HASKELL_CACHE_HIT -ne 'true') {
+            cabal update
+            if ($LASTEXITCODE -ne 0) { throw 'Could not initialize Hackage index' }
+          }
 
       - name: Build native platform wheel
         # Dependencies are repaired before runtime.zip is embedded. Wheel repair
@@ -157,21 +227,33 @@ jobs:
         with:
           path: |
             ${{ steps.haskell.outputs.cabal-store }}
-            scripts/pandoc-server/dist-newstyle
+            ${{ steps.haskell-paths.outputs.packages }}
             .pmt/pandoc-worker
             .pmt/pandoc-source
           key: ${{ steps.haskell-cache.outputs.cache-primary-key }}
 
+      - name: Save macOS Haskell toolchain
+        if: github.ref == 'refs/heads/main' && runner.os == 'macOS' && steps.haskell-toolchain.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.ghcup/bin
+            ~/.ghcup/ghc/${{ env.GHC_VERSION }}
+          key: ${{ steps.haskell-toolchain.outputs.cache-primary-key }}
+
       - name: Upload wheel
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: wheel-${{ runner.os }}
           path: dist/*.whl
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
   build-linux-wheel:
     name: Build manylinux_2_28 wheel
+    needs: prepare
+    if: needs.prepare.outputs.artifact-run-id == ''
     runs-on: ubuntu-latest
 
     steps:
@@ -195,8 +277,9 @@ jobs:
             ${{ runner.temp }}/pmt-native-cache/cargo/registry
             ${{ runner.temp }}/pmt-native-cache/cargo/git
             ${{ runner.temp }}/pmt-native-cache/target
-          key: native-v2-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock', 'scripts/mathtype-rust/Cargo.lock', 'scripts/latex2wmf/Cargo.lock', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
+          key: native-v3-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', '.cargo/**', 'crates/**', 'tools/papper-dev/**', 'pandoc/**', 'template/**', 'scripts/pandoc-server/**', 'src/pandoc_manuscript/mathtype/ole_helper/**', '.github/workflows/publish-pypi.yml') }}-${{ steps.native-sources.outputs.revision }}-${{ hashFiles('src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp') }}
           restore-keys: |
+            native-v3-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-
             native-v2-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-
             native-v1-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-
 
@@ -204,13 +287,37 @@ jobs:
         id: haskell-cache
         uses: actions/cache/restore@v4
         with:
+          # Local Pandoc packages build under .pmt, outside Cabal's global store.
           path: |
             ${{ runner.temp }}/pmt-native-cache/cabal/packages
             ${{ runner.temp }}/pmt-native-cache/cabal/store
-          key: pandoc-worker-v2-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'tools/papper-dev/**', '.github/workflows/publish-pypi.yml') }}
+            .pmt/pandoc-worker
+            .pmt/pandoc-source
+          key: pandoc-worker-v3-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/**/*.hs', 'scripts/pandoc-server/*.cabal', 'scripts/pandoc-server/cabal.project', 'scripts/pandoc-server/vendor/pandoc/SOURCES.json', 'tools/papper-dev/src/main.rs', 'tools/papper-dev/src/worker_sources.rs') }}
+          restore-keys: |
+            pandoc-worker-v3-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
+
+      - name: Seed manylinux dependencies from the previous layout
+        if: steps.haskell-cache.outputs.cache-matched-key == ''
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/pmt-native-cache/cabal/packages
+            ${{ runner.temp }}/pmt-native-cache/cabal/store
+          key: pandoc-worker-v2-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-migration
           restore-keys: |
             pandoc-worker-v2-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
-            pandoc-worker-v1-manylinux_2_28-x86_64-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-
+
+      - name: Restore manylinux toolchains
+        id: toolchains
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/pmt-native-cache/rustup
+            ${{ runner.temp }}/pmt-native-cache/cargo/bin
+            ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/bin
+            ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/ghc/${{ env.GHC_VERSION }}
+          key: release-toolchain-v1-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/setup-manylinux.sh') }}
 
       - name: Install uv for container installation checks
         uses: astral-sh/setup-uv@v8.2.0
@@ -221,22 +328,26 @@ jobs:
         env:
           PRIVATE_SUBMODULES_TOKEN: ${{ secrets.PRIVATE_SUBMODULES_TOKEN }}
           NATIVE_CACHE_DIR: ${{ runner.temp }}/pmt-native-cache
+          HASKELL_CACHE_HIT: ${{ steps.haskell-cache.outputs.cache-hit }}
         run: |
           set -euo pipefail
-          mkdir -p "$NATIVE_CACHE_DIR"
+          mkdir -p "$NATIVE_CACHE_DIR/haskell"
           # The token is passed by environment name. Global Git config remains
           # in the disposable container and is never included in cached paths.
           docker run --rm --platform linux/amd64 \
             --volume "$GITHUB_WORKSPACE:/project" \
             --volume "$NATIVE_CACHE_DIR:$NATIVE_CACHE_DIR" \
+            --volume "$NATIVE_CACHE_DIR/haskell:/opt/papper-haskell" \
             --volume "$(command -v uv):/usr/local/bin/uv:ro" \
             --workdir /project \
             --env CARGO_HOME="$NATIVE_CACHE_DIR/cargo" \
             --env CARGO_TARGET_DIR="$NATIVE_CACHE_DIR/target" \
+            --env RUSTUP_HOME="$NATIVE_CACHE_DIR/rustup" \
             --env CABAL_DIR="$NATIVE_CACHE_DIR/cabal" \
             --env GHCUP_INSTALL_BASE_PREFIX=/opt/papper-haskell \
             --env UV_PYTHON=/opt/python/cp311-cp311/bin/python \
             --env PRIVATE_SUBMODULES_TOKEN \
+            --env HASKELL_CACHE_HIT \
             --env RUSTUP_TOOLCHAIN --env CARGO_INCREMENTAL \
             --env GHC_VERSION --env CABAL_VERSION \
             quay.io/pypa/manylinux_2_28_x86_64 \
@@ -263,7 +374,7 @@ jobs:
           done
 
       - name: Prepare Linux cache for archiving
-        if: github.ref == 'refs/heads/main' && (steps.rust-cache.outputs.cache-hit != 'true' || steps.haskell-cache.outputs.cache-hit != 'true')
+        if: github.ref == 'refs/heads/main' && (steps.rust-cache.outputs.cache-hit != 'true' || steps.haskell-cache.outputs.cache-hit != 'true' || steps.toolchains.outputs.cache-hit != 'true')
         shell: bash
         env:
           NATIVE_CACHE_DIR: ${{ runner.temp }}/pmt-native-cache
@@ -274,8 +385,15 @@ jobs:
           test "$NATIVE_CACHE_DIR" = "$RUNNER_TEMP/pmt-native-cache"
           test -d "$NATIVE_CACHE_DIR" && test ! -L "$NATIVE_CACHE_DIR"
           sudo chown -R -P --no-dereference "$(id -u):$(id -g)" -- "$NATIVE_CACHE_DIR"
-          find "$NATIVE_CACHE_DIR" -type d -exec chmod u+rwx {} +
-          find "$NATIVE_CACHE_DIR" -type f -exec chmod u+rw {} +
+          # Restored local Cabal builds also contain container-owned files.
+          for directory in "$GITHUB_WORKSPACE/.pmt/pandoc-worker" "$GITHUB_WORKSPACE/.pmt/pandoc-source"; do
+            test -d "$directory" && test ! -L "$directory"
+            sudo chown -R -P --no-dereference "$(id -u):$(id -g)" -- "$directory"
+          done
+          for directory in "$NATIVE_CACHE_DIR" "$GITHUB_WORKSPACE/.pmt/pandoc-worker" "$GITHUB_WORKSPACE/.pmt/pandoc-source"; do
+            find "$directory" -type d -exec chmod u+rwx {} +
+            find "$directory" -type f -exec chmod u+rw {} +
+          done
           for entry in cargo/registry cargo/git target cabal/packages cabal/store; do
             directory="$NATIVE_CACHE_DIR/$entry"
             test -d "$directory"
@@ -305,7 +423,20 @@ jobs:
           path: |
             ${{ runner.temp }}/pmt-native-cache/cabal/packages
             ${{ runner.temp }}/pmt-native-cache/cabal/store
+            .pmt/pandoc-worker
+            .pmt/pandoc-source
           key: ${{ steps.haskell-cache.outputs.cache-primary-key }}
+
+      - name: Save manylinux toolchains
+        if: github.ref == 'refs/heads/main' && steps.toolchains.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/pmt-native-cache/rustup
+            ${{ runner.temp }}/pmt-native-cache/cargo/bin
+            ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/bin
+            ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/ghc/${{ env.GHC_VERSION }}
+          key: ${{ steps.toolchains.outputs.cache-primary-key }}
 
       # save reports archive failures as warnings; require a remotely visible entry.
       - name: Verify Linux cache was saved
@@ -321,22 +452,49 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Upload Linux wheel
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: wheel-Linux
           path: dist/*.whl
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  prune-caches:
+    name: Retain current release caches
+    needs: [build-wheels, build-linux-wheel]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Remove superseded snapshots after successful builds
+        # Cache housekeeping must not turn already tested wheels into a failed build.
+        continue-on-error: true
+        uses: actions/github-script@v8
+        with:
+          retries: 3
+          script: |
+            const prune = require('./tools/ci/prune-release-caches.cjs');
+            await prune({ github, context, core });
 
   publish:
     name: Publish platform wheels
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [build-wheels, build-linux-wheel]
+    # Reused builds are skipped in this run; explicitly allow their successful main artifacts.
+    if: >-
+      always() && !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') &&
+      needs.prepare.result == 'success' &&
+      (needs.prepare.outputs.artifact-run-id != '' ||
+       (needs.build-wheels.result == 'success' && needs.build-linux-wheel.result == 'success'))
+    needs: [prepare, build-wheels, build-linux-wheel]
     runs-on: ubuntu-latest
     environment:
       name: pypi
     permissions:
       contents: read
+      actions: read
       id-token: write
 
     steps:
@@ -349,6 +507,11 @@ jobs:
           pattern: "wheel-*"
           path: dist
           merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ needs.prepare.outputs.artifact-run-id || github.run_id }}
+
+      - name: Validate PyPI metadata before upload
+        run: uvx --from twine twine check --strict dist/*.whl
 
       - name: Publish to PyPI
         # MathType's private sources are not distributed. The GPL HTML worker's

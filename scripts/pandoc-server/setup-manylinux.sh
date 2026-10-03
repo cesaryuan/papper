@@ -2,7 +2,7 @@
 # Prepare native toolchains in the workflow's manylinux_2_28 container.
 # Run with bash after the workflow exports toolchain versions and cache paths.
 # Install the pinned ELF repairer, system libraries, Rust, GHC, and Cabal;
-# Cargo and Cabal dependencies persist in the workflow-mounted cache.
+# Cargo/Cabal dependencies and pinned toolchains persist in workflow-mounted caches.
 # Building here keeps bundled native dependencies at the glibc 2.28 baseline.
 set -euo pipefail
 
@@ -17,15 +17,36 @@ hash -r
 patchelf --version
 
 dnf install -y gcc gcc-c++ make perl clang clang-devel llvm-devel pkgconf-pkg-config gmp-devel libffi-devel ncurses-devel numactl-devel zlib-devel
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
-  -y --profile minimal --default-toolchain "$RUSTUP_TOOLCHAIN"
-curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | \
-  BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
+# A restored Rust installation already contains rustup and its Cargo proxy binaries.
+if ! command -v rustup >/dev/null 2>&1; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \
+    -y --profile minimal --default-toolchain "$RUSTUP_TOOLCHAIN"
+else
+  echo '[papper CI] Reusing cached Rust toolchain'
+  rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+fi
+if ! command -v ghcup >/dev/null 2>&1; then
+  curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | \
+    BOOTSTRAP_HASKELL_NONINTERACTIVE=1 BOOTSTRAP_HASKELL_MINIMAL=1 sh
+fi
 
 # GHCup's Red Hat/unknown-Linux mapping uses the Rocky Linux 8 bindist,
 # compatible with this AlmaLinux 8 container's glibc 2.28 and ncurses 6.
-ghcup install ghc "$GHC_VERSION" --set
-ghcup install cabal "$CABAL_VERSION" --set
+if ! ghcup whereis ghc "$GHC_VERSION" >/dev/null 2>&1; then
+  ghcup install ghc "$GHC_VERSION"
+else
+  echo '[papper CI] Reusing cached GHC toolchain'
+fi
+ghcup set ghc "$GHC_VERSION"
+if ! ghcup whereis cabal "$CABAL_VERSION" >/dev/null 2>&1; then
+  ghcup install cabal "$CABAL_VERSION"
+fi
+ghcup set cabal "$CABAL_VERSION"
 ghc --version
 cabal --version
-cabal update
+# A fallback cache may predate a changed index-state; refresh it before solving.
+if [[ ! -f "$CABAL_DIR/packages/hackage.haskell.org/01-index.tar" || "${HASKELL_CACHE_HIT:-false}" != 'true' ]]; then
+  cabal update
+else
+  echo '[papper CI] Reusing pinned Hackage index'
+fi

@@ -672,8 +672,10 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         &alias_bytes,
         true,
     )?;
+    // PEP 639 resolves License-File relative to .dist-info/licenses; including
+    // that directory again makes PyPI look for a nonexistent nested license.
     let metadata = format!(
-        "Metadata-Version: 2.4\nName: papper\nVersion: {version}\nRequires-Python: >=3.11\nSummary: Native academic manuscript build workflow\nLicense-Expression: MIT\nLicense-File: licenses/LICENSE\nProject-URL: Repository, https://github.com/cesaryuan/papper\nDescription-Content-Type: text/markdown\n\n{}",
+        "Metadata-Version: 2.4\nName: papper\nVersion: {version}\nRequires-Python: >=3.11\nSummary: Native academic manuscript build workflow\nLicense-Expression: MIT\nLicense-File: LICENSE\nProject-URL: Repository, https://github.com/cesaryuan/papper\nDescription-Content-Type: text/markdown\n\n{}",
         std::fs::read_to_string(root.join("README.md"))?
     );
     append_entry(
