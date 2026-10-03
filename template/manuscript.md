@@ -95,7 +95,7 @@ In @tbl:merged-cells, "Group A" spans two rows, "Group B" spans two rows, and th
 The proposed approach can be expressed mathematically. Consider a function $f(x)$ defined as:
 
 $$
-f(\boldsymbol{x}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b}
+f(\boldsymbol{x+z}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b}
 $$ {#eq:linear}
 
 where $w_i$ represents the weight parameters, $x_i$ are input features, and $b$ is the bias term. The optimization objective minimizes the loss function $\mathcal{L}$:
