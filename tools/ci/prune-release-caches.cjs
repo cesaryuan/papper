@@ -12,7 +12,7 @@ function cacheGroup(cache) {
   if (native) return `rust:${native[1]}`;
   const worker = /^pandoc-worker-v[123]-(Windows-X64|macOS-ARM64|manylinux_2_28-x86_64)-ghc-/.exec(cache.key);
   if (worker) return `worker:${worker[1]}`;
-  const toolchain = /^release-toolchain-v1-(macOS-ARM64|manylinux_2_28-x86_64)-/.exec(cache.key);
+  const toolchain = /^release-toolchain-v[12]-(macOS-ARM64|manylinux_2_28-x86_64)-/.exec(cache.key);
   if (toolchain) return `toolchain:${toolchain[1]}`;
   return undefined;
 }

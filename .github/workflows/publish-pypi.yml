@@ -135,10 +135,12 @@ jobs:
         id: haskell-toolchain
         uses: actions/cache/restore@v4
         with:
+          # bin/cabal is a symlink into the versioned Cabal installation.
           path: |
             ~/.ghcup/bin
             ~/.ghcup/ghc/${{ env.GHC_VERSION }}
-          key: release-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}
+            ~/.ghcup/cabal/${{ env.CABAL_VERSION }}
+          key: release-toolchain-v2-${{ runner.os }}-${{ runner.arch }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}
 
       - name: Install pinned Haskell toolchain
         id: haskell
@@ -239,6 +241,7 @@ jobs:
           path: |
             ~/.ghcup/bin
             ~/.ghcup/ghc/${{ env.GHC_VERSION }}
+            ~/.ghcup/cabal/${{ env.CABAL_VERSION }}
           key: ${{ steps.haskell-toolchain.outputs.cache-primary-key }}
 
       - name: Upload wheel
@@ -312,12 +315,14 @@ jobs:
         id: toolchains
         uses: actions/cache/restore@v4
         with:
+          # Preserve the target of the Cabal links restored with .ghcup/bin.
           path: |
             ${{ runner.temp }}/pmt-native-cache/rustup
             ${{ runner.temp }}/pmt-native-cache/cargo/bin
             ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/bin
             ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/ghc/${{ env.GHC_VERSION }}
-          key: release-toolchain-v1-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/setup-manylinux.sh') }}
+            ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/cabal/${{ env.CABAL_VERSION }}
+          key: release-toolchain-v2-manylinux_2_28-x86_64-rust-${{ env.RUSTUP_TOOLCHAIN }}-ghc-${{ env.GHC_VERSION }}-cabal-${{ env.CABAL_VERSION }}-${{ hashFiles('scripts/pandoc-server/setup-manylinux.sh') }}
 
       - name: Install uv for container installation checks
         uses: astral-sh/setup-uv@v8.2.0
@@ -436,6 +441,7 @@ jobs:
             ${{ runner.temp }}/pmt-native-cache/cargo/bin
             ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/bin
             ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/ghc/${{ env.GHC_VERSION }}
+            ${{ runner.temp }}/pmt-native-cache/haskell/.ghcup/cabal/${{ env.CABAL_VERSION }}
           key: ${{ steps.toolchains.outputs.cache-primary-key }}
 
       # save reports archive failures as warnings; require a remotely visible entry.

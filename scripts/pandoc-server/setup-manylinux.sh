@@ -38,8 +38,14 @@ else
   echo '[papper CI] Reusing cached GHC toolchain'
 fi
 ghcup set ghc "$GHC_VERSION"
-if ! ghcup whereis cabal "$CABAL_VERSION" >/dev/null 2>&1; then
-  ghcup install cabal "$CABAL_VERSION"
+# GHCup can report a path even when a restored Cabal symlink has no target.
+# Force installation in that case; a dangling versioned link can otherwise
+# make GHCup claim the missing executable is already installed.
+if ! cabal_path=$(ghcup whereis cabal "$CABAL_VERSION") || [[ ! -x "$cabal_path" ]]; then
+  echo '[papper CI] Installing missing or incomplete Cabal toolchain'
+  ghcup install cabal --force "$CABAL_VERSION"
+else
+  echo '[papper CI] Reusing cached Cabal toolchain'
 fi
 ghcup set cabal "$CABAL_VERSION"
 ghc --version
