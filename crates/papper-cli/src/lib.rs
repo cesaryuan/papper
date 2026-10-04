@@ -10,7 +10,14 @@ use std::path::PathBuf;
 
 /// Parse commands natively without loading document engines during help/version.
 #[derive(Debug, Parser)]
-#[command(name = "papper", bin_name = "papper", version = env!("CARGO_PKG_VERSION"), about = "Papper command-line interface.", disable_help_subcommand = true)]
+#[command(
+    name = "papper",
+    bin_name = "papper",
+    version = env!("CARGO_PKG_VERSION"),
+    about = "Papper command-line interface.",
+    disable_help_subcommand = true,
+    after_help = "Use `papper <COMMAND> --help` for argument descriptions and defaults.\nFor example: papper build --help"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<CliCommand>,
@@ -46,6 +53,7 @@ pub enum CliCommand {
 /// Common logging option with no ambient environment-variable input.
 #[derive(Debug, Default, Args)]
 pub struct VerboseArgs {
+    /// Request detailed diagnostic logging.
     #[arg(long)]
     pub verbose: bool,
 }
@@ -53,41 +61,62 @@ pub struct VerboseArgs {
 /// Existing manuscript output targets.
 #[derive(Clone, Copy, Debug, Default, ValueEnum, PartialEq, Eq)]
 pub enum BuildTarget {
+    /// Word document (.docx).
     #[default]
     Docx,
+    /// LaTeX source (.tex).
     Latex,
+    /// HTML document (.html).
     Html,
+    /// Pandoc document AST (.json).
     Json,
 }
 
 /// Preserve explicit option presence rather than filling project defaults during parsing.
 #[derive(Debug, Args)]
+#[command(
+    after_help = "Examples:\n  papper build docx paper.md\n  papper build html -m paper.md -o output/paper.html --start-server"
+)]
 pub struct BuildArgs {
+    /// Output format to build.
     #[arg(value_enum, default_value = "docx")]
     pub target: BuildTarget,
+    /// Input Markdown file; defaults to PMT_MANUSCRIPT_FILE or manuscript.md.
     pub markdown: Option<PathBuf>,
+    /// Input Markdown file instead of the positional MARKDOWN argument.
     #[arg(short = 'm', long = "manuscript")]
     pub manuscript: Option<PathBuf>,
+    /// Use this style YAML file instead of discovering style.yml; overrides PMT_STYLE_FILE.
     #[arg(long)]
     pub style_file: Option<PathBuf>,
+    /// Destination file; otherwise use the target's output directory and manuscript name.
     #[arg(short = 'o', long = "output-file")]
     pub output: Option<PathBuf>,
+    /// Replace resource search paths; separate directories with ';' on Windows or ':' elsewhere.
     #[arg(long)]
     pub resource_path: Option<String>,
+    /// DOCX equations: true, false, or auto (follow metadata); no value means true.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     pub mathtype: Option<String>,
+    /// Disable MathType conversion and retain native Word equations (DOCX only).
     #[arg(long, conflicts_with = "mathtype")]
     pub no_mathtype: bool,
+    /// Override document language, e.g. zh-cn for Chinese defaults (DOCX only).
     #[arg(long)]
     pub lang: Option<String>,
+    /// Override the Word reference document (DOCX only).
     #[arg(long, hide = true)]
     pub reference_doc: Option<PathBuf>,
+    /// Start or reuse a background conversion server for HTML builds only.
     #[arg(long)]
     pub start_server: bool,
+    /// Conversion server host used with --start-server.
     #[arg(long, default_value = "127.0.0.1")]
     pub server_host: String,
+    /// Conversion server port used with --start-server.
     #[arg(long, default_value_t = 3030)]
     pub server_port: u16,
+    /// Custom server startup command used with --start-server; overrides PMT_PANDOC_SERVER_COMMAND.
     #[arg(long)]
     pub server_command: Option<String>,
     #[command(flatten)]
@@ -97,14 +126,19 @@ pub struct BuildArgs {
 /// Native template initialization options.
 #[derive(Debug, Args)]
 pub struct InitArgs {
+    /// Directory in which to create the manuscript project.
     #[arg(default_value = ".")]
     pub directory: PathBuf,
+    /// Overwrite existing template files; cannot be combined with --merge.
     #[arg(long)]
     pub force: bool,
+    /// Add missing template files while keeping existing files; cannot be combined with --force.
     #[arg(long)]
     pub merge: bool,
+    /// Also validate the native engine or prepare managed tools after initialization.
     #[arg(long)]
     pub setup: bool,
+    /// Template language: zh-cn for Chinese; omit for the English template.
     #[arg(long)]
     pub lang: Option<String>,
     #[command(flatten)]
@@ -114,6 +148,7 @@ pub struct InitArgs {
 /// Managed tool validation or explicit refresh.
 #[derive(Debug, Args)]
 pub struct SetupArgs {
+    /// Redownload and reinstall managed tools when no native engine is available.
     #[arg(long)]
     pub force: bool,
     #[command(flatten)]
@@ -123,6 +158,7 @@ pub struct SetupArgs {
 /// Keep cleanup confined to a project's generated output directory.
 #[derive(Debug, Args)]
 pub struct CleanArgs {
+    /// Generated output directory to remove; project work and caches are also removed.
     #[arg(short = 'o', long, default_value = "output")]
     pub output_dir: PathBuf,
     #[command(flatten)]
@@ -132,8 +168,10 @@ pub struct CleanArgs {
 /// DOCX conversion input and explicit Markdown destination.
 #[derive(Debug, Args)]
 pub struct ConvertArgs {
+    /// DOCX document to import as Markdown.
     #[arg(default_value = "manuscript.docx")]
     pub input: PathBuf,
+    /// Directory for the converted Markdown file and extracted media.
     #[arg(short = 'o', long = "output-dir", default_value = "converted")]
     pub output_dir: PathBuf,
     #[command(flatten)]
@@ -143,15 +181,21 @@ pub struct ConvertArgs {
 /// Preserve the existing reply command's manuscript, line-source and output options.
 #[derive(Debug, Args)]
 pub struct ReplyArgs {
+    /// Reviewer-reply Markdown file containing response text and placeholders.
     pub markdown: PathBuf,
+    /// Manuscript used to resolve section, figure, table, and equation references.
     #[arg(long, default_value = "manuscript.md")]
     pub reply_manuscript: PathBuf,
+    /// Source for line-number placeholders: Markdown, DOCX/DOCM, or PDF.
     #[arg(long, default_value = "manuscript.md")]
     pub manuscript_line_source: PathBuf,
+    /// Pandoc input format, including any extensions, used to parse Markdown.
     #[arg(long, default_value = "markdown")]
     pub from_format: String,
+    /// Override the Word reference document for DOCX output.
     #[arg(long, hide = true)]
     pub reference_doc: Option<PathBuf>,
+    /// Destination .docx or .txt file; <reply-name> is the input filename without its extension.
     #[arg(
         short = 'o',
         long = "output-file",
@@ -165,10 +209,13 @@ pub struct ReplyArgs {
 /// Private console-free HTTP child configuration.
 #[derive(Debug, Args)]
 pub struct ServerArgs {
+    /// JSON configuration file for the project-bound conversion server.
     #[arg(long)]
     pub config: PathBuf,
+    /// Address on which the HTTP server listens.
     #[arg(long, default_value = "127.0.0.1")]
     pub host: String,
+    /// Port on which the HTTP server listens.
     #[arg(long, default_value_t = 3030)]
     pub port: u16,
 }
@@ -176,6 +223,7 @@ pub struct ServerArgs {
 /// Decode MathType objects for a standalone retained Lua DOCX import filter.
 #[derive(Debug, Args)]
 pub struct DecodeArgs {
+    /// DOCX documents from which to decode embedded MathType equations.
     #[arg(required = true)]
     pub documents: Vec<PathBuf>,
 }
@@ -183,6 +231,7 @@ pub struct DecodeArgs {
 /// Isolate the native PDF engine from malformed-document failures in a child process.
 #[derive(Debug, Args)]
 pub struct PdfArgs {
+    /// PDF document from which to extract text and line positions.
     pub input: PathBuf,
 }
 

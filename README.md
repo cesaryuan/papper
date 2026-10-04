@@ -391,7 +391,9 @@ papper build-reply reply.md -o output/docx/reply.docx
 papper clean
 ```
 
-Use `papper --help` to see the full CLI.
+Use `papper --help` to see available commands, and `papper <command> --help`
+(for example, `papper build --help`) to see argument descriptions, defaults,
+and supported values.
 
 Add `--verbose` to any command, for example `papper build docx --verbose`, to show
 detailed debug logs such as complete external command lines. Normal output keeps
