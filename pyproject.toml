@@ -1,6 +1,6 @@
 [project]
 name = "papper"
-version = "0.9.5"
+version = "0.9.6"
 description = "Papper: a Markdown-first academic manuscript workflow with DOCX-focused post-processing"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -43,7 +43,7 @@ norecursedirs = ["legacy"]
 select = ["E9"]
 
 [tool.bumpversion]
-current_version = "0.9.5"
+current_version = "0.9.6"
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
 serialize = ["{major}.{minor}.{patch}"]
 commit = true
