@@ -511,6 +511,15 @@ Recorded warm-request improvements and measurement limits are described in
 
 ## Maintainer releases and native build caches
 
+Release wheel builds require the Typst CLI version locked for `typst-library`
+in `Cargo.lock`. CI installs that version from the official release archives.
+For local packaging, run `uv run --script tools/ci/prepare-typst.py` and add the
+repository's `.pmt/typst/bin` directory to `PATH` before running `papper-dev wheel`.
+The packager rejects a missing or mismatched CLI, removes cached MiTeX release
+specifications, and enables `papper-platform/generate-mitex-spec` so the upstream
+prebuilt specification cannot silently enter a newly compiled wheel. Installed-wheel
+checks require circled math operators to become MathType objects without OMML fallback.
+
 Release with `uvx bump-my-version bump patch` followed by
 `git push origin main --tags`. The **Publish to PyPI** workflow publishes only
 on `v*` tag pushes. Its `main` builds and manual runs build and verify the same

@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Release builds must generate specs matching the embedded MiTeX runtime.
+generate-mitex-spec = ["dep:mitex-spec-gen", "mitex-spec-gen/generate"]
+
 [dependencies]
 anyhow.workspace = true
 serde_json.workspace = true
@@ -12,6 +16,7 @@ roxmltree.workspace = true
 zip.workspace = true
 mathtype-rust.workspace = true
 latex2wmf.workspace = true
+mitex-spec-gen = { workspace = true, optional = true }
 sha1.workspace = true
 papper-core.workspace = true
 

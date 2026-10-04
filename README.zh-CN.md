@@ -359,6 +359,14 @@ HTML 会继续经过与 `papper build html` 相同的 PMT HTML 后处理。
 
 ## 维护者发布与构建缓存
 
+发布 wheel 时，Typst CLI 必须与 `Cargo.lock` 中 `typst-library` 的版本一致。
+CI 会从官方发布包安装对应版本。本地打包前，先运行
+`uv run --script tools/ci/prepare-typst.py`，再把仓库的 `.pmt/typst/bin`
+目录加入 `PATH`。打包器会拒绝缺失或版本不匹配的 CLI，清除 MiTeX 规格的 release
+构建缓存，并显式启用 `papper-platform/generate-mitex-spec`，避免新编译的 wheel
+使用上游旧的预生成规格。安装包检查要求带圆圈的数学运算符全部转换为 MathType
+对象，不能退回 Word 原生公式。
+
 提交修改后，使用 `uvx bump-my-version bump patch` 更新版本，再运行
 `git push origin main --tags`。**Publish to PyPI** 的 `main` 运行会构建并验证
 Windows、macOS 和 Linux wheel，保留七天的构建产物；版本 tag 运行等待同一提交的

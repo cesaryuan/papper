@@ -344,7 +344,7 @@ pub fn run(wheel: &Path) -> Result<()> {
     let resources = installed.resources()?;
     let csl = resources.join("pandoc/csl/sage-vancouver.csl");
     let source = format!(
-        "---\ntitle: Native wheel smoke\nbibliography: references.bib\ncsl: {}\n---\n\nOriginal wheel prose cites [@packaged].\n\n$$x_1+2$$ {{#eq:sum}}\n\n| Value |\n|-------|\n| 42    |\n\nTable: Packaged values {{#tbl:values}}\n\nSee @tbl:values and @eq:sum.\n",
+        "---\ntitle: Native wheel smoke\nbibliography: references.bib\ncsl: {}\n---\n\nOriginal wheel prose cites [@packaged].\n\n$$x_1+2$$ {{#eq:sum}}\n\nSymbol conversions: $\\odot$, $\\oplus$, $\\otimes$.\n\n| Value |\n|-------|\n| 42    |\n\nTable: Packaged values {{#tbl:values}}\n\nSee @tbl:values and @eq:sum.\n",
         csl.to_string_lossy().replace('\\', "/")
     );
     std::fs::write(installed.project.join("manuscript.md"), &source)?;
@@ -354,7 +354,7 @@ pub fn run(wheel: &Path) -> Result<()> {
     )?;
     std::fs::write(
         installed.project.join("style.yml"),
-        "mathtype: true\nmathtypeConversionMethod: rust\n",
+        "mathtype: true\nmathtypeConversionMethod: rust\nmathtypeSvgBackend: typst\n",
     )?;
     installed.command(&["build", "html"])?;
     let html_path = installed.project.join("output/html/manuscript.html");
@@ -422,9 +422,23 @@ pub fn run(wheel: &Path) -> Result<()> {
     installed.command(&["build", "docx"])?;
     let document = installed.project.join("output/docx/manuscript.docx");
     let xml = zip_part(&document, "word/document.xml")?;
+    // A successful build can silently retain unsupported formulas as OMML.
+    // Require every authored formula to convert, including circled operators
+    // that upstream prebuilt MiTeX specifications mapped to obsolete modifiers.
+    let tree = roxmltree::Document::parse(&xml)?;
+    let objects = tree
+        .descendants()
+        .filter(|node| node.has_tag_name(("urn:schemas-microsoft-com:office:office", "OLEObject")))
+        .count();
+    let retained = tree.descendants().any(|node| {
+        node.has_tag_name((
+            "http://schemas.openxmlformats.org/officeDocument/2006/math",
+            "oMath",
+        ))
+    });
     ensure!(
-        xml.contains("OLEObject") && !xml.contains("MTLATEX:"),
-        "Installed MathType build omitted native equation objects"
+        objects == 4 && !retained && !xml.contains("MTLATEX:"),
+        "Installed MathType build must convert all four formulas; found {objects} objects, retained OMML={retained}"
     );
     smoke_svg_rasterization(&installed)?;
     installed.command(&["convert", "output/docx/manuscript.docx", "-o", "converted"])?;

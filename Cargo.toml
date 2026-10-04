@@ -32,6 +32,8 @@ mime_guess = "2.0"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console", "Win32_Storage_FileSystem"] }
 mathtype-rust = { path = "scripts/mathtype-rust" }
 latex2wmf = { git = "https://github.com/cesaryuan/latex2wmf", rev = "8b249492ac43d9635f381c8dfa74565b64a7649d" }
+mitex-spec-gen = { git = "https://github.com/mitex-rs/mitex", tag = "0.2.7" }
+toml = "0.8.23"
 sha1 = "0.10"
 tar = "0.4"
 xz2 = "0.1"

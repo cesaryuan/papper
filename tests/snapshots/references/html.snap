@@ -155,13 +155,13 @@
       margin: 0;
     }
     /* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
-    [data-custom-style="Para Where"] > p {
+    .pmt-page [data-custom-style="Para Where"] > p {
       text-indent: 0;
     }
-    [data-custom-style="Para Where"][data-where-layout="table"] > p {
+    .pmt-page [data-custom-style="Para Where"][data-where-layout="table"] > p {
       margin-top: 6pt;
     }
-    [data-custom-style="Para After Table"] > p {
+    .pmt-page [data-custom-style="Para After Table"] > p {
       margin-top: 6pt;
     }
     ol,
@@ -405,7 +405,7 @@
     text-align: center;
   }
 
-  .pmt-page > p {
+  .pmt-page > p, .pmt-page > :where(div[data-custom-style]) > p {
     /* Body Text from reference-doc/word/styles.xml */
     font-size: 12pt;
     font-family: "Times New Roman", "宋体", SimSun, serif;
@@ -415,7 +415,7 @@
     text-align: justify;
   }
 
-  .pmt-page > p:first-of-type {
+  .pmt-page > :where(h1:not(.title), h2, h3, h4, h5, h6) + p {
     /* First Paragraph from reference-doc/word/styles.xml */
     font-size: 12pt;
     font-family: "Times New Roman", "宋体", SimSun, serif;
@@ -568,7 +568,7 @@
     font-size: 12pt;
   }
 
-  .pmt-page > p, .pmt-page > p:first-of-type {
+  .pmt-page > p, .pmt-page > :where(div[data-custom-style]) > p {
     /* docxStyle.正文文本 override from reference-doc/word/styles.xml */
     margin-top: 0pt;
     margin-bottom: 0pt;

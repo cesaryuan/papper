@@ -8,6 +8,15 @@ use std::path::Path;
 
 const WORD_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
+// Custom-style Divs wrap body paragraphs; keep this fallback at the same
+// specificity as direct paragraphs so dedicated custom-style rules can win.
+const BODY_PARAGRAPH_SELECTOR: &str =
+    ".pmt-page > p, .pmt-page > :where(div[data-custom-style]) > p";
+// Pandoc's section headings share one page parent. First-of-type only finds
+// one paragraph for the entire page, rather than the opening of each section.
+// :where keeps authored Body Text/First Paragraph override order effective.
+const FIRST_PARAGRAPH_SELECTOR: &str = ".pmt-page > :where(h1:not(.title), h2, h3, h4, h5, h6) + p";
+
 /// Effective formatting declared by a Word paragraph, character, or table style.
 #[derive(Clone, Default)]
 struct StyleSpec {
@@ -487,9 +496,8 @@ fn override_selector(name: &str) -> Option<String> {
         key
     };
     match key.as_str() {
-        "normal" => Some(".pmt-page > p".into()),
-        "bodytext" => Some(".pmt-page > p, .pmt-page > p:first-of-type".into()),
-        "firstparagraph" => Some(".pmt-page > p:first-of-type".into()),
+        "normal" | "bodytext" => Some(BODY_PARAGRAPH_SELECTOR.into()),
+        "firstparagraph" => Some(FIRST_PARAGRAPH_SELECTOR.into()),
         "caption" => Some("figure figcaption, table caption".into()),
         "tablecaption" => Some("table caption".into()),
         "imagecaption" => Some("figure figcaption".into()),
@@ -653,12 +661,12 @@ fn reference_style_css_text(xml: &str, records: &[Map<String, Value>]) -> Result
         ),
         ("p.subtitle".into(), "subtitle".into(), "Subtitle".into()),
         (
-            ".pmt-page > p".into(),
+            BODY_PARAGRAPH_SELECTOR.into(),
             "body text".into(),
             "Body Text".into(),
         ),
         (
-            ".pmt-page > p:first-of-type".into(),
+            FIRST_PARAGRAPH_SELECTOR.into(),
             "first paragraph".into(),
             "First Paragraph".into(),
         ),

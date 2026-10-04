@@ -17,6 +17,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use zip::write::SimpleFileOptions;
+mod equation_specs;
 mod pdf_notices;
 mod portability;
 mod smoke;
@@ -474,6 +475,9 @@ fn build_editable(output: &Path) -> Result<()> {
 /// Assemble native launchers, data, notices and validated wheel metadata atomically.
 fn build_wheel(args: &WheelArgs) -> Result<()> {
     let root = root()?;
+    if !args.prebuilt || args.embed {
+        equation_specs::prepare(&root)?;
+    }
     let target = target_dir(&root);
     let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
     let executable = args
@@ -607,7 +611,15 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         papper_core::paths::write_if_changed(&runtime_archive, &zip.finish()?.into_inner())?;
         let mut build = Command::new("cargo");
         build
-            .args(["build", "--locked", "--release", "-p", "papper-cli"])
+            .args([
+                "build",
+                "--locked",
+                "--release",
+                "-p",
+                "papper-cli",
+                "--features",
+                "papper-platform/generate-mitex-spec",
+            ])
             .env("PAPPER_RUNTIME_ARCHIVE", runtime_archive)
             .current_dir(&root);
         if cfg!(windows) {

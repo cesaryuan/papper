@@ -105,6 +105,11 @@ jobs:
           rustup show active-toolchain
           cargo --version
 
+      # MiTeX's upstream prebuilt spec contains obsolete symbol modifiers.
+      # Generate it using the same Typst version as the compiled equation engine.
+      - name: Install Typst matching Cargo.lock
+        run: uv run --script tools/ci/prepare-typst.py
+
       - name: Identify native sources
         id: native-sources
         shell: bash
@@ -363,6 +368,8 @@ jobs:
                 url."https://x-access-token:${PRIVATE_SUBMODULES_TOKEN}@github.com/cesaryuan/latex2wmf".insteadOf \
                 "https://github.com/cesaryuan/latex2wmf"
               bash scripts/pandoc-server/setup-manylinux.sh
+              uv run --script tools/ci/prepare-typst.py
+              export PATH="/project/.pmt/typst/bin:$PATH"
               cargo run --locked -p papper-dev -- wheel --output dist --platform manylinux_2_28_x86_64
               shopt -s nullglob
               wheels=(dist/*.whl)

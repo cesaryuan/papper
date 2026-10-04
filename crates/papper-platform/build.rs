@@ -39,7 +39,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         files.insert(root.join(relative));
     }
     let mut fingerprint = Sha256::new();
-    for variable in ["TARGET", "PROFILE", "CARGO_CFG_TARGET_FEATURE"] {
+    for variable in [
+        "TARGET",
+        "PROFILE",
+        "CARGO_CFG_TARGET_FEATURE",
+        // Generated and upstream prebuilt specs can differ under the same lockfile.
+        "CARGO_FEATURE_GENERATE_MITEX_SPEC",
+    ] {
         fingerprint.update(variable.as_bytes());
         fingerprint.update([0]);
         fingerprint.update(std::env::var(variable).unwrap_or_default().as_bytes());
