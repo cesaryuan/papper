@@ -196,9 +196,14 @@ not included in native wheels. Use the public native commands or the Rust
 workspace libraries for integrations. The reference remains available to
 repository tests only. Existing manuscript files and style configuration
 continue to work; native state uses a separate `work/rust-v1` namespace.
-Before upgrading a project with a running HTML service, run `papper clean` in
-that project to stop the owned service and clear its build state and caches. The
-next `papper build html --start-server` launches the newly installed program.
+The background HTML service runs from an independent, content-addressed binary,
+so `uv tool upgrade papper` can replace the Windows CLI entry points while the
+service remains running. The next `papper build html --start-server` checks the
+actual service version and binary identity. It gracefully stops an older native
+service for the same project and starts the installed version on the same port,
+preserving project outputs and disk caches. An unchanged service is reused;
+another project's service is never stopped. Services started by releases before
+this isolation fix still need to be stopped once before upgrading on Windows.
 
 ### Create Your First Project
 

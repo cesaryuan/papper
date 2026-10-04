@@ -1,6 +1,11 @@
 //! Spawn background services without retaining a captured caller's Windows pipes.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use papper_core::paths::home_dir;
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::io::{Read, Seek, Write};
+use std::path::PathBuf;
 use std::process::{Child, Command};
 
 /// Start a service while preventing a daemon from keeping CLI capture handles alive.
@@ -8,6 +13,66 @@ pub fn spawn_background(command: &mut Command) -> Result<Child> {
     #[cfg(windows)]
     let _handles = InheritedStdHandles::clear()?;
     Ok(command.spawn()?)
+}
+
+/// Keep the hashed image open so publication copies exactly the inspected binary.
+pub(crate) struct ServerExecutable {
+    pub identity: String,
+    source: fs::File,
+}
+
+impl ServerExecutable {
+    /// Hash the actual program, including rebuilds carrying the same package version.
+    pub(crate) fn current() -> Result<Self> {
+        let mut source = fs::File::open(std::env::current_exe()?)?;
+        let mut hash = Sha256::new();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let count = source.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
+        }
+        let identity = hash
+            .finalize()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        Ok(Self { identity, source })
+    }
+
+    /// Atomically publish an independent executable without replacing running copies.
+    pub(crate) fn install(&mut self) -> Result<PathBuf> {
+        let directory = home_dir().join("server-runtimes").join(&self.identity);
+        fs::create_dir_all(&directory)?;
+        let directory = directory.canonicalize()?;
+        let target = directory.join(if cfg!(windows) {
+            "papper.exe"
+        } else {
+            "papper"
+        });
+        if target.is_file() {
+            return Ok(target);
+        }
+        // Windows locks running uv entry points. A real copy (never a hard link)
+        // releases that entry point when the CLI exits, allowing tool upgrades.
+        let mut temporary = tempfile::NamedTempFile::new_in(&directory)?;
+        self.source.rewind()?;
+        std::io::copy(&mut self.source, temporary.as_file_mut())?;
+        temporary.flush()?;
+        #[cfg(unix)]
+        fs::set_permissions(temporary.path(), self.source.metadata()?.permissions())?;
+        // Concurrent first launches may publish the same hash. Never overwrite
+        // the winning executable: it may already be running on Windows.
+        match temporary.persist_noclobber(&target) {
+            Ok(_) => Ok(target),
+            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => Ok(target),
+            Err(error) => {
+                Err(error.error).context("Could not publish background server executable")
+            }
+        }
+    }
 }
 
 /// Restore caller-owned handle flags after the child has inherited only its explicit stdio.

@@ -157,8 +157,12 @@ Windows C# helper 保留 SDK 桥接职责。
 原来的 `pandoc_manuscript` Python 导入 API 和 `python -m` 工具不随原生 wheel
 发布。集成使用原生 CLI 或 Rust workspace 库；旧实现仅供仓库测试对照。
 已有稿件和样式配置继续使用，原生服务状态单独保存在 `work/rust-v1`。
-升级时，先在运行 HTML 服务的项目执行 `papper clean`，停止该项目服务并清理构建状态
-和缓存；升级后的 `papper build html --start-server` 再启动新版本程序。
+后台 HTML 服务从按程序内容哈希保存的独立副本运行，因此服务运行期间也可以执行
+`uv tool upgrade papper`，不会锁住 Windows CLI 入口。下一次执行
+`papper build html --start-server` 时，会校验服务的实际版本和程序身份：同一项目的
+旧版原生服务先正常停止，再在原端口启动已安装的新版，保留项目输出和磁盘缓存；
+程序未变化时复用现有服务，不会停止其他项目的服务。本修复之前的版本启动的服务，
+在 Windows 上首次升级前仍需停止一次。
 
 ### 创建第一个项目
 

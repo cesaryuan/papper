@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import hashlib
 import http.client
 import json
 import os
 import re
+import shutil
 import struct
 import subprocess
 import threading
@@ -478,3 +480,207 @@ def test_native_first_concurrent_cli_start_records_serving_pid_and_clean_stops_w
                 for pid in owned:
                     if _process_alive(pid):
                         _stop_owned_pid(pid)
+
+
+def _close_project_service(project: NativeProject, port: int, owned: set[int]) -> None:
+    """Stop only test-owned project processes, including a replacement after failed assertions."""
+    try:
+        status, raw = _http_request(port, "GET", "/version")
+        version = json.loads(raw)
+        if status == 200 and version.get("project_dir") == str(project.directory.resolve()):
+            owned.update([version["pid"], version["worker_pid"]])
+            _http_request(port, "POST", "/shutdown", {"project_dir": version["project_dir"]})
+    except (OSError, http.client.HTTPException):
+        pass
+    if not _wait_for_exit(owned, timeout=3):
+        for pid in owned:
+            if _process_alive(pid):
+                _stop_owned_pid(pid)
+
+
+def test_native_upgrade_replaces_unlocked_entrypoint_and_restarts_one_shared_service(
+    native_project_factory,
+) -> None:
+    """An in-place Windows upgrade must succeed and concurrent clients must retire the old worker."""
+    project = native_project_factory()
+    source = project.source.read_bytes()
+    launcher = project.directory / project.executable.name
+    shutil.copy2(project.executable, launcher)
+    installed = NativeProject(project.directory, project.source, launcher, project.environment)
+    port = _available_port()
+    owned: set[int] = set()
+    try:
+        previous_output = project.directory / "previous.html"
+        installed.build(previous_output, server_port=port)
+        previous_html = previous_output.read_bytes()
+        _, raw = _http_request(port, "GET", "/version")
+        previous = json.loads(raw)
+        old_pids = {previous["pid"], previous["worker_pid"]}
+        owned.update(old_pids)
+        state_file = next(Path(project.environment["PAPPER_HOME"]).glob(
+            "projects/*/work/rust-v1/server-state.json"
+        ))
+        cache = state_file.parents[2] / "cache/upgrade-preserved.bin"
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_bytes(b"Preserved project cache")
+
+        # Config reload must never rewrite the executing program's identity.
+        config = json.loads(state_file.with_name("server-config.json").read_text(encoding="utf-8"))
+        config["runtime_version"] = "unrelated-config-version"
+        status, raw = _http_request(port, "POST", "/config", config)
+        assert status == 200, raw
+        _, raw = _http_request(port, "GET", "/version")
+        assert json.loads(raw)["runtime_version"] == previous["runtime_version"]
+
+        # PE/ELF loaders permit an overlay. Change binary identity without a
+        # second compilation; copying over a locked Windows shim would fail here.
+        shutil.copyfile(project.executable, launcher)
+        with launcher.open("ab") as executable:
+            executable.write(b"Papper upgrade regression image\n")
+        expected_identity = hashlib.sha256(launcher.read_bytes()).hexdigest()
+        assert expected_identity != previous["runtime_id"]
+        _, raw = _http_request(port, "GET", "/version")
+        assert json.loads(raw)["pid"] == previous["pid"]
+
+        # A replacement that cannot be staged must leave the live server and
+        # existing output intact, so retrying after fixing storage is safe.
+        blocked_runtime = Path(project.environment["PAPPER_HOME"]) / "server-runtimes" / expected_identity
+        blocked_runtime.write_bytes(b"Deliberately unavailable runtime directory")
+        failed = installed.build(previous_output, server_port=port, check=False)
+        assert failed.returncode != 0
+        _, raw = _http_request(port, "GET", "/version")
+        assert json.loads(raw)["pid"] == previous["pid"]
+        assert previous_output.read_bytes() == previous_html
+        blocked_runtime.unlink()
+
+        barrier = threading.Barrier(2)
+
+        def upgraded_build(index: int) -> subprocess.CompletedProcess[str]:
+            """Race two new CLI invocations while the old project service owns the port."""
+            barrier.wait(timeout=5)
+            return installed.build(project.directory / f"upgrade-{index}.html", server_port=port, check=False)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(upgraded_build, range(2)))
+        _, raw = _http_request(port, "GET", "/version")
+        current = json.loads(raw)
+        owned.update([current["pid"], current["worker_pid"]])
+        for result in results:
+            assert result.returncode == 0, result.stdout + result.stderr
+        assert current["runtime_id"] == expected_identity
+        assert current["pid"] != previous["pid"]
+        assert current["worker_pid"] != previous["worker_pid"]
+        assert _wait_for_exit(old_pids), "Upgrade left the old server or worker alive"
+        assert (project.directory / "upgrade-0.html").read_bytes() == previous_html
+        assert (project.directory / "upgrade-1.html").read_bytes() == previous_html
+        assert previous_output.read_bytes() == previous_html
+        assert cache.read_bytes() == b"Preserved project cache"
+        assert project.source.read_bytes() == source
+        installed.build(project.directory / "reused.html", server_port=port)
+        _, raw = _http_request(port, "GET", "/version")
+        assert json.loads(raw)["pid"] == current["pid"]
+    finally:
+        _close_project_service(project, port, owned)
+
+
+@pytest.mark.parametrize("old_identity", ["older-version", "missing-runtime-id", "shutdown-refused"])
+def test_native_upgrade_retires_older_http_runtime_even_with_matching_config(
+    native_project_factory, old_identity: str,
+) -> None:
+    """A matching config must not keep an old runtime or one predating binary identity checks."""
+    project = native_project_factory()
+    port = _available_port()
+    owned: set[int] = set()
+
+    class PreviousRuntime(BaseHTTPRequestHandler):
+        """Model the previous release at the HTTP boundary; replacement uses the real native engine."""
+
+        def do_GET(self) -> None:
+            """Report an old process whose config already matches the new client's request."""
+            config_file = next(Path(project.environment["PAPPER_HOME"]).glob(
+                "projects/*/work/rust-v1/server-config.json"
+            ))
+            config = json.loads(config_file.read_text(encoding="utf-8"))
+            version = {
+                "pid": os.getpid(), "runtime": "rust", "protocol": "pmt-html-v1",
+                "project_dir": str(project.directory.resolve()),
+                "runtime_version": "older-runtime" if old_identity == "older-version" else config["runtime_version"],
+                "config_digest": hashlib.sha256(json.dumps(
+                    config, ensure_ascii=False, separators=(",", ":")
+                ).encode("utf-8")).hexdigest(),
+            }
+            if old_identity == "older-version":
+                version["runtime_id"] = "older-executable"
+            body = json.dumps(version).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self) -> None:
+            """Release the old listener only for a correctly identified shutdown request."""
+            payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            valid = (self.path == "/shutdown" and old_identity != "shutdown-refused"
+                     and payload["project_dir"] == str(project.directory.resolve()))
+            body = json.dumps({"ok": valid}).encode("utf-8")
+            self.send_response(200 if valid else 400)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            if valid:
+                self.server.shutdown()
+                self.server.server_close()
+
+    previous = ThreadingHTTPServer(("127.0.0.1", port), PreviousRuntime)
+    previous.daemon_threads = True
+    thread = threading.Thread(target=previous.serve_forever, daemon=True)
+    thread.start()
+    try:
+        output = project.directory / "upgraded.html"
+        if old_identity == "shutdown-refused":
+            output.write_bytes(b"Existing output")
+            failed = project.build(output, server_port=port, check=False)
+            assert failed.returncode != 0
+            assert output.read_bytes() == b"Existing output"
+            _, raw = _http_request(port, "GET", "/version")
+            assert json.loads(raw)["pid"] == os.getpid()
+            return
+        project.build(output, server_port=port)
+        _, raw = _http_request(port, "GET", "/version")
+        current = json.loads(raw)
+        owned.update([current["pid"], current["worker_pid"]])
+        assert current["pid"] != os.getpid()
+        assert current["runtime_id"] == hashlib.sha256(project.executable.read_bytes()).hexdigest()
+        project.assert_cli_parity(output.read_text(encoding="utf-8"))
+    finally:
+        previous.shutdown()
+        previous.server_close()
+        thread.join(timeout=5)
+        _close_project_service(project, port, owned)
+
+
+def test_native_upgrade_preserves_another_projects_service_and_rejects_stale_shutdown(
+    native_service_factory, tmp_path: Path,
+) -> None:
+    """A reused port or stale PID must never stop another project's live converter."""
+    service = native_service_factory()
+    status, raw, _ = service.request("GET", "/version")
+    version = json.loads(raw)
+    assert status == 200
+    status, _, _ = service.request("POST", "/shutdown", {
+        "project_dir": version["project_dir"], "pid": version["pid"] + 1,
+    })
+    assert status == 400
+    directory = tmp_path / "another-project"
+    directory.mkdir()
+    source = directory / "paper.md"
+    source.write_text("Another project's manuscript.\n", encoding="utf-8")
+    output = directory / "preserved.html"
+    output.write_bytes(b"Existing output")
+    other = NativeProject(directory, source, service.project.executable, service.project.environment)
+    result = other.build(output, server_port=service.port, check=False)
+    assert result.returncode != 0 and "another Papper project" in result.stderr
+    assert output.read_bytes() == b"Existing output"
+    assert "Original service remains available" in service.convert(text="Original service remains available")["output"]
+    _, raw, _ = service.request("GET", "/version")
+    assert json.loads(raw)["pid"] == version["pid"]

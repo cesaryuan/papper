@@ -85,6 +85,7 @@ struct PreparedMetadata {
 
 /// Retain request results only while their content/dependencies remain identical.
 struct ConversionState {
+    runtime_id: String,
     config: ServerConfig,
     resources: ResourcePaths,
     worker: PersistentWorker,
@@ -217,6 +218,7 @@ fn prepare(
 impl ConversionState {
     /// Start one owned Haskell worker with its private workspace and project permissions.
     fn new(mut config: ServerConfig) -> Result<Self> {
+        let runtime_id = crate::process::ServerExecutable::current()?.identity;
         config.project_dir = canonical_project(&config.project_dir)?;
         let resources = if let Some(root) = &config.resource_root {
             ResourcePaths {
@@ -253,6 +255,7 @@ impl ConversionState {
             persistent.join("remote"),
         );
         Ok(Self {
+            runtime_id,
             config,
             resources,
             worker,
@@ -465,7 +468,9 @@ impl ConversionState {
 
     /// Publish immutable service identity and the last observed native worker status.
     fn version(&mut self) -> Value {
-        json!({"server":"PMT-Pandoc-Server/Rust","runtime":"rust","pid":std::process::id(),"worker_pid":self.worker.pid(),"runtime_version":self.config.runtime_version,"protocol":"pmt-html-v1","worker_alive":self.worker.is_alive(),"source_text":true,"project_dir":display_path(&self.config.project_dir),"config_digest":digest(&serde_json::to_vec(&self.config).unwrap_or_default())})
+        // Runtime identity describes executable code, never reloadable config;
+        // otherwise an old process can masquerade as an upgraded server.
+        json!({"server":"PMT-Pandoc-Server/Rust","runtime":"rust","pid":std::process::id(),"worker_pid":self.worker.pid(),"runtime_version":format!("{}-rust-v1", env!("CARGO_PKG_VERSION")),"runtime_id":self.runtime_id,"protocol":"pmt-html-v1","worker_alive":self.worker.is_alive(),"source_text":true,"project_dir":display_path(&self.config.project_dir),"config_digest":digest(&serde_json::to_vec(&self.config).unwrap_or_default())})
     }
 }
 
@@ -561,6 +566,17 @@ pub fn build_html(
     // CLI reports success after a one-shot build while editors find no service.
     if start_server {
         let config_path = work.join("server-config.json");
+        // Serialize config publication, upgrade/restart and the initial build.
+        // Two editor clients must not stop each other's replacement service.
+        let lifecycle = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(work.join("server-start.lock"))?;
+        lifecycle
+            .lock()
+            .context("Could not lock project service startup")?;
         write_if_changed(&config_path, &serde_json::to_vec_pretty(&config)?)?;
         ensure_server(&config, &config_path, host, port, server_command)?;
         let agent = local_agent(Duration::from_secs(120));
@@ -660,6 +676,12 @@ fn ensure_server(
     port: u16,
     override_command: Option<&str>,
 ) -> Result<()> {
+    let mut executable = if override_command.is_none() {
+        Some(crate::process::ServerExecutable::current()?)
+    } else {
+        None
+    };
+    let mut installed_executable = None;
     let agent = local_agent(Duration::from_millis(500));
     let version_url = format!("{}/version", base_url(host, port));
     let fingerprint = digest(&serde_json::to_vec(config)?);
@@ -674,31 +696,55 @@ fn ensure_server(
                 == Some(display_path(&config.project_dir).as_str()),
             "Port {port} belongs to another Papper project"
         );
-        if version.get("config_digest").and_then(Value::as_str) == Some(fingerprint.as_str()) {
+        let compatible = executable.as_ref().is_none_or(|executable| {
+            version["runtime"] == "rust"
+                && version["runtime_version"] == config.runtime_version
+                && version["runtime_id"].as_str() == Some(executable.identity.as_str())
+        });
+        if !compatible {
+            anyhow::ensure!(
+                version["runtime"] == "rust",
+                "A legacy Papper service is using port {port}; choose another --server-port for the native service"
+            );
+            // Prepare the replacement before stopping a working old service;
+            // an unwritable managed directory must leave it available.
+            installed_executable = Some(executable.as_mut().unwrap().install()?);
+            eprintln!(
+                "[Pandoc server] Replacing service runtime {} with {}",
+                version["runtime_version"].as_str().unwrap_or("unknown"),
+                config.runtime_version
+            );
+            shutdown_server(&config.project_dir, host, port, &version)?;
+        } else if version.get("config_digest").and_then(Value::as_str) == Some(fingerprint.as_str())
+        {
             save_server_state(config_path, host, port, &version, &fingerprint)?;
             return Ok(());
+        } else {
+            // A matching project can reload metadata policy without discarding native caches.
+            if version.get("runtime").and_then(Value::as_str) == Some("rust") {
+                local_agent(Duration::from_secs(10))
+                    .post(&format!("{}/config", base_url(host, port)))
+                    .send_json(config)
+                    .map_err(http_failure)?;
+                save_server_state(config_path, host, port, &version, &fingerprint)?;
+                return Ok(());
+            }
+            bail!(
+                "A legacy Papper service is using port {port}; choose another --server-port for the native service"
+            );
         }
-        // A matching project can reload metadata policy without discarding native caches.
-        if version.get("runtime").and_then(Value::as_str) == Some("rust") {
-            local_agent(Duration::from_secs(10))
-                .post(&format!("{}/config", base_url(host, port)))
-                .send_json(config)
-                .map_err(http_failure)?;
-            save_server_state(config_path, host, port, &version, &fingerprint)?;
-            return Ok(());
-        }
-        bail!(
-            "A legacy Papper service is using port {port}; choose another --server-port for the native service"
-        );
     }
-    let executable = std::env::current_exe()?;
     let mut command = if let Some(raw) = override_command {
         let words = papper_engine::split_command(raw)?;
         let mut command = Command::new(&words[0]);
         command.args(&words[1..]);
         command
     } else {
-        let mut command = Command::new(executable);
+        let path = match installed_executable {
+            Some(path) => path,
+            None => executable.as_mut().unwrap().install()?,
+        };
+        let mut command = Command::new(path);
         command.arg("__server").arg("--config").arg(config_path);
         command
     };
@@ -730,6 +776,10 @@ fn ensure_server(
                 && version["protocol"] == "pmt-html-v1"
                 && version["project_dir"].as_str()
                     == Some(display_path(&config.project_dir).as_str())
+                && executable.as_ref().is_none_or(|executable| {
+                    version["runtime_id"].as_str() == Some(executable.identity.as_str())
+                        && version["runtime_version"] == config.runtime_version
+                })
             {
                 // Two initial clients may race to bind one port. The process
                 // answering HTTP owns the service, not necessarily our child.
@@ -914,6 +964,14 @@ fn handle_request(mut request: Request, shared: &HttpState) {
                         == Some(display_path(&state.config.project_dir).as_str()),
                     "Shutdown project identity does not match"
                 );
+                // A startup client may have inspected a previous process on
+                // this port. Reject its shutdown if a replacement now owns it.
+                anyhow::ensure!(
+                    payload
+                        .get("pid")
+                        .is_none_or(|pid| pid.as_u64() == Some(u64::from(std::process::id()))),
+                    "Shutdown process identity does not match"
+                );
                 shared.shutdown.store(true, Ordering::Release);
                 state.worker.close();
                 Ok(json!({"ok":true}))
@@ -986,7 +1044,6 @@ pub fn stop_project_server(project: &Path) -> Result<()> {
         .and_then(|port| port.try_into().ok())
         .context("Invalid saved server port")?;
     let address = base_url(host, port);
-    let agent = local_agent(Duration::from_secs(120));
     let response = match local_agent(Duration::from_millis(500))
         .get(&format!("{address}/version"))
         .call()
@@ -1004,18 +1061,32 @@ pub fn stop_project_server(project: &Path) -> Result<()> {
     {
         return Ok(());
     }
-    agent
+    shutdown_server(project, host, port, &version)
+}
+
+/// Gracefully stop an inspected project process before reusing its port or work files.
+fn shutdown_server(project: &Path, host: &str, port: u16, version: &Value) -> Result<()> {
+    let address = base_url(host, port);
+    local_agent(Duration::from_secs(120))
         .post(&format!("{address}/shutdown"))
-        .send_json(json!({"project_dir":display_path(project)}))
+        .send_json(json!({"project_dir":display_path(project),"pid":version["pid"]}))
         .map_err(http_failure)?;
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
-        if local_agent(Duration::from_millis(200))
+        match local_agent(Duration::from_millis(200))
             .get(&format!("{address}/version"))
             .call()
-            .is_err()
         {
-            return Ok(());
+            Err(ureq::Error::Transport(_)) => return Ok(()),
+            Ok(response) => {
+                let current: Value = response.into_json()?;
+                anyhow::ensure!(
+                    current["pid"] == version["pid"]
+                        && current["project_dir"].as_str() == Some(display_path(project).as_str()),
+                    "Port {port} changed ownership while stopping the project service"
+                );
+            }
+            Err(error) => return Err(http_failure(error)),
         }
         thread::sleep(Duration::from_millis(50));
     }
