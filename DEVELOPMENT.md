@@ -181,6 +181,34 @@ uv run pytest tests/test_build_snapshots.py -k reply -p no:cacheprovider
 uv run pytest tests/test_build_snapshots.py -k reply -p no:cacheprovider --snapshot-update
 ```
 
+## Convert snapshots
+
+`papper convert` snapshots are separate from build snapshots. Inputs live in
+`tests/snapshot_cases_convert/`; golden results live in `tests/snapshots-convert/`.
+Each golden case contains the actual Markdown output and a `media/` tree of
+same-name placeholders. PNG and WMF placeholders are tiny white images with
+black borders; other formats use empty files. Checks compare the Markdown and the
+relative output tree; media contents are deliberately excluded.
+The snapshot test normalizes its temporary converted media before comparison
+and copies those normalized files into golden output on updates. Both test
+output directories therefore contain placeholders; the input DOCX and normal
+product conversions retain their real images.
+
+The comprehensive fixture is derived from the supplied Word document and
+covers ordinary Word content, real MathType/OMML equations, equation layouts,
+figure/equation references, footnotes, extracted images, and preview fallback.
+Its checked-in DOCX is the direct test input; `papper build` and Word COM are
+not part of snapshot execution. See `tests/snapshot_cases_convert/README.md`
+for the regeneration procedure and exact coverage limits.
+
+```bash
+uv run pytest tests/test_convert_snapshots.py -q
+uv run pytest tests/test_convert_snapshots.py --snapshot-update -q
+```
+
+The update command replaces only the selected Convert case's golden directory.
+Review both Markdown edits and added/removed placeholder paths.
+
 ## Private native submodules
 
 The `scripts/mathtype-rust` and `scripts/latex2wmf` source trees are private
