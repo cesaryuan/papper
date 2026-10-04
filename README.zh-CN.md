@@ -327,11 +327,12 @@ papper build html --start-server
 启动项目绑定的 PMT runtime。需要使用其他通用 server 时才设置
 `PMT_PANDOC_SERVER_COMMAND`。服务地址会打印到构建日志，支持 `/`、`/batch`、
 `/version` 接口。
-进程状态保存在 `~/.papper/projects/<project-id>/pandoc-server.json`，服务输出保存在同目录的 `pandoc-server.log`。
+Rust 服务的进程状态保存在 `~/.papper/projects/<project-id>/work/rust-v1/server-state.json`，配置与日志分别保存在同目录的 `server-config.json` 和 `server.log`。
 
 这个服务用于高频 Markdown 转换。它会读取当前项目的 PMT defaults 和 metadata，使用
-与正常 HTML 构建相同的 `pandoc-crossref` 与 Lua filter 链。Papper 自己的首次 HTML
-构建仍使用现有 CLI 流程，因此不会因为启动服务而改变交叉引用或本地资源行为。若
+与正常 HTML 构建相同的 `pandoc-crossref` 与 Lua filter 链。带 `--start-server` 的首次
+HTML 构建也通过 `/convert/raw` 完成，后续构建复用同一个 worker。Markdown 可以位于
+工作目录项目之外；服务仍绑定工作目录项目，样式与资源查找保留源文件所在目录的上下文。若
 确实需要使用其他通用 server，可以显式指定：
 
 ```powershell
@@ -351,7 +352,9 @@ Pop-Location
 Papper 包装后的服务不会要求扩展重复传 Pandoc 参数。使用 `GET /version` 检查服务，
 使用 `POST /convert` 并提交 `{"path":"manuscript.md"}` 转换单个文件（省略 path 时默认
 使用 `manuscript.md`）；也可以向
-`POST /batch` 提交多个 `{"path": ...}`。路径只能位于启动服务的项目目录内。返回的
+`POST /batch` 提交多个 `{"path": ...}`。相对路径基于启动服务的项目目录解析，也接受
+指向项目外 Markdown 的绝对路径或相对路径。编辑器可以向 `/convert/raw` 提交
+`{"path":"<源文件路径>","text":"<当前编辑器文本>"}`，无需保存源文件。返回的
 HTML 会继续经过与 `papper build html` 相同的 PMT HTML 后处理。
 
 ## 维护者发布与构建缓存

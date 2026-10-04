@@ -402,17 +402,18 @@ papper build html --start-server
 The command checks `http://127.0.0.1:3030/version`, reuses a responsive PMT
 server, or starts the working-directory-bound PMT runtime. An explicit generic server can
 still be selected with `PMT_PANDOC_SERVER_COMMAND`. The endpoint is printed in the build log and
-supports the official `/`, `/batch`, and `/version` API. State is recorded in
-`~/.papper/projects/<project-id>/pandoc-server.json` and output in the sibling
-`pandoc-server.log`.
+supports the `/`, `/batch`, and `/version` API. Native state is recorded in
+`~/.papper/projects/<project-id>/work/rust-v1/server-state.json`, configuration in
+`server-config.json`, and output in the sibling `server.log`.
 
 With `--start-server`, the HTML build itself uses `/convert/raw`, reusing a
 persistent Pandoc worker and its prepared citation data. Identical configuration
 does not restart the worker. The service reloads changed Markdown headers,
 `style.yml`, defaults, Lua filters, bibliography, CSL, and template dependencies,
-and applies the normal PMT HTML postprocessing. Builds without this flag, explicit
-inputs outside the working-directory project, and explicitly selected generic
-servers use the existing CLI build.
+and applies the normal PMT HTML postprocessing. Markdown may live outside the
+working-directory project: `--start-server` still starts or reuses that project's
+service, and style/resource lookup retains the source file's directory context.
+Builds without this flag use the single-shot CLI build.
 
 Ordinary CLI invocations load only the selected command's settings; root help
 still describes every command. HTML typography and margins share metadata
@@ -450,15 +451,16 @@ The PMT wrapper exposes a deliberately smaller API than the generic Pandoc
 server. Use `GET /version` for health and `POST /convert` with
 `{"path":"manuscript.md"}` for one result (the path defaults to
 `manuscript.md` when omitted), or `POST /batch` with an array of
-`{"path": ...}` objects. Paths are resolved inside the project that started
-the server. The response contains the generated HTML, after the same PMT HTML
+`{"path": ...}` objects. Relative paths resolve from the project that started
+the server; absolute paths and relative paths to external Markdown are also accepted.
+The response contains the generated HTML, after the same PMT HTML
 post-processing used by `papper build html`, together with stage timings and
 the HTML result-cache status.
 
 For clients that want to avoid the JSON envelope, `POST /convert/raw` returns
 the exact PMT HTML directly as `text/html`. Editors can send
 `{"path":"manuscript.md","text":"Current unsaved Markdown"}` to render a buffer
-without saving or creating a Markdown mirror. The path stays inside the project
+without saving or creating a Markdown mirror. The path may be outside the project
 and supplies the style/resource lookup context; omit `text` to read from disk.
 An empty `text` renders an empty document. `GET /version` advertises
 `source_text: true` and `project_dir` for safe editor reuse. JSON request bodies

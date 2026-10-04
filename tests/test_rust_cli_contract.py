@@ -325,8 +325,8 @@ def test_native_template_partials_and_defaults_invalidate_cached_output(native_s
     assert not numbered["cache_hit"] and 'class="header-section-number"' in numbered["output"]
 
 
-def test_native_unsaved_text_preserves_disk_and_rejects_project_escape(native_service_factory) -> None:
-    """Render editor buffers without modifying originals and reject escaped source paths."""
+def test_native_unsaved_text_preserves_disk_and_accepts_external_sources(native_service_factory) -> None:
+    """Render disk and editor snapshots outside the project without modifying originals."""
     service = native_service_factory()
     original = service.project.source.read_bytes()
     source_text = original.decode("utf-8") + "\nUnsaved native editor text.\n"
@@ -338,9 +338,17 @@ def test_native_unsaved_text_preserves_disk_and_rejects_project_escape(native_se
     disk = service.convert()
     assert "Unsaved native editor text." not in disk["output"]
     outside = service.project.directory.parent / "outside.md"
-    outside.write_text("Do not read outside the project", encoding="utf-8")
-    status, body, _ = service.request("POST", "/convert", {"path": "../outside.md"})
-    assert status == 400 and "outside" in body.decode("utf-8").lower()
+    outside.write_text("External saved manuscript", encoding="utf-8")
+    assert "External saved manuscript" in service.convert(path="../outside.md")["output"]
+    external = service.convert(path=str(outside), text="External unsaved manuscript")
+    assert "External unsaved manuscript" in external["output"]
+    assert "External saved manuscript" not in external["output"]
+    assert outside.read_text(encoding="utf-8") == "External saved manuscript"
+    repeated = service.convert(path=str(outside), text="External unsaved manuscript")
+    assert repeated["cache_hit"] and repeated["output"] == external["output"]
+    missing = outside.with_name("not-saved-yet.md")
+    assert "External new buffer" in service.convert(path=str(missing), text="External new buffer")["output"]
+    assert not missing.exists()
 
 
 def test_native_failed_build_preserves_existing_output_and_recovers(native_service_factory) -> None:

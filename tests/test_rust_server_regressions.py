@@ -55,6 +55,56 @@ def _metadata_source(label: str, body: str) -> str:
     )
 
 
+def test_native_cli_bootstraps_from_external_empty_markdown_and_reuses_service(
+    native_project_factory, tmp_path: Path,
+) -> None:
+    """External editor bootstrap must start a real worker that accepts later source snapshots."""
+    project = native_project_factory()
+    original = project.source.read_bytes()
+    external = tmp_path / "external-source"
+    external.mkdir()
+    source = external / "bootstrap.md"
+    source.write_text("", encoding="utf-8")
+    bootstrap = NativeProject(project.directory, source, project.executable, project.environment)
+    port = _available_port()
+    owned: set[int] = set()
+    try:
+        bootstrap.build(external / "startup.html", server_port=port)
+        status, raw = _http_request(port, "GET", "/version")
+        assert status == 200
+        version = json.loads(raw)
+        assert version["project_dir"] == str(project.directory.resolve())
+        owned.update([version["pid"], version["worker_pid"]])
+        source.unlink()  # The extension removes its bootstrap file before sending editor text.
+        status, raw = _http_request(port, "POST", "/convert/raw", {
+            "path": str(project.source), "text": "Current unsaved editor buffer",
+        })
+        assert status == 200 and b"Current unsaved editor buffer" in raw
+        assert project.source.read_bytes() == original
+        source.write_text("---\ntitle: External manuscript\n---\n\nExternal saved body.\n", encoding="utf-8")
+        output = external / "rendered.html"
+        bootstrap.build(output, server_port=port)
+        status, raw = _http_request(port, "GET", "/version")
+        updated = json.loads(raw)
+        assert status == 200 and updated["pid"] == version["pid"]
+        assert updated["worker_pid"] == version["worker_pid"]
+        bootstrap.assert_cli_parity(output.read_text(encoding="utf-8"))
+        assert "External saved body." in output.read_text(encoding="utf-8")
+    finally:
+        try:
+            status, raw = _http_request(port, "GET", "/version")
+            version = json.loads(raw)
+            if status == 200 and version.get("project_dir") == str(project.directory.resolve()):
+                owned.update([version["pid"], version["worker_pid"]])
+                _http_request(port, "POST", "/shutdown", {"project_dir": version["project_dir"]})
+        except (OSError, http.client.HTTPException):
+            pass
+        if owned and not _wait_for_exit(owned, timeout=3):
+            for pid in owned:
+                if _process_alive(pid):
+                    _stop_owned_pid(pid)
+
+
 def _assert_header(html: str, label: str) -> None:
     """Inspect actual HTML metadata and title-page elements rather than cached settings."""
     document = html_parser.fromstring(html)
@@ -109,7 +159,10 @@ def _embedded_image(html: str) -> bytes:
     return base64.b64decode(encoded, validate=True)
 
 
-def test_native_service_tracks_secondary_source_images_and_later_priority_creation(native_service_factory) -> None:
+@pytest.mark.parametrize("external", [False, True], ids=["project-source", "external-source"])
+def test_native_service_tracks_secondary_source_images_and_later_priority_creation(
+    native_service_factory, tmp_path: Path, external: bool,
+) -> None:
     """Invalidate real embedded images by bytes and by newly available source-local overrides."""
     service = native_service_factory(custom_defaults=True)
     project = service.project
@@ -121,28 +174,29 @@ def test_native_service_tracks_secondary_source_images_and_later_priority_creati
     service.defaults.write_text(yaml.safe_dump(defaults), encoding="utf-8")
     project.source.write_text("# Initial source\n\nInitial document.\n", encoding="utf-8")
     service.convert()
-    directory = project.directory / "subdir"
+    directory = tmp_path / "external-images" if external else project.directory / "subdir"
     directory.mkdir()
     source = directory / "other.md"
+    source_path = str(source) if external else "subdir/other.md"
     source.write_text("# Other source\n\n![Local figure](figure.png)\n", encoding="utf-8")
     fallback = project.directory / "figure.png"
     fallback_bytes = _png_bytes((255, 0, 0))
     fallback.write_bytes(fallback_bytes)
-    first = service.convert(path="subdir/other.md")
+    first = service.convert(path=source_path)
     assert not first["cache_hit"]
     assert _embedded_image(first["output"]) == fallback_bytes
-    assert service.convert(path="subdir/other.md")["cache_hit"]
+    assert service.convert(path=source_path)["cache_hit"]
 
     # Missing candidates must participate in the fingerprint: creating this
     # higher-priority source-local file changes which image Pandoc selects.
     preferred = directory / "figure.png"
     preferred_bytes = _png_bytes((0, 255, 0))
     preferred.write_bytes(preferred_bytes)
-    created = service.convert(path="subdir/other.md")
+    created = service.convert(path=source_path)
     assert not created["cache_hit"]
     assert _embedded_image(created["output"]) == preferred_bytes
     assert created["output"] != first["output"]
-    assert service.convert(path="subdir/other.md")["cache_hit"]
+    assert service.convert(path=source_path)["cache_hit"]
 
     previous = preferred.stat()
     updated_bytes = _png_bytes((0, 0, 255))
@@ -151,7 +205,7 @@ def test_native_service_tracks_secondary_source_images_and_later_priority_creati
     os.utime(preferred, ns=(previous.st_atime_ns, previous.st_mtime_ns))
     assert preferred.stat().st_mtime_ns == previous.st_mtime_ns
     assert preferred.stat().st_size == previous.st_size
-    edited = service.convert(path="subdir/other.md")
+    edited = service.convert(path=source_path)
     assert not edited["cache_hit"]
     assert _embedded_image(edited["output"]) == updated_bytes
     assert edited["output"] != created["output"]

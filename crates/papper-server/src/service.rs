@@ -267,7 +267,7 @@ impl ConversionState {
         })
     }
 
-    /// Resolve a source inside the project, rejecting symlink and parent traversal escapes.
+    /// Resolve source-local context independently of the service's working-directory project.
     fn source(&self, raw: &str, buffer: bool) -> Result<PathBuf> {
         let joined = self.config.project_dir.join(raw);
         let source = if joined.exists() {
@@ -282,11 +282,9 @@ impl ConversionState {
         } else {
             bail!("Markdown file not found: {}", joined.display());
         };
-        anyhow::ensure!(
-            source.starts_with(&self.config.project_dir),
-            "Path is outside the Papper project: {}",
-            source.display()
-        );
+        // Editors bootstrap with temporary Markdown outside the project, and
+        // authored manuscripts may also live elsewhere. Canonicalization still
+        // supplies consistent style/resource context for disk and buffer builds.
         Ok(source)
     }
 
@@ -557,10 +555,11 @@ pub fn build_html(
 ) -> Result<()> {
     let work = project_work_dir(&request.project)?;
     std::fs::create_dir_all(&work)?;
-    let native_server =
-        start_server && request.source.starts_with(&request.project) && server_command.is_none();
+    let native_server = start_server && server_command.is_none();
     let config = build_config(request, &work, native_server)?;
-    if start_server && request.source.starts_with(&request.project) {
+    // Honor explicit service startup even for external Markdown; otherwise the
+    // CLI reports success after a one-shot build while editors find no service.
+    if start_server {
         let config_path = work.join("server-config.json");
         write_if_changed(&config_path, &serde_json::to_vec_pretty(&config)?)?;
         ensure_server(&config, &config_path, host, port, server_command)?;
