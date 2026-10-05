@@ -337,28 +337,14 @@ fn build_other(
             .reference_doc
             .as_deref()
             .map(|path| absolute(path, project));
-        if let Some(reference) = papper_document::docx::prepare_reference(
+        crate::docx_pipeline::append_reference(
+            &mut command,
             resources,
             &effective,
             reference.as_deref(),
             temporary.path(),
-        )? {
-            command.extend(["--reference-doc".into(), reference.into_os_string()]);
-        }
-        command.extend([
-            "--lua-filter".into(),
-            resources
-                .resource("pandoc/filters/docx/docx_metadata.lua")
-                .into_os_string(),
-        ]);
-        for kind in ["svg_embed_images", "svg_to_png"] {
-            command.extend([
-                "--lua-filter".into(),
-                resources
-                    .resource(format!("pandoc/filters/docx/{kind}.lua"))
-                    .into_os_string(),
-            ]);
-        }
+        )?;
+        crate::docx_pipeline::append_output_filters(&mut command, resources);
         let cache = project_state_dir(project)?.join("cache");
         environment.extend(crate::images::filter_environment(
             resources,

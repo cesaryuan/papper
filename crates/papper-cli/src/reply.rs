@@ -8,7 +8,7 @@ use papper_core::metadata::{MetadataOptions, load_effective_metadata_text, write
 use papper_core::paths::{atomic_write, canonical_project, display_path, pandoc_path};
 use papper_core::resources::ResourcePaths;
 use papper_document::docx::{
-    DocxPostprocessOptions, derive_docx_pandoc_metadata, postprocess_docx, prepare_reference,
+    DocxPostprocessOptions, derive_docx_pandoc_metadata, postprocess_docx,
 };
 use papper_engine::{PandocCli, discover_engine};
 use std::collections::BTreeMap;
@@ -170,6 +170,7 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         let source = temporary.path().join("resolved.md");
         atomic_write(&source, resolved.as_bytes())?;
         let generated = temporary.path().join("raw.docx");
+        let defaults = crate::docx_pipeline::reply_defaults(&resources, temporary.path())?;
         let reference = args.reference_doc.as_deref().map(|path| {
             if path.is_absolute() {
                 path.to_path_buf()
@@ -177,63 +178,32 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
                 project.join(path)
             }
         });
-        let reference = prepare_reference(
-            &resources,
-            &effective,
-            reference.as_deref(),
-            temporary.path(),
-        )?
-        .unwrap_or_else(|| {
-            reference.unwrap_or_else(|| {
-                resources.resource("pandoc/manuscript-template/reference-doc.docx")
-            })
-        });
         let resource_path = [reply.parent().unwrap(), project.as_path()]
             .iter()
             .map(|path| pandoc_path(path))
             .collect::<Vec<_>>()
             .join(if cfg!(windows) { ";" } else { ":" });
         let mut command: Vec<OsString> = vec![
+            "--defaults".into(),
+            defaults.into_os_string(),
             source.into_os_string(),
             "-f".into(),
             args.from_format.clone().into(),
             "-o".into(),
             generated.as_os_str().to_owned(),
-            "--reference-doc".into(),
-            reference.into_os_string(),
             "--resource-path".into(),
             resource_path.into(),
             "--metadata-file".into(),
             metadata_path.into_os_string(),
-            // Reply builds assemble Pandoc filters explicitly, so include the
-            // shared marker filter that turns `!<!` and `!^!` into table spans.
-            "--lua-filter".into(),
-            resources
-                .resource("pandoc/filters/shared/merge_table_cells.lua")
-                .into_os_string(),
-            "--lua-filter".into(),
-            resources
-                .resource("pandoc/filters/docx/docx_metadata.lua")
-                .into_os_string(),
         ];
-        if use_mathtype {
-            // Reply builds bypass manuscript defaults, so explicitly retain the
-            // marker filter; the enable flag alone otherwise leaves every formula OMML.
-            command.extend([
-                "--lua-filter".into(),
-                resources
-                    .resource("pandoc/filters/docx/mathtype_markers.lua")
-                    .into_os_string(),
-            ]);
-        }
-        for kind in ["svg_embed_images", "svg_to_png"] {
-            command.extend([
-                "--lua-filter".into(),
-                resources
-                    .resource(format!("pandoc/filters/docx/{kind}.lua"))
-                    .into_os_string(),
-            ]);
-        }
+        crate::docx_pipeline::append_reference(
+            &mut command,
+            &resources,
+            &effective,
+            reference.as_deref(),
+            temporary.path(),
+        )?;
+        crate::docx_pipeline::append_output_filters(&mut command, &resources);
         environment.extend(crate::images::filter_environment(
             &resources,
             &effective.pmt_settings,

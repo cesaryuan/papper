@@ -148,6 +148,52 @@ def test_native_reply_docx_merged_cells(
             assert (table.cell(row_index, column_index)._tc is anchor) == (value == "Group")
 
 
+def test_native_reply_and_manuscript_share_docx_defaults(reply_project: ReplyProject) -> None:
+    """Catch configuration drift by applying an authored output filter to both builds."""
+    from docx import Document
+    from native_support import native_pandoc_executable
+    import yaml
+
+    engine = native_pandoc_executable()
+    if engine is None:
+        pytest.skip("Shared defaults integration requires the native Pandoc engine")
+    project = reply_project
+    resources = project.directory / "resources"
+    shutil.copytree(ROOT / "pandoc", resources / "pandoc")
+    # Reuse the real worker without copying its large binary into this isolated resource root.
+    record = resources / ".pmt/pandoc-worker/current.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps({"executable": str(engine)}), encoding="utf-8")
+    project.environment["PAPPER_RESOURCE_ROOT"] = str(resources)
+    filter_path = resources / "pandoc/filters/shared/output_annotation.lua"
+    filter_path.write_text(
+        '-- Annotate rendered prose to verify shared defaults through actual output.\n'
+        '-- Prefix one paragraph while retaining its resolved references and styles.\n'
+        'function Para(paragraph)\n'
+        '  paragraph.content:insert(1, pandoc.Space())\n'
+        '  paragraph.content:insert(1, pandoc.Str("Shared-render:"))\n'
+        '  return paragraph\n'
+        'end\n',
+        encoding="utf-8",
+    )
+    defaults_path = resources / "pandoc/pandoc-docx.yml"
+    defaults = yaml.safe_load(defaults_path.read_text(encoding="utf-8"))
+    defaults["filters"].append("${.}/filters/shared/output_annotation.lua")
+    defaults_path.write_text(yaml.safe_dump(defaults, sort_keys=False), encoding="utf-8")
+    markdown = project.directory / "reply.md"
+    markdown.write_text("Shared prose reaches both DOCX pipelines.\n", encoding="utf-8")
+    project.run("reply.md", "-o", "reply.docx")
+    built = subprocess.run(
+        [str(project.executable), "build", "docx", "-m", "reply.md", "-o", "manuscript.docx", "--no-mathtype"],
+        cwd=project.directory, env=project.environment, capture_output=True,
+        text=True, encoding="utf-8", errors="replace", timeout=90,
+    )
+    assert built.returncode == 0, built.stdout + built.stderr
+    for name in ["reply.docx", "manuscript.docx"]:
+        paragraphs = [paragraph.text for paragraph in Document(project.directory / name).paragraphs]
+        assert "Shared-render: Shared prose reaches both DOCX pipelines." in paragraphs
+
+
 def write_numbered_pdf(path: Path, producer: str, layout: bool) -> None:
     """Generate actual PDF geometry whose stream order differs from its margin layout."""
     import pymupdf

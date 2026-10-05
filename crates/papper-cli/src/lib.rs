@@ -1,6 +1,7 @@
 //! Command definitions and dispatch for both native executable names.
 
 mod commands;
+mod docx_pipeline;
 mod images;
 mod reply;
 mod tools;

@@ -248,7 +248,10 @@ end
 local function process_blocks(blocks)
   local previous = nil
   for index, block in ipairs(blocks or {}) do
-    if block.t == "Div" or block.t == "BlockQuote" then
+    if block.t == "Div" and block.attributes["custom-style"] ~= nil then
+      -- Explicit paragraph styles (including reviewer replies) take priority
+      -- over inferred where/post-table styles inside their entire block scope.
+    elseif block.t == "Div" or block.t == "BlockQuote" then
       block.content = process_blocks(block.content)
     elseif block.t == "Figure" then
       block.content = process_blocks(block.content)
