@@ -632,6 +632,9 @@ fn base_url(host: &str, port: u16) -> String {
 fn local_agent(timeout: Duration) -> ureq::Agent {
     ureq::AgentBuilder::new()
         .try_proxy_from_env(false)
+        // ureq's total timeout does not bound connection establishment. On Windows
+        // a refused first-start connection otherwise waits about two seconds.
+        .timeout_connect(timeout)
         .timeout(timeout)
         .build()
 }

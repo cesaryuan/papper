@@ -51,3 +51,8 @@ papper-platform = { path = "crates/papper-platform" }
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# Debug HTML clients and services hash their full executable to detect upgrades.
+# Optimize the hash implementation without disabling application debug checks.
+[profile.dev.package.sha2]
+opt-level = 3
