@@ -188,11 +188,9 @@ impl Generator {
                         continue;
                     }
                     if let Some(rust) = &successful_rust
-                        && rust.ole != equation.ole
+                        && let Some(warning) = conversion_warning(index, &rust.ole, &equation.ole)
                     {
-                        eprintln!(
-                            "[WARN] MathType Rust and set-data outputs differ for equation {index}; using set-data"
-                        );
+                        eprintln!("{warning}");
                     }
                     return Ok(equation);
                 }
@@ -446,6 +444,22 @@ impl Generator {
     }
 }
 
+/// Compare only MTEF: backend-specific OLE containers must not trigger mismatch warnings.
+fn conversion_warning(index: usize, rust_ole: &[u8], set_data_ole: &[u8]) -> Option<String> {
+    let rust = native::mtef_from_ole(rust_ole).context("Cannot read Rust OLE MTEF");
+    let set_data = native::mtef_from_ole(set_data_ole).context("Cannot read set-data OLE MTEF");
+    match (rust, set_data) {
+        (Ok(rust), Ok(set_data)) if rust == set_data => None,
+        (Ok(_), Ok(_)) => Some(format!(
+            "[WARN] MathType Rust and set-data MTEF outputs differ for equation {index}; using set-data"
+        )),
+        // An unreadable comparison must not discard a successful set-data conversion.
+        (Err(error), _) | (_, Err(error)) => Some(format!(
+            "[WARN] MathType MTEF comparison failed for equation {index}: {error:#}; using set-data"
+        )),
+    }
+}
+
 /// Hash bytes using a stable lowercase content digest.
 fn digest(bytes: &[u8]) -> String {
     papper_platform::native::hex(&Sha256::digest(bytes))
@@ -636,6 +650,44 @@ fn capture(mut pipe: impl Read) -> Vec<u8> {
 mod tests {
     use super::*;
     use papper_core::metadata::PmtSettings;
+
+    /// Catch the Rust migration regression while preserving warnings for actual equation differences.
+    #[test]
+    fn both_mode_warns_only_for_mtef_differences() -> Result<()> {
+        let rust = native::encode_latex("$x+y$", None)?.ole;
+        let mut set_data = rust.clone();
+        // Change the CFB transaction signature, leaving the equation streams intact.
+        set_data[52..56].copy_from_slice(&1_u32.to_le_bytes());
+        assert_ne!(rust, set_data);
+        assert!(
+            conversion_warning(24, &rust, &set_data).is_none(),
+            "OLE container differences must not produce a formula mismatch warning"
+        );
+
+        let different = native::encode_latex("$x-y$", None)?.ole;
+        let warning = conversion_warning(24, &rust, &different)
+            .context("Different equations must produce a mismatch warning")?;
+        assert!(warning.contains("MTEF outputs differ for equation 24"));
+        assert!(warning.contains("using set-data"));
+        Ok(())
+    }
+
+    /// Report unreadable artifacts as comparison failures without failing a successful conversion.
+    #[test]
+    fn both_mode_reports_unreadable_mtef_as_a_nonfatal_warning() -> Result<()> {
+        let valid = native::encode_latex("$x$", None)?.ole;
+        for (rust, set_data, backend) in [
+            (b"invalid OLE".as_slice(), valid.as_slice(), "Rust"),
+            (valid.as_slice(), b"invalid OLE".as_slice(), "set-data"),
+        ] {
+            let warning = conversion_warning(24, rust, set_data)
+                .context("Unreadable MTEF must produce a diagnostic")?;
+            assert!(warning.contains("MTEF comparison failed for equation 24"));
+            assert!(warning.contains(&format!("Cannot read {backend} OLE MTEF")));
+            assert!(warning.contains("using set-data"));
+        }
+        Ok(())
+    }
 
     /// Reject changed calligraphic files instead of serving a stale preview, then reuse restored bytes.
     #[test]
