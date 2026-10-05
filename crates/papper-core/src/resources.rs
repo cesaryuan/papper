@@ -82,20 +82,34 @@ impl ResourcePaths {
 
     /// Find the small image helper without copying or relaunching the main executable.
     pub fn svg_renderer(&self) -> Option<PathBuf> {
+        self.native_image_helper("papper-svg", std::env::var_os("PAPPER_SVG_RENDERER"))
+    }
+
+    /// Locate the bundled Pandoc PNG adapter without selecting a system librsvg tool.
+    pub fn svg_converter(&self) -> Option<PathBuf> {
+        self.native_image_helper("rsvg-convert", None)
+    }
+
+    /// Share installed and source-build discovery between the image renderer and adapter.
+    fn native_image_helper(
+        &self,
+        name: &str,
+        explicit: Option<std::ffi::OsString>,
+    ) -> Option<PathBuf> {
         let name = if cfg!(windows) {
-            "papper-svg.exe"
+            format!("{name}.exe")
         } else {
-            "papper-svg"
+            name.into()
         };
         let mut candidates = Vec::new();
-        if let Some(path) = std::env::var_os("PAPPER_SVG_RENDERER") {
+        if let Some(path) = explicit {
             candidates.push(PathBuf::from(path));
         }
-        candidates.push(self.root.join("bin").join(name));
+        candidates.push(self.root.join("bin").join(&name));
         if let Ok(executable) = std::env::current_exe()
             && let Some(parent) = executable.parent()
         {
-            candidates.push(parent.join(name));
+            candidates.push(parent.join(&name));
         }
         let target = std::env::var_os("CARGO_TARGET_DIR")
             .map(PathBuf::from)
@@ -108,8 +122,8 @@ impl ResourcePaths {
             })
             .unwrap_or_else(|| self.root.join("target"));
         candidates.extend([
-            target.join("debug").join(name),
-            target.join("release").join(name),
+            target.join("debug").join(&name),
+            target.join("release").join(&name),
         ]);
         candidates.into_iter().find(|path| path.is_file())
     }

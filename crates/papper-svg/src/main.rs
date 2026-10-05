@@ -5,6 +5,10 @@
 //! resource selection and caches; this process only supplies resvg rendering.
 //! `papper-svg gunzip` decodes one SVGZ stream. This small executable depends on
 //! neither Papper's CLI nor its embedded Haskell/MathType/template runtime.
+//! `papper-svg rsvg-convert` accepts Pandoc's PNG fallback arguments; the bundled
+//! `rsvg-convert` launcher forwards those requests without a shell or librsvg.
+
+mod rsvg;
 
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
@@ -23,6 +27,8 @@ struct Cli {
 /// Select a byte-stream transformation without accepting a document AST.
 #[derive(Subcommand)]
 enum Operation {
+    /// Accept the rsvg-convert PNG interface used by Pandoc's DOCX writer.
+    RsvgConvert(rsvg::Options),
     /// Render stdin SVG to stdout PNG using the source's adjacent resources.
     Render {
         #[arg(long)]
@@ -49,6 +55,9 @@ fn main() {
 /// Transform one resource and publish stdout only after the operation succeeds.
 fn run() -> Result<()> {
     let operation = Cli::parse().command;
+    if let Operation::RsvgConvert(options) = operation {
+        return options.convert();
+    }
     let mut input = Vec::new();
     std::io::stdin().lock().read_to_end(&mut input)?;
     let output = match operation {
@@ -68,6 +77,7 @@ fn run() -> Result<()> {
             flate2::read::GzDecoder::new(input.as_slice()).read_to_end(&mut decoded)?;
             decoded
         }
+        Operation::RsvgConvert(_) => unreachable!(),
     };
     std::io::stdout().lock().write_all(&output)?;
     Ok(())

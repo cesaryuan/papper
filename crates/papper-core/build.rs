@@ -18,6 +18,7 @@ fn main() {
         "Cargo.lock",
         "crates/papper-svg/Cargo.toml",
         "crates/papper-svg/src/main.rs",
+        "crates/papper-svg/src/rsvg.rs",
     ] {
         let path = root.join(relative);
         println!("cargo:rerun-if-changed={}", path.display());

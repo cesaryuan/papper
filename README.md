@@ -139,6 +139,11 @@ transforms and resource handling share Lua modules; a separate `papper-svg`
 native helper handles SVGZ decompression and PNG rendering when needed. It
 carries no embedded runtime archive, and filters do not copy or launch the
 complete `papper` executable or exchange whole documents through JSON.
+DOCX builds also supply a bundled `rsvg-convert` PNG adapter on the conversion
+child's PATH. Pandoc uses it to retain the original SVG and embed a PNG fallback
+through `papper-svg`, without requiring a separate librsvg installation or changing
+the system PATH. `docxConvertSvgToPng: true` still replaces the SVG with PNG when
+full rasterization is requested.
 
 Legacy tool downloads automatically use `HTTPS_PROXY` (or `https_proxy`) when set,
 otherwise the configured Windows/macOS system HTTP/HTTPS proxy, and otherwise

@@ -190,6 +190,43 @@ fn smoke_svg_rasterization(installed: &Installed) -> Result<()> {
     println!(
         "[papper smoke] Installed Lua SVG conversion retained inputs and produced 80x40 PNG pixels"
     );
+    // The raster-only check cannot catch a missing adapter in the wheel. Exercise
+    // Pandoc's fallback path separately while retaining the original vector image.
+    std::fs::write(&style_path, b"docxConvertSvgToPng: false\n")?;
+    installed.command(&[
+        "build",
+        "docx",
+        "-m",
+        "svg-smoke.md",
+        "-o",
+        "svg-fallback-smoke.docx",
+        "--style-file",
+        "svg-smoke-style.yml",
+        "--no-mathtype",
+    ])?;
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(
+        installed.project.join("svg-fallback-smoke.docx"),
+    )?)?;
+    let mut vector_found = false;
+    let mut fallback_found = false;
+    for index in 0..archive.len() {
+        let mut part = archive.by_index(index)?;
+        if !part.name().starts_with("word/media/") {
+            continue;
+        }
+        let mut bytes = Vec::new();
+        part.read_to_end(&mut bytes)?;
+        if part.name().ends_with(".svg") {
+            vector_found |= bytes == svg;
+        } else if part.name().ends_with(".png") {
+            fallback_found |= png_dimensions(&bytes)? == (40, 20);
+        }
+    }
+    ensure!(
+        vector_found && fallback_found,
+        "Installed DOCX omitted its original SVG or 40x20 PNG fallback"
+    );
+    println!("[papper smoke] Installed SVG fallback retained vector bytes and produced PNG pixels");
     Ok(())
 }
 

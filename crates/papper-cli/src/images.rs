@@ -67,6 +67,25 @@ pub(crate) fn filter_environment(
             );
         }
         environment.insert("PAPPER_SVG_RENDERER".into(), Some(display_path(&renderer)));
+        if let Some(converter) = resources.svg_converter() {
+            // Pandoc hard-codes rsvg-convert for the PNG fallback. Override its
+            // lookup only in this DOCX child, preserving the authored SVG itself.
+            let directory = converter
+                .parent()
+                .context("SVG converter directory is missing")?;
+            let mut paths = vec![directory.to_path_buf()];
+            if let Some(inherited) = std::env::var_os("PATH") {
+                paths.extend(std::env::split_paths(&inherited).filter(|path| path != directory));
+            }
+            environment.insert(
+                "PATH".into(),
+                Some(
+                    std::env::join_paths(paths)?
+                        .into_string()
+                        .map_err(|_| anyhow::anyhow!("SVG converter PATH is not valid Unicode"))?,
+                ),
+            );
+        }
     }
     Ok(environment)
 }

@@ -485,6 +485,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         .clone()
         .unwrap_or_else(|| target.join(format!("release/papper{exe_suffix}")));
     let renderer = target.join(format!("release/papper-svg{exe_suffix}"));
+    let svg_converter = target.join(format!("release/rsvg-convert{exe_suffix}"));
     if !args.prebuilt {
         let mut build = Command::new("cargo");
         build
@@ -511,7 +512,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
     } else {
         build_worker(&root)?
     };
-    for path in [&renderer, &worker] {
+    for path in [&renderer, &svg_converter, &worker] {
         anyhow::ensure!(
             path.is_file(),
             "Native runtime component missing: {}",
@@ -545,6 +546,10 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         worker,
     );
     files.insert(format!("{prefix}/bin/papper-svg{exe_suffix}"), renderer);
+    files.insert(
+        format!("{prefix}/bin/rsvg-convert{exe_suffix}"),
+        svg_converter,
+    );
     pdf_notices::stage(&mut files, &root, &prefix)?;
     files.insert(
         format!("{prefix}/mathtype/Times+Symbol 12.eqp"),
@@ -713,6 +718,6 @@ fn runtime_executable(name: &str) -> bool {
     name.ends_with(".exe")
         || matches!(
             name.rsplit('/').next(),
-            Some("pmt-pandoc-worker" | "papper-svg")
+            Some("pmt-pandoc-worker" | "papper-svg" | "rsvg-convert")
         )
 }

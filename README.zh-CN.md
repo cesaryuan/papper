@@ -114,6 +114,10 @@ MathType OLE/WMF 预览图、行号来源转换文件等单次构建中间产物
 六个原 Python filters 现在由 Pandoc 进程内的 Lua 执行，共享资源查找和 SVG
 处理模块。仅 SVGZ 解压与 PNG 像素渲染按需调用独立的原生 `papper-svg` helper；
 它不内嵌整份运行时，也不复制或启动完整 `papper` 来执行 AST JSON filter。
+DOCX 构建还会在转换子进程的 PATH 中提供内置的 `rsvg-convert` PNG 适配入口，
+将 Pandoc 的备用图转换交给 `papper-svg`，同时保留原始 SVG 与 PNG 兼容图片。
+无需单独安装 librsvg，也不修改系统 PATH。设置 `docxConvertSvgToPng: true`
+时仍按原有行为用 PNG 替代 SVG。
 
 ### 源码开发与验证
 
