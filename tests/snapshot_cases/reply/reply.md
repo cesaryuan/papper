@@ -33,6 +33,23 @@ The revised excerpts are reproduced below.
 
 : Revised scores. {#tbl:revised cell_margin="0.10cm" alignment="center"}
 
+The following tables show horizontally, vertically, and jointly grouped results.
+
+| Method | Score | Notes |
+| ------ | ----- | ----- |
+| Horizontal group | !<! | !<! |
+
+| Method | Score | Notes |
+| ------ | ----- | ----- |
+| Vertical group | 2 | First result |
+| !^! | 3 | Second result |
+| !^! | 4 | Third result |
+
+| Method | Score | Notes |
+| ------ | ----- | ----- |
+| Combined group | !<! | First result |
+| !^! | !<! | Second result |
+
 $$
 y = x + 1
 $$ {#eq:revised}

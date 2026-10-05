@@ -109,6 +109,45 @@ def test_native_reply_docx_styles_equations_and_no_author_footnote(reply_project
     assert replies[0].style.font.color.rgb is not None
 
 
+@pytest.mark.parametrize("body,expected_rows", [
+    pytest.param("| Group | !<! | !<! |\n", [["Group", "Group", "Group"]], id="horizontal"),
+    pytest.param(
+        "| Group | Second | Third |\n| !^! | Fourth | Fifth |\n| !^! | Sixth | Seventh |\n",
+        [["Group", "Second", "Third"], ["Group", "Fourth", "Fifth"], ["Group", "Sixth", "Seventh"]],
+        id="vertical",
+    ),
+    pytest.param(
+        "| Group | !<! | Third |\n| !^! | !<! | Fifth |\n",
+        [["Group", "Group", "Third"], ["Group", "Group", "Fifth"]],
+        id="combined",
+    ),
+])
+def test_native_reply_docx_merged_cells(
+    reply_project: ReplyProject, body: str, expected_rows: list[list[str]],
+) -> None:
+    """Verify real reply cell spans and preserved neighbors, including chained markers."""
+    from docx import Document
+
+    project = reply_project
+    (project.directory / "reply.md").write_text(
+        '::: {custom-style="Reply to Reviewers"}\n\n'
+        "| A | B | C |\n|---|---|---|\n" + body + "\n:::\n",
+        encoding="utf-8",
+    )
+    project.run("reply.md", "-o", "native.docx")
+    output = Document(project.directory / "native.docx")
+    assert len(output.tables) == 1
+    table = output.tables[0]
+    assert [[cell.text for cell in row.cells] for row in table.rows] == [
+        ["A", "B", "C"], *expected_rows,
+    ]
+    # Repeated text must come from one merged Word cell, rather than copied values.
+    anchor = table.cell(1, 0)._tc
+    for row_index, values in enumerate(expected_rows, start=1):
+        for column_index, value in enumerate(values):
+            assert (table.cell(row_index, column_index)._tc is anchor) == (value == "Group")
+
+
 def write_numbered_pdf(path: Path, producer: str, layout: bool) -> None:
     """Generate actual PDF geometry whose stream order differs from its margin layout."""
     import pymupdf

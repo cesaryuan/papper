@@ -205,6 +205,12 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
             resource_path.into(),
             "--metadata-file".into(),
             metadata_path.into_os_string(),
+            // Reply builds assemble Pandoc filters explicitly, so include the
+            // shared marker filter that turns `!<!` and `!^!` into table spans.
+            "--lua-filter".into(),
+            resources
+                .resource("pandoc/filters/shared/merge_table_cells.lua")
+                .into_os_string(),
             "--lua-filter".into(),
             resources
                 .resource("pandoc/filters/docx/docx_metadata.lua")

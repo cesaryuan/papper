@@ -130,7 +130,7 @@ def test_build_reply_output_matches_snapshot(
     tmp_path: Path,
     snapshot_update: bool,
 ) -> None:
-    """Snapshot real reply builds with manuscript numbering, PDF lines, and styles."""
+    """Snapshot reply numbering, PDF lines, styles, and horizontal/vertical cell merges."""
     case_dir = ROOT / "tests" / "snapshot_cases" / "reply"
     # The original checked-in Word export keeps line geometry stable without COM.
     line_source = case_dir / "manuscript.pdf"
