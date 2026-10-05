@@ -146,7 +146,7 @@ wheels = [
 
 [[package]]
 name = "papper"
-version = "0.9.9"
+version = "0.9.10"
 source = { editable = "." }
 
 [package.dev-dependencies]
