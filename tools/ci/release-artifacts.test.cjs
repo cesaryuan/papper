@@ -9,9 +9,10 @@ const resolve = require('./release-artifacts.cjs');
 const prune = require('./prune-release-caches.cjs');
 
 /** Model GitHub's mutable run/artifact state and clock without contacting the service. */
-function releaseService({ snapshots = [[]], artifacts = [], ref = 'refs/tags/v1.2.3' } = {}) {
+function releaseService({ snapshots = [[]], runSnapshots, artifacts = [], ref = 'refs/tags/v1.2.3' } = {}) {
   let clock = 0;
   let position = 0;
+  let runPosition = 0;
   const outputs = {};
   return {
     outputs,
@@ -30,6 +31,16 @@ function releaseService({ snapshots = [[]], artifacts = [], ref = 'refs/tags/v1.
         async listWorkflowRuns() {
           const runs = snapshots[Math.min(position++, snapshots.length - 1)];
           return { data: { workflow_runs: runs } };
+        },
+        /** Read a known run independently of GitHub's filtered search index. */
+        async getWorkflowRun({ run_id }) {
+          const candidates = [];
+          for (const run of runSnapshots ?? snapshots.at(-1)) {
+            if (run.id === run_id) candidates.push(run);
+          }
+          const run = candidates[Math.min(runPosition++, candidates.length - 1)];
+          assert.ok(run, `Unknown workflow run ${run_id}`);
+          return { data: run };
         },
         /** Return the retained wheel artifacts exposed by GitHub. */
         async listWorkflowRunArtifacts() { return artifacts; },
@@ -72,6 +83,19 @@ test('a simultaneous tag waits for main and reuses all tested wheels', async () 
   assert.equal(await resolve(service), '42');
   assert.equal(service.outputs['artifact-run-id'], '42');
   assert.equal(service.now(), 60_000);
+});
+
+/** A filtered-list indexing gap after discovery must not rebuild an unfinished main run. */
+test('a discovered main build remains reusable when filtered search loses it', async () => {
+  const pending = mainRun({ status: 'in_progress', conclusion: null });
+  const service = releaseService({
+    snapshots: [[pending], []],
+    runSnapshots: [pending, pending, pending, pending, mainRun()],
+    artifacts: wheels(),
+  });
+  assert.equal(await resolve(service), '42');
+  assert.equal(service.outputs['artifact-run-id'], '42');
+  assert.equal(service.now(), 150_000);
 });
 
 /** A successful build of another commit or branch can never supply release wheels. */

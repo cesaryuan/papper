@@ -17,22 +17,31 @@ module.exports = async function resolveReleaseArtifacts({ github, context, core,
   // Cold toolchain/dependency builds can exceed 30 minutes on the first optimized run.
   const deadline = started + 75 * 60 * 1000;
   const expected = new Set(['wheel-Windows', 'wheel-macOS', 'wheel-Linux']);
+  let build;
   while (now() < deadline) {
-    const response = await github.rest.actions.listWorkflowRuns({
-      ...context.repo,
-      workflow_id: 'publish-pypi.yml',
-      branch: 'main',
-      head_sha: context.sha,
-      per_page: 100,
-    });
-    let build;
-    for (const candidate of response.data.workflow_runs) {
-      // Defend against stale API results and never wait on this tag run itself.
-      if (candidate.id !== context.runId && candidate.head_sha === context.sha
-          && candidate.head_branch === 'main'
-          && ['push', 'workflow_dispatch'].includes(candidate.event)) {
-        build = candidate;
-        break;
+    if (build) {
+      // A discovered run can temporarily disappear from filtered list results.
+      // Track its stable ID so that an indexing gap cannot trigger duplicate builds.
+      const response = await github.rest.actions.getWorkflowRun({
+        ...context.repo, run_id: build.id,
+      });
+      build = response.data;
+    } else {
+      const response = await github.rest.actions.listWorkflowRuns({
+        ...context.repo,
+        workflow_id: 'publish-pypi.yml',
+        branch: 'main',
+        head_sha: context.sha,
+        per_page: 100,
+      });
+      for (const candidate of response.data.workflow_runs) {
+        // Defend against stale API results and never wait on this tag run itself.
+        if (candidate.id !== context.runId && candidate.head_sha === context.sha
+            && candidate.head_branch === 'main'
+            && ['push', 'workflow_dispatch'].includes(candidate.event)) {
+          build = candidate;
+          break;
+        }
       }
     }
     if (!build) {
