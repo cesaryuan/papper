@@ -108,6 +108,8 @@ jobs:
       # MiTeX's upstream prebuilt spec contains obsolete symbol modifiers.
       # Generate it using the same Typst version as the compiled equation engine.
       - name: Install Typst matching Cargo.lock
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: uv run --script tools/ci/prepare-typst.py
 
       - name: Identify native sources
@@ -336,13 +338,14 @@ jobs:
       - name: Build and smoke test inside manylinux 2.28
         shell: bash
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           PRIVATE_SUBMODULES_TOKEN: ${{ secrets.PRIVATE_SUBMODULES_TOKEN }}
           NATIVE_CACHE_DIR: ${{ runner.temp }}/pmt-native-cache
           HASKELL_CACHE_HIT: ${{ steps.haskell-cache.outputs.cache-hit }}
         run: |
           set -euo pipefail
           mkdir -p "$NATIVE_CACHE_DIR/haskell"
-          # The token is passed by environment name. Global Git config remains
+          # Tokens are passed by environment name. Global Git config remains
           # in the disposable container and is never included in cached paths.
           docker run --rm --platform linux/amd64 \
             --volume "$GITHUB_WORKSPACE:/project" \
@@ -356,6 +359,7 @@ jobs:
             --env CABAL_DIR="$NATIVE_CACHE_DIR/cabal" \
             --env GHCUP_INSTALL_BASE_PREFIX=/opt/papper-haskell \
             --env UV_PYTHON=/opt/python/cp311-cp311/bin/python \
+            --env GITHUB_TOKEN \
             --env PRIVATE_SUBMODULES_TOKEN \
             --env HASKELL_CACHE_HIT \
             --env RUSTUP_TOOLCHAIN --env CARGO_INCREMENTAL \

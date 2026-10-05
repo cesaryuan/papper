@@ -10,6 +10,8 @@ archive for this host, verifies its release SHA-256 digest, and copies only the
 CLI into .pmt/typst/bin. GitHub Actions receives that directory through
 GITHUB_PATH; local shells and manylinux containers must add it to PATH before
 running papper-dev wheel. No system installation or user Typst is replaced.
+Set GITHUB_TOKEN to authenticate release metadata requests and avoid the shared
+runner IP's anonymous API rate limit. Archive downloads do not receive the token.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ import subprocess
 import tarfile
 import tempfile
 import tomllib
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -40,8 +43,17 @@ def locked_version(root: Path) -> str:
 
 
 def download(url: str) -> bytes:
-    """Fetch official release metadata or bytes with a bounded network timeout."""
-    request = urllib.request.Request(url, headers={"User-Agent": "papper-release-build"})
+    """Fetch release data with optional GitHub API authentication and a bounded timeout."""
+    headers = {"User-Agent": "papper-release-build"}
+    endpoint = urllib.parse.urlsplit(url)
+    if endpoint.scheme == "https" and endpoint.netloc == "api.github.com":
+        # Shared CI runner IPs can exhaust the anonymous API quota before this build starts.
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        mode = "with" if token else "without"
+        print(f"[papper CI] Fetching GitHub release metadata {mode} token authentication")
+    request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
