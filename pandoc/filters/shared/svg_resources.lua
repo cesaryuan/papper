@@ -60,6 +60,42 @@ local function tag_end(text, start)
   error('Invalid SVG XML: incomplete opening tag')
 end
 
+--- Skip a DOCTYPE declaration, including quoted values and an internal subset
+-- SVG exporters commonly include a DOCTYPE before the root element. The
+-- lexical parser only needs to ignore it, but `>` can occur inside quoted
+-- entity values or comments in an internal subset, so a plain find is unsafe.
+local function doctype_end(text, start)
+  local header = assert(text:match('^<!DOCTYPE%s+[%a_:\128-\255][%w_:%.%-\128-\255]*', start),
+    'Invalid SVG XML: malformed DOCTYPE')
+  local cursor, quote, subset_depth = start + #header, nil, 0
+  assert(text:sub(cursor, cursor):match('[%s%[>]'), 'Invalid SVG XML: malformed DOCTYPE')
+  while cursor <= #text do
+    if quote then
+      local ending = assert(text:find(quote, cursor, true), 'Invalid SVG XML: unclosed DOCTYPE quote')
+      cursor, quote = ending + 1, nil
+    elseif text:sub(cursor, cursor + 3) == '<!--' then
+      local ending = assert(text:find('-->', cursor + 4, true), 'Invalid SVG XML: unclosed DOCTYPE comment')
+      cursor = ending + 3
+    elseif text:sub(cursor, cursor + 1) == '<?' then
+      cursor = assert(text:find('?>', cursor + 2, true), 'Invalid SVG XML: unclosed DOCTYPE instruction') + 2
+    else
+      local character = text:sub(cursor, cursor)
+      if character == '"' or character == "'" then
+        quote = character
+      elseif character == '[' then
+        subset_depth = subset_depth + 1
+      elseif character == ']' then
+        assert(subset_depth > 0, 'Invalid SVG XML: unexpected DOCTYPE subset close')
+        subset_depth = subset_depth - 1
+      elseif character == '>' and subset_depth == 0 then
+        return cursor + 1
+      end
+      cursor = cursor + 1
+    end
+  end
+  error('Invalid SVG XML: incomplete DOCTYPE declaration')
+end
+
 --- Parse quoted attributes and retain their exact value offsets for lexical edits
 local function attributes(text, first, last)
   local result, seen, cursor = {}, {}, first
@@ -90,7 +126,7 @@ end
 local function image_elements(text)
   assert(utf8.len(text), 'SVG is not UTF-8')
   assert(not text:find('[%z\1-\8\11\12\14-\31]'), 'Invalid SVG XML control character')
-  local images, stack, cursor, root_count = {}, {}, 1, 0
+  local images, stack, cursor, root_count, doctype_seen = {}, {}, 1, 0, false
   while cursor <= #text do
     local first = text:find('<', cursor, true)
     local plain = text:sub(cursor, first and first - 1 or #text)
@@ -107,6 +143,10 @@ local function image_elements(text)
       cursor = assert(text:find(']]>', first + 9, true), 'Invalid SVG CDATA') + 3
     elseif text:sub(first, first + 1) == '<?' then
       cursor = assert(text:find('?>', first + 2, true), 'Invalid SVG processing instruction') + 2
+    elseif text:sub(first, first + 8) == '<!DOCTYPE' then
+      assert(root_count == 0 and not doctype_seen, 'Invalid SVG XML: misplaced or duplicate DOCTYPE')
+      cursor = doctype_end(text, first)
+      doctype_seen = true
     elseif text:sub(first, first + 1) == '<!' then
       error('SVG XML declarations other than comments and CDATA are unsupported')
     else
@@ -169,7 +209,9 @@ end
 function M.normalize(source, embed)
   local text, original = M.read_svg(source)
   local resources, edits, embeds_svg = {}, {}, false
-  for _, image in ipairs(image_elements(text)) do
+  local ok, images = pcall(image_elements, text)
+  assert(ok, 'Cannot parse SVG ' .. source .. ': ' .. tostring(images))
+  for _, image in ipairs(images) do
     local href, plain, linked
     for _, attribute in ipairs(image.attributes) do
       if attribute.name == 'href' then plain = attribute

@@ -134,6 +134,70 @@ def test_nested_svg_cache_preserves_sources_and_invalidates_restored_timestamp_e
     assert source.read_bytes() == source_bytes and panel.read_bytes() == changed
 
 
+@pytest.mark.parametrize("doctype", [
+    b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n'
+    b'  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">',
+    b'<!DOCTYPE svg SYSTEM "missing-local-svg.dtd">',
+    b'<!DOCTYPE svg [\n<!ENTITY unused "quoted > and [ ]">\n'
+    b'<!-- a comment containing ] > -->\n<?exporter bracket ] > ?>\n]>',
+], ids=["public", "system", "internal-subset"])
+@pytest.mark.parametrize("embed", [True, False], ids=["embed-and-render", "render"])
+def test_svg_doctype_declaration_is_supported(
+    tmp_path: Path, image_filter_tools: tuple[Path, Path], doctype: bytes, embed: bool,
+) -> None:
+    """Render exporter DOCTYPEs without fetching DTDs or modifying source images."""
+    child = tmp_path / "child.svg"
+    child_bytes = (b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10">'
+                   b'<rect width="20" height="10" fill="red"/></svg>')
+    child.write_bytes(child_bytes)
+    source = tmp_path / "with-doctype.svg"
+    source_bytes = (
+        b'<?xml version="1.0" encoding="UTF-8"?>\n' + doctype + b'\n'
+        b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10">'
+        b'<image href="child.svg" width="20" height="10"/></svg>'
+    )
+    source.write_bytes(source_bytes)
+
+    result, image = run_image_filters(image_filter_tools, tmp_path, source, embed=embed)
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    assert image is not None
+    assert Path(image["c"][2][0]).read_bytes() == render_reference(image_filter_tools[1], child, child_bytes)
+    if embed:
+        embedded, = (tmp_path / "embedded").rglob("*.svg")
+        assert embedded_child_bytes(embedded) == child_bytes
+        assert embedded.read_bytes().startswith(b'<?xml version="1.0" encoding="UTF-8"?>\n' + doctype + b'\n')
+    assert source.read_bytes() == source_bytes and child.read_bytes() == child_bytes
+
+
+@pytest.mark.parametrize("doctype", [
+    b'<!DOCTYPE svg [<!ENTITY unused "unclosed',
+    b'<!DOCTYPE svg [<!-- unclosed comment',
+    b'<!DOCTYPE svg [<!ENTITY unused "value">',
+    b'<!DOCTYPE svg><!DOCTYPE svg>',
+], ids=["unclosed-quote", "unclosed-comment", "unclosed-subset", "duplicate"])
+def test_invalid_svg_doctype_preserves_previous_output(
+    tmp_path: Path, image_filter_tools: tuple[Path, Path], doctype: bytes,
+) -> None:
+    """Reject broken declarations with the source path and retain the last good PNG."""
+    source = tmp_path / "broken-doctype.svg"
+    body = (b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10">'
+            b'<rect width="20" height="10" fill="red"/></svg>')
+    source.write_bytes(body)
+    result, image = run_image_filters(image_filter_tools, tmp_path, source, embed=False)
+    assert result.returncode == 0, result.stderr.decode("utf-8", errors="replace")
+    png = Path(image["c"][2][0])
+    previous = png.read_bytes()
+    damaged = doctype + b'\n' + body
+    source.write_bytes(damaged)
+
+    failed, output = run_image_filters(image_filter_tools, tmp_path, source, embed=False)
+
+    assert failed.returncode != 0 and output is None
+    assert str(source) in failed.stderr.decode("utf-8", errors="replace")
+    assert png.read_bytes() == previous and source.read_bytes() == damaged
+
+
 def test_svgz_render_failure_preserves_previous_png_and_recovers(
     tmp_path: Path, image_filter_tools: tuple[Path, Path],
 ) -> None:
