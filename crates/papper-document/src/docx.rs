@@ -1,6 +1,7 @@
 //! Prepare DOCX metadata and edit Word packages without a Python runtime.
 
 mod authors;
+mod captions;
 mod formatting;
 mod mathtype;
 mod native;
@@ -151,6 +152,7 @@ pub fn postprocess_docx(
     tables::equation_metadata(&mut document);
     tables::autofit_tables(&mut document);
     tables::table_metadata(&mut document)?;
+    captions::keep_groups(&mut document, &styles);
     tables::format_equations(&mut document);
     formatting::apply_para_equation(&mut document, &mut styles)?;
     if options.reply_style_formatting {

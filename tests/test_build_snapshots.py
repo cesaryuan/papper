@@ -26,6 +26,9 @@ CASES = {
         ROOT / "tests" / "snapshot_cases" / "chinese_crossrefs",
         "chinese_crossrefs.md",
     ),
+    "bilingual_captions": (
+        ROOT / "tests" / "snapshot_cases" / "bilingual_captions", "bilingual_captions.md",
+    ),
     "metadata": (ROOT / "tests" / "snapshot_cases" / "metadata", "metadata.md"),
     "style": (ROOT / "tests" / "snapshot_cases" / "style", "style.md"),
     "table_attributes": (

@@ -253,7 +253,18 @@ local function convert(doc)
         return pandoc.Span(content, pandoc.Attr(name))
       end
     }
-    if result then targets[id] = result end
+    if result then
+      targets[id] = result
+      -- Translated caption numbers refer to the primary bookmark, never another SEQ.
+      updated = updated:walk {
+        Span = function(span)
+          if span.classes:includes('pmt-native-caption-reference') then
+            ref_count = ref_count + 1
+            return field('REF ' .. result.name .. ' \\h', span.content)
+          end
+        end,
+      }
+    end
     return updated
   end
 
@@ -436,7 +447,8 @@ local function convert(doc)
     Span = function(span)
       if span.classes:includes(marker_class) or span.classes:includes(child_marker_class)
           or span.classes:includes(parent_ref_class) or span.classes:includes(child_ref_class)
-          or span.classes:includes(heading_title_class) then
+          or span.classes:includes(heading_title_class)
+          or span.classes:includes('pmt-native-caption-reference') then
         return span.content
       end
     end,

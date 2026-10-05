@@ -277,6 +277,10 @@ pub fn doctor(resources: &ResourcePaths, project: &Path) -> Result<i32> {
             "pandoc/filters/shared/normalize_chinese_numbering.lua",
         ),
         (
+            "papper bilingual caption filter",
+            "pandoc/filters/shared/bilingual_captions.lua",
+        ),
+        (
             "papper shared table filter",
             "pandoc/filters/shared/merge_table_cells.lua",
         ),

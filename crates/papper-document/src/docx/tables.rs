@@ -299,7 +299,7 @@ pub(crate) fn table_metadata(document: &mut Element) -> Result<()> {
         return Ok(());
     };
     let mut pending = None;
-    let mut caption = None;
+    let mut captions = Vec::new();
     let mut pairs = Vec::new();
     let mut markers = Vec::new();
     for (index, node) in body.children.iter().enumerate() {
@@ -311,22 +311,22 @@ pub(crate) fn table_metadata(document: &mut Element) -> Result<()> {
                 markers.push(index);
                 if let Ok(record) = serde_json::from_str::<Value>(record) {
                     pending = Some(record);
-                    caption = None;
+                    captions.clear();
                 }
             } else if pending.is_some()
                 && paragraph_style(element).is_some_and(|style| {
                     style.contains("Caption") || style.contains("Table") || style.contains("题注")
                 })
             {
-                caption = Some(index);
+                captions.push(index);
             }
         } else if element.name == "w:tbl"
             && let Some(record) = pending.take()
         {
-            pairs.push((index, caption.take(), record));
+            pairs.push((index, std::mem::take(&mut captions), record));
         }
     }
-    for (index, caption, record) in pairs {
+    for (index, captions, record) in pairs {
         let Some(attributes) = record.get("attributes").and_then(Value::as_object) else {
             continue;
         };
@@ -432,12 +432,14 @@ pub(crate) fn table_metadata(document: &mut Element) -> Result<()> {
                 eprintln!("[DOCX] Failed to apply table setting {key}={value}: {error}");
             }
         }
-        if whole_revision
-            && let Some(caption) = caption
-            && let Node::Element(paragraph) = &mut body.children[caption]
-        {
-            for run in paragraph.elements_mut().filter(|run| run.name == "w:r") {
-                run.word("w:rPr").word("w:color").set("w:val", "FF0000");
+        if whole_revision {
+            // A bilingual table has two caption paragraphs sharing the same revision.
+            for caption in captions {
+                if let Node::Element(paragraph) = &mut body.children[caption] {
+                    for run in paragraph.elements_mut().filter(|run| run.name == "w:r") {
+                        run.word("w:rPr").word("w:color").set("w:val", "FF0000");
+                    }
+                }
             }
         }
     }

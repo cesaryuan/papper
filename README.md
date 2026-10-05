@@ -367,6 +367,16 @@ Custom non-Arabic numbers and unsupported templates retain their Pandoc result
 with a warning. This setting applies to `papper build docx`; other targets and
 reviewer replies keep their existing workflow.
 
+HTML and DOCX support bilingual figure/table captions through a `caption-en`
+attribute, for example
+`![中文题注](figure.svg){#fig:example caption-en="English caption"}` or
+`: 中文表题注 {#tbl:example caption-en="English table caption"}`. The English
+caption appears on a separate line with the same number; each object is counted
+once and crossref's figure/table lists retain only the primary title. With native
+Word references enabled, the English number references the primary number's
+bookmark instead of introducing another `SEQ`. See the manuscript syntax guide
+for inline Markdown, English caption styles, and supported scope.
+
 ## When Papper Is a Good Fit
 
 Papper is especially useful if:

@@ -236,6 +236,113 @@ Main caption.
     assert "keeping its Link" not in log
 
 
+@pytest.mark.parametrize("native_crossref", [False, True])
+@pytest.mark.parametrize("link_references", [False, True])
+def test_bilingual_caption_numbers_share_one_sequence_and_bookmark(
+    tmp_path: Path, native_crossref: bool, link_references: bool,
+) -> None:
+    """Keep translated captions on shared styles without duplicating counters or losing grouping."""
+    manuscript = r'''---
+lang: zh-CN
+---
+
+# 第一章
+
+# 第二章
+
+# 第三章
+
+参见 @fig:first 和 @tbl:first。
+
+![中文图一](figure.svg){#fig:first caption-en="Architecture of the *network* with $\\alpha$"}
+
+![中文图二](figure.svg){#fig:second}
+
+| 模型 | 得分 |
+| --- | --- |
+| A | 1 |
+
+: 中文表一 {#tbl:first caption-en="Comparison of **models**" revision_rows="*"}
+
+| 模型 | 得分 |
+| --- | --- |
+| B | 2 |
+
+: 中文表二 {#tbl:second}
+
+# 第四章
+
+![中文图三](figure.svg){#fig:third caption-en="Next chapter"}
+'''
+    prepare_project(tmp_path, manuscript, native_crossref, linkReferences=link_references)
+    style_path = tmp_path / "style.yml"
+    settings = yaml.safe_load(style_path.read_text(encoding="utf-8"))
+    settings["docxStyle"] = {
+        "Image Caption": {"fontSize": "9pt"},
+        "Table Caption": {"fontSize": "10pt"},
+    }
+    style_path.write_text(yaml.safe_dump(settings), encoding="utf-8")
+    output, log = build_document(tmp_path)
+    assert "No marked number" not in log
+    fields, bookmarks, root = read_native_content(output)
+    sequences = [item for item in fields if item["code"].startswith("SEQ ")]
+    assert [item["result"] for item in sequences] == (["1", "2", "1", "2", "1"] if native_crossref else [])
+    values = assert_reference_targets(fields, bookmarks)
+    expected = ["3-1", "3-1", "4-1"]
+    if link_references:
+        expected = ["3-1", "3-1", *expected]
+    assert values == (expected if native_crossref else [])
+    paragraphs = list(root.iter(W + "p"))
+    texts = ["".join(paragraph.itertext()) for paragraph in paragraphs]
+    visible = ["".join(node.text or "" for node in paragraph.iter(W + "t")) for paragraph in paragraphs]
+    assert "图 3-2 中文图二" in visible and "表 3-2 中文表二" in visible
+    assert "Fig. 4-1 Next chapter" in visible
+    assert not any("PMT_" in text or "caption-en=" in text for text in texts)
+    english = [p for p, text in zip(paragraphs, visible) if text.startswith(("Fig. ", "Table "))]
+    assert len(english) == 3
+    for paragraph in english:
+        assert paragraph.find(W + "pPr/" + W + "keepLines") is not None
+        assert any(node.get(W + "val") == "en" for node in paragraph.iter(W + "lang"))
+        if native_crossref:
+            instructions = "".join(node.text or "" for node in paragraph.iter(W + "instrText"))
+            assert "REF " in instructions and "SEQ " not in instructions
+    for index, (paragraph, text) in enumerate(zip(paragraphs, visible)):
+        if paragraph not in english:
+            continue
+        style_id = "ImageCaption" if text.startswith("Fig. ") else "TableCaption"
+        assert paragraph.find(W + "pPr/" + W + "pStyle").get(W + "val") == style_id
+        primary = paragraphs[index - 1]
+        assert primary.find(W + "pPr/" + W + "pStyle").get(W + "val") == style_id
+        assert primary.find(W + "pPr/" + W + "keepNext") is not None
+        assert primary.find(W + "pPr/" + W + "keepLines") is not None
+        keep_next = paragraph.find(W + "pPr/" + W + "keepNext")
+        assert keep_next is not None
+        # OOXML treats an omitted on/off value as true.
+        assert (keep_next.get(W + "val", "1") not in {"0", "false", "off"}) == (
+            style_id == "TableCaption"
+        )
+    assert english[0].find(".//{http://schemas.openxmlformats.org/officeDocument/2006/math}oMath") is not None
+    table_captions = [p for p, text in zip(paragraphs, visible)
+                      if text in {"表 3-1 中文表一", "Table 3-1 Comparison of models"}]
+    assert len(table_captions) == 2
+    for paragraph in table_captions:
+        assert all(run.find(W + "rPr/" + W + "color").get(W + "val") == "FF0000"
+                   for run in paragraph.findall(W + "r") if run.find(W + "t") is not None)
+    with ZipFile(output) as package:
+        styles = ET.fromstring(package.read("word/styles.xml"))
+    emphasized_run = next(run for run in english[0].iter(W + "r")
+                          if "".join(node.text or "" for node in run.iter(W + "t")) == "network")
+    emphasis_id = emphasized_run.find(W + "rPr/" + W + "rStyle").get(W + "val")
+    emphasis_style = next(style for style in styles if style.get(W + "styleId") == emphasis_id)
+    assert emphasis_style.find(W + "rPr/" + W + "i") is not None
+    for style_id, size in [("ImageCaption", "18"), ("TableCaption", "20")]:
+        shared_style = next(style for style in styles if style.get(W + "styleId") == style_id)
+        assert shared_style.find(W + "rPr/" + W + "sz").get(W + "val") == size
+    assert not any(name.get(W + "val") in {"Image Caption English", "Table Caption English"}
+                   for name in styles.findall(W + "style/" + W + "name"))
+    assert "keeping its Link" not in log
+
+
 def test_explicit_unlinked_references_keep_plain_text_with_native_crossref(tmp_path: Path) -> None:
     """Respect linkReferences:false while still producing native caption numbering."""
     prepare_project(tmp_path, "See @fig:one.\n\n![Caption](figure.svg){#fig:one}\n", True, linkReferences=False)

@@ -154,6 +154,55 @@ Example:
 See @fig:results for details. As shown in @tbl:comparison and @eq:model...
 ```
 
+### Bilingual Figure and Table Captions
+
+For HTML and DOCX, add `caption-en` to an ordinary numbered figure or table:
+
+```markdown
+![MT-MoE ViT 网络架构图](images/architecture.svg){#fig:architecture caption-en="Architecture diagram of the *MT-MoE ViT* network"}
+
+| 模型 | 准确率 |
+| ---- | ------ |
+| A | 95.2% |
+
+: 模型性能对比 {#tbl:comparison caption-en="Performance comparison of different models"}
+```
+
+Write only the translated title in the attribute. Papper adds `Fig.` or `Table`
+and reuses the primary caption's number, including chapter prefixes. The primary
+caption appears first and the English caption on its own line. Normal references
+such as `@fig:architecture` and `@tbl:comparison` keep the same IDs. Crossref's
+figure/table lists contain the primary title once, without the translation.
+An empty `caption-en` keeps the ordinary single-caption output.
+
+The attribute accepts one paragraph of inline Markdown, including emphasis and
+math. Escape double quotes and backslashes as required by Markdown attributes;
+for example, use `caption-en="Error for $\\alpha$"` for a TeX command. A numbered
+`fig:`/`tbl:` identifier is required. Bilingual captions currently support ordinary
+figures and tables; grouped subfigures and LaTeX output are outside this extension.
+Custom caption templates must retain exactly one `$$i$$` placeholder.
+
+Both caption languages share the same styles: `Image Caption` for figures and
+`Table Caption` for tables. Default typography is owned by
+`pandoc/manuscript-template/reference-doc/word/styles.xml` and the matching
+`reference-doc.docx`; HTML reads the same XML styles. Adjust these shared styles
+in a custom reference DOCX or under `docxStyle` in `style.yml`. Project settings
+apply to both caption lines in DOCX and HTML:
+
+```yaml
+docxStyle:
+  Image Caption:
+    fontSize: 10pt
+  Table Caption:
+    fontSize: 10pt
+```
+
+With `docxNativeCrossref: true`, the primary number uses the existing Word `SEQ`
+field and the English number uses a `REF` to the same number bookmark. Update
+fields in Word after inserting or moving figures/tables; forward references may
+require two updates. With native fields disabled, both numbers are resolved at
+build time and require rebuilding after source changes.
+
 When a formula needs both `\hat{...}` and a style macro such as `\mathbf{...}`,
 write the hat inside the style macro, for example `\mathbf{\hat{C}}` rather
 than `\hat{\mathbf{C}}`. When a DOCX build actually starts MathType conversion,

@@ -488,7 +488,7 @@
     /* Caption from reference-doc/word/styles.xml */
     font-size: 12pt;
     font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1.5;
+    line-height: 1;
     margin-bottom: 6pt;
     text-align: center;
   }
@@ -497,7 +497,7 @@
     /* Table Caption from reference-doc/word/styles.xml */
     font-size: 12pt;
     font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1.5;
+    line-height: 1;
     margin-bottom: 0pt;
     text-align: center;
   }
@@ -506,7 +506,7 @@
     /* Image Caption from reference-doc/word/styles.xml */
     font-size: 12pt;
     font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1.5;
+    line-height: 1;
     margin-bottom: 6pt;
     text-align: center;
   }

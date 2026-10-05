@@ -735,11 +735,15 @@ mod tests {
           <w:docDefaults><w:pPrDefault><w:pPr><w:spacing w:after="120"/></w:pPr></w:pPrDefault></w:docDefaults>
           <w:style w:type="paragraph" w:styleId="Body"><w:name w:val="正文文本"/><w:rPr><w:sz w:val="24"/><w:b/></w:rPr></w:style>
           <w:style w:type="paragraph" w:styleId="Heading"><w:name w:val="标题 1"/><w:basedOn w:val="Body"/><w:rPr><w:sz w:val="30"/><w:b w:val="false"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="ImageCaption"><w:name w:val="Image Caption"/><w:basedOn w:val="Body"/></w:style>
           <w:style w:type="table" w:styleId="Table"><w:name w:val="Table"/></w:style>
         </w:styles>"#;
         let css = build_reference_style_css_text(
             xml,
-            Some(&json!({"标题 1": {"fontSize": "四号", "paragraphSpacing": {"after": 0}}})),
+            Some(&json!({
+                "标题 1": {"fontSize": "四号", "paragraphSpacing": {"after": 0}},
+                "Image Caption": {"fontSize": "10pt"},
+            })),
         )?;
         let inherited = "h1 {\n  /* Heading 1 from reference-doc/word/styles.xml */\n  font-size: 15pt;\n  font-weight: normal;\n  margin-bottom: 6pt;\n}";
         let override_rule = "h1 {\n  /* docxStyle.标题 1 override from reference-doc/word/styles.xml */\n  font-size: 14pt;\n  margin-bottom: 0pt;\n}";
@@ -749,6 +753,7 @@ mod tests {
         assert!(css.contains(
             "table, table td, table th {\n  /* Table from reference-doc/word/styles.xml */\n}"
         ));
+        assert!(css.contains("/* docxStyle.Image Caption override from reference-doc/word/styles.xml */\n  font-size: 10pt;"));
         Ok(())
     }
 }

@@ -17,8 +17,10 @@ math-method:
 # Filters are applied in order so cross-references and citations are resolved
 # before Pandoc writes the standalone HTML document.
 filters:
+  - ${.}/filters/shared/bilingual_captions.lua
   - pandoc-crossref
   - ${.}/filters/shared/normalize_chinese_numbering.lua
+  - ${.}/filters/shared/bilingual_captions.lua
   - ${.}/filters/shared/merge_table_cells.lua
   - ${.}/filters/shared/paragraph_custom_styles.lua
   - ${.}/filters/html/subfigure_layout_styles.lua
