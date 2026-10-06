@@ -3,8 +3,10 @@
 use anyhow::{Result, bail};
 use regex::Regex;
 use serde_json::{Map, Value};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::LazyLock;
+
+use super::styles::{StyleKind, custom_style_css_text};
 
 /// Ordered HTML node representation, retaining source text between elements.
 #[derive(Clone)]
@@ -768,11 +770,20 @@ fn apply_table_cell_margins(node: &mut HtmlNode) {
                     .unwrap_or("")
                     .trim()
                     .trim_end_matches(';');
-                let mut declarations = if existing.is_empty() {
-                    Vec::new()
-                } else {
-                    vec![existing.to_owned()]
-                };
+                // Reprocessing must replace generated variables rather than
+                // append duplicates; this keeps the postprocessor idempotent.
+                let mut declarations = vec![existing.to_owned()];
+                for (side, _) in &values {
+                    let variable = format!("--pmt-table-cell-margin-{side}");
+                    let pattern = Regex::new(&format!(
+                        r"(?m)(^|;)\s*{}\s*:[^;]*(?:;|$)",
+                        regex::escape(&variable)
+                    ))
+                    .expect("Generated table margin pattern is valid");
+                    declarations[0] = pattern.replace_all(&declarations[0], "$1").into_owned();
+                }
+                declarations[0] = declarations[0].trim().trim_end_matches(';').to_owned();
+                declarations.retain(|value| !value.is_empty());
                 declarations.extend(values.into_iter().map(|(side, value)| {
                     format!(
                         "--pmt-table-cell-margin-{side}: {}",
@@ -809,12 +820,165 @@ pub fn postprocess_html_text(
     metadata: &Value,
     skip_author_info: bool,
 ) -> Result<String> {
+    postprocess_html(html, metadata, skip_author_info, None, None)
+}
+
+/// Apply used custom Word styles alongside the shared HTML postprocessing steps.
+pub fn postprocess_html_text_with_styles(
+    html: &str,
+    metadata: &Value,
+    skip_author_info: bool,
+    reference_xml: &str,
+) -> Result<String> {
+    postprocess_html(html, metadata, skip_author_info, Some(reference_xml), None)
+}
+
+/// Resolve custom-style ancestry using the effective settings applied to named Word styles.
+pub fn postprocess_html_text_with_style_settings(
+    html: &str,
+    metadata: &Value,
+    skip_author_info: bool,
+    reference_xml: &str,
+    settings: &papper_core::metadata::PmtSettings,
+) -> Result<String> {
+    postprocess_html(
+        html,
+        metadata,
+        skip_author_info,
+        Some(reference_xml),
+        Some(settings),
+    )
+}
+
+/// Collect actual body attributes, ignoring style/script text and HTML comments.
+fn collect_custom_styles(
+    node: &mut HtmlNode,
+    used: &mut BTreeSet<(StyleKind, String)>,
+    paragraph_scope: Option<&str>,
+    direct_wrapper: bool,
+) {
+    // Pandoc's styled Div can contain lists/quotes or another styled Div.
+    // Materialize the nearest scope on nested paragraphs so CSS rule ordering
+    // cannot make an outer paragraph style override a nested custom style.
+    if matches!(node, HtmlNode::Element { name, .. } if name == "p")
+        && node.attribute("data-custom-style").is_none()
+        && !direct_wrapper
+        && let Some(scope) = paragraph_scope
+        && let HtmlNode::Element { attributes, .. } = node
+    {
+        attributes.push(("data-custom-style".into(), scope.to_owned()));
+    }
+    let own_style = node.attribute("data-custom-style").map(str::to_owned);
+    if let HtmlNode::Element { name, children, .. } = node {
+        if is_raw(name) {
+            return;
+        }
+        if let Some(style) = &own_style {
+            let kind = match name.as_str() {
+                "table" => StyleKind::Table,
+                "div" | "p" => StyleKind::Paragraph,
+                _ => StyleKind::Character,
+            };
+            used.insert((kind, style.clone()));
+        }
+        let direct_wrapper = name == "div" && own_style.is_some();
+        let scope = if matches!(name.as_str(), "figcaption" | "caption") {
+            // A styled body wrapper must not replace the dedicated caption
+            // paragraph style inferred for nested figures and tables.
+            None
+        } else if direct_wrapper {
+            own_style.as_deref()
+        } else {
+            paragraph_scope
+        };
+        for child in children {
+            collect_custom_styles(child, used, scope, direct_wrapper);
+        }
+    }
+}
+
+/// Replace generated custom CSS after defaults but before authored header includes.
+fn apply_custom_styles(
+    document: &mut HtmlNode,
+    xml: &str,
+    metadata: &Value,
+    settings: Option<&papper_core::metadata::PmtSettings>,
+) -> Result<()> {
+    let mut used = BTreeSet::new();
+    if let Some(body) = document.find_mut("body") {
+        collect_custom_styles(body, &mut used, None, false);
+    }
+    let css = if used.is_empty() {
+        String::new()
+    } else {
+        let records = if let Some(settings) = settings {
+            papper_core::style_values::normalize_docx_style_settings(settings)?.unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        custom_style_css_text(xml, &used, &records)?
+    };
+    // Preview mode may return a body fragment without Pandoc's head. Create a
+    // head only when a used custom style needs generated CSS.
+    if document.find_mut("head").is_none()
+        && !css.is_empty()
+        && let HtmlNode::Element { name, children, .. } = document
+        && name == "html"
+    {
+        // The prepared reference include carries effective Table Text overrides
+        // even when the worker omits standalone headers in preview mode.
+        let mut styles = Vec::new();
+        if let Some(includes) = metadata.get("header-includes").and_then(Value::as_array) {
+            for include in includes.iter().filter_map(Value::as_str) {
+                let mut position = 0;
+                styles.extend(
+                    parse_children(include, &mut position, "")
+                        .into_iter()
+                        .filter(|node| node.attribute("id") == Some("pmt-reference-styles")),
+                );
+            }
+        }
+        children.insert(0, HtmlNode::element("head", &[], styles));
+    }
+    if let Some(HtmlNode::Element { children, .. }) = document.find_mut("head") {
+        children.retain(|node| node.attribute("id") != Some("pmt-custom-styles"));
+        if !css.is_empty() {
+            let position = children.iter().position(|node| node.attribute("id") == Some("pmt-reference-styles"))
+                .map(|index| index + 1)
+                // Older/custom templates may lack the generated reference block.
+                // Inserting after their first stylesheet keeps later user CSS effective.
+                .or_else(|| children.iter().position(|node| matches!(node, HtmlNode::Element { name, .. } if name == "style")).map(|index| index + 1))
+                .unwrap_or(0);
+            children.insert(
+                position,
+                HtmlNode::element(
+                    "style",
+                    &[("id", "pmt-custom-styles")],
+                    vec![HtmlNode::Text(format!("\n{css}\n"))],
+                ),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Parse once, apply optional reference styling, and retain manuscript whitespace.
+fn postprocess_html(
+    html: &str,
+    metadata: &Value,
+    skip_author_info: bool,
+    reference_xml: Option<&str>,
+    settings: Option<&papper_core::metadata::PmtSettings>,
+) -> Result<String> {
     let normalized = html.replace("\r\n", "\n").replace('\r', "\n");
     let mut document = parse_document(&normalized)?;
     if !skip_author_info {
         insert_author_info(&mut document, metadata);
     }
     apply_table_cell_margins(&mut document);
+    if let Some(xml) = reference_xml {
+        apply_custom_styles(&mut document, xml, metadata, settings)?;
+    }
     let mut output = "<!DOCTYPE html>\n".to_owned();
     render_node(&document, false, &mut output);
     output.push('\n');
@@ -825,6 +989,120 @@ pub fn postprocess_html_text(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// Configured body indentation must reach descendants while explicit child zero wins.
+    #[test]
+    fn custom_paragraphs_inherit_configured_parent_spacing() -> Result<()> {
+        let xml = r#"<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:style w:type="paragraph" w:styleId="Body"><w:name w:val="Body Text"/></w:style>
+          <w:style w:type="paragraph" w:styleId="After"><w:name w:val="Para After Table"/><w:basedOn w:val="Body"/><w:pPr><w:spacing w:before="120"/></w:pPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Where"><w:name w:val="Para Where"/><w:basedOn w:val="Body"/><w:pPr><w:ind w:firstLineChars="0"/></w:pPr></w:style>
+        </w:styles>"#;
+        let source = r#"<html><head></head><body><main class="pmt-page"><div data-custom-style="Para After Table"><p>After</p></div><div data-custom-style="Para Where"><p>Where</p></div></main></body></html>"#;
+        let settings = papper_core::metadata::PmtSettings::from_mapping(
+            json!({"docxStyle": {"正文文本": {"firstLineIndentChars": 2, "paragraphSpacing": {"before": "0pt", "after": "0pt"}}}}).as_object().unwrap()
+        )?;
+        let output =
+            postprocess_html_text_with_style_settings(source, &json!({}), true, xml, &settings)?;
+        let formatting = regex::Regex::new(r"(?m)^  /\*[\s\S]*?\*/\n")?.replace_all(&output, "");
+        assert!(formatting.contains(":is(.pmt-page, body) div[data-custom-style=\"Para After Table\"] > p,\n:is(.pmt-page, body) p[data-custom-style=\"Para After Table\"],\n:is(.pmt-page, body) div[data-custom-style=\"Para Where\"] > p,\n:is(.pmt-page, body) p[data-custom-style=\"Para Where\"] {\n  margin-top: 0pt;\n  margin-bottom: 0pt;\n  text-indent: 2em;\n}"));
+        assert!(formatting.contains(":is(.pmt-page, body) p[data-custom-style=\"Para After Table\"] {\n  margin-top: 6pt;\n}"));
+        assert!(formatting.contains(
+            ":is(.pmt-page, body) p[data-custom-style=\"Para Where\"] {\n  text-indent: 0em;\n}"
+        ));
+        assert_eq!(
+            postprocess_html_text_with_style_settings(&output, &json!({}), true, xml, &settings)?,
+            output
+        );
+        Ok(())
+    }
+
+    /// Verify used styles, inheritance, scoping, border resets, and editable output together.
+    #[test]
+    fn custom_word_styles_follow_document_usage_and_reference_edits() -> Result<()> {
+        let xml = r#"<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:style w:type="paragraph" w:styleId="Body"><w:name w:val="Body Text"/><w:pPr><w:spacing w:before="100" w:after="120" w:line="360"/><w:ind w:firstLineChars="200"/></w:pPr><w:rPr><w:rFonts w:ascii="Times New Roman"/><w:sz w:val="24"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Note"><w:name w:val="Note &amp; Details"/><w:basedOn w:val="Body"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:color w:val="123456"/></w:rPr></w:style>
+          <w:style w:type="character" w:styleId="NoteChar"><w:name w:val="Note &amp; Details"/><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="18"/><w:color w:val="ABCDEF"/></w:rPr></w:style>
+          <w:style w:type="paragraph" w:styleId="Unused"><w:name w:val="Unused style"/><w:rPr><w:color w:val="654321"/></w:rPr></w:style>
+          <w:style w:type="table" w:styleId="Grid"><w:name w:val="Grid"/><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="16"/><w:insideH w:val="dashed" w:sz="4"/></w:tblBorders><w:tblCellMar><w:left w:w="100"/><w:top w:w="80"/></w:tblCellMar></w:tblPr><w:tblStylePr w:type="firstRow"><w:tcPr><w:tcBorders><w:top w:val="double" w:sz="24" w:color="123456"/><w:bottom w:val="single" w:sz="8"/></w:tcBorders></w:tcPr></w:tblStylePr></w:style>
+          <w:style w:type="table" w:styleId="Child"><w:name w:val="Child Grid"/><w:basedOn w:val="Grid"/><w:tblPr><w:tblBorders><w:top w:val="nil"/></w:tblBorders><w:tblCellMar><w:left w:type="nil"/></w:tblCellMar></w:tblPr><w:tblStylePr w:type="firstRow"><w:tcPr><w:tcBorders><w:bottom w:val="nil"/></w:tcBorders></w:tcPr></w:tblStylePr></w:style>
+          <w:style w:type="table" w:styleId="NoBorder"><w:name w:val="No Border"/></w:style>
+          <w:style w:type="table" w:styleId="Hairline"><w:name w:val="Hairline"/><w:basedOn w:val="Grid"/><w:tblStylePr w:type="firstRow"><w:tcPr><w:tcBorders><w:bottom w:val="single" w:sz="0"/></w:tcBorders></w:tcPr></w:tblStylePr></w:style>
+        </w:styles>"#;
+        let source = r#"<html><head><style id="pmt-reference-styles">table { --pmt-table-text-before: 7pt; }</style><style id="user">p { color: green; }</style></head><body><main class="pmt-page">
+          <!-- <div data-custom-style="Unused style">not an element</div> -->
+          <div data-custom-style="Note &amp; Details"><p>A <span data-custom-style="Note &amp; Details">note</span></p><blockquote><p>Nested note</p></blockquote><figure><figcaption><p>Caption stays independent</p></figcaption></figure></div>
+          <table data-custom-style="Child Grid" data-cell_margin_left="9pt"><thead><tr><th>Head</th></tr></thead><tbody><tr><td>One</td></tr><tr><td>Two</td></tr></tbody></table>
+          <table data-custom-style="No Border"><tbody><tr><td>Three</td></tr></tbody></table>
+          <table data-custom-style="Hairline"><thead><tr><th>Head</th></tr></thead><tbody><tr><td>Four</td></tr></tbody></table>
+        </main></body></html>"#;
+        let output = postprocess_html_text_with_styles(source, &json!({}), true, xml)?;
+        let document = parse_document(&output)?;
+        let mut document = document;
+        let head = document.find_mut("head").unwrap();
+        let HtmlNode::Element { children, .. } = head else {
+            unreachable!()
+        };
+        let generated = children
+            .iter()
+            .position(|node| node.attribute("id") == Some("pmt-custom-styles"))
+            .unwrap();
+        let user = children
+            .iter()
+            .position(|node| node.attribute("id") == Some("user"))
+            .unwrap();
+        assert!(generated < user);
+        assert!(!output.contains("Word style: \"Unused style\""));
+        assert!(output.contains("font-family: \"Times New Roman\", serif;"));
+        assert!(output.contains("line-height: 1.5;"));
+        assert!(output.contains("margin-top: 5pt;\n  margin-bottom: 6pt;"));
+        // Assert actual declarations without coupling formatting to source comments.
+        let formatting = regex::Regex::new(r"(?m)^  /\*[\s\S]*?\*/\n")?.replace_all(&output, "");
+        assert!(formatting.contains(":is(.pmt-page, body) div[data-custom-style=\"Note & Details\"] > p,\n:is(.pmt-page, body) p[data-custom-style=\"Note & Details\"] {\n  margin-bottom: 0pt;\n}"));
+        assert!(output.contains("text-indent: 2em;"));
+        assert!(
+            output.contains("font-size: 9pt;\n  font-family: \"Arial\", serif;\n  color: #ABCDEF;")
+        );
+        assert!(output.contains("<p data-custom-style=\"Note &amp; Details\">Nested note</p>"));
+        assert!(output.contains("<figcaption><p>Caption stays independent</p></figcaption>"));
+        assert!(output.contains("--pmt-table-cell-margin-top: 4pt;"));
+        assert!(output.contains("--pmt-table-cell-margin-left: 0pt;"));
+        assert!(output.contains("border-top: 0.5pt dashed currentColor;"));
+        assert_eq!(
+            output.matches("  border-top: 3pt double #123456;").count(),
+            2
+        );
+        assert!(formatting.contains("table[data-custom-style=\"Child Grid\"] > thead > tr:first-child > :is(td, th) {\n  border-bottom: none;\n}"));
+        assert!(formatting.contains("table[data-custom-style=\"Hairline\"] > thead > tr:first-child > :is(td, th) {\n  border-bottom: 0.5pt solid currentColor;\n}"));
+        assert!(output.contains("table[data-custom-style=\"No Border\"]"));
+        assert!(output.contains("style=\"--pmt-table-cell-margin-left: 9pt;\""));
+        // Custom tables inherit effective Table Text spacing from the defaults
+        // block; regenerating it here would erase configured spacing overrides.
+        assert_eq!(output.matches("--pmt-table-text-before:").count(), 1);
+        assert_eq!(
+            postprocess_html_text_with_styles(&output, &json!({}), true, xml)?,
+            output
+        );
+        let edited = xml.replace("ABCDEF", "FEDCBA");
+        let regenerated = postprocess_html_text_with_styles(&output, &json!({}), true, &edited)?;
+        assert_eq!(regenerated.matches("id=\"pmt-custom-styles\"").count(), 1);
+        assert!(regenerated.contains("color: #FEDCBA;"));
+        assert!(!regenerated.contains("color: #ABCDEF;"));
+        Ok(())
+    }
+
+    /// Preserve commas, quotes, and comment markers without splitting names or injecting HTML.
+    #[test]
+    fn custom_style_names_are_escaped_in_generated_css() -> Result<()> {
+        let xml = r#"<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="Char"><w:name w:val="A, (B) &quot;quote&quot; &lt;/style&gt; */"/><w:rPr><w:color w:val="123456"/></w:rPr></w:style></w:styles>"#;
+        let source = r#"<html><head></head><body><span data-custom-style='A, (B) "quote" &lt;/style&gt; */'>Text</span></body></html>"#;
+        let output = postprocess_html_text_with_styles(source, &json!({}), true, xml)?;
+        assert!(output.contains(r#"[data-custom-style="A, (B) \"quote\" \3c /style> */"]"#));
+        assert!(output.contains("color: #123456;"));
+        assert_eq!(output.matches("</style>").count(), 1);
+        Ok(())
+    }
 
     /// Keep shared institutions, author ordering, escaped text, and custom contact.
     #[test]

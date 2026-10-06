@@ -3,7 +3,10 @@
 pub mod postprocess;
 pub mod styles;
 
-pub use postprocess::postprocess_html_text;
+pub use postprocess::{
+    postprocess_html_text, postprocess_html_text_with_style_settings,
+    postprocess_html_text_with_styles,
+};
 pub use styles::{
     build_reference_style_css, build_reference_style_css_text,
     build_reference_style_css_with_settings,
@@ -21,7 +24,12 @@ pub fn append_reference_style_block(metadata: &mut Map<String, Value>, css: &str
         Some(Value::Array(values)) => values,
         Some(value) => vec![value],
     };
-    includes.insert(0, Value::String(format!("<style>\n{css}\n</style>")));
+    includes.insert(
+        0,
+        Value::String(format!(
+            "<style id=\"pmt-reference-styles\">\n{css}\n</style>"
+        )),
+    );
     metadata.insert("header-includes".into(), Value::Array(includes));
 }
 

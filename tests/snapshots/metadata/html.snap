@@ -124,11 +124,7 @@
       margin: 1em 0;
       text-align: justify;
     }
-    /* Keep Pandoc's DOCX revision styles visible in standalone HTML output. */
-    [data-custom-style="Revision Char"],
-    [data-custom-style="Revision Para"] {
-      color: #ee0000;
-    }
+
     /* Match DOCX whole-table revisions by coloring the HTML table caption. */
     [data-revision_rows="*"] > caption,
     [data-revision_columns="*"] > caption,
@@ -136,35 +132,7 @@
     [data-revision-columns="*"] > caption {
       color: #ee0000;
     }
-    /* Use the shared table style attribute to remove subfigure layout borders and padding. */
-    table[data-custom-style="TableSubfigure"] {
-      margin: 0;
-      border: 0;
-      background: transparent;
-    }
-    table[data-custom-style="TableSubfigure"] > tbody {
-      margin-top: 0;
-      border-top: 0;
-      border-bottom: 0;
-    }
-    table[data-custom-style="TableSubfigure"] td,
-    table[data-custom-style="TableSubfigure"] th {
-      border: 0;
-      padding: 0;
-    }
-    table[data-custom-style="TableSubfigure"] figure {
-      margin: 0;
-    }
-    /* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
-    .pmt-page [data-custom-style="Para Where"] > p {
-      text-indent: 0;
-    }
-    .pmt-page [data-custom-style="Para Where"][data-where-layout="table"] > p {
-      margin-top: 6pt;
-    }
-    .pmt-page [data-custom-style="Para After Table"] > p {
-      margin-top: 6pt;
-    }
+
     ol,
     ul,
     li {
@@ -379,172 +347,486 @@
       font-size: inherit !important;
     }
   </style>
-  <style>
-  .pmt-page {
-    /* Body Text inherited from reference-doc/word/styles.xml */
+  <style id="pmt-reference-styles">
+  table caption p,
+  figure figcaption p {
+    /*
+     * Source: papper HTML adaptation rules
+     * Order: before Word document defaults and named styles
+     * Purpose: Reset browser paragraph spacing and indentation; caption spacing belongs to the outer caption
+     * Target: styleId="TableCaption" (paragraph spacing and indentation reset)
+     * Target: styleId="ImageCaption" (paragraph spacing and indentation reset)
+     */
+    margin-top: 0pt;
+    margin-bottom: 0pt;
+    text-indent: 0pt;
+    margin-left: 0pt;
+    margin-right: 0pt;
+  }
+
+  table,
+  table > :is(thead, tbody, tfoot),
+  table > :is(thead, tbody, tfoot) > tr > :is(td, th) {
+    /*
+     * Source: papper HTML adaptation rules
+     * Order: before Word document defaults and named styles
+     * Purpose: Reset HTML template borders before applying Word table geometry
+     * Target: table styleId="Table"
+     */
+    border: none;
+  }
+
+  .pmt-page,
+  h1.title,
+  p.subtitle,
+  .pmt-page > p,
+  .pmt-page > :where(div[data-custom-style]) > p,
+  .pmt-page > :where(h1:not(.title), h2, h3, h4, h5, h6) + p,
+  :is(h1, h2, h3, h4, h5, h6),
+  table caption,
+  table caption p,
+  figure figcaption,
+  figure figcaption p,
+  table td,
+  table th,
+  table td > p,
+  table th > p {
+    /*
+     * Source: reference-doc/word/styles.xml > w:docDefaults
+     * Inheritance: paragraph defaults shared by the targets below
+     * Order: before named Word styles
+     * Target: styleId="a0" (inherited typography)
+     * Target: styleId="a4" (paragraph or caption container)
+     * Target: styleId="a6" (paragraph or caption container)
+     * Target: styleId="a0" (paragraph or caption container)
+     * Target: styleId="FirstParagraph" (paragraph or caption container)
+     * Target: styleId="1" (paragraph or caption container)
+     * Target: styleId="2" (paragraph or caption container)
+     * Target: styleId="3" (paragraph or caption container)
+     * Target: styleId="4" (paragraph or caption container)
+     * Target: styleId="5" (paragraph or caption container)
+     * Target: styleId="6" (paragraph or caption container)
+     * Target: styleId="TableCaption" (paragraph or caption container)
+     * Target: styleId="TableCaption" (caption inner paragraph; spacing belongs to its container)
+     * Target: styleId="ImageCaption" (paragraph or caption container)
+     * Target: styleId="ImageCaption" (caption inner paragraph; spacing belongs to its container)
+     * Target: styleId="TableText" (inherited typography)
+     * Target: styleId="TableText" (paragraph or caption container)
+     */
     font-size: 12pt;
+  }
+
+  h1.title,
+  p.subtitle,
+  .pmt-page > p,
+  .pmt-page > :where(div[data-custom-style]) > p,
+  .pmt-page > :where(h1:not(.title), h2, h3, h4, h5, h6) + p,
+  :is(h1, h2, h3, h4, h5, h6),
+  table caption,
+  figure figcaption,
+  table td > p,
+  table th > p {
+    /*
+     * Source: reference-doc/word/styles.xml > w:docDefaults
+     * Inheritance: paragraph defaults shared by the targets below
+     * Order: before named Word styles
+     * Target: styleId="a4" (paragraph or caption container)
+     * Target: styleId="a6" (paragraph or caption container)
+     * Target: styleId="a0" (paragraph or caption container)
+     * Target: styleId="FirstParagraph" (paragraph or caption container)
+     * Target: styleId="1" (paragraph or caption container)
+     * Target: styleId="2" (paragraph or caption container)
+     * Target: styleId="3" (paragraph or caption container)
+     * Target: styleId="4" (paragraph or caption container)
+     * Target: styleId="5" (paragraph or caption container)
+     * Target: styleId="6" (paragraph or caption container)
+     * Target: styleId="TableCaption" (paragraph or caption container)
+     * Target: styleId="ImageCaption" (paragraph or caption container)
+     * Target: styleId="TableText" (paragraph or caption container)
+     */
+    margin-bottom: 10pt;
+  }
+
+  .pmt-page,
+  h1.title,
+  p.subtitle,
+  .pmt-page > p,
+  .pmt-page > :where(div[data-custom-style]) > p,
+  .pmt-page > :where(h1:not(.title), h2, h3, h4, h5, h6) + p,
+  :is(h1, h2, h3, h4, h5, h6),
+  table caption,
+  table caption p,
+  figure figcaption,
+  figure figcaption p,
+  table td,
+  table th,
+  table td > p,
+  table th > p {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="a"]
+     * Word style: "Normal" (Paragraph)
+     * Based on: w:docDefaults
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="a0" (inherited typography)
+     * Target: styleId="a4" (paragraph or caption container)
+     * Target: styleId="a6" (paragraph or caption container)
+     * Target: styleId="a0" (paragraph or caption container)
+     * Target: styleId="FirstParagraph" (paragraph or caption container)
+     * Target: styleId="1" (paragraph or caption container)
+     * Target: styleId="2" (paragraph or caption container)
+     * Target: styleId="3" (paragraph or caption container)
+     * Target: styleId="4" (paragraph or caption container)
+     * Target: styleId="5" (paragraph or caption container)
+     * Target: styleId="6" (paragraph or caption container)
+     * Target: styleId="TableCaption" (paragraph or caption container)
+     * Target: styleId="TableCaption" (caption inner paragraph; spacing belongs to its container)
+     * Target: styleId="ImageCaption" (paragraph or caption container)
+     * Target: styleId="ImageCaption" (caption inner paragraph; spacing belongs to its container)
+     * Target: styleId="TableText" (inherited typography)
+     * Target: styleId="TableText" (paragraph or caption container)
+     */
     font-family: "Times New Roman", "宋体", SimSun, serif;
     line-height: 1.5;
     text-align: justify;
   }
 
-  h1.title {
-    /* Title from reference-doc/word/styles.xml */
+  .pmt-page > p,
+  .pmt-page > :where(div[data-custom-style]) > p,
+  .pmt-page > :where(h1:not(.title), h2, h3, h4, h5, h6) + p {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="a0"]
+     * Word style: "Body Text" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="a0" (paragraph or caption container)
+     * Target: styleId="FirstParagraph" (paragraph or caption container)
+     */
+    margin-top: 9pt;
+    margin-bottom: 9pt;
+  }
+
+  h1.title,
+  p.subtitle {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="a4"]
+     * Word style: "Title" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="a4" (paragraph or caption container)
+     * Target: styleId="a6" (paragraph or caption container)
+     */
     font-size: 16pt;
     font-family: "Times New Roman", "黑体", SimSun, serif;
     font-weight: bold;
-    line-height: 1.5;
-    margin-bottom: 4pt;
     text-align: center;
+  }
+
+  h1.title,
+  p.subtitle {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="a4"]
+     * Word style: "Title" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="a4" (paragraph or caption container)
+     * Target: styleId="a6" (paragraph or caption container)
+     */
+    margin-bottom: 4pt;
   }
 
   p.subtitle {
-    /* Subtitle from reference-doc/word/styles.xml */
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="a6"]
+     * Word style: "Subtitle" (Paragraph)
+     * Based on: "Title" (styleId="a4")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="a6" (paragraph or caption container)
+     */
     font-size: 14pt;
-    font-family: "Times New Roman", "黑体", SimSun, serif;
-    font-weight: bold;
-    line-height: 1.5;
-    margin-bottom: 4pt;
-    text-align: center;
-  }
-
-  .pmt-page > p, .pmt-page > :where(div[data-custom-style]) > p {
-    /* Body Text from reference-doc/word/styles.xml */
-    font-size: 12pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1.5;
-    margin-top: 9pt;
-    margin-bottom: 9pt;
-    text-align: justify;
-  }
-
-  .pmt-page > :where(h1:not(.title), h2, h3, h4, h5, h6) + p {
-    /* First Paragraph from reference-doc/word/styles.xml */
-    font-size: 12pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1.5;
-    margin-top: 9pt;
-    margin-bottom: 9pt;
-    text-align: justify;
   }
 
   h1 {
-    /* Heading 1 from reference-doc/word/styles.xml */
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="1"]
+     * Word style: "heading 1" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="1" (paragraph or caption container)
+     */
     font-size: 14pt;
     font-family: "Times New Roman", "黑体", SimSun, serif;
     font-weight: bold;
-    line-height: 1.5;
+  }
+
+  h1 {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="1"]
+     * Word style: "heading 1" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="1" (paragraph or caption container)
+     */
     margin-top: 18pt;
     margin-bottom: 4pt;
-    text-align: justify;
   }
 
   h2 {
-    /* Heading 2 from reference-doc/word/styles.xml */
-    font-size: 12pt;
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="2"]
+     * Word style: "heading 2" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="2" (paragraph or caption container)
+     */
     font-family: "Times New Roman", "黑体", SimSun, serif;
     font-weight: bold;
-    line-height: 1.5;
+  }
+
+  h2 {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="2"]
+     * Word style: "heading 2" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="2" (paragraph or caption container)
+     */
     margin-top: 8pt;
     margin-bottom: 4pt;
-    text-align: justify;
   }
 
   h3 {
-    /* Heading 3 from reference-doc/word/styles.xml */
-    font-size: 12pt;
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="3"]
+     * Word style: "heading 3" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="3" (paragraph or caption container)
+     */
     font-family: "Times New Roman", "黑体", SimSun, serif;
     font-weight: bold;
-    line-height: 1.5;
+  }
+
+  h3 {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="3"]
+     * Word style: "heading 3" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="3" (paragraph or caption container)
+     */
     margin-top: 8pt;
     margin-bottom: 4pt;
-    text-align: justify;
   }
 
   h4 {
-    /* Heading 4 from reference-doc/word/styles.xml */
-    font-size: 12pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1.5;
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="4"]
+     * Word style: "heading 4" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="4" (paragraph or caption container)
+     */
     margin-top: 4pt;
     margin-bottom: 2pt;
-    text-align: justify;
   }
 
   h5 {
-    /* Heading 5 from reference-doc/word/styles.xml */
-    font-size: 12pt;
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="5"]
+     * Word style: "heading 5" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="5" (paragraph or caption container)
+     */
     font-family: "Times New Roman", "黑体", SimSun, serif;
-    line-height: 1.5;
+  }
+
+  h5 {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="5"]
+     * Word style: "heading 5" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="5" (paragraph or caption container)
+     */
     margin-top: 4pt;
     margin-bottom: 2pt;
-    text-align: justify;
   }
 
   h6 {
-    /* Heading 6 from reference-doc/word/styles.xml */
-    font-size: 12pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="6"]
+     * Word style: "heading 6" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="6" (paragraph or caption container)
+     */
     font-style: italic;
     color: #595959;
-    line-height: 1.5;
-    margin-top: 2pt;
-    margin-bottom: 0pt;
-    text-align: justify;
   }
 
-  figure figcaption, table caption {
-    /* Caption from reference-doc/word/styles.xml */
-    font-size: 12pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
+  h6 {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="6"]
+     * Word style: "heading 6" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="6" (paragraph or caption container)
+     */
+    margin-top: 2pt;
+    margin-bottom: 0pt;
+  }
+
+  table caption,
+  table caption p,
+  figure figcaption,
+  figure figcaption p {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="ac"]
+     * Word style: "caption" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="TableCaption" (paragraph or caption container)
+     * Target: styleId="TableCaption" (caption inner paragraph; spacing belongs to its container)
+     * Target: styleId="ImageCaption" (paragraph or caption container)
+     * Target: styleId="ImageCaption" (caption inner paragraph; spacing belongs to its container)
+     */
     line-height: 1;
-    margin-bottom: 6pt;
     text-align: center;
+  }
+
+  table caption,
+  figure figcaption {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="ac"]
+     * Word style: "caption" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="TableCaption" (paragraph or caption container)
+     * Target: styleId="ImageCaption" (paragraph or caption container)
+     */
+    margin-bottom: 6pt;
   }
 
   table caption {
-    /* Table Caption from reference-doc/word/styles.xml */
-    font-size: 12pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1;
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="TableCaption"]
+     * Word style: "Table Caption" (Paragraph)
+     * Based on: "caption" (styleId="ac")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="TableCaption" (paragraph or caption container)
+     */
     margin-bottom: 0pt;
-    text-align: center;
-  }
-
-  figure figcaption {
-    /* Image Caption from reference-doc/word/styles.xml */
-    font-size: 12pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1;
-    margin-bottom: 6pt;
-    text-align: center;
-  }
-
-  table, table td, table th {
-    /* Table from reference-doc/word/styles.xml */
-    font-size: 10.5pt;
-  }
-
-  table td, table th {
-    /* Table Text from reference-doc/word/styles.xml */
-    font-size: 10.5pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1;
-    text-align: justify;
-  }
-
-  table td p, table th p {
-    /* Table Text paragraphs from reference-doc/word/styles.xml */
-    font-size: 10.5pt;
-    font-family: "Times New Roman", "宋体", SimSun, serif;
-    line-height: 1;
-    margin-top: 2.5pt;
-    margin-bottom: 2.5pt;
-    text-align: justify;
   }
 
   table {
-    /* Table Text cell margins and paragraph spacing from reference-doc/word/styles.xml */
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="Table"]
+     * Word style: "Table" (Table)
+     * Based on: none; paragraph defaults do not apply
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="Table" (table geometry and typography)
+     */
+    font-size: 10.5pt;
+  }
+
+  table {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="Table"]
+     * Word style: "Table" (Table)
+     * Based on: none; paragraph defaults do not apply
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: table styleId="Table"
+     */
+    border-top: 1.5pt solid currentColor;
+    border-bottom: 1.5pt solid currentColor;
+  }
+
+  table > thead > tr:first-child > :is(td, th) {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="Table"]
+     * Word style: "Table" (Table)
+     * Based on: none; paragraph defaults do not apply
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Purpose: Word tblStylePr[type=firstRow]/tcPr/tcBorders; apply to the first HTML header row
+     * Target: table styleId="Table"
+     */
+    border-bottom: 0.5pt solid currentColor;
+  }
+
+  table > thead + :is(tbody, tfoot) > tr:first-child > :is(td, th) {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="Table"]
+     * Word style: "Table" (Table)
+     * Based on: none; paragraph defaults do not apply
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Purpose: Match the body top edge to the header bottom so a competing insideH border cannot defeat the header
+     * Target: table styleId="Table"
+     */
+    border-top: 0.5pt solid currentColor;
+  }
+
+  table td,
+  table th,
+  table td > p,
+  table th > p {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="TableText"]
+     * Word style: "Table Text" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="TableText" (inherited typography)
+     * Target: styleId="TableText" (paragraph or caption container)
+     */
+    font-size: 10.5pt;
+    line-height: 1;
+  }
+
+  table td > p,
+  table th > p {
+    /*
+     * Source: reference-doc/word/styles.xml > w:style[@w:styleId="TableText"]
+     * Word style: "Table Text" (Paragraph)
+     * Based on: "Normal" (styleId="a")
+     * Properties: only differences from the effective parent; shared by dependent targets
+     * Order: after the parent, before descendant styles and configured overrides
+     * Target: styleId="TableText" (paragraph or caption container)
+     */
+    margin-top: 2.5pt;
+    margin-bottom: 2.5pt;
+  }
+
+  table {
+    /*
+     * Source: reference-doc/word/styles.xml > Table cell margins and Table Text paragraph spacing
+     * Calculation: top/bottom padding = cell margin + Table Text before/after spacing
+     * Override: per-table cell_margin attributes replace the cell margin component
+     * Target: table padding variables
+     */
     --pmt-table-cell-margin-top: 0pt;
     --pmt-table-cell-margin-right: 4.25pt;
     --pmt-table-cell-margin-bottom: 0pt;
@@ -553,8 +835,15 @@
     --pmt-table-text-after: 2.5pt;
   }
 
-  table td, table th {
-    /* Combine reference cell margins, Table Text spacing, and per-table overrides. */
+  table td,
+  table th {
+    /*
+     * Source: reference-doc/word/styles.xml > Table cell margins and Table Text paragraph spacing
+     * Calculation: top/bottom padding = cell margin + Table Text before/after spacing
+     * Override: per-table cell_margin attributes replace the cell margin component
+     * Purpose: Add cell margins to Table Text paragraph spacing; inherited variables preserve configured and per-table overrides
+     * Target: table cells
+     */
     padding-top: calc(var(--pmt-table-cell-margin-top, 0pt) + var(--pmt-table-text-before, 0pt));
     padding-right: var(--pmt-table-cell-margin-right, 0pt);
     padding-bottom: calc(var(--pmt-table-cell-margin-bottom, 0pt) + var(--pmt-table-text-after, 0pt));
@@ -562,17 +851,30 @@
   }
 
   h1 {
-    /* docxStyle.标题 1 override from reference-doc/word/styles.xml */
+    /*
+     * Source: effective docxStyle configuration for "标题 1"
+     * Order: after reference Word styles; authored header CSS follows generated CSS
+     * Target: configured semantic selector
+     */
     font-size: 12pt;
   }
 
   h2 {
-    /* docxStyle.标题 2 override from reference-doc/word/styles.xml */
+    /*
+     * Source: effective docxStyle configuration for "标题 2"
+     * Order: after reference Word styles; authored header CSS follows generated CSS
+     * Target: configured semantic selector
+     */
     font-size: 12pt;
   }
 
-  .pmt-page > p, .pmt-page > :where(div[data-custom-style]) > p {
-    /* docxStyle.正文文本 override from reference-doc/word/styles.xml */
+  .pmt-page > p,
+  .pmt-page > :where(div[data-custom-style]) > p {
+    /*
+     * Source: effective docxStyle configuration for "正文文本"
+     * Order: after reference Word styles; authored header CSS follows generated CSS
+     * Target: configured semantic selector
+     */
     margin-top: 0pt;
     margin-bottom: 0pt;
     text-indent: 2em;

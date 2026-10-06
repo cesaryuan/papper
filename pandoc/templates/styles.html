@@ -116,11 +116,7 @@ p {
   margin: 1em 0;
   text-align: justify;
 }
-/* Keep Pandoc's DOCX revision styles visible in standalone HTML output. */
-[data-custom-style="Revision Char"],
-[data-custom-style="Revision Para"] {
-  color: #ee0000;
-}
+
 /* Match DOCX whole-table revisions by coloring the HTML table caption. */
 [data-revision_rows="*"] > caption,
 [data-revision_columns="*"] > caption,
@@ -128,35 +124,7 @@ p {
 [data-revision-columns="*"] > caption {
   color: #ee0000;
 }
-/* Use the shared table style attribute to remove subfigure layout borders and padding. */
-table[data-custom-style="TableSubfigure"] {
-  margin: 0;
-  border: 0;
-  background: transparent;
-}
-table[data-custom-style="TableSubfigure"] > tbody {
-  margin-top: 0;
-  border-top: 0;
-  border-bottom: 0;
-}
-table[data-custom-style="TableSubfigure"] td,
-table[data-custom-style="TableSubfigure"] th {
-  border: 0;
-  padding: 0;
-}
-table[data-custom-style="TableSubfigure"] figure {
-  margin: 0;
-}
-/* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
-.pmt-page [data-custom-style="Para Where"] > p {
-  text-indent: 0;
-}
-.pmt-page [data-custom-style="Para Where"][data-where-layout="table"] > p {
-  margin-top: 6pt;
-}
-.pmt-page [data-custom-style="Para After Table"] > p {
-  margin-top: 6pt;
-}
+
 ol,
 ul,
 li {

@@ -9,7 +9,7 @@ use papper_core::paths::{
     atomic_write, canonical_project, display_path, pandoc_path, project_work_dir, write_if_changed,
 };
 use papper_core::resources::ResourcePaths;
-use papper_document::html::{postprocess_html_text, prepare_html_metadata};
+use papper_document::html::{postprocess_html_text_with_style_settings, prepare_html_metadata};
 use papper_engine::{PandocCli, PersistentWorker, WorkerConfig, WorkerRequest, discover_engine};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -81,6 +81,7 @@ struct PreparedMetadata {
     effective: EffectiveMetadata,
     environment: BTreeMap<String, Option<String>>,
     metadata_file: PathBuf,
+    reference_styles_xml: String,
 }
 
 /// Retain request results only while their content/dependencies remain identical.
@@ -225,6 +226,9 @@ fn prepare(
         effective,
         environment,
         metadata_file,
+        reference_styles_xml: std::fs::read_to_string(
+            resources.resource("pandoc/manuscript-template/reference-doc/word/styles.xml"),
+        )?,
     })
 }
 
@@ -448,10 +452,12 @@ impl ConversionState {
         let worker_ms = native_started.elapsed().as_secs_f64() * 1000.0;
         let post_started = Instant::now();
         let raw = std::fs::read_to_string(&output)?;
-        let html = postprocess_html_text(
+        let html = postprocess_html_text_with_style_settings(
             &raw,
             &Value::Object(prepared.effective.pandoc_metadata),
             mode == "preview",
+            &prepared.reference_styles_xml,
+            &prepared.effective.pmt_settings,
         )?;
         let post_ms = post_started.elapsed().as_secs_f64() * 1000.0;
         self.citation_hits += usize::from(response.citeproc_cache_hit);
@@ -627,7 +633,18 @@ pub fn build_html(
         &filter_environment(&effective),
     )?;
     let raw = std::fs::read_to_string(output)?;
-    let html = postprocess_html_text(&raw, &Value::Object(config.pandoc_metadata), false)?;
+    let xml = std::fs::read_to_string(
+        request
+            .resources
+            .resource("pandoc/manuscript-template/reference-doc/word/styles.xml"),
+    )?;
+    let html = postprocess_html_text_with_style_settings(
+        &raw,
+        &Value::Object(config.pandoc_metadata),
+        false,
+        &xml,
+        &effective.pmt_settings,
+    )?;
     atomic_write(&request.output, html.as_bytes())
 }
 

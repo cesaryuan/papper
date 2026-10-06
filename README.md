@@ -382,6 +382,37 @@ Word references enabled, the English number references the primary number's
 bookmark instead of introducing another `SEQ`. See the manuscript syntax guide
 for inline Markdown, English caption styles, and supported scope.
 
+HTML builds and previews read named Word styles from
+`pandoc/manuscript-template/reference-doc/word/styles.xml`. A paragraph Div such
+as `::: {custom-style="Reply to Reviewers"}`, an inline span such as
+`[updated wording]{custom-style="Revision Char"}`, or a table caption attribute
+such as `: Results {custom-style="TableNoBorder"}` selects the corresponding
+paragraph, character, or table style by its Word display name. HTML generates
+CSS only for custom styles used in that document and their `basedOn` ancestors.
+Parent declarations share the selectors of their descendants; child rules
+contain only changed properties and follow their parents in the CSS cascade.
+Named `docxStyle` configuration overrides are applied before resolving this
+inheritance: custom descendants inherit the configured parent, while explicit
+child properties (including zero indentation) retain precedence.
+Caption typography is shared by the caption container and its inner paragraphs;
+paragraph spacing stays on the container to avoid applying it twice.
+Generated comments identify the Word style id, its `basedOn` parent, target
+roles, and any HTML adaptation. Configuration overrides are identified as
+`docxStyle` rather than attributed to XML. Shared selector lists are printed
+one selector per line, with equal-specificity heading tags grouped using `:is`.
+Paragraph styles supply spacing, indentation, alignment, and font
+formatting; character styles supply font formatting without paragraph layout.
+Table styles supply outer and inner borders and cell margins. Their top/bottom
+cell margins are added to the effective `Table Text` paragraph spacing;
+per-table `cell_margin` attributes override the margins. User header styles
+remain after the generated CSS. First-row cell borders from Word's `tblStylePr`
+apply to the HTML table header and support inheritance and explicit removal.
+Enabled borders with `w:sz="0"` use a 0.5pt HTML approximation of Word's
+visible hairline; `w:val="nil"` or `w:val="none"` explicitly removes a border.
+Unknown styles produce a warning and retain the normal HTML formatting. Other
+Word conditional table regions (`tblStylePr`),
+theme fonts/colors, and decorative Word border patterns are not fully reproduced.
+
 ## When Papper Is a Good Fit
 
 Papper is especially useful if:

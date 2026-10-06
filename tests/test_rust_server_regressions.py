@@ -140,6 +140,69 @@ def test_native_service_restores_cached_header_after_another_header_build(native
     assert raw == output.read_bytes()
 
 
+def test_native_service_updates_used_custom_styles_and_preserves_table_text_overrides(
+    native_service_factory,
+) -> None:
+    """Refresh custom styles and configured inheritance without losing explicit child overrides."""
+    service = native_service_factory()
+    project = service.project
+    style_path = project.directory / "style.yml"
+    configured = (
+        "docxStyle:\n  Table Text:\n    paragraphSpacing:\n      before: 7pt\n      after: 8pt\n"
+        "  正文文本:\n    firstLineIndentChars: 2\n"
+        "    paragraphSpacing:\n      before: 0pt\n      after: 0pt\n"
+    )
+    style_path.write_text(configured, encoding="utf-8")
+    markdown = (
+        '::: {custom-style="Reply Header"}\n\n'
+        'A response with [highlighted words]{custom-style="Reply Char"}.\n\n:::\n\n'
+        '| Value |\n|---|\n| 1 |\n\n'
+        ': Results {custom-style="TableNoBorder" cell_margin_left="9pt"}\n\n'
+        '::: {custom-style="Para After Table"}\n\nAn indented continuation.\n\n:::\n\n'
+        '::: {custom-style="Para Where"}\n\nAn explicitly unindented explanation.\n\n:::\n'
+    )
+    first = service.convert(text=markdown)
+    document = html_parser.fromstring(first["output"])
+    css = document.xpath('string(//style[@id="pmt-custom-styles"])')
+    assert 'div[data-custom-style="Reply Header"] > p' in css
+    assert '[data-custom-style="Reply Char"]' in css
+    assert 'color: #0000FF;' in css
+    assert 'Revision Char' not in css
+    assert 'text-indent: 2em;' in css
+    assert 'text-indent: 0em;' in css
+    assert '--pmt-table-text-before: 7pt;' in first["output"]
+    assert '--pmt-table-text-after: 8pt;' in first["output"]
+    assert '--pmt-table-text-before:' not in css
+    assert '--pmt-table-cell-margin-left: 9pt;' in document.xpath('string(//table/@style)')
+    assert service.convert(text=markdown)["cache_hit"]
+
+    edited = markdown.replace('Reply Header', 'Revision Para').replace('Reply Char', 'Revision Char')
+    second = service.convert(text=edited, mode="preview")
+    assert not second["cache_hit"]
+    document = html_parser.fromstring(second["output"])
+    css = document.xpath('string(//style[@id="pmt-custom-styles"])')
+    assert 'div[data-custom-style="Revision Para"] > p' in css
+    assert '[data-custom-style="Revision Char"]' in css
+    assert 'color: #EE0000;' in css
+    assert '--pmt-table-text-before: 7pt;' in second["output"]
+    assert '--pmt-table-text-after: 8pt;' in second["output"]
+    assert 'Reply Header' not in css and 'Reply Char' not in css
+
+    # Changing a configured parent must invalidate warm-service output and
+    # update descendants; the child's explicit zero indentation must survive.
+    style_path.write_text(configured.replace("firstLineIndentChars: 2", "firstLineIndentChars: 3"),
+                          encoding="utf-8")
+    changed = service.convert(text=markdown, mode="preview")
+    assert not changed["cache_hit"]
+    css = html_parser.fromstring(changed["output"]).xpath('string(//style[@id="pmt-custom-styles"])')
+    assert 'text-indent: 3em;' in css and 'text-indent: 2em;' not in css
+    assert 'text-indent: 0em;' in css
+    assert '--pmt-table-text-before: 7pt;' in changed["output"]
+    assert '--pmt-table-text-after: 8pt;' in changed["output"]
+    plain = service.convert(text="A plain document with no custom styles.\n")
+    assert not html_parser.fromstring(plain["output"]).xpath('//style[@id="pmt-custom-styles"]')
+
+
 def _png_bytes(color: tuple[int, int, int]) -> bytes:
     """Encode a real single-pixel PNG without adding an imaging dependency."""
     def chunk(kind: bytes, data: bytes) -> bytes:
