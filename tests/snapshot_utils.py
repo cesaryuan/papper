@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 from zipfile import ZipFile
 
-from lxml import etree
+from lxml import etree, html
 
 from native_support import project_cache_dir
 
@@ -114,10 +114,41 @@ def _canonical_xml(
 
 
 def canonical_html(path: Path) -> str:
-    """Return standalone HTML with stable line endings and final newline."""
-    text = path.read_text(encoding="utf-8")
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    return text.rstrip() + "\n"
+    """Snapshot document semantics; CSS and scripts are covered by browser tests."""
+    return semantic_html(path.read_text(encoding="utf-8"))
+
+
+def semantic_html(source: str) -> str:
+    """Normalize HTML serialization without erasing text, targets or document structure.
+
+    Layout classes and inline CSS intentionally belong to visual tests. Keep math
+    modes and semantic data attributes so content snapshots still catch conversion
+    errors before browser rendering. Preserve preformatted whitespace and NBSPs.
+    """
+    document = html.document_fromstring(source)
+    for element in document.xpath("//style | //script | //link | //comment()"):
+        element.drop_tree()
+    for element in document.xpath('//meta[@name="generator"]'):
+        element.drop_tree()
+    for element in document.iter():
+        attributes = dict(element.attrib)
+        element.attrib.clear()
+        for name, value in sorted(attributes.items()):
+            if name == "style":
+                continue
+            if name == "class":
+                # Math classes encode inline/display mode, not just appearance.
+                value = " ".join(sorted(set(value.split()) & {"math", "inline", "display"}))
+                if not value:
+                    continue
+            element.set(name, value)
+        if element.tag in {"pre", "code"} or element.xpath("ancestor::pre | ancestor::code"):
+            continue
+        if element.text:
+            element.text = re.sub(r"[\t\r\n ]+", " ", element.text)
+        if element.tail:
+            element.tail = re.sub(r"[\t\r\n ]+", " ", element.tail)
+    return etree.tostring(document, method="html", encoding="unicode").replace("><", ">\n<").rstrip() + "\n"
 
 
 def canonical_docx(

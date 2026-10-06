@@ -30,6 +30,8 @@ dev = [
   "lxml>=4.9.0",
   "pymupdf>=1.26.0",
   "olefile>=0.47",
+  "playwright==1.58.0",
+  "pillow==12.1.0",
 ]
 
 [tool.ruff]
@@ -38,6 +40,7 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["legacy"]
+markers = ["visual: pinned browser rendering compared with reviewed image baselines"]
 
 [tool.ruff.lint]
 select = ["E9"]

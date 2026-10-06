@@ -281,3 +281,6 @@ scripts/pandoc-server/dist-newstyle/
 
 # Native Rust workspace build artifacts.
 /target/
+.venv/
+tests/visual/node_modules/
+tests/visual/results/

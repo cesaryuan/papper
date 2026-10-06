@@ -45,6 +45,20 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Create or refresh Papper output snapshots.",
     )
+    parser.addoption("--visual", action="store_true", help="Run pinned Chromium HTML visual regression tests.")
+    parser.addoption(
+        "--visual-update", action="store_true",
+        help="Explicitly replace visual baselines; --snapshot-update never changes them.",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Keep browser tests opt-in; explicit visual runs must fail on missing baselines."""
+    if config.getoption("--visual") or config.getoption("--visual-update"):
+        return
+    for item in items:
+        if "visual" in item.keywords:
+            item.add_marker(pytest.mark.skip(reason="use --visual to run browser regression tests"))
 
 
 @pytest.fixture
