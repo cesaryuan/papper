@@ -22,3 +22,44 @@ The paragraph after the table should retain its post-table style.
 | Another method | 16 |
 
 : Whole-table revision selected through columns. {#tbl:all-columns revision_columns="*" custom-style="TableNoBorder"}
+
+| Item | Description |
+| ---- | ----------- |
+| Styled cell | **Bold** and *italic* text |
+| Merged cell | !<! |
+
+: Custom cell paragraphs with an independent table style. {#tbl:text-style custom-style="TableNoBorder" custom-text-style="Body Text" revision_rows="2"}
+
+This paragraph keeps its post-table style.
+
+| Item | Value |
+| ---- | ----- |
+| Alias style | 18 |
+
+: The underscore alias also selects cell paragraph styles. {#tbl:alias-text-style custom_text_style="Quote"}
+
+| Item | Value |
+| ---- | ----- |
+| Default style | 20 |
+
+: The following table retains its default cell style. {#tbl:default-text-style}
+
+| Uncaptioned styled cell |
+| ---------------------- |
+| A cell without a visible caption |
+
+: {custom-text-style="Quote"}
+
+::: {custom-style="Body Text"}
+
++---------------------------+-----------------------+
+| Nested content            | Value                 |
++===========================+=======================+
+| First cell paragraph.     | - First list item     |
+|                           | - Second list item    |
+| Second cell paragraph.    |                       |
++---------------------------+-----------------------+
+
+: A table inside a styled block with multiple cell paragraphs and a list. {#tbl:block-text-style custom-text-style="Quote"}
+
+:::

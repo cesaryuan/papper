@@ -8,6 +8,7 @@ standalone: true
 reference-doc: ${.}/manuscript-template/reference-doc.docx
 # Custom XML template for DOCX formatting
 template: ${.}/templates/default.xml
+columns: 1
 
 # Filters are applied in order
 filters:

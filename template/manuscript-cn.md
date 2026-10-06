@@ -99,7 +99,14 @@ $$
 f(\boldsymbol{x}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b}
 $$ {#eq:linear}
 
-其中，$w_i$ 表示权重参数，$x_i$ 表示输入特征，$b$ 表示偏置项。优化目标为最小化损失函数 $\mathcal{L}$：
+<!-- 硕博士毕业论文中可能要求对于式中使用整齐的排列方式，这时候可以使用以下格式 -->
+| | | |
+|---:|---:|:-:|:------------------------------|
+| 式中 | $w_i$ |  ——   | 权重参数 |
+|      |         $x_i$ |  ——   | 输入特征 |
+|      |           $b$ |  ——   | 偏置项   |
+|      | $\mathcal{L}$ |  ——   | 损失函数 |
+: {custom-style="TableNoBorder" custom_text_style="式中" autofit="fixed" cell_margin="0cm"}
 
 $$
 \mathcal{L}(\theta) = \frac{1}{N} \sum_{j=1}^{N} \ell(y_j, \hat{y}_j) + \lambda R(\theta)

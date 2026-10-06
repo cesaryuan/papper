@@ -3,6 +3,8 @@
 -- Equation explanations get Para Where. Body paragraphs immediately after
 -- ordinary tables get Para After Table. Pandoc paragraphs do not carry block
 -- attributes, so matching paragraphs are wrapped in custom-style Div blocks.
+-- Tables can select cell paragraph styles with custom-text-style; captions
+-- and independently styled nested tables keep their own paragraph styles.
 
 local where_style = "Para Where"
 local after_table_style = "Para After Table"
@@ -234,6 +236,56 @@ local function style_paragraph(paragraph, style, extra_attributes)
   return pandoc.Div({ paragraph }, pandoc.Attr("", {}, attributes))
 end
 
+-- Style cell paragraphs, including lists/quotes, without entering nested tables or captions.
+local function style_cell_blocks(blocks, style)
+  for index, block in ipairs(blocks or {}) do
+    if block.t == "Para" or block.t == "Plain" then
+      -- Pipe-table cells are Plain blocks; HTML needs p elements for paragraph CSS.
+      blocks[index] = style_paragraph(pandoc.Para(block.content), style)
+    elseif block.t == "Div" or block.t == "BlockQuote" then
+      block.content = style_cell_blocks(block.content, style)
+    elseif block.t == "BulletList" or block.t == "OrderedList" then
+      for item_index, item in ipairs(block.content or {}) do
+        block.content[item_index] = style_cell_blocks(item, style)
+      end
+    end
+  end
+  return blocks
+end
+
+-- Apply a table's paragraph style to its header, intermediate headers, body, and footer.
+local function style_table_cells(tbl, style)
+  local sections = { tbl.head }
+  for _, body in ipairs(tbl.bodies or {}) do
+    sections[#sections + 1] = body
+  end
+  sections[#sections + 1] = tbl.foot
+  for _, section in ipairs(sections) do
+    for _, rows in ipairs({ section.head or {}, section_rows(section) }) do
+      for _, row in ipairs(rows) do
+        for _, cell in ipairs(row.cells or {}) do
+          cell.contents = style_cell_blocks(cell.contents, style)
+        end
+      end
+    end
+  end
+end
+
+-- Resolve explicit table text styles even inside already styled Div containers.
+local function apply_table_text_style(tbl)
+  local style = tbl.attributes["custom-text-style"] or tbl.attributes["custom_text_style"]
+  if style ~= nil and style:match("%S") ~= nil then
+    style_table_cells(tbl, style)
+    if FORMAT:match("html") then
+      -- Styled p elements supply spacing; omit default Table Text spacing in cell padding.
+      local existing = (tbl.attributes.style or ""):gsub(";?%s*$", "")
+      tbl.attributes.style = (existing ~= "" and existing .. "; " or "")
+        .. "--pmt-table-text-before: 0pt; --pmt-table-text-after: 0pt;"
+    end
+    return tbl
+  end
+end
+
 -- Revision comments are invisible and must not break equation/paragraph adjacency.
 -- Require comment-only HTML so visible raw markup still separates blocks.
 local function is_html_comment_block(block)
@@ -300,6 +352,8 @@ end
 
 -- Apply the filter once at block-list level so adjacency remains explicit.
 function Pandoc(document)
+  -- A bottom-up table walk styles nested tables independently of their outer table.
+  document.blocks = pandoc.Pandoc(document.blocks):walk({ Table = apply_table_text_style }).blocks
   document.blocks = process_blocks(document.blocks)
   return document
 end
