@@ -65,6 +65,11 @@ docxPageMargins:
 
 # DOCX 段落样式格式（后处理时按精确的样式名称应用）
 docxStyle:
+  正文文本:
+    firstLineIndentChars: 2
+    paragraphSpacing:
+      before: 0pt
+      after: 0pt
   标题:
     fontFamily:
       western: Times New Roman
