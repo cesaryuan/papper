@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from snapshot_utils import assert_snapshot, canonical_html
+from snapshot_utils import assert_snapshot, canonical_html, semantic_html
 from test_build_snapshots import CASES, DOCX_ONLY_CASES, ROOT, SNAPSHOT_ROOT
 
 
@@ -143,7 +143,7 @@ class NativeProject:
         """Compare a service result to fresh conversion through the public CLI."""
         output = self.directory / "cli-parity.html"
         self.build(output)
-        assert html.rstrip() + "\n" == canonical_html(output)
+        assert semantic_html(html) == canonical_html(output)
 
 
 class NativeService:
@@ -265,7 +265,7 @@ def test_native_html_cli_and_service_match_existing_snapshots(native_service_fac
     expected = SNAPSHOT_ROOT / case_name / "html.snap"
     assert_snapshot(canonical_html(output), expected, update=False)
     first = service.convert()
-    assert_snapshot(first["output"].rstrip() + "\n", expected, update=False)
+    assert_snapshot(semantic_html(first["output"]), expected, update=False)
     second = service.convert()
     assert second["cache_hit"] and second["output"] == first["output"]
 

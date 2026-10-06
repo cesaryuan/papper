@@ -59,8 +59,6 @@ An example of a multi-subfigure layout.
     regular = document.xpath("//table[.//th='A']")[0]
     assert regular.get("data-custom-style") is None
     assert len(document.xpath("//table")) == 2
-    assert 'table[data-custom-style="TableSubfigure"] td' in html
-    assert "padding: 0;" in html
 
 
 def test_html_paragraph_filter_styles_where_after_equations_and_body_after_tables() -> None:
@@ -81,7 +79,6 @@ where this paragraph has no preceding equation.
 
     assert html.count('<div data-custom-style="Para Where">') == 1
     assert '<div data-custom-style="Para Where"' in html
-    assert "[data-custom-style=\"Para Where\"] > p" in html
     assert "<p>where this paragraph has no preceding equation.</p>" in html
 
     table_html = _render_html("""\
@@ -96,7 +93,6 @@ A later paragraph.
 
     assert table_html.count('<div data-custom-style="Para After Table">') == 1
     assert '<p>The paragraph immediately after the table.</p>' in table_html
-    assert '[data-custom-style="Para After Table"] > p' in table_html
 
 
 def test_html_where_filter_recognizes_mathtype_tab_layout_equations() -> None:

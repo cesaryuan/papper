@@ -1,0 +1,31 @@
+{
+  "source_commit": "6080a4c12ad3c89c067faf5335fd5110645ebb8e",
+  "environment": {
+    "platform": "win32",
+    "architecture": "amd64",
+    "os_release": "11",
+    "browser": "145.0.7632.6",
+    "playwright": "1.58.0",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "device_scale_factor": 1,
+    "locale": "en-US",
+    "timezone": "UTC",
+    "media": "screen",
+    "katex_sha256": "1a86bc9528e5184205fd4f88d2b15988d28dce4c91f45693ae670178a8069223",
+    "font_sha256": {
+      "times.ttf": "931c5de5c70401d9324d5014c123802b4fb753000360ceb2f56c589403cd58c5",
+      "timesbd.ttf": "54fbe2c70af7c85a97bed0573227e3ccc4b2486012e3ca2a40c6bc77065846f5",
+      "timesbi.ttf": "3a29d114cb5229e8dbda5bef6c69be4a210a13b7277de4d66e9fc86963226f6c",
+      "timesi.ttf": "e7f7a88b65188328aea58670f955022e23c712f55679524729da1e4e03c49d88",
+      "simsun.ttc": "1526ac24375f51f6eb73bc2d3f8072dbe4a80a3a65217677c9d9a84f67dab2ab",
+      "simhei.ttf": "9b1959db3b3abeb7efdaec26edf7dfe871a6039de8d614af7248575207be629e",
+      "msyh.ttc": "d79c55e68b1131eea0cc1c47be4f572d964f28c682e143db2ad09c1e4cb07a3f",
+      "msyhbd.ttc": "4508821b3dffe01f0ef5e5326a3e60df705a44633858811f67b6982dce3f6ee6",
+      "cambria.ttc": "84e70ccc1664482f4a960442c7a166c91a1b2cf98ff88c33cb73f79403f66d7b",
+      "arial.ttf": "b3658eadae55e682b5f69eb64c439c1ecc8f196c0bb8d4756d145d13bc86476a"
+    }
+  }
+}

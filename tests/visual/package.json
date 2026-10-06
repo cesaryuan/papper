@@ -1,0 +1,8 @@
+{
+  "name": "papper-visual-fixtures",
+  "private": true,
+  "description": "Pinned offline KaTeX resources for HTML visual regression tests",
+  "dependencies": {
+    "katex": "0.16.22"
+  }
+}
