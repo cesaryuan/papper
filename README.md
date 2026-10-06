@@ -402,8 +402,14 @@ roles, and any HTML adaptation. Configuration overrides are identified as
 one selector per line, with equal-specificity heading tags grouped using `:is`.
 Paragraph styles supply spacing, indentation, alignment, and font
 formatting; character styles supply font formatting without paragraph layout.
-Table styles supply outer and inner borders and cell margins. Their top/bottom
-cell margins are added to the effective `Table Text` paragraph spacing;
+Table styles supply outer and inner borders and cell margins.
+Use `custom-text-style` to select the paragraph style inside a table, for example
+`: Results {custom-style="TableNoBorder" custom-text-style="Body Text"}`.
+It applies to header, body, and footer cell paragraphs in DOCX and HTML, including
+paragraphs in lists and quotes. Captions and paragraphs outside the table keep
+their own styles. Tables without this attribute retain the default `Table Text`
+formatting. The underscore alias `custom_text_style` is also supported.
+Table styles' top/bottom cell margins are added to the effective `Table Text` paragraph spacing;
 per-table `cell_margin` attributes override the margins. User header styles
 remain after the generated CSS. First-row cell borders from Word's `tblStylePr`
 apply to the HTML table header and support inheritance and explicit removal.
