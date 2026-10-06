@@ -104,7 +104,10 @@ fn border_css(border: Option<Node<'_, '_>>) -> Result<Option<String>> {
     let color = attr(Some(border), "color")
         .filter(|raw| raw.len() == 6 && u32::from_str_radix(raw, 16).is_ok())
         .map(|raw| format!("#{raw}"))
-        .unwrap_or_else(|| "currentColor".into());
+        // Borders now live on cells, whose Revision Char color may be red.
+        // Word's automatic border color must not inherit that character style;
+        // use the document border palette while preserving explicit XML colors.
+        .unwrap_or_else(|| "var(--pmt-table-border-color, #1a1a1a)".into());
     let declared_width = amount(Some(border), "sz", 8.0)?.unwrap_or(0.5);
     // Word displays sz=0 as a hairline for an enabled border, unlike CSS 0pt.
     // CSS has no device hairline unit; use the existing 0.5pt fallback as an

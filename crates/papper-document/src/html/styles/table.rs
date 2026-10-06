@@ -55,6 +55,12 @@ pub(super) fn table_geometry_rules(
     custom: bool,
     reset: bool,
 ) -> Vec<CssRule> {
+    // Default Table geometry must not match an independently selected custom
+    // Word style. Its first-row selectors outrank a custom border reset, so a
+    // TableNoBorder header otherwise retains the default separator. :where
+    // keeps this exclusion from increasing the default rule's specificity.
+    let default_selector = format!("{selector}:where(:not([data-custom-style]))");
+    let selector = if custom { selector } else { &default_selector };
     let groups = format!("{selector} > :is(thead, tbody, tfoot)");
     let cells = format!("{groups} > tr > :is(td, th)");
     // A borderless Word style often omits tblBorders altogether. Reset the

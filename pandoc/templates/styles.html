@@ -8,6 +8,8 @@ html {
   font-size: $if(fontsize)$$fontsize$$else$12pt$endif$;
   line-height: $if(linestretch)$$linestretch$$else$1.5$endif$;
   color: $if(fontcolor)$$fontcolor$$else$#1a1a1a$endif$;
+  /* Automatic table borders stay independent of revision text color. */
+  --pmt-table-border-color: $if(fontcolor)$$fontcolor$$else$#1a1a1a$endif$;
   background-color: $if(backgroundcolor)$$backgroundcolor$$else$#f0eff5$endif$;
   --pmt-page-width: $if(html-page-width)$$html-page-width$$else$210mm$endif$;
   --pmt-page-height: $if(html-page-height)$$html-page-height$$else$297mm$endif$;

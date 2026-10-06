@@ -1068,13 +1068,15 @@ mod tests {
         assert!(output.contains("<figcaption><p>Caption stays independent</p></figcaption>"));
         assert!(output.contains("--pmt-table-cell-margin-top: 4pt;"));
         assert!(output.contains("--pmt-table-cell-margin-left: 0pt;"));
-        assert!(output.contains("border-top: 0.5pt dashed currentColor;"));
+        assert!(
+            output.contains("border-top: 0.5pt dashed var(--pmt-table-border-color, #1a1a1a);")
+        );
         assert_eq!(
             output.matches("  border-top: 3pt double #123456;").count(),
             2
         );
         assert!(formatting.contains("table[data-custom-style=\"Child Grid\"] > thead > tr:first-child > :is(td, th) {\n  border-bottom: none;\n}"));
-        assert!(formatting.contains("table[data-custom-style=\"Hairline\"] > thead > tr:first-child > :is(td, th) {\n  border-bottom: 0.5pt solid currentColor;\n}"));
+        assert!(formatting.contains("table[data-custom-style=\"Hairline\"] > thead > tr:first-child > :is(td, th) {\n  border-bottom: 0.5pt solid var(--pmt-table-border-color, #1a1a1a);\n}"));
         assert!(output.contains("table[data-custom-style=\"No Border\"]"));
         assert!(output.contains("style=\"--pmt-table-cell-margin-left: 9pt;\""));
         // Custom tables inherit effective Table Text spacing from the defaults

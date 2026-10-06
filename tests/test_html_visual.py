@@ -20,12 +20,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from urllib.parse import unquote, urlparse
 
 import pytest
 from PIL import Image, ImageChops
-from playwright.sync_api import Browser, Route, sync_playwright
+from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 from snapshot_utils import semantic_html
 from test_build_snapshots import CASES, DOCX_ONLY_CASES, build_case
@@ -83,8 +83,8 @@ class HtmlVisualSession:
                 + json.dumps({"expected": expected["environment"], "actual": self.environment}, indent=2)
             )
 
-    def capture(self, output: Path) -> bytes:
-        """Serve local fixture resources offline and require two matching screenshots."""
+    def capture(self, output: Path, verify: Callable[[Page], None] | None = None) -> bytes:
+        """Serve assets offline, verify rendered behavior and require matching screenshots."""
         context = self.browser.new_context(
             viewport=self.environment["viewport"], device_scale_factor=1,
             locale="en-US", timezone_id="UTC", reduced_motion="reduce",
@@ -136,6 +136,8 @@ class HtmlVisualSession:
             }""")
             errors = page.locator(".katex-error").all_text_contents()
             assert not errors, f"KaTeX rendering errors: {errors}"
+            if verify is not None:
+                verify(page)
             previous = page.screenshot(full_page=True, animations="disabled", caret="hide", scale="css")
             for _ in range(4):
                 current = page.screenshot(full_page=True, animations="disabled", caret="hide", scale="css")
@@ -245,3 +247,51 @@ def test_equivalent_css_passes_but_one_visible_pixel_fails(
         _assert_visual(visual_session.capture(document), baseline, tmp_path / "changed")
     details = json.loads((tmp_path / "changed/difference.json").read_text(encoding="utf-8"))
     assert details["changed_pixels"] == 1
+
+
+@pytest.mark.visual
+@pytest.mark.parametrize("fontcolor, expected_border", [
+    (None, "rgb(26, 26, 26)"), ("#123456", "rgb(18, 52, 86)"),
+])
+def test_revision_text_keeps_automatic_borders_and_borderless_headers(
+    tmp_path: Path, visual_session: HtmlVisualSession, fontcolor: str | None, expected_border: str,
+) -> None:
+    """Revision red must affect text only; a custom borderless table has no header edge."""
+    case_dir, markdown = CASES["table_attributes"]
+    project = tmp_path / "table_attributes"
+    shutil.copytree(case_dir, project)
+    source = project / markdown
+    if fontcolor is not None:
+        source.write_text(f'---\nfontcolor: "{fontcolor}"\n---\n' + source.read_text(encoding="utf-8"), encoding="utf-8")
+    output = project / "rendered.html"
+    build_case(project, markdown, "html", output)
+
+    def verify(page: Page) -> None:
+        """Assert actual browser border/text colors and both sides of the collapsed edge."""
+        revised = page.locator('[id="tbl:all-rows"]')
+        assert revised.locator("th").evaluate_all("""cells => cells.every(cell => {
+            // Word auto borders stay at the document palette, despite red text.
+            const style = getComputedStyle(cell);
+            return style.color === 'rgb(238, 0, 0)' && style.borderBottomStyle === 'solid';
+        })""")
+        assert revised.locator("th").evaluate_all("cells => cells.map(cell => getComputedStyle(cell).borderBottomColor)") == [expected_border] * 2
+        assert revised.locator("tbody td").evaluate_all("cells => cells.map(cell => getComputedStyle(cell).borderTopColor)") == [expected_border] * 2
+        borderless = page.locator('[id="tbl:all-columns"]')
+        assert borderless.evaluate("""table => {
+            // Removing cell edges must also leave the table's outer frame absent.
+            const style = getComputedStyle(table);
+            return ['Top', 'Right', 'Bottom', 'Left'].every(side => style['border' + side + 'Style'] === 'none');
+        }""")
+        assert borderless.locator("th, td").evaluate_all("""cells => cells.every(cell => {
+            // In collapsed tables, either a header bottom or body top draws a line.
+            const style = getComputedStyle(cell);
+            return style.color === 'rgb(238, 0, 0)' &&
+                ['Top', 'Right', 'Bottom', 'Left'].every(side => style['border' + side + 'Style'] === 'none');
+        })""")
+        assert borderless.locator("thead, tbody, tr").evaluate_all("""elements => elements.every(element => {
+            // Row and row-group borders can also participate in collapsed edges.
+            const style = getComputedStyle(element);
+            return style.borderTopStyle === 'none' && style.borderBottomStyle === 'none';
+        })""")
+
+    visual_session.capture(output, verify)
