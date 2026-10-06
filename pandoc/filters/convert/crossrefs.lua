@@ -1,7 +1,9 @@
 -- Convert confirmed Word figure/equation bookmarks to pandoc-crossref syntax.
 -- Run after equation_tables.lua exposes table-based math and after TOC cleanup
--- and figure_captions.lua. A Figure caption (or its preceding empty paragraph)
--- can carry an empty _Ref span; a display-equation paragraph can carry the same.
+-- and figure_captions.lua. A Figure caption or a standalone Image caption (or
+-- its preceding empty paragraph) can carry an empty _Ref span; a display-equation
+-- paragraph can carry the same. Pairing images/captions in Lua leaves Para/Image
+-- nodes in the AST, so both forms must be recognized without re-reading Markdown.
 -- These known targets receive fig:/eq: identifiers, then their inbound bookmark
 -- links are replaced by @fig:.../@eq:... references throughout the document.
 -- Examples:
@@ -60,9 +62,9 @@ local function equation_anchor(block)
 end
 
 --- Remove an empty bookmark Span while preserving visible caption content.
-local function caption_inlines(figure)
+local function caption_inlines(caption_blocks)
   local result, id = {}, nil
-  for _, block in ipairs(figure.caption.long) do
+  for _, block in ipairs(caption_blocks) do
     if block.t ~= 'Para' and block.t ~= 'Plain' then return nil, nil end
     for _, inline in ipairs(block.content) do
       local candidate = anchor_id(inline)
@@ -83,6 +85,16 @@ local function figure_image(figure)
   local block = figure.content[1]
   if (block.t ~= 'Plain' and block.t ~= 'Para') or #block.content ~= 1 then return nil end
   return block.content[1].t == 'Image' and block.content[1] or nil
+end
+
+--- Recognize captioned standalone images produced by figure_captions.lua.
+local function paragraph_image(block)
+  if (block.t ~= 'Para' and block.t ~= 'Plain') or #block.content ~= 1 then return nil end
+  local image = block.content[1]
+  -- Changing Image.caption in a previous filter does not promote its Para to
+  -- Figure. Restrict this fix to sole, captioned images to avoid labeling prose.
+  if image.t == 'Image' and #image.caption > 0 then return image end
+  return nil
 end
 
 --- Detect a plain displayed number which pandoc-crossref will regenerate.
@@ -117,11 +129,13 @@ function Pandoc(doc)
   local pending_anchor = nil
   for _, block in ipairs(doc.blocks) do
     local standalone = anchor_paragraph(block)
+    local image = block.t == 'Figure' and figure_image(block) or paragraph_image(block)
     if standalone then
       pending_anchor = standalone
-    elseif block.t == 'Figure' then
-      local image = figure_image(block)
-      local caption, internal = caption_inlines(block)
+    elseif image then
+      local caption_blocks = block.t == 'Figure' and block.caption.long
+        or { pandoc.Plain(image.caption) }
+      local caption, internal = caption_inlines(caption_blocks)
       local id = internal or pending_anchor
       if image and caption and id then
         image.caption = caption

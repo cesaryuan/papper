@@ -12,6 +12,8 @@
 -- Output when used alone:
 --   ![[[]{#_Toc241697898 .anchor}]{#_Ref181174213 .anchor}图1‑11 识别结果](media/image24.png){width="4.25in" height="4.40625in"}
 -- remove_toc_anchors.lua removes the _Toc span in the full Convert pipeline.
+-- crossrefs.lua then promotes a unique _Ref caption bookmark to an image
+-- identifier such as #fig:_Ref181174213 and rewrites its inbound figure links.
 -- Pictures that already have captions, multi-image paragraphs, intervening
 -- prose and non-numbered paragraphs are preserved rather than guessed at.
 -- Run after MathType recovery and TOC cleanup, before crossrefs.lua:

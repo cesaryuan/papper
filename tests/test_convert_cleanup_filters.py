@@ -37,10 +37,30 @@ def test_convert_cleanup_filter_snapshot(
     assert_snapshot(result.stdout, fixture / "snapshots-content" / f"{case}.md", update=snapshot_update)
 
 
+def test_paired_image_crossrefs_snapshot(tmp_path: Path, snapshot_update: bool) -> None:
+    """Catch missed figure references when caption pairing leaves Para/Image AST nodes."""
+    pandoc = native_pandoc_executable()
+    assert pandoc is not None, "Convert filters require the retained Pandoc engine"
+    fixture = ROOT / "tests/snapshot_cases_convert/paired_crossrefs"
+    result = subprocess.run(
+        [str(pandoc), str(fixture / "input.md"), "--from=markdown", "--to=markdown", "--wrap=none",
+         "--lua-filter", str(ROOT / "pandoc/filters/convert/figure_captions.lua"),
+         "--lua-filter", str(ROOT / "pandoc/filters/convert/crossrefs.lua")],
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "@fig:_Ref202795969" in result.stdout
+    assert '[First bookmark](#_RefFirst)' in result.stdout
+    assert '[Inline picture](#_RefInline)' in result.stdout
+    assert_snapshot(
+        result.stdout, fixture / "snapshots-content/paired_crossrefs.md", update=snapshot_update,
+    )
+
+
 def test_convert_pairs_word_captions_and_removes_nested_toc_links(
     tmp_path: Path, rust_executable: Path, snapshot_update: bool,
 ) -> None:
-    """Exercise both filters through DOCX import while retaining ordinary bookmarks."""
+    """Pair real Word captions, clean TOC links and resolve inbound figure references."""
     from docx import Document
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -93,10 +113,11 @@ def test_convert_pairs_word_captions_and_removes_nested_toc_links(
     assert result.returncode == 0, result.stdout + result.stderr
     markdown = (output / "captions.md").read_text(encoding="utf-8")
     assert "_Toc" not in markdown
-    assert "![[]{#_Ref181174213 .anchor}图1‑11 区域桥隧网络脆弱节点识别结果](media/" in markdown
+    assert "![图1‑11 区域桥隧网络脆弱节点识别结果](media/" in markdown
+    assert "#fig:_Ref181174213" in markdown
     assert 'width="1.0in"' in markdown
     assert "图2‑35 各时段核密度估计 78" in markdown
-    assert "[Figure reference](#_Ref181174213)" in markdown
+    assert "@fig:_Ref181174213" in markdown
     assert len(list((output / "media").glob("*.png"))) == 1
     assert_snapshot(
         markdown, ROOT / "tests/snapshot_cases_convert/word_cleanup/snapshots-content/word_cleanup.md",
