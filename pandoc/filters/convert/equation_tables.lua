@@ -1,5 +1,18 @@
--- Flatten one-row equation layout tables after mtef_parser.lua has produced Math.
--- Only a two-cell formula/label or three-cell blank/formula/label row qualifies.
+-- Flatten Word's one-row equation layout tables into ordinary math paragraphs.
+-- Run after mtef_parser.lua has recovered MathType previews as DisplayMath, and
+-- before crossrefs.lua assigns equation identifiers. A two-cell formula/label
+-- row, or a three-cell blank/formula/label row, is treated as equation layout.
+-- Example (table cells shown with vertical separators):
+--   | $$x^2+y^2$$ | (7) | -> $$x^2+y^2$$ (7)
+--   | blank | $$E=mc^2$$ | []{#_Ref123 .anchor}(3) |
+--     -> $$E=mc^2$$ []{#_Ref123 .anchor}(3)
+-- crossrefs.lua then turns the latter into $$E=mc^2$$ {#eq:_Ref123}.
+-- A descriptive label such as "energy balance" is retained after the math.
+-- Only simple, unmerged cells qualify. Captioned tables, multiple rows, a
+-- nonblank leading cell, multiple formulas or structured label content remain
+-- tables, preserving authored data instead of assuming every table is layout.
+-- Run directly with an already-decoded document:
+--   pandoc input.md -t markdown -L pandoc/filters/convert/equation_tables.lua
 
 --- Return the only row in a table, including a row Pandoc promoted to the head.
 local function only_row(table_element)

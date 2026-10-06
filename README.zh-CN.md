@@ -71,10 +71,14 @@ uv run papper convert "测试文档.docx" -o converted
 ```
 
 命令会生成 `converted/测试文档.md`，并只把 Markdown 仍需要的图片放进
-`converted/media`。三个内置 Lua 过滤器依次将 MathType OLE 公式转换为 LaTeX、
-展平单行的公式排版表格、把可确认的 Word 书签链接转换为 `@fig:_Ref241620557`
+`converted/media`。五个内置 Lua 过滤器依次将 MathType OLE 公式转换为 LaTeX、
+展平单行的公式排版表格、清理 `_Toc...` 目录锚点及链接、将单张无题注图片与紧接着的
+`图1‑11` 或 `Figure 1-11` 这类编号题注段落合并，最后把可确认的 Word 书签链接转换为 `@fig:_Ref241620557`
 或 `@eq:_Ref241620691` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
 Pandoc 的结果；公式无法解码时会保留预览图片。
+
+题注合并保留原有文字、格式、`_Ref...` 书签和图片尺寸；目录链接清理保留显示文字及页码。
+已有题注、多图段落和中间隔着正文的图文不会自动配对。
 
 当 DOCX 正文及脚注、尾注中的汉字占文字字符（汉字、其他语言字母和数字）的比例
 达到 90% 时，命令会在 Markdown 最前面的 YAML header 中添加 `lang: zh-CN`。

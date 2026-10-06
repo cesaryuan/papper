@@ -1,6 +1,20 @@
--- Convert Word bookmark links and caption anchors to pandoc-crossref syntax.
--- Run after equation_tables.lua, so table-based equation anchors are visible
--- beside the display Math node in an ordinary paragraph.
+-- Convert confirmed Word figure/equation bookmarks to pandoc-crossref syntax.
+-- Run after equation_tables.lua exposes table-based math and after TOC cleanup
+-- and figure_captions.lua. A Figure caption (or its preceding empty paragraph)
+-- can carry an empty _Ref span; a display-equation paragraph can carry the same.
+-- These known targets receive fig:/eq: identifiers, then their inbound bookmark
+-- links are replaced by @fig:.../@eq:... references throughout the document.
+-- Examples:
+--   Figure caption: []{#_Ref123 .anchor}Network -> ![Network](image.png){#fig:_Ref123}
+--   $$E=mc^2$$ []{#_Ref456 .anchor}(7) -> $$E=mc^2$$ {#eq:_Ref456}
+--   [Figure 1](#_Ref123) -> @fig:_Ref123 (only if the figure was confirmed)
+--   [Equation 7](#_Ref456) -> @eq:_Ref456 (only if the equation was confirmed)
+-- Manual numeric equation labels are dropped for crossref to regenerate;
+-- descriptive labels survive. Unknown links, ordinary tables and section
+-- bookmarks are retained. Nested caption spans are not guessed as targets.
+-- The Image walk also normalizes ./media/image.png to media/image.png.
+-- Run after the earlier filters in the Convert chain:
+--   pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/crossrefs.lua
 
 --- Return a Word-generated bookmark identifier carried by an empty Span.
 local function anchor_id(inline)

@@ -7,6 +7,16 @@
 -- Install the native Papper CLI on PATH before using this standalone filter.
 -- papper convert supplies a predecoded map; standalone Pandoc starts one native
 -- batch helper (PAPPER_EXECUTABLE overrides its path) using the same linked decoder.
+-- Examples of recovered Markdown (the input is a Word preview image + MTEF):
+--   inline MathType x^2+y^2 -> $x^2+y^2$
+--   displayed MathType E=mc^2 -> $$E=mc^2$$
+--   WMF-only preview containing MathType comments -> the same Math node, even
+--     when its OLE object is absent or corrupt
+-- Ordinary images, WMF files without MTEF, failed decodes and ambiguous previews
+-- shared by multiple objects remain images. Only confirmed formula previews are
+-- removed from extracted media; genuine manuscript pictures are preserved.
+-- The filter processes document, footnote and endnote relationships. It runs
+-- first in Convert so equation_tables.lua can recognize recovered display Math.
 
 --- Return the local part of an XML name, independent of namespace prefix.
 local function local_name(name)

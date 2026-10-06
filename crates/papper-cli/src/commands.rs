@@ -470,7 +470,13 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
             chinese_ratio * 100.0
         );
     }
-    for filename in ["mtef_parser.lua", "equation_tables.lua", "crossrefs.lua"] {
+    for filename in [
+        "mtef_parser.lua",
+        "equation_tables.lua",
+        "remove_toc_anchors.lua",
+        "figure_captions.lua",
+        "crossrefs.lua",
+    ] {
         let filter = resources.resource(format!("pandoc/filters/convert/{filename}"));
         anyhow::ensure!(
             filter.is_file(),

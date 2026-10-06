@@ -74,12 +74,19 @@ uv run papper convert "测试文档.docx" -o converted
 ```
 
 This writes `converted/测试文档.md` and only the images still needed by the
-Markdown under `converted/media`. The command combines three bundled Lua
+Markdown under `converted/media`. The command combines five bundled Lua
 filters: it converts MathType OLE equations and MTEF-bearing WMF images to LaTeX, flattens one-row equation
-layout tables, and changes recognizable Word bookmark links to pandoc-crossref
+layout tables, removes `_Toc...` bookmarks and navigation links, attaches an
+immediately following `图1‑11` or `Figure 1-11` caption paragraph to a single bare
+image, and changes recognizable Word bookmark links to pandoc-crossref
 references such as `@fig:_Ref241620557` and `@eq:_Ref241620691`. It keeps
 ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
+
+Caption pairing retains the original text, formatting, `_Ref...` bookmarks and
+image dimensions. TOC cleanup retains visible text and page numbers. Existing
+captions, multi-image paragraphs and images separated from captions by prose
+are preserved.
 
 When Han characters make up at least 90% of the letters and numbers in the DOCX
 body, footnotes, and endnotes, Convert adds `lang: zh-CN` to a leading YAML header
