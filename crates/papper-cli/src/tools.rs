@@ -1,14 +1,14 @@
 //! Resolve native tools, recover managed downloads and refresh release hints off the CLI path.
 
 use anyhow::{Context, Result, bail, ensure};
-use papper_core::paths::{atomic_write, display_path, home_dir, tools_bin_dir};
+use papper_core::paths::{atomic_write, display_path, home_dir, pandoc_path, tools_bin_dir};
 use papper_core::resources::ResourcePaths;
 use pep440_rs::Version;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -265,45 +265,26 @@ pub fn doctor(resources: &ResourcePaths, project: &Path) -> Result<i32> {
         true,
         "DOCX, YAML, XML, Pandoc AST and SVG rasterization available".into(),
     ));
-    let resources_to_check = [
+    let defaults_to_check = [
         ("papper pandoc defaults", "pandoc/pandoc-docx.yml"),
         ("papper HTML defaults", "pandoc/pandoc-html.yml"),
-        (
-            "papper DOCX metadata filter",
-            "pandoc/filters/docx/docx_metadata.lua",
-        ),
-        (
-            "papper shared numbering filter",
-            "pandoc/filters/shared/normalize_chinese_numbering.lua",
-        ),
-        (
-            "papper bilingual caption filter",
-            "pandoc/filters/shared/bilingual_captions.lua",
-        ),
-        (
-            "papper shared table filter",
-            "pandoc/filters/shared/merge_table_cells.lua",
-        ),
-        (
-            "papper shared paragraph filter",
-            "pandoc/filters/shared/paragraph_custom_styles.lua",
-        ),
-        (
-            "papper HTML revision filter",
-            "pandoc/filters/html/revision_table_styles.lua",
-        ),
-        (
-            "papper HTML subfigure filter",
-            "pandoc/filters/html/subfigure_layout_styles.lua",
-        ),
-        (
-            "papper DOCX AST filters",
-            "pandoc/filters/docx/inline_math_spacing.lua",
-        ),
     ];
-    for (label, relative) in resources_to_check {
+    let mut filters = BTreeSet::new();
+    for (label, relative) in defaults_to_check {
         let path = resources.root.join(relative);
-        checks.push((label.into(), path.is_file(), display_path(&path)));
+        match defaults_filters(&path) {
+            Ok(paths) => {
+                checks.push((label.into(), true, display_path(&path)));
+                filters.extend(paths);
+            }
+            Err(error) => checks.push((label.into(), false, format!("{error:#}"))),
+        }
+    }
+    // Final DOCX passes are appended outside defaults; reuse the conversion's
+    // own paths so adding or moving a pass cannot leave doctor checking an old file.
+    filters.extend(crate::docx_pipeline::output_filters(resources));
+    for path in filters {
+        checks.push(("papper filter".into(), path.is_file(), display_path(&path)));
     }
     checks.push((
         "project directory".into(),
@@ -324,6 +305,41 @@ pub fn doctor(resources: &ResourcePaths, project: &Path) -> Result<i32> {
         errors |= !ok;
     }
     Ok(i32::from(errors))
+}
+
+/// Read configured filters instead of maintaining a second resource inventory.
+fn defaults_filters(path: &Path) -> Result<Vec<PathBuf>> {
+    let text = fs::read_to_string(path)
+        .with_context(|| format!("Cannot read Pandoc defaults {}", display_path(path)))?;
+    let defaults: serde_yaml::Value = serde_yaml::from_str(&text)
+        .with_context(|| format!("Cannot parse Pandoc defaults {}", display_path(path)))?;
+    ensure!(
+        defaults.is_mapping(),
+        "Pandoc defaults must be a mapping: {}",
+        display_path(path)
+    );
+    let parent = path.parent().context("Pandoc defaults have no directory")?;
+    let mut paths = Vec::new();
+    for key in ["filters", "lua-filter"] {
+        let Some(value) = defaults.get(key) else {
+            continue;
+        };
+        let filters = value
+            .as_sequence()
+            .with_context(|| format!("{key} must be a list in {}", display_path(path)))?;
+        for filter in filters {
+            let filter = filter.as_str().with_context(|| {
+                format!("{key} entries must be strings in {}", display_path(path))
+            })?;
+            // citeproc is built in and crossref runs in the retained worker;
+            // their availability is checked above, not as authored resource files.
+            if key == "filters" && matches!(filter, "citeproc" | "pandoc-crossref") {
+                continue;
+            }
+            paths.push(parent.join(filter.replace("${.}", &pandoc_path(parent))));
+        }
+    }
+    Ok(paths)
 }
 
 /// Return the native executable filename on the current platform.

@@ -38,14 +38,17 @@ pub(crate) fn reply_defaults(resources: &ResourcePaths, work: &Path) -> Result<P
 
 /// Append metadata and image filters after the shared defaults in writer order.
 pub(crate) fn append_output_filters(command: &mut Vec<OsString>, resources: &ResourcePaths) {
-    for kind in ["docx_metadata", "svg_embed_images", "svg_to_png"] {
-        command.extend([
-            "--lua-filter".into(),
-            resources
-                .resource(format!("pandoc/filters/docx/{kind}.lua"))
-                .into_os_string(),
-        ]);
+    for path in output_filters(resources) {
+        command.extend(["--lua-filter".into(), path.into_os_string()]);
     }
+}
+
+/// Share final DOCX filter paths between conversion and runtime diagnostics.
+pub(crate) fn output_filters(resources: &ResourcePaths) -> Vec<PathBuf> {
+    ["docx_metadata", "svg_embed_images", "svg_to_png"]
+        .into_iter()
+        .map(|kind| resources.resource(format!("pandoc/filters/docx/{kind}.lua")))
+        .collect()
 }
 
 /// Override the shared reference only for an explicit document or configured
