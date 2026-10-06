@@ -1,0 +1,27 @@
+{
+  "source_commit": "356eac18f7bd55b13acaf17112d60f6762f07753",
+  "environment": {
+    "platform": "win32",
+    "architecture": "amd64",
+    "os_release": "11",
+    "word": {
+      "word_version": "16.0",
+      "word_build": "16.0.20430",
+      "word_file_version": "16.0.20430.20092",
+      "word_sha256": "eee6defcccf12743fc44b5118ac6511359e851029d9e1c1f085dfef6e4a8fa99",
+      "active_printer": "HP9A1E06.lan (HP LaserJet Pro MFP 4104)",
+      "ui_language": 2052,
+      "print_hidden_text": false,
+      "print_field_codes": false,
+      "print_drawing_objects": true,
+      "print_backgrounds": false
+    },
+    "pymupdf": "1.27.2.3",
+    "mupdf": "1.27.2",
+    "dpi": 144,
+    "colorspace": "RGB",
+    "alpha": false,
+    "export": "print-quality document-content without review markup; repaginate; no field update",
+    "installed_fonts_sha256": "cfc326989e5b0f42a6c14b894996ae1c58914c30bc9dcfd6381bec19b8b1ec5f"
+  }
+}

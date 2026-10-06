@@ -40,7 +40,7 @@ target-version = "py311"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["legacy"]
-markers = ["visual: pinned browser rendering compared with reviewed image baselines"]
+markers = ["visual: HTML browser or DOCX Word rendering compared with reviewed image baselines"]
 
 [tool.ruff.lint]
 select = ["E9"]
