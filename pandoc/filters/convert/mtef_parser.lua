@@ -2,7 +2,7 @@
 -- Pandoc's DOCX reader keeps an OLE object's preview image in the AST but
 -- discards its MTEF payload. This native Lua filter reads the source DOCX with
 -- pandoc.zip, matches each preview image to its embedded OLE relationship,
--- reads LaTeX decoded by Papper's linked Rust library, and replaces Image with Math.
+-- also recovers MTEF-bearing WMF pictures without OLE, and replaces Image with Math.
 -- Run with: pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua
 -- Install the native Papper CLI on PATH before using this standalone filter.
 -- papper convert supplies a predecoded map; standalone Pandoc starts one native
@@ -88,7 +88,7 @@ local function image_source(source)
 end
 
 --- Collect preview/OLE pairs in one XML part, keeping ambiguous images intact.
-local function scan_part(part, entries, previews, ambiguous)
+local function scan_part(part, entries, previews, ambiguous, blocked)
   local rels = relationships(part, entries)
   local current = nil
   for tag in entries[part]:contents():gmatch('<[^>]+>') do
@@ -102,6 +102,8 @@ local function scan_part(part, entries, previews, ambiguous)
       local prog_id = attrs.ProgID or ''
       if prog_id:match('^Equation[%.]') or prog_id:find('MathType', 1, true) then
         current.ole_id = attribute_by_local_name(attrs, 'id')
+      else
+        current.other_ole = true
       end
     elseif current and (kind == 'imagedata' or kind == 'blip') and not closing then
       local attrs = attributes(tag)
@@ -138,7 +140,10 @@ local function scan_part(part, entries, previews, ambiguous)
         for _, id in ipairs(current.images) do
           local image_rel = rels[id]
           if image_rel and image_rel.kind:match('/image$') then
-            ambiguous[image_source(image_rel.target)] = true
+            local source = image_source(image_rel.target)
+            if current.other_ole then
+              blocked[source] = true
+            end
           end
         end
       end
@@ -150,17 +155,22 @@ end
 --- Read each source DOCX using Pandoc's built-in ZIP support.
 local function collect_previews()
   local previews = {}
+  local wmfs = {}
   local ambiguous = {}
+  local blocked = {}
   for _, input in ipairs(PANDOC_STATE.input_files) do
     if input:lower():match('%.docx$') then
       local archive = pandoc.zip.Archive(pandoc.system.read_file(input, true))
       local entries = {}
       for _, entry in ipairs(archive.entries) do
         entries[entry.path] = entry
+        if entry.path:lower():match('^word/media/.+%.wmf$') then
+          wmfs[image_source(entry.path)] = entry:contents()
+        end
       end
       for part in pairs(entries) do
         if part:match('^word/[^/]+%.xml$') then
-          scan_part(part, entries, previews, ambiguous)
+          scan_part(part, entries, previews, ambiguous, blocked)
         end
       end
     end
@@ -168,10 +178,17 @@ local function collect_previews()
   for source in pairs(ambiguous) do
     if previews[source] then
       previews[source] = nil
+      wmfs[source] = nil
       io.stderr:write('[mtef-parser] ambiguous preview ', source, '; keeping image\n')
     end
   end
-  return previews
+  -- A standalone WMF needs no OLE association. Explicitly unrelated attachments
+  -- and ambiguous OLE previews must not be reclassified via their picture data.
+  for source in pairs(blocked) do
+    previews[source] = nil
+    wmfs[source] = nil
+  end
+  return previews, wmfs
 end
 
 --- Read in-process conversion results or decode documents in one native batch call.
@@ -204,21 +221,20 @@ local function math_body(latex)
   return value
 end
 
---- Look up a decoded OLE by content hash and strip its outer math delimiters.
-local function decode_ole(ole, decoded, cache)
-  if cache[ole] ~= nil then
-    return cache[ole] or nil
+--- Look up decoded OLE/WMF bytes by content hash and strip outer math delimiters.
+local function decode_payload(payload, decoded, cache)
+  if cache[payload] ~= nil then
+    return cache[payload] or nil
   end
-  local latex = decoded[pandoc.utils.sha1(ole)]
+  local latex = decoded[pandoc.utils.sha1(payload)]
   if type(latex) == 'string' then
     local body = math_body(latex)
     if body ~= '' then
-      cache[ole] = body
+      cache[payload] = body
       return body
     end
   end
-  cache[ole] = false
-  io.stderr:write('[mtef-parser] MathType decode failed; keeping preview image\n')
+  cache[payload] = false
   return nil
 end
 
@@ -240,23 +256,31 @@ end
 
 --- Convert display equations first, then remaining inline MathType previews.
 function Pandoc(doc)
-  local previews = collect_previews()
-  if next(previews) == nil then
+  local previews, wmfs = collect_previews()
+  if next(previews) == nil and next(wmfs) == nil then
     return doc
   end
   local decoded = read_latex_map()
   local cache = {}
   local count = 0
   local converted_sources = {}
-  -- Replace only images linked to a MathType OLE object.
+  -- Prefer editable OLE data, then use the WMF's own validated MTEF comments.
   local function replace_image(image, style)
     local source = image_source(image.src)
     local ole = previews[source]
-    if not ole then
+    local wmf = wmfs[source]
+    if not ole and not wmf then
       return nil
     end
-    local body = decode_ole(ole, decoded, cache)
+    local body = ole and decode_payload(ole, decoded, cache)
+    if not body and wmf then
+      body = decode_payload(wmf, decoded, cache)
+    end
     if not body then
+      -- Ordinary WMF pictures have no decoded entry and should stay silent.
+      if ole or (wmf and decoded[pandoc.utils.sha1(wmf)] ~= nil) then
+        io.stderr:write('[mtef-parser] MathType decode failed; keeping preview image\n')
+      end
       return nil
     end
     count = count + 1

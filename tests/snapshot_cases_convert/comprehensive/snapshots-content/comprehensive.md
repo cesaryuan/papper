@@ -141,4 +141,10 @@ An unrelated OLE object is not a MathType formula:
 
 Text with a formula footnote[^1]
 
+# 仅有WMF的公式
+
+在本节中，${\hat y_i}$表示预测得到的节点温度${T_i}$、应力${\sigma _i}$或位移${u_i}$，${f_{de}}$仍然为3层MLP。为了通过反向传播来训练GNN，均方误差（MSE）被用作损失函数：
+
+$$Los{s_{\text{MSE}}}=\frac{1}{n}\cdot \sum\limits_{i=1}^n({y_i}-{\hat y_i}{)^2}$$
+
 [^1]: Footnote formula: $\sqrt{{a^2}+{b^2}}$

@@ -143,7 +143,7 @@ pub fn mathtype_objects(docx: &Path) -> Result<Vec<Vec<u8>>> {
     Ok(result)
 }
 
-/// Decode unique equation objects once and retain unsupported equations as preview images.
+/// Decode unique OLE and MTEF-bearing WMF equations, retaining unsupported previews.
 pub fn decode_documents(documents: &[PathBuf]) -> Result<BTreeMap<String, Value>> {
     let mut result = BTreeMap::new();
     for document in documents {
@@ -157,6 +157,40 @@ pub fn decode_documents(documents: &[PathBuf]) -> Result<BTreeMap<String, Value>
                 Err(error) => {
                     eprintln!(
                         "[WARN] Could not decode equation {key} in {}: {error}",
+                        document.display()
+                    );
+                    json!(false)
+                }
+            };
+            result.insert(key, value);
+        }
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(document)?)?;
+        let mut media: Vec<_> = archive
+            .file_names()
+            .filter(|name| {
+                name.starts_with("word/media/") && name.to_ascii_lowercase().ends_with(".wmf")
+            })
+            .map(str::to_string)
+            .collect();
+        media.sort();
+        for part in media {
+            let mut wmf = Vec::new();
+            archive.by_name(&part)?.read_to_end(&mut wmf)?;
+            let key = hex(&Sha1::digest(&wmf));
+            if result.contains_key(&key) {
+                continue;
+            }
+            let decoded = conversion_result(|| {
+                mathtype_rust::mtef_from_wmf(&wmf)?
+                    .map(|mtef| mathtype_rust::decode_mtef(&mtef, mathtype_rust::DecodeMode::Auto))
+                    .transpose()
+            });
+            let value = match decoded {
+                Ok(Some(latex)) => json!(latex),
+                Ok(None) => continue,
+                Err(error) => {
+                    eprintln!(
+                        "[WARN] Could not decode WMF {part} in {}: {error}",
                         document.display()
                     );
                     json!(false)

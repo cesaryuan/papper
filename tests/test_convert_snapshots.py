@@ -14,8 +14,10 @@ import struct
 import subprocess
 import zlib
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
+from lxml import etree
 
 from native_support import ROOT
 from snapshot_utils import assert_snapshot
@@ -107,6 +109,13 @@ def test_convert_output_matches_snapshot(
     assert "@eq:_RefConvertTwoCell" in markdown and "@eq:_RefConvertTextLabel" in markdown, (
         "Comprehensive fixture lost equation recovery; check shared Word previews before refreshing snapshots"
     )
+    # These authored pictures have no OLE; the snapshot must exercise WMF MTEF
+    # recovery rather than silently accepting leaked formula preview images.
+    wmf_section = markdown.split("# 仅有WMF的公式\n", 1)[1].split("[^1]:", 1)[0]
+    assert wmf_section.count("$") == 14 and "![](" not in wmf_section
+    assert "![](media/undecodable.wmf)" in markdown
+    assert "![](media/non-equation.wmf)" in markdown
+    assert markdown.count("![](media/shared-preview.wmf)") == 2
     if snapshot_update:
         # Delete only this case's previous golden output so removed media names
         # cannot silently remain in the expected directory after a refresh.
@@ -127,3 +136,47 @@ def test_convert_output_matches_snapshot(
                 target.write_bytes(path.read_bytes())
     assert_snapshot(markdown, expected / markdown_name, update=snapshot_update)
     assert output_tree(output) == output_tree(expected), "Convert output file/directory tree differs from the snapshot"
+
+
+@pytest.mark.parametrize("ole_state", ["corrupt", "missing", "absent"])
+def test_convert_recovers_wmf_when_ole_is_unusable(
+    ole_state: str, tmp_path: Path, rust_executable: Path,
+) -> None:
+    """Recover the same visible formula from a preview after OLE corruption or loss."""
+    source = CASE_ROOT / "comprehensive/comprehensive.docx"
+    with ZipFile(source) as archive:
+        parts = {entry.filename: archive.read(entry) for entry in archive.infolist()}
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+          "o": "urn:schemas-microsoft-com:office:office",
+          "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+    document = etree.fromstring(parts["word/document.xml"])
+    body = document.find("w:body", ns)
+    paragraph = next(p for p in body.findall("w:p", ns) if p.find(".//o:OLEObject", ns) is not None)
+    ole = paragraph.find(".//o:OLEObject", ns)
+    relations = etree.fromstring(parts["word/_rels/document.xml.rels"])
+    target = next(rel.get("Target") for rel in relations if rel.get("Id") == ole.get(f"{{{ns['r']}}}id"))
+    if ole_state == "corrupt":
+        parts[f"word/{target}"] = b"damaged OLE"
+    elif ole_state == "missing":
+        del parts[f"word/{target}"]
+    else:
+        ole.getparent().remove(ole)
+    # Isolate this occurrence so another identical equation cannot hide a failure.
+    for child in list(body):
+        if child is not paragraph and child.tag != f"{{{ns['w']}}}sectPr":
+            body.remove(child)
+    parts["word/document.xml"] = etree.tostring(document, encoding="UTF-8", xml_declaration=True)
+    damaged = tmp_path / "fallback.docx"
+    with ZipFile(damaged, "w") as archive:
+        for name, data in parts.items():
+            archive.writestr(name, data)
+    output = tmp_path / "converted"
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(damaged), "-o", str(output)], cwd=tmp_path,
+        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    markdown = (output / "fallback.md").read_text(encoding="utf-8")
+    assert markdown.strip() == r"$$\sqrt{{b^2}-4ac}$$"
+    assert not list(output.rglob("*.wmf")), "Recovered previews must not leak into published media"

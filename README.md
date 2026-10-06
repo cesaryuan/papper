@@ -75,11 +75,16 @@ uv run papper convert "测试文档.docx" -o converted
 
 This writes `converted/测试文档.md` and only the images still needed by the
 Markdown under `converted/media`. The command combines three bundled Lua
-filters: it converts MathType OLE equations to LaTeX, flattens one-row equation
+filters: it converts MathType OLE equations and MTEF-bearing WMF images to LaTeX, flattens one-row equation
 layout tables, and changes recognizable Word bookmark links to pandoc-crossref
 references such as `@fig:_Ref241620557` and `@eq:_Ref241620691`. It keeps
 ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
+
+If an equation's OLE object is missing or damaged, Convert can recover MTEF from
+the WMF preview's MathType comments. It validates WMF records and comment lengths;
+ordinary WMF pictures, unrelated OLE attachments, and ambiguous shared OLE previews
+remain images. Formula recovery does not require MathType to be installed.
 
 MathType decoding uses the same directly linked Rust equation library as
 LaTeX-to-MTEF export. `papper convert` decodes objects in its Rust process and
