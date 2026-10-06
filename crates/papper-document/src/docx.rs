@@ -29,6 +29,52 @@ pub struct DocxPostprocessOptions {
     pub native_crossrefs: bool,
 }
 
+/// Measure Han characters among letters and numbers in DOCX body and note text.
+pub fn chinese_character_ratio(input: &Path) -> Result<f64> {
+    use std::io::Read;
+
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(input)?)?;
+    let han = regex::Regex::new(r"\p{Han}")?;
+    let mut chinese = 0_u64;
+    let mut total = 0_u64;
+    for name in [
+        "word/document.xml",
+        "word/footnotes.xml",
+        "word/endnotes.xml",
+    ] {
+        let mut part = match archive.by_name(name) {
+            Ok(part) => part,
+            Err(zip::result::ZipError::FileNotFound) if name != "word/document.xml" => continue,
+            Err(error) => return Err(error.into()),
+        };
+        let mut text = String::new();
+        part.read_to_string(&mut text)?;
+        let document = roxmltree::Document::parse(&text)
+            .with_context(|| format!("Cannot parse DOCX part {name}"))?;
+        for node in document.descendants().filter(|node| {
+            node.has_tag_name((
+                "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+                "t",
+            ))
+        }) {
+            // Count authored text, not XML, Markdown attributes, or media paths;
+            // punctuation and whitespace must not dilute a Chinese manuscript.
+            let text = node.text().unwrap_or_default();
+            total += text.chars().filter(|c| c.is_alphanumeric()).count() as u64;
+            chinese += han
+                .find_iter(text)
+                .filter(|matched| matched.as_str().chars().all(char::is_alphanumeric))
+                .count() as u64;
+        }
+    }
+    // Empty and picture-only documents have no evidence of a Chinese language.
+    Ok(if total == 0 {
+        0.0
+    } else {
+        chinese as f64 / total as f64
+    })
+}
+
 /// Apply Chinese-only line-number defaults to a cloned effective configuration.
 pub fn prepare_docx_metadata(effective: &EffectiveMetadata) -> Result<EffectiveMetadata> {
     let mut prepared = effective.clone();

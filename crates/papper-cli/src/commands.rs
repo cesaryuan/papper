@@ -460,6 +460,16 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         "--to=markdown".into(),
         "--wrap=none".into(),
     ];
+    let chinese_ratio = papper_document::docx::chinese_character_ratio(&source)?;
+    if chinese_ratio >= 0.9 {
+        // Standalone Markdown emits a leading YAML block; setting metadata on
+        // a fragment alone would silently discard the detected language.
+        command.extend(["--standalone".into(), "--metadata=lang:zh-CN".into()]);
+        println!(
+            "[convert] Chinese characters: {:.1}%; adding lang: zh-CN",
+            chinese_ratio * 100.0
+        );
+    }
     for filename in ["mtef_parser.lua", "equation_tables.lua", "crossrefs.lua"] {
         let filter = resources.resource(format!("pandoc/filters/convert/{filename}"));
         anyhow::ensure!(

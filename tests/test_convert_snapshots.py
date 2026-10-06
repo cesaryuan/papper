@@ -26,6 +26,101 @@ from snapshot_utils import assert_snapshot
 CASE_ROOT = Path(__file__).with_name("snapshot_cases_convert")
 
 
+@pytest.mark.parametrize(("text", "expected_language"), [
+    pytest.param("中文正文转换语言中a", "zh-CN", id="exactly-90-percent"),
+    pytest.param("中" * 91 + "a" * 9, "zh-CN", id="above-90-percent"),
+    pytest.param("中" * 89 + "a" * 11, None, id="below-90-percent"),
+    pytest.param("𠀀" * 9 + "a", "zh-CN", id="supplementary-han"),
+    pytest.param("中文， 正文！\t转换：语言；中。 a", "zh-CN", id="ignore-punctuation-and-space"),
+    pytest.param("中" * 8 + "a1", None, id="count-digits"),
+    pytest.param("An English manuscript", None, id="english"),
+    pytest.param("", None, id="empty"),
+    pytest.param("，。！？", None, id="punctuation-only"),
+])
+def test_convert_detects_chinese_language_from_document_text(
+    text: str, expected_language: str | None, tmp_path: Path, rust_executable: Path,
+) -> None:
+    """Check actual imports at the language threshold, preserving text and portable output."""
+    import yaml
+    from docx import Document
+
+    source = tmp_path / "language.docx"
+    document = Document()
+    document.add_paragraph(text)
+    document.save(source)
+    output = tmp_path / "converted"
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(source), "-o", str(output)], cwd=tmp_path,
+        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    markdown = (output / "language.md").read_bytes().decode("utf-8")
+    assert "\r" not in markdown
+    if expected_language:
+        assert markdown.startswith("---\n")
+        header, body = markdown[4:].split("\n---\n", 1)
+        assert yaml.safe_load(header)["lang"] == expected_language
+    else:
+        assert not markdown.startswith("---\n")
+        body = markdown
+    # Pandoc may escape punctuation or normalize spaces; authored letters and
+    # numbers must still survive the new standalone output mode in order.
+    assert "".join(c for c in body if c.isalnum()) == "".join(c for c in text if c.isalnum())
+
+
+@pytest.mark.parametrize("note_type", ["footnote", "endnote"])
+def test_convert_includes_notes_in_language_detection(
+    note_type: str, tmp_path: Path, rust_executable: Path,
+) -> None:
+    """Include actual note text in the language ratio and retain it in Markdown."""
+    import yaml
+    from docx import Document
+    from docx.oxml import OxmlElement
+
+    source = tmp_path / "notes.docx"
+    document = Document()
+    document.add_paragraph("a").add_run()._r.append(OxmlElement(f"w:{note_type}Reference"))
+    reference = document.paragraphs[0]._p[-1][-1]
+    reference.set("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id", "1")
+    document.save(source)
+    with ZipFile(source) as archive:
+        parts = {entry.filename: archive.read(entry) for entry in archive.infolist()}
+    word_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    note_text = "中文正文转换语言中"
+    parts[f"word/{note_type}s.xml"] = (
+        f'<w:{note_type}s xmlns:w="{word_ns}"><w:{note_type} w:id="1">'
+        f'<w:p><w:r><w:t>{note_text}</w:t></w:r></w:p></w:{note_type}></w:{note_type}s>'
+    ).encode("utf-8")
+    relationships = etree.fromstring(parts["word/_rels/document.xml.rels"])
+    etree.SubElement(relationships, f"{{{relationships.nsmap[None]}}}Relationship", {
+        "Id": "rIdPapperNote", "Target": f"{note_type}s.xml",
+        "Type": f"http://schemas.openxmlformats.org/officeDocument/2006/relationships/{note_type}s",
+    })
+    parts["word/_rels/document.xml.rels"] = etree.tostring(relationships)
+    content_types = etree.fromstring(parts["[Content_Types].xml"])
+    etree.SubElement(content_types, f"{{{content_types.nsmap[None]}}}Override", {
+        "PartName": f"/word/{note_type}s.xml",
+        "ContentType": f"application/vnd.openxmlformats-officedocument.wordprocessingml.{note_type}s+xml",
+    })
+    parts["[Content_Types].xml"] = etree.tostring(content_types)
+    with ZipFile(source, "w") as archive:
+        for name, data in parts.items():
+            archive.writestr(name, data)
+    output = tmp_path / "converted"
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(source), "-o", str(output)], cwd=tmp_path,
+        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    markdown = (output / "notes.md").read_text(encoding="utf-8")
+    assert markdown.startswith("---\n")
+    header, body = markdown[4:].split("\n---\n", 1)
+    assert yaml.safe_load(header)["lang"] == "zh-CN"
+    assert "[^1]: " + note_text in body
+
+
 def png_chunk(kind: bytes, data: bytes) -> bytes:
     """Encode a PNG chunk with its length and CRC, without ancillary metadata."""
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))

@@ -81,6 +81,11 @@ references such as `@fig:_Ref241620557` and `@eq:_Ref241620691`. It keeps
 ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
 
+When Han characters make up at least 90% of the letters and numbers in the DOCX
+body, footnotes, and endnotes, Convert adds `lang: zh-CN` to a leading YAML header
+in the Markdown. Whitespace, punctuation, and formatting do not affect the ratio;
+empty and picture-only documents do not receive an automatic language tag.
+
 If an equation's OLE object is missing or damaged, Convert can recover MTEF from
 the WMF preview's MathType comments. It validates WMF records and comment lengths;
 ordinary WMF pictures, unrelated OLE attachments, and ambiguous shared OLE previews

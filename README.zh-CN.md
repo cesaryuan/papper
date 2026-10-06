@@ -76,6 +76,10 @@ uv run papper convert "测试文档.docx" -o converted
 或 `@eq:_Ref241620691` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
 Pandoc 的结果；公式无法解码时会保留预览图片。
 
+当 DOCX 正文及脚注、尾注中的汉字占文字字符（汉字、其他语言字母和数字）的比例
+达到 90% 时，命令会在 Markdown 最前面的 YAML header 中添加 `lang: zh-CN`。
+空白、标点和格式信息不参与统计；空文档和纯图片文档不会自动设置语言。
+
 MathType 反向解码复用 LaTeX 转 MTEF 时直接链接的同一份 Rust 公式库。
 `papper convert` 在当前 Rust 进程中完成解码，再把结果交给 Lua；wheel
 无需独立 MathType DLL 或公式转换可执行文件。
