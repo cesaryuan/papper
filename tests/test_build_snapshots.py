@@ -41,6 +41,10 @@ CASES = {
     "equation_attributes": (
         ROOT / "tests" / "snapshot_cases" / "equation_attributes", "equation_attributes.md",
     ),
+    "equation_attributes_no_mathtype": (
+        ROOT / "tests" / "snapshot_cases" / "equation_attributes_no_mathtype",
+        "equation_attributes_no_mathtype.md",
+    ),
     "where_comments": (
         ROOT / "tests" / "snapshot_cases" / "where_comments", "where_comments.md",
     ),
@@ -49,7 +53,7 @@ CASES = {
     ),
 }
 # Trailing equation revision attributes are supported by the DOCX pipeline only.
-DOCX_ONLY_CASES = {"native_crossrefs", "equation_attributes"}
+DOCX_ONLY_CASES = {"native_crossrefs", "equation_attributes", "equation_attributes_no_mathtype"}
 
 pytestmark = pytest.mark.skipif(
     native_pandoc_executable() is None and (shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None),
@@ -70,7 +74,8 @@ def build_case(
         "-o",
         str(output),
     ]
-    if target == "docx":
+    # Explicit fixture styles control MathType without a CLI override masking them.
+    if target == "docx" and style_file is None:
         command.append("--no-mathtype")
     if style_file is not None:
         command.extend(["--style-file", str(style_file)])
@@ -110,7 +115,11 @@ def test_build_output_matches_snapshot(
     native_crossrefs = case_name == "native_crossrefs"
     build_case(
         case_dir, markdown, target, output,
-        style_file=case_dir / "style.yml" if native_crossrefs else None,
+        style_file=(
+            case_dir / "style.yml"
+            if native_crossrefs or case_name == "equation_attributes_no_mathtype"
+            else None
+        ),
     )
     actual = (
         canonical_html(output)

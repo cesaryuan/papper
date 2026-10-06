@@ -18,11 +18,12 @@ math-method:
 # before Pandoc writes the standalone HTML document.
 filters:
   - ${.}/filters/shared/bilingual_captions.lua
+  - ${.}/filters/shared/table_autofit.lua
   - pandoc-crossref
+  - ${.}/filters/shared/subfigure_layout_styles.lua
   - ${.}/filters/shared/normalize_chinese_numbering.lua
   - ${.}/filters/shared/bilingual_captions.lua
   - ${.}/filters/shared/merge_table_cells.lua
   - ${.}/filters/shared/paragraph_custom_styles.lua
-  - ${.}/filters/html/subfigure_layout_styles.lua
   - ${.}/filters/html/revision_table_styles.lua
   - citeproc

@@ -14,7 +14,7 @@ use yaml_rust::scanner::{TScalarStyle, TokenType};
 mod settings;
 pub use settings::{
     ConversionMethod, DocxStyles, LengthInput, LineNumberMode, MathFontConfig, SettingField,
-    SettingsOverrides, SettingsValues, SvgBackend,
+    SettingsOverrides, SettingsValues, SvgBackend, TableAutofit,
 };
 
 /// Store canonical configuration while tracking explicitly supplied fields.
@@ -92,6 +92,7 @@ pub fn canonical_field_name(name: &str) -> Option<&'static str> {
         "docxNativeCrossref" | "docx-native-crossref" | "docx_native_crossref" => {
             Some("docxNativeCrossref")
         }
+        "tableAutofit" | "table-autofit" | "table_autofit" => Some("tableAutofit"),
         "docxSvgToPngWidth" | "docx-svg-to-png-width" | "docx_svg_to_png_width" => {
             Some("docxSvgToPngWidth")
         }
@@ -538,6 +539,10 @@ fn validate_field(name: &str, value: &Value) -> Result<Value> {
             parse_bool(value, name)
         }
         "docxShowPageNumbers" if value.is_null() => Ok(Value::Null),
+        "tableAutofit" => match value.as_str() {
+            Some("window" | "content" | "fixed" | "none") => Ok(value.clone()),
+            _ => bail!("tableAutofit must be window, content, fixed, or none"),
+        },
         "docxShowPageNumbers" => parse_bool(value, name),
         "mathtypeConversionMethod" => conversion_method(value),
         "mathtypeTypstMathFont" => Ok(json!(MathFontConfig::from_value(value)?)),
@@ -870,6 +875,7 @@ impl PmtSettings {
                 Some(self.fields.mathtype_conversion_method.as_str())
             }
             SettingField::MathtypeSvgBackend => Some(self.fields.mathtype_svg_backend.as_str()),
+            SettingField::TableAutofit => Some(self.fields.table_autofit.as_str()),
             SettingField::CitationNumberRangeDelimiter => {
                 self.fields.citation_number_range_delimiter.as_deref()
             }

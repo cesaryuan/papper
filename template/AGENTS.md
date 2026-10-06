@@ -40,6 +40,11 @@ this when a DOCX build actually starts MathType conversion.
 
 - Bold only for highlighting best results in comparison tables
 - Alignment: `:--` left, `:--:` center, `--:` right
+- For borderless DOCX tables, including aligned blocks of text, add
+  `custom-style="TableNoBorder"` to the table caption attributes.
+  For a layout without a visible caption, use `: {custom-style="TableNoBorder"}`.
+  The bundled Word style's display name and internal style ID are both
+  `TableNoBorder`.
 - For advanced DOCX table formatting (cell merging, metadata), see `.agents/manuscript-syntax.md`
 
 **Subfigures:** Prefer building multi-panel figure layouts as a single SVG that

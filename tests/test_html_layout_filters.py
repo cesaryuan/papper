@@ -33,7 +33,8 @@ def _render_html(markdown: str, *extra_args: str) -> str:
 
 
 def test_html_subfigure_filter_neutralizes_only_subfigure_layout_tables() -> None:
-    """Mark crossref subfigure tables without changing regular tables."""
+    """Expose the shared layout style to HTML CSS without styling ordinary tables."""
+    from lxml import html as html_parser
     markdown = """\
 <div id="fig:subfigure-example">
 ![Left panel.](a.png){#fig:subfigure-a width=49%}
@@ -51,9 +52,14 @@ An example of a multi-subfigure layout.
 
     html = _render_html(markdown, "--metadata", "subfigGrid=true")
 
-    assert html.count('<table class="pmt-subfigure-table"') == 1
-    assert html.count("<table") == 2
-    assert "figure.subfigures .pmt-subfigure-table td" in html
+    document = html_parser.fromstring(html)
+    layouts = document.xpath('//figure[contains(@class, "subfigures")]//table')
+    assert len(layouts) == 1
+    assert layouts[0].get("data-custom-style") == "TableSubfigure"
+    regular = document.xpath("//table[.//th='A']")[0]
+    assert regular.get("data-custom-style") is None
+    assert len(document.xpath("//table")) == 2
+    assert 'table[data-custom-style="TableSubfigure"] td' in html
     assert "padding: 0;" in html
 
 

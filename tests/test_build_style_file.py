@@ -94,3 +94,98 @@ def test_build_rejects_invalid_explicit_style(
     assert result.returncode != 0
     assert message in result.stderr
     assert not output.exists()
+
+
+@pytest.mark.parametrize("mode", ["window", "content", "fixed", "none"])
+def test_table_autofit_defaults_are_shared_by_html_and_docx(
+    tmp_path: Path, rust_executable: Path, mode: str,
+) -> None:
+    """Share authored-table defaults and overrides while preserving generated layout tables."""
+    from lxml import etree, html
+    from zipfile import ZipFile
+
+    image = (ROOT / "template/examples/images/subfigure-a-example.png").as_posix()
+    source = tmp_path / "tables.md"
+    source.write_text(f"""---
+subfigGrid: true
+tableAutofit: content
+---
+| Default | Value |
+|---|---|
+| Sample | 1 |
+
+: Default table.
+
+| Content | Value |
+|---|---|
+| Sample | 2 |
+
+: Content table. {{autofit="content"}}
+
+| Fixed | Value |
+|---|---|
+| Sample | 3 |
+
+: Fixed table. {{autofit="fixed"}}
+
+| Window | Value |
+|---|---|
+| Sample | 4 |
+
+: Window table. {{autofit="window"}}
+
+<div id="fig:panels">
+![Left.]({image}){{#fig:left width=49%}}
+![Right.]({image}){{#fig:right width=49%}}
+
+Panels.
+</div>
+
+$$
+x=1
+$$ {{#eq:example}}
+""", encoding="utf-8")
+    style = tmp_path / "style.yml"
+    style.write_text(f"tableAutofit: {mode}\n", encoding="utf-8")
+    environment = {**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)}
+    for target in ["html", "docx"]:
+        output = tmp_path / f"tables.{target}"
+        command = [str(rust_executable), "build", target, "-m", str(source),
+                   "--style-file", str(style), "-o", str(output)]
+        if target == "docx":
+            command.append("--no-mathtype")
+        result = subprocess.run(command, cwd=tmp_path, env=environment,
+                                capture_output=True, text=True, encoding="utf-8", timeout=45)
+        assert result.returncode == 0, result.stdout + result.stderr
+        if target == "html":
+            document = html.fromstring(output.read_text(encoding="utf-8"))
+            for heading, expected in [("Default", mode if mode != "none" else None),
+                                      ("Content", "content"), ("Fixed", "fixed"), ("Window", "window")]:
+                table = document.xpath(f"//table[.//th='{heading}']")[0]
+                assert table.get("data-autofit") == expected
+            layout = document.xpath("//figure[contains(@class, 'subfigures')]/table")[0]
+            assert layout.get("data-autofit") is None
+            assert 'table[data-autofit="window"]' in output.read_text(encoding="utf-8")
+        else:
+            with ZipFile(output) as archive:
+                document = etree.fromstring(archive.read("word/document.xml"))
+            ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+            for heading, kind, width in [("Default", "pct" if mode == "window" else "auto", "5000" if mode == "window" else "0"),
+                                         ("Content", "auto", "0"), ("Window", "pct", "5000")]:
+                table = document.xpath(f"//w:tbl[.//w:t='{heading}']", namespaces=ns)[0]
+                preferred = table.find("w:tblPr/w:tblW", ns)
+                assert preferred.get(f"{{{ns['w']}}}type") == kind
+                assert preferred.get(f"{{{ns['w']}}}w") == width
+                if heading == "Default" and mode != "none":
+                    assert table.find("w:tblPr/w:tblLayout", ns).get(f"{{{ns['w']}}}type") == ("fixed" if mode == "fixed" else "autofit")
+            fixed = document.xpath("//w:tbl[.//w:t='Fixed']", namespaces=ns)[0]
+            assert fixed.find("w:tblPr/w:tblLayout", ns).get(f"{{{ns['w']}}}type") == "fixed"
+            layout = document.xpath("//w:tbl[w:tblPr/w:tblStyle/@w:val='TableSubfigure']", namespaces=ns)[0]
+            assert layout.find("w:tblPr/w:tblW", ns).get(f"{{{ns['w']}}}w") == "4900"
+            assert layout.find("w:tblPr/w:tblLayout", ns).get(f"{{{ns['w']}}}type") == "fixed"
+            # Defaults must not resize crossref's three-column equation layout.
+            equation = document.xpath("//w:tbl[.//m:oMath]", namespaces={**ns, "m": "http://schemas.openxmlformats.org/officeDocument/2006/math"})[0]
+            assert equation.find("w:tblPr/w:tblLayout", ns).get(f"{{{ns['w']}}}type") == "fixed"
+            # Walking metadata would put autofit on eqnBlockTemplate and change this generated width.
+            assert equation.find("w:tblPr/w:tblW", ns).get(f"{{{ns['w']}}}w") == "4931"
+            assert not document.xpath("//w:t[contains(., 'PMT_TABLE_METADATA:')]", namespaces=ns)

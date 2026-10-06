@@ -230,10 +230,11 @@ convertRequest engine timings citationCache config optionsCache request = do
                               "citeproc_cache_hit" .= citationsReused,
                               "filters_ms" .= object [Key.fromString key .= value | (key, value) <- filterTimings]]
 
--- | Update only Papper's filter settings; arbitrary environment keys are rejected.
+-- | Update request-local filter settings; arbitrary environment keys are rejected.
 setFilterVariable :: (String, Maybe String) -> IO ()
 setFilterVariable (key, value)
-  | key == "PMT_CITATION_NUMBER_RANGE_DELIMITER" = maybe (unsetEnv key) (setEnv key) value
+  | key `elem` ["PMT_CITATION_NUMBER_RANGE_DELIMITER", "PMT_TABLE_AUTOFIT"] =
+      maybe (unsetEnv key) (setEnv key) value
   | otherwise = fail $ "Unsupported filter environment variable: " ++ key
 
 -- | Apply per-source metadata/resources and exact/fragment writer semantics.

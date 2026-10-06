@@ -87,6 +87,7 @@ pub enum SettingField {
     DocxEmbedSvgImages,
     DocxConvertSvgToPng,
     DocxNativeCrossref,
+    TableAutofit,
     DocxSvgToPngWidth,
     DocxSvgToPngDpi,
     DocxSvgToPngScale,
@@ -100,12 +101,13 @@ pub enum SettingField {
 
 impl SettingField {
     /// Enumerate owned settings without treating arbitrary Pandoc metadata as fields.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
         Self::Mathtype,
         Self::MathtypeConversionMethod,
         Self::MathtypeSvgBackend,
         Self::MathtypeTypstMathFont,
         Self::DocxNativeCrossref,
+        Self::TableAutofit,
         Self::DocxEmbedSvgImages,
         Self::DocxConvertSvgToPng,
         Self::DocxSvgToPngWidth,
@@ -129,6 +131,7 @@ impl SettingField {
             "docxEmbedSvgImages" => Some(Self::DocxEmbedSvgImages),
             "docxConvertSvgToPng" => Some(Self::DocxConvertSvgToPng),
             "docxNativeCrossref" => Some(Self::DocxNativeCrossref),
+            "tableAutofit" => Some(Self::TableAutofit),
             "docxSvgToPngWidth" => Some(Self::DocxSvgToPngWidth),
             "docxSvgToPngDpi" => Some(Self::DocxSvgToPngDpi),
             "docxSvgToPngScale" => Some(Self::DocxSvgToPngScale),
@@ -152,6 +155,7 @@ impl SettingField {
             Self::DocxEmbedSvgImages => "docxEmbedSvgImages",
             Self::DocxConvertSvgToPng => "docxConvertSvgToPng",
             Self::DocxNativeCrossref => "docxNativeCrossref",
+            Self::TableAutofit => "tableAutofit",
             Self::DocxSvgToPngWidth => "docxSvgToPngWidth",
             Self::DocxSvgToPngDpi => "docxSvgToPngDpi",
             Self::DocxSvgToPngScale => "docxSvgToPngScale",
@@ -161,6 +165,28 @@ impl SettingField {
             Self::DocxPageMargins => "docxPageMargins",
             Self::DocxPageWidth => "docxPageWidth",
             Self::DocxStyle => "docxStyle",
+        }
+    }
+}
+
+/// Select the default authored-table layout, with none preserving existing attributes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TableAutofit {
+    Window,
+    Content,
+    Fixed,
+    None,
+}
+
+impl TableAutofit {
+    /// Return the shared Lua filter's canonical mode spelling.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Window => "window",
+            Self::Content => "content",
+            Self::Fixed => "fixed",
+            Self::None => "none",
         }
     }
 }
@@ -284,6 +310,7 @@ pub struct SettingsValues {
     pub docx_embed_svg_images: bool,
     pub docx_convert_svg_to_png: bool,
     pub docx_native_crossref: bool,
+    pub table_autofit: TableAutofit,
     pub docx_svg_to_png_width: Option<i64>,
     pub docx_svg_to_png_dpi: Option<f64>,
     pub docx_svg_to_png_scale: Option<f64>,
@@ -306,6 +333,7 @@ impl Default for SettingsValues {
             docx_embed_svg_images: true,
             docx_convert_svg_to_png: false,
             docx_native_crossref: false,
+            table_autofit: TableAutofit::Window,
             docx_svg_to_png_width: None,
             docx_svg_to_png_dpi: None,
             docx_svg_to_png_scale: None,
@@ -335,6 +363,7 @@ impl SettingsValues {
             SettingField::DocxEmbedSvgImages => assign!(docx_embed_svg_images),
             SettingField::DocxConvertSvgToPng => assign!(docx_convert_svg_to_png),
             SettingField::DocxNativeCrossref => assign!(docx_native_crossref),
+            SettingField::TableAutofit => assign!(table_autofit),
             SettingField::DocxSvgToPngWidth => assign!(docx_svg_to_png_width),
             SettingField::DocxSvgToPngDpi => assign!(docx_svg_to_png_dpi),
             SettingField::DocxSvgToPngScale => assign!(docx_svg_to_png_scale),
@@ -358,6 +387,7 @@ impl SettingsValues {
             SettingField::DocxEmbedSvgImages => json!(self.docx_embed_svg_images),
             SettingField::DocxConvertSvgToPng => json!(self.docx_convert_svg_to_png),
             SettingField::DocxNativeCrossref => json!(self.docx_native_crossref),
+            SettingField::TableAutofit => json!(self.table_autofit),
             SettingField::DocxSvgToPngWidth => json!(self.docx_svg_to_png_width),
             SettingField::DocxSvgToPngDpi => json!(self.docx_svg_to_png_dpi),
             SettingField::DocxSvgToPngScale => json!(self.docx_svg_to_png_scale),

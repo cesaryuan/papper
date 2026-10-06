@@ -1,6 +1,6 @@
-//! Preserve the existing table metadata, subfigure, and display-equation layout rules.
+//! Apply table metadata, paragraph styles, and display-equation layout rules.
 
-use super::formatting::{get_style_mut, paragraph_style, set_bool, style_index};
+use super::formatting::{paragraph_style, style_index};
 use super::xml::{Element, Node};
 use anyhow::Result;
 use serde_json::Value;
@@ -33,23 +33,6 @@ pub(crate) fn is_equation(table: &Element) -> bool {
         .is_match(&filtered)
 }
 
-/// Resolve the reference document's actual default table style rather than assuming its ID.
-fn normal_table_style(styles: &Element) -> String {
-    styles
-        .elements()
-        .find(|style| style.attr("w:type") == Some("table") && style.attr("w:default") == Some("1"))
-        .or_else(|| {
-            styles.elements().find(|style| {
-                style.attr("w:type") == Some("table")
-                    && style.child("w:name").and_then(|name| name.attr("w:val"))
-                        == Some("Normal Table")
-            })
-        })
-        .and_then(|style| style.attr("w:styleId"))
-        .unwrap_or("TableNormal")
-        .into()
-}
-
 /// Replace table-level margins in the original side order.
 fn margins(table: &mut Element, sides: &[(&str, i64)]) {
     let properties = table.word("w:tblPr");
@@ -64,95 +47,9 @@ fn margins(table: &mut Element, sides: &[(&str, i64)]) {
     }
 }
 
-/// Neutralize layout table styling, including nested subfigure tables.
-fn format_subfigure(table: &mut Element, style_id: &str) {
-    let properties = table.word("w:tblPr");
-    properties.remove("w:tblStyle");
-    properties.children.insert(
-        0,
-        Node::Element(Element::with_attrs("w:tblStyle", &[("w:val", style_id)])),
-    );
-    properties.remove("w:tblLook");
-    margins(
-        table,
-        &[("top", 0), ("left", 0), ("bottom", 0), ("right", 0)],
-    );
-    for row in table.elements_mut().filter(|row| row.name == "w:tr") {
-        for cell in row.elements_mut().filter(|cell| cell.name == "w:tc") {
-            for nested in cell.elements_mut().filter(|nested| nested.name == "w:tbl") {
-                format_subfigure(nested, style_id);
-                autofit(nested, false);
-            }
-        }
-    }
-}
-
-/// Neutralize tables immediately before image captions without touching normal tables.
-pub(crate) fn clear_subfigures(document: &mut Element, styles: &Element) {
-    let style = normal_table_style(styles);
-    let caption_id = style_index(styles, "Image Caption")
-        .and_then(|index| {
-            if let Node::Element(style) = &styles.children[index] {
-                style.attr("w:styleId")
-            } else {
-                None
-            }
-        })
-        .unwrap_or("ImageCaption");
-    let Some(body) = document.child_mut("w:body") else {
-        return;
-    };
-    let indices:Vec<_>=body.children.iter().enumerate().filter_map(|(index,node)|if index>0&&matches!(node,Node::Element(paragraph)if paragraph.name=="w:p"&&paragraph_style(paragraph)==Some(caption_id)){Some(index-1)}else{None}).collect();
-    for index in indices {
-        if let Node::Element(table) = &mut body.children[index]
-            && table.name == "w:tbl"
-        {
-            format_subfigure(table, &style);
-        }
-    }
-}
-
-/// Make the shared Table Text style inherit Normal while preserving an existing definition.
-pub(crate) fn ensure_table_text_style(styles: &mut Element) {
-    let base = style_index(styles, "Normal")
-        .or_else(|| style_index(styles, "正文"))
-        .and_then(|index| {
-            if let Node::Element(style) = &styles.children[index] {
-                style.attr("w:styleId")
-            } else {
-                None
-            }
-        })
-        .unwrap_or("Normal")
-        .to_owned();
-    if let Some(style) = get_style_mut(styles, "Table Text") {
-        style.word("w:basedOn").set("w:val", &base);
-        return;
-    }
-    let mut style = Element::with_attrs(
-        "w:style",
-        &[
-            ("w:type", "paragraph"),
-            ("w:customStyle", "1"),
-            ("w:styleId", "TableText"),
-        ],
-    );
-    style.word("w:name").set("w:val", "Table Text");
-    style.word("w:basedOn").set("w:val", &base);
-    let spacing = style.word("w:pPr").word("w:spacing");
-    spacing.set("w:before", "57");
-    spacing.set("w:after", "57");
-    spacing.set("w:line", "240");
-    spacing.set("w:lineRule", "auto");
-    set_bool(&mut style, "w:semiHidden", false);
-    set_bool(&mut style, "w:qFormat", true);
-    style.word("w:uiPriority").set("w:val", "1");
-    styles.push(style);
-}
-
-/// Convert regular table paragraphs while retaining Compact in equation layout tables.
+/// Use the existing Table Text style while retaining Compact in equation layout tables.
 pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element) {
-    let style_id = |name: &str, default: &str| {
+    let style_id = |name: &str| {
         style_index(styles, name)
             .and_then(|index| {
                 if let Node::Element(style) = &styles.children[index] {
@@ -161,11 +58,13 @@ pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element
                     None
                 }
             })
-            .unwrap_or(default)
-            .to_owned()
+            .map(str::to_owned)
     };
-    let compact = style_id("Compact", "Compact");
-    let table_text = style_id("Table Text", "TableText");
+    let compact = style_id("Compact").unwrap_or_else(|| "Compact".into());
+    let Some(table_text) = style_id("Table Text") else {
+        // Custom references may omit this style; keep Compact rather than emit a dangling ID.
+        return;
+    };
     let Some(body) = document.child_mut("w:body") else {
         return;
     };
@@ -239,28 +138,24 @@ fn consume_equation_markers(element: &mut Element, pending: &mut Option<Value>) 
     }
 }
 
-/// Use Word's auto-fit width and optional centering while preserving child cell widths.
-fn autofit(table: &mut Element, center: bool) {
-    let properties = table.word("w:tblPr");
-    properties.word("w:tblLayout").set("w:type", "autofit");
-    let width = properties.ensure("w:tblW");
-    width.set("w:type", "pct");
-    width.set("w:w", "5000");
-    if center {
-        properties.ensure("w:jc").set("w:val", "center");
-    }
-}
-
-/// Auto-fit only top-level regular tables, matching the original document traversal.
-pub(crate) fn autofit_tables(document: &mut Element) {
-    let Some(body) = document.child_mut("w:body") else {
-        return;
+/// Apply Word's layout mode and preferred width without replacing authored cell widths.
+fn autofit(table: &mut Element, mode: &str) -> Result<()> {
+    let (layout, width) = match mode.trim().to_lowercase().as_str() {
+        "window" => ("autofit", Some(("pct", "5000"))),
+        "content" => ("autofit", Some(("auto", "0"))),
+        "fixed" => ("fixed", None),
+        _ => anyhow::bail!(
+            "Unsupported table autofit mode: {mode}; expected fixed, content, or window"
+        ),
     };
-    for table in body.elements_mut().filter(|table| table.name == "w:tbl") {
-        if !is_equation(table) {
-            autofit(table, true);
-        }
+    let properties = table.word("w:tblPr");
+    properties.word("w:tblLayout").set("w:type", layout);
+    if let Some((kind, amount)) = width {
+        let width = properties.ensure("w:tblW");
+        width.set("w:type", kind);
+        width.set("w:w", amount);
     }
+    Ok(())
 }
 
 /// Color direct cell/caption runs for a table revision without recoloring math or hyperlinks.
@@ -293,11 +188,16 @@ fn indices(text: &str) -> Result<Vec<usize>> {
     Ok(values)
 }
 
-/// Apply attribute markers to their following table and optional caption in source order.
+/// Apply explicit table attributes, including markers inside nested layout tables.
 pub(crate) fn table_metadata(document: &mut Element) -> Result<()> {
     let Some(body) = document.child_mut("w:body") else {
         return Ok(());
     };
+    table_metadata_in(body)
+}
+
+/// Pair sibling markers with their tables before recursively processing nested containers.
+fn table_metadata_in(body: &mut Element) -> Result<()> {
     let mut pending = None;
     let mut captions = Vec::new();
     let mut pairs = Vec::new();
@@ -381,18 +281,7 @@ pub(crate) fn table_metadata(document: &mut Element) -> Result<()> {
                         table.word("w:tblPr").ensure("w:jc").set("w:val", alignment);
                     }
                     "autofit" => {
-                        let width = table.word("w:tblPr").ensure("w:tblW");
-                        match value.to_lowercase().as_str() {
-                            "window" => {
-                                width.set("w:type", "pct");
-                                width.set("w:w", "5000");
-                            }
-                            "content" => {
-                                width.set("w:type", "auto");
-                                width.set("w:w", "0");
-                            }
-                            _ => {}
-                        }
+                        autofit(table, &value)?;
                     }
                     "revision_rows" | "revision_columns" => {
                         let all = value.trim() == "*";
@@ -445,6 +334,9 @@ pub(crate) fn table_metadata(document: &mut Element) -> Result<()> {
     }
     for index in markers.into_iter().rev() {
         body.children.remove(index);
+    }
+    for child in body.elements_mut() {
+        table_metadata_in(child)?;
     }
     Ok(())
 }

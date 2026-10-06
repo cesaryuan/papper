@@ -135,23 +135,23 @@
     [data-revision-columns="*"] > caption {
       color: #ee0000;
     }
-    /* Keep pandoc-crossref subfigure layout tables neutral, like the DOCX cleanup. */
-    figure.subfigures .pmt-subfigure-table {
+    /* Use the shared table style attribute to remove subfigure layout borders and padding. */
+    table[data-custom-style="TableSubfigure"] {
       margin: 0;
       border: 0;
       background: transparent;
     }
-    figure.subfigures .pmt-subfigure-table > tbody {
+    table[data-custom-style="TableSubfigure"] > tbody {
       margin-top: 0;
       border-top: 0;
       border-bottom: 0;
     }
-    figure.subfigures .pmt-subfigure-table td,
-    figure.subfigures .pmt-subfigure-table th {
+    table[data-custom-style="TableSubfigure"] td,
+    table[data-custom-style="TableSubfigure"] th {
       border: 0;
       padding: 0;
     }
-    figure.subfigures .pmt-subfigure-table figure {
+    table[data-custom-style="TableSubfigure"] figure {
       margin: 0;
     }
     /* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
@@ -292,10 +292,19 @@
       /* Center tables through the standalone HTML stylesheet, like DOCX table alignment. */
       margin: 1em auto;
       border-collapse: collapse;
-      width: 100%;
       max-width: 100%;
       font-variant-numeric: lining-nums tabular-nums;
       line-height: 1;
+    }
+    table[data-autofit="window"] {
+      /* Pandoc writes column-derived widths inline; window autofit must override them. */
+      width: 100% !important;
+    }
+    table[data-autofit="content"] {
+      width: auto !important;
+    }
+    table[data-autofit="fixed"] {
+      table-layout: fixed;
     }
     table tr {
       line-height: 1;
@@ -602,7 +611,7 @@ while leaving other cells unchanged.</p>
 <div data-custom-style="Para After Table">
 <p>The paragraph after the table should retain its post-table style.</p>
 </div>
-<table id="tbl:all-rows" data-revision-rows="*">
+<table id="tbl:all-rows" data-revision-rows="*" data-autofit="window">
 <caption>Table 2 A newly added table with a revised caption.</caption>
 <thead>
 <tr>
@@ -617,7 +626,7 @@ while leaving other cells unchanged.</p>
 </tr>
 </tbody>
 </table>
-<table id="tbl:all-columns" data-revision_columns="*">
+<table id="tbl:all-columns" data-revision_columns="*" data-custom-style="TableNoBorder" data-autofit="window">
 <caption>Table 3 Whole-table revision selected through
 columns.</caption>
 <thead>

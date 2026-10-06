@@ -20,7 +20,9 @@ filters:
   # number normalization. Enabled only by the manuscript DOCX build environment.
   - ${.}/filters/shared/bilingual_captions.lua
   - ${.}/filters/docx/native_crossrefs.lua
+  - ${.}/filters/shared/table_autofit.lua
   - pandoc-crossref  # Must come before citeproc
+  - ${.}/filters/shared/subfigure_layout_styles.lua
   - ${.}/filters/shared/normalize_chinese_numbering.lua
   - ${.}/filters/shared/bilingual_captions.lua
   - ${.}/filters/docx/native_crossrefs.lua

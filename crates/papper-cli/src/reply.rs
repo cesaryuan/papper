@@ -147,6 +147,17 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         "PMT_ENABLE_MATHTYPE_MARKERS".into(),
         use_mathtype.then(|| "true".into()),
     );
+    environment.insert(
+        "PMT_TABLE_AUTOFIT".into(),
+        Some(
+            effective
+                .pmt_settings
+                .fields()
+                .table_autofit
+                .as_str()
+                .into(),
+        ),
+    );
     let resolved = resolve::resolve_reply_markdown(
         &text,
         &resolve::ReplyResolver {

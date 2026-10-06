@@ -293,6 +293,24 @@ def test_native_citation_cache_reuses_prose_and_invalidates_citations_and_biblio
     service.project.assert_cli_parity(updated["output"])
 
 
+def test_native_table_autofit_setting_changes_inside_warm_service(native_service_factory) -> None:
+    """Refresh top-level table settings without leaking a previous request's Lua environment."""
+    from lxml import html
+
+    service = native_service_factory()
+    service.project.source.write_text("| Authored | Value |\n|---|---|\n| Sample | 1 |\n", encoding="utf-8")
+    style = service.project.directory / "style.yml"
+    for mode in ["window", "content", "none", "window"]:
+        style.write_text(f"tableAutofit: {mode}\n", encoding="utf-8")
+        result = service.convert()
+        document = html.fromstring(result["output"])
+        table = document.xpath("//table[.//th='Authored']")[0]
+        assert table.get("data-autofit") == (None if mode == "none" else mode)
+        repeated = service.convert()
+        assert repeated["cache_hit"] and repeated["output"] == result["output"]
+        service.project.assert_cli_parity(result["output"])
+
+
 def test_native_style_and_csl_dependencies_refresh_inside_warm_service(native_service_factory) -> None:
     """Discover later-created styles and invalidate the native CSL cache after edits."""
     service = native_service_factory()

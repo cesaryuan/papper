@@ -21,4 +21,4 @@ The paragraph after the table should retain its post-table style.
 | ------ | ----- |
 | Another method | 16 |
 
-: Whole-table revision selected through columns. {#tbl:all-columns revision_columns="*"}
+: Whole-table revision selected through columns. {#tbl:all-columns revision_columns="*" custom-style="TableNoBorder"}

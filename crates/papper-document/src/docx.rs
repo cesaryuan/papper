@@ -146,11 +146,8 @@ pub fn postprocess_docx(
         &styles,
         &effective.pmt_settings,
     )?;
-    tables::clear_subfigures(&mut document, &styles);
-    tables::ensure_table_text_style(&mut styles);
     tables::convert_table_text_styles(&mut document, &styles);
     tables::equation_metadata(&mut document);
-    tables::autofit_tables(&mut document);
     tables::table_metadata(&mut document)?;
     captions::keep_groups(&mut document, &styles);
     tables::format_equations(&mut document);

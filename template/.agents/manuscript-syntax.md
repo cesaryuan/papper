@@ -364,9 +364,13 @@ Comparison of baseline and proposed model behavior.
 </div>
 ```
 
-When `subfigGrid` is used, the HTML build marks its nested layout table and
-removes the regular table borders and cell padding from that table. Ordinary
-manuscript tables keep their normal HTML table styling.
+When `subfigGrid` is used, the shared
+`pandoc/filters/shared/subfigure_layout_styles.lua` filter applies
+`custom-style="TableSubfigure"` to tables inside the subfigure group, including
+nested tables. Adjust the `TableSubfigure` table style in `reference-doc.docx`
+to change their DOCX appearance. HTML preserves `data-custom-style="TableSubfigure"`;
+CSS selects that attribute to remove regular table borders and cell padding.
+Ordinary manuscript tables keep their normal HTML table styling.
 
 ## Marking Revisions in Red
 
@@ -491,9 +495,53 @@ Use standard Pandoc citation syntax:
 - Narrative citation: `@smith2023 showed that...`
 - With page numbers: `[@smith2023, p. 42]`
 
-## Advanced Table Formatting (DOCX Post-Processing)
+## Advanced Table Formatting (DOCX)
 
-When generating DOCX output, three post-processing scripts automatically enhance table formatting:
+Pandoc supports custom Word table styles directly. DOCX post-processing also
+enhances table attributes, cell merging, and auto-fit behavior.
+
+### Custom Table Styles and Borderless Layouts
+
+The bundled reference DOCX includes a borderless table style whose display name
+and internal style ID are both `TableNoBorder`. Use this style for tables that
+should have no visible borders, including aligned blocks of text.
+
+Add `custom-style="TableNoBorder"` to the attributes at the end of the table
+caption. Although the attributes are written on the caption line, this sets
+the style of the table itself. Pandoc's DOCX table writer writes the value
+directly as a Word style ID; the bundled style uses the same name and ID to
+avoid ambiguity. This is a table style, distinct from the `Table Text`
+paragraph style used inside cells.
+
+For a table with a visible caption:
+
+```markdown
+| Left item | Right item |
+|:---------:|:----------:|
+| First     | Second     |
+
+: Aligned items. {#tbl:aligned-items custom-style="TableNoBorder"}
+```
+
+For aligned text without a visible table caption:
+
+```markdown
+| | |
+|:---|:---|
+| Experiment | Baseline |
+| Dataset | Sample dataset |
+
+: {custom-style="TableNoBorder" cell_margin="0.05cm" alignment="center" autofit="window"}
+```
+
+Pandoc removes the completely empty header, so no extra blank row appears in
+the output. The attribute-only caption line applies the style without adding
+a visible table caption. Adjust cell margins and alignment as needed.
+
+The bundled reference DOCX supplies the borderless style definition. If you
+replace it with a custom reference DOCX, include the same table style ID there.
+This Word table style controls DOCX output; HTML and LaTeX layouts need their
+own formatting rules.
 
 ### 1. Table Attributes
 
@@ -556,17 +604,39 @@ In this example, "Group A" will span two rows (merging with the cell below conta
 
 ### 3. Auto-fit Tables
 
-All tables are automatically fitted to window width and centered. This can be overridden using the `autofit` or `alignment` table attributes.
+Set the top-level string option `tableAutofit` in `style.yml` to control authored
+tables without an explicit `autofit` attribute in both DOCX and HTML:
 
-**Post-processing modules location**: `src/pandoc_manuscript/docx/postprocess/`
-- `process_table_metadata.py` - Applies metadata collected from Pandoc table attributes
-- `autofit_tables.py` - Auto-fits tables to window
+```yaml
+tableAutofit: window
+```
+
+The shared `pandoc/filters/shared/table_autofit.lua` filter runs before crossref,
+while the AST contains only tables authored in Markdown. The default `window`
+adds `autofit="window"` to unconfigured authored tables. `content` and `fixed`
+add the corresponding attribute; `none` leaves attributes unchanged. Automatic
+equation and subfigure layout tables are created later and are always skipped.
+
+Per-table `autofit="window"`, `autofit="content"`, or `autofit="fixed"` takes
+priority over the global switch. `fixed` preserves the authored widths and
+disables automatic resizing. Set `alignment` separately to control a table's
+alignment. The optional top-level `reply.tableAutofit` setting overrides the
+manuscript setting for reviewer replies. This is a Papper setting outside
+`pandocMetadata`; manuscript YAML does not override it.
+
+DOCX post-processing interprets the resulting table attributes in
+`crates/papper-document/src/docx/tables.rs`; it does not add default attributes.
+HTML retains the attribute as `data-autofit="window"`, so CSS can select
+`table[data-autofit="window"]` to set `width: 100%`. Tables without this attribute
+keep their natural or authored width. The `Table Text` paragraph style is read
+from the reference DOCX; its definition and inheritance are preserved.
 
 The shared Pandoc AST filter for the `!<!` and `!^!` markers is
 `pandoc/filters/shared/merge_table_cells.lua`; it runs before DOCX, HTML, and
 LaTeX writers.
 
-These modules run automatically during `papper build docx` and `papper build-reply` when DOCX post-processing is enabled.
+The shared filter runs during DOCX and HTML builds. Applying the attributes to
+Word tables requires DOCX post-processing to be enabled.
 
 # Style Metadata
 

@@ -135,23 +135,23 @@
     [data-revision-columns="*"] > caption {
       color: #ee0000;
     }
-    /* Keep pandoc-crossref subfigure layout tables neutral, like the DOCX cleanup. */
-    figure.subfigures .pmt-subfigure-table {
+    /* Use the shared table style attribute to remove subfigure layout borders and padding. */
+    table[data-custom-style="TableSubfigure"] {
       margin: 0;
       border: 0;
       background: transparent;
     }
-    figure.subfigures .pmt-subfigure-table > tbody {
+    table[data-custom-style="TableSubfigure"] > tbody {
       margin-top: 0;
       border-top: 0;
       border-bottom: 0;
     }
-    figure.subfigures .pmt-subfigure-table td,
-    figure.subfigures .pmt-subfigure-table th {
+    table[data-custom-style="TableSubfigure"] td,
+    table[data-custom-style="TableSubfigure"] th {
       border: 0;
       padding: 0;
     }
-    figure.subfigures .pmt-subfigure-table figure {
+    table[data-custom-style="TableSubfigure"] figure {
       margin: 0;
     }
     /* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
@@ -292,10 +292,19 @@
       /* Center tables through the standalone HTML stylesheet, like DOCX table alignment. */
       margin: 1em auto;
       border-collapse: collapse;
-      width: 100%;
       max-width: 100%;
       font-variant-numeric: lining-nums tabular-nums;
       line-height: 1;
+    }
+    table[data-autofit="window"] {
+      /* Pandoc writes column-derived widths inline; window autofit must override them. */
+      width: 100% !important;
+    }
+    table[data-autofit="content"] {
+      width: auto !important;
+    }
+    table[data-autofit="fixed"] {
+      table-layout: fixed;
     }
     table tr {
       line-height: 1;
@@ -583,7 +592,7 @@ Equation <a href="#eq:circle">1</a>.</p>
 <figcaption aria-hidden="true">Figure 1 A small deterministic trend
 figure.</figcaption>
 </figure>
-<table id="tbl:values" data-cell_margin="0.10cm" data-alignment="center" data-revision_rows="2" style="--pmt-table-cell-margin-top: 2.8346pt; --pmt-table-cell-margin-right: 2.8346pt; --pmt-table-cell-margin-bottom: 2.8346pt; --pmt-table-cell-margin-left: 2.8346pt;">
+<table id="tbl:values" data-cell_margin="0.10cm" data-alignment="center" data-revision_rows="2" data-autofit="window" style="--pmt-table-cell-margin-top: 2.8346pt; --pmt-table-cell-margin-right: 2.8346pt; --pmt-table-cell-margin-bottom: 2.8346pt; --pmt-table-cell-margin-left: 2.8346pt;">
 <caption>Table 1 Cross-reference values.</caption>
 <thead>
 <tr>

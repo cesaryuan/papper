@@ -58,6 +58,95 @@ def test_native_docx_matches_existing_snapshot(case_name: str, tmp_path: Path, r
     assert_snapshot(actual, SNAPSHOT_ROOT / case_name / "docx.snap", update=False)
 
 
+@pytest.mark.parametrize("postprocess", ["false", "true"])
+def test_docx_subfigure_tables_use_reference_style_without_restyling_adjacent_tables(
+    tmp_path: Path, rust_executable: Path, postprocess: str,
+) -> None:
+    """Keep layout styles through DOCX builds and preserve tables beside image captions."""
+    from lxml import etree
+    from zipfile import ZipFile
+
+    image = (ROOT / "template/examples/images/subfigure-a-example.png").as_posix()
+    source = tmp_path / "subfigures.md"
+    source.write_text(f"""---
+subfigGrid: true
+---
+<div id="fig:layout">
+![Left panel.]({image}){{#fig:left width=49%}}
+![Right panel.]({image}){{#fig:right width=49%}}
+
+Grouped panels.
+</div>
+
+| Regular cell | Value |
+|---|---|
+| Ordinary data | 1 |
+
+: {{custom-style="TableNoBorder"}}
+
+`<w:p><w:pPr><w:pStyle w:val="ImageCaption"/></w:pPr><w:r><w:t>Ordinary caption</w:t></w:r></w:p>`{{=openxml}}
+""", encoding="utf-8")
+    output = tmp_path / "subfigures.docx"
+    result = subprocess.run(
+        [str(rust_executable), "build", "docx", "-m", str(source), "-o", str(output), "--no-mathtype"],
+        cwd=tmp_path,
+        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PMT_ENABLE_DOCX_POSTPROCESS": postprocess},
+        capture_output=True, text=True, encoding="utf-8", timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    with ZipFile(output) as archive:
+        document = etree.fromstring(archive.read("word/document.xml"))
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    layouts = document.xpath("//w:tbl[w:tblPr/w:tblStyle/@w:val='TableSubfigure']", namespaces=ns)
+    assert len(layouts) == 1
+    assert len(layouts[0].xpath(".//w:drawing", namespaces=ns)) == 2
+    # Direct zero margins would override future changes to the reference style.
+    assert layouts[0].find("w:tblPr/w:tblCellMar", ns) is None
+    regular = document.xpath("//w:tbl[.//w:t='Regular cell']", namespaces=ns)
+    assert len(regular) == 1
+    assert regular[0].find("w:tblPr/w:tblStyle", ns).get(f"{{{ns['w']}}}val") == "TableNoBorder"
+    assert regular[0].find("w:tblPr/w:tblCellMar", ns) is None
+
+
+@pytest.mark.parametrize("has_table_text", [True, False])
+def test_native_table_text_preserves_authored_style_or_keeps_compact(
+    tmp_path: Path, rust_postprocessor: Path, has_table_text: bool,
+) -> None:
+    """Honor reference style inheritance without creating missing table paragraph styles."""
+    from docx import Document
+    from docx.enum.style import WD_STYLE_TYPE
+    from docx.shared import Pt
+
+    document = Document()
+    if has_table_text:
+        base = document.styles.add_style("Authored Table Base", WD_STYLE_TYPE.PARAGRAPH)
+        base.font.size = Pt(13)
+        style = document.styles.add_style("Table Text", WD_STYLE_TYPE.PARAGRAPH)
+        style.base_style = base
+    document.styles.add_style("Compact", WD_STYLE_TYPE.PARAGRAPH)
+    paragraph = document.add_table(rows=1, cols=1).cell(0, 0).paragraphs[0]
+    paragraph.text = "Table contents"
+    paragraph.style = "Compact"
+    source = tmp_path / "source.docx"
+    document.save(source)
+    metadata = tmp_path / "metadata.json"
+    metadata.write_text(json.dumps({"pmt_settings": {"values": {}, "provided": [], "pandoc_metadata": {}, "reply": None},
+                                   "pandoc_metadata": {}, "has_yaml_header": False}), encoding="utf-8")
+    output = tmp_path / "output.docx"
+    result = subprocess.run([str(rust_postprocessor), str(source), str(output), str(metadata)],
+                            capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    reopened = Document(output)
+    paragraph = reopened.tables[0].cell(0, 0).paragraphs[0]
+    assert paragraph.text == "Table contents"
+    assert paragraph.style.name == ("Table Text" if has_table_text else "Compact")
+    if has_table_text:
+        assert paragraph.style.base_style.name == "Authored Table Base"
+        assert paragraph.style.base_style.font.size.pt == 13
+    else:
+        assert "Table Text" not in reopened.styles
+
+
 def test_native_package_editor_preserves_unknown_parts_and_cancels_inherited_equation_tabs(
     tmp_path: Path, rust_postprocessor: Path,
 ) -> None:

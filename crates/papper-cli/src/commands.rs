@@ -225,6 +225,17 @@ fn build_other(
             .map(str::to_string),
     )]);
     let mut use_mathtype = false;
+    environment.insert(
+        "PMT_TABLE_AUTOFIT".into(),
+        Some(
+            effective
+                .pmt_settings
+                .fields()
+                .table_autofit
+                .as_str()
+                .into(),
+        ),
+    );
     if args.target == BuildTarget::Docx {
         effective = papper_document::docx::prepare_docx_metadata(&effective)?;
         if args.no_mathtype {

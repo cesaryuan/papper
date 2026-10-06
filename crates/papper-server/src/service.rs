@@ -146,10 +146,23 @@ fn filter_environment(effective: &EffectiveMetadata) -> BTreeMap<String, Option<
         .citation_number_range_delimiter
         .as_deref()
         .filter(|raw| *raw != "–");
-    BTreeMap::from([(
-        "PMT_CITATION_NUMBER_RANGE_DELIMITER".to_string(),
-        delimiter.map(str::to_string),
-    )])
+    BTreeMap::from([
+        (
+            "PMT_CITATION_NUMBER_RANGE_DELIMITER".to_string(),
+            delimiter.map(str::to_string),
+        ),
+        (
+            "PMT_TABLE_AUTOFIT".into(),
+            Some(
+                effective
+                    .pmt_settings
+                    .fields()
+                    .table_autofit
+                    .as_str()
+                    .into(),
+            ),
+        ),
+    ])
 }
 
 /// Parse metadata from the immutable source snapshot and generate reference styles.

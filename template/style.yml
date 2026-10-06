@@ -53,6 +53,9 @@ docxShowLineNumbers: true
 # 不设置时保留 reference DOCX 中原有的页脚内容。
 docxShowPageNumbers: true
 
+# 手写表格默认 autofit：window、content、fixed；none 不补默认属性，自动生成的布局表格始终跳过。
+tableAutofit: window
+
 # 在 Pandoc 转换前写入参考 DOCX 的页面边距。
 docxPageMargins:
   top: 2.54cm

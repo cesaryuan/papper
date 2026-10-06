@@ -1,7 +1,7 @@
 -- Preserve DOCX-only metadata that Pandoc's writer cannot keep on its own.
 --
 -- This filter emits hidden WordprocessingML markers for:
--- 1. table attributes consumed by Python DOCX postprocessing,
+-- 1. table attributes consumed by native DOCX postprocessing,
 -- 2. revised native Word display equations marked with `revision=true`,
 -- MathType source markers live in mathtype_markers.lua because they must run
 -- before pandoc-crossref preserves display equations as inline DOCX math.
@@ -127,7 +127,9 @@ function Table(table)
   end
 
   captioned_table_index = captioned_table_index + 1
-  return {
+  -- Figure writers turn separate child blocks into separate layout cells.
+  -- Keep the marker and its table in one Div to avoid an empty column and shrunken images.
+  return pandoc.Div({
     hidden_paragraph_marker(table_marker_prefix, {
       index = captioned_table_index,
       id = table.identifier or "",
@@ -135,7 +137,7 @@ function Table(table)
       attributes = attrs,
     }),
     table,
-  }
+  })
 end
 
 -- Consume revision wrappers and keep markers next to their nested formulas.

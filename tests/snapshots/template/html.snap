@@ -137,23 +137,23 @@
     [data-revision-columns="*"] > caption {
       color: #ee0000;
     }
-    /* Keep pandoc-crossref subfigure layout tables neutral, like the DOCX cleanup. */
-    figure.subfigures .pmt-subfigure-table {
+    /* Use the shared table style attribute to remove subfigure layout borders and padding. */
+    table[data-custom-style="TableSubfigure"] {
       margin: 0;
       border: 0;
       background: transparent;
     }
-    figure.subfigures .pmt-subfigure-table > tbody {
+    table[data-custom-style="TableSubfigure"] > tbody {
       margin-top: 0;
       border-top: 0;
       border-bottom: 0;
     }
-    figure.subfigures .pmt-subfigure-table td,
-    figure.subfigures .pmt-subfigure-table th {
+    table[data-custom-style="TableSubfigure"] td,
+    table[data-custom-style="TableSubfigure"] th {
       border: 0;
       padding: 0;
     }
-    figure.subfigures .pmt-subfigure-table figure {
+    table[data-custom-style="TableSubfigure"] figure {
       margin: 0;
     }
     /* Apply the paragraph style to the inner HTML paragraph created by the wrapper. */
@@ -307,10 +307,19 @@
       /* Center tables through the standalone HTML stylesheet, like DOCX table alignment. */
       margin: 1em auto;
       border-collapse: collapse;
-      width: 100%;
       max-width: 100%;
       font-variant-numeric: lining-nums tabular-nums;
       line-height: 1;
+    }
+    table[data-autofit="window"] {
+      /* Pandoc writes column-derived widths inline; window autofit must override them. */
+      width: 100% !important;
+    }
+    table[data-autofit="content"] {
+      width: auto !important;
+    }
+    table[data-autofit="fixed"] {
+      table-layout: fixed;
     }
     table tr {
       line-height: 1;
@@ -658,7 +667,7 @@ Section <a href="#sec:conclusion">5</a> concludes the paper.</p>
 <h2 id="sec:experimental-setup">2.1 Experimental Setup</h2>
 <p>Table <a href="#tbl:setup">1</a> summarizes the experimental
 configuration used in this study.</p>
-<table id="tbl:setup">
+<table id="tbl:setup" data-autofit="window">
 <caption>Table 1 Experimental setup configuration</caption>
 <colgroup>
 <col style="width: 23%">
@@ -755,7 +764,7 @@ appearing in the final caption.</p>
 <h3 id="sec:cell-merging">2.2.2 Cell Merging</h3>
 <p>Use special markers to merge cells: <code>!&lt;!</code> merges left,
 <code>!^!</code> merges up:</p>
-<table id="tbl:merged-cells">
+<table id="tbl:merged-cells" data-autofit="window">
 <caption>Table 3 Example of merged cells using markers.</caption>
 <thead>
 <tr>
@@ -832,7 +841,7 @@ Section <a href="#sec:results">3</a>.</p>
 explicit step-by-step procedure is useful. In this template, pseudocode
 is represented as a one-column table and can be cited as a normal table,
 as shown in Algorithm 1.</p>
-<table data-revision_rows="*">
+<table data-revision_rows="*" data-autofit="window">
 <colgroup>
 <col style="width: 100%">
 </colgroup>
@@ -930,7 +939,7 @@ to present one condition or ablation case, while the right panel
 (Figure <a href="#fig:subfigure-b">3 (b)</a>) can show the corresponding
 comparison setting.</p>
 <figure id="fig:subfigure-example" class="subfigures">
-<table class="pmt-subfigure-table" style="width:98%;">
+<table style="width:98%;" data-custom-style="TableSubfigure">
 <colgroup>
 <col style="width: 49%">
 <col style="width: 49%">
@@ -953,7 +962,7 @@ subfigure example.</figcaption>
 <figcaption><p>Figure 3 An example of a multi-subfigure layout using two
 synthetic panels.</p></figcaption>
 </figure>
-<table id="tbl:results">
+<table id="tbl:results" data-autofit="window">
 <caption>Table 4 Performance comparison across different methods. Best
 results in <strong>bold</strong>.</caption>
 <colgroup>
