@@ -1,10 +1,10 @@
-"""Snapshot DOCX imports as readable Markdown plus a media filename tree.
+"""Snapshot DOCX imports as Markdown and a normalized media filename tree.
 
-Inputs and golden results live separately from build snapshots. Tests run the
-public Rust Convert command against checked-in DOCX, without rebuilding it.
-Both temporary output and golden PNG/WMF files use tiny white images with black
+Each Convert case keeps its input DOCX beside ``snapshots-content/``. Tests run
+the public Rust Convert command against the checked-in DOCX, without rebuilding
+it. Temporary output and golden PNG/WMF files use tiny white images with black
 borders; their paths, not bytes, are the contract here. Refresh explicitly with
---snapshot-update and review the diff.
+``--snapshot-update`` and review the diff.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ from snapshot_utils import assert_snapshot
 
 
 CASE_ROOT = Path(__file__).with_name("snapshot_cases_convert")
-SNAPSHOT_ROOT = Path(__file__).with_name("snapshots-convert")
 
 
 def png_chunk(kind: bytes, data: bytes) -> bytes:
@@ -99,7 +98,7 @@ def test_convert_output_matches_snapshot(
     )
     assert result.returncode == 0, result.stdout + result.stderr
     normalize_output_media(output)
-    expected = SNAPSHOT_ROOT / case_name
+    expected = CASE_ROOT / case_name / "snapshots-content"
     markdown_name = f"{case_name}.md"
     # read_bytes preserves line endings: portable LF is part of Convert output.
     markdown = (output / markdown_name).read_bytes().decode("utf-8")
@@ -111,7 +110,9 @@ def test_convert_output_matches_snapshot(
     if snapshot_update:
         # Delete only this case's previous golden output so removed media names
         # cannot silently remain in the expected directory after a refresh.
-        assert expected.resolve().parent == SNAPSHOT_ROOT.resolve(), "Snapshot update must remain inside its root"
+        assert expected.resolve().parent == (CASE_ROOT / case_name).resolve(), (
+            "Snapshot update must remain inside its case root"
+        )
         for path in sorted(expected.rglob("*"), key=lambda value: len(value.parts), reverse=True):
             if path.is_dir():
                 path.rmdir()

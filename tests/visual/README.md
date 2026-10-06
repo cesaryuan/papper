@@ -1,14 +1,16 @@
 # HTML regression tests
 
 HTML content snapshots and browser screenshots protect different contracts.
-`tests/snapshots/*/html.snap` retains text, document structure, metadata, reference
-targets, table spans, math modes and semantic `data-*` attributes. It excludes
+`tests/snapshot_cases/<case>/snapshots-content/html.snap` retains text, document
+structure, metadata, reference targets, table spans, math modes and semantic
+`data-*` attributes. It excludes
 CSS, scripts, generator versions and presentation classes. DOM wrappers and
 semantic attributes remain reviewable; this is not a general HTML equivalence
 checker. Code whitespace, inline spaces and nonbreaking spaces are significant.
 
-The 12 existing HTML cases also have full-page Chromium screenshots. These catch
-shared CSS regressions, table/caption geometry, fonts, revision colors, images
+HTML cases also have full-page Chromium screenshots at
+`tests/snapshot_cases/<case>/snapshots-visual/<platform>-<architecture>/html.png`.
+These catch shared CSS regressions, table/caption geometry, fonts, revision colors, images
 and math rendering without comparing CSS source. The screenshot comparison is
 exact: a changed pixel or page size fails. No ratio threshold can hide a small
 formula or caption change. This initial suite covers screen media at 1280×900
@@ -42,8 +44,9 @@ Screenshots wait for fonts/images/math and must match on two successive captures
 
 The initial Windows AMD64 baselines were generated from
 `6080a4c12ad3c89c067faf5335fd5110645ebb8e`. Each platform/architecture directory
-contains `environment.json`, recording the source revision, Chromium version,
-Playwright version, viewport, math asset digest and relevant Windows font hashes.
+under `tests/visual/environments/` contains `environment.json`, recording the
+source revision, Chromium version, Playwright version, viewport, math asset digest
+and relevant Windows font hashes.
 Baseline comparisons verify this environment before checking images. Other OSes
 need separately reviewed baselines and consistent fonts; Linux must not reuse
 the Windows PNGs. Chromium is the bundled headless browser, never user Chrome.

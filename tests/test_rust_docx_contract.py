@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from snapshot_utils import assert_snapshot, canonical_docx
-from test_build_snapshots import CASES, ROOT, SNAPSHOT_ROOT
+from test_build_snapshots import CASE_ROOT, CASES, ROOT, copy_case
 
 
 @pytest.fixture(scope="module")
@@ -43,7 +43,7 @@ def test_native_docx_matches_existing_snapshot(case_name: str, tmp_path: Path, r
     case_dir, markdown = CASES[case_name]
     if case_name == "chinese_crossrefs":
         copied = tmp_path / case_name
-        shutil.copytree(case_dir, copied)
+        copy_case(case_dir, copied)
         case_dir = copied
     output = tmp_path / f"{case_name}.docx"
     command = [str(rust_executable), "build", "docx", "-m", str(case_dir / markdown),
@@ -55,7 +55,7 @@ def test_native_docx_matches_existing_snapshot(case_name: str, tmp_path: Path, r
     assert result.returncode == 0, result.stdout + result.stderr
     actual = canonical_docx(output, repository_root=ROOT, project_dir=tmp_path,
                             normalize_native_crossrefs=case_name == "native_crossrefs")
-    assert_snapshot(actual, SNAPSHOT_ROOT / case_name / "docx.snap", update=False)
+    assert_snapshot(actual, CASE_ROOT / case_name / "snapshots-content" / "docx.snap", update=False)
 
 
 @pytest.mark.parametrize("postprocess", ["false", "true"])

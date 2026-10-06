@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 
 from snapshot_utils import assert_snapshot, canonical_html, semantic_html
-from test_build_snapshots import CASES, DOCX_ONLY_CASES, ROOT, SNAPSHOT_ROOT
+from test_build_snapshots import CASE_ROOT, CASES, DOCX_ONLY_CASES, ROOT, copy_case
 
 
 def _available_port() -> int:
@@ -233,7 +233,7 @@ def native_project_factory(tmp_path: Path, rust_executable: Path):
         """Create a writable fixture with a private Papper managed-state directory."""
         original, filename = CASES[case_name]
         directory = tmp_path / case_name
-        shutil.copytree(original, directory)
+        copy_case(original, directory)
         environment = {**os.environ, "PAPPER_HOME": str(tmp_path / "state"), "PAPPER_RESOURCE_ROOT": str(ROOT)}
         return NativeProject(directory, directory / filename, rust_executable, environment)
 
@@ -262,7 +262,7 @@ def test_native_html_cli_and_service_match_existing_snapshots(native_service_fac
     service = native_service_factory(case_name)
     output = service.project.directory / "native.html"
     service.project.build(output)
-    expected = SNAPSHOT_ROOT / case_name / "html.snap"
+    expected = CASE_ROOT / case_name / "snapshots-content" / "html.snap"
     assert_snapshot(canonical_html(output), expected, update=False)
     first = service.convert()
     assert_snapshot(semantic_html(first["output"]), expected, update=False)

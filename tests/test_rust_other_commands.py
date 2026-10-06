@@ -16,7 +16,7 @@ from zipfile import ZipFile
 
 import pytest
 
-from test_build_snapshots import ROOT
+from test_build_snapshots import ROOT, copy_case
 from native_support import native_pandoc_executable
 from test_rust_docx_contract import rust_mathtype_converter
 
@@ -134,7 +134,7 @@ def test_native_json_and_latex_preserve_crossrefs_and_relative_resources(
     """Publish resolved references and portable figure resources from an isolated manuscript."""
     native = tmp_path / "native"
     source = ROOT / "tests/snapshot_cases/crossrefs"
-    shutil.copytree(source, native)
+    copy_case(source, native)
     extension = "json" if target == "json" else "tex"
     arguments = ["build", target, "-m", "crossrefs.md", "-o", f"output/result.{extension}"]
     actual = _native(rust_executable, arguments, native, tmp_path / "home")

@@ -13,7 +13,7 @@ from native_support import native_pandoc_executable, papper_command
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SNAPSHOT_ROOT = Path(__file__).with_name("snapshots")
+CASE_ROOT = Path(__file__).with_name("snapshot_cases")
 CASES = {
     "template": (ROOT / "template", "manuscript.md"),
     "references": (ROOT / "tests" / "snapshot_cases" / "references", "references.md"),
@@ -59,6 +59,14 @@ pytestmark = pytest.mark.skipif(
     native_pandoc_executable() is None and (shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None),
     reason="snapshot builds require the native engine or standalone Pandoc and crossref",
 )
+
+
+def copy_case(case_dir: Path, destination: Path) -> None:
+    """Copy fixture inputs without colocated baselines entering temporary builds."""
+    shutil.copytree(
+        case_dir, destination,
+        ignore=shutil.ignore_patterns("snapshots-content", "snapshots-visual"),
+    )
 
 
 def build_case(
@@ -109,7 +117,7 @@ def test_build_output_matches_snapshot(
     if case_name == "chinese_crossrefs":
         # This fixture was built from a copy to keep generated files out of its source.
         copied_case_dir = tmp_path / case_name
-        shutil.copytree(case_dir, copied_case_dir)
+        copy_case(case_dir, copied_case_dir)
         case_dir = copied_case_dir
     output = tmp_path / f"{case_name}.{target}"
     native_crossrefs = case_name == "native_crossrefs"
@@ -129,7 +137,9 @@ def test_build_output_matches_snapshot(
             normalize_native_crossrefs=native_crossrefs,
         )
     )
-    snapshot_path = SNAPSHOT_ROOT / case_name / f"{target}.snap"
+    # Resolve from the checked-in case, even when inputs were copied to tmp_path.
+    # The template case tests the real template but keeps baselines outside it.
+    snapshot_path = CASE_ROOT / case_name / "snapshots-content" / f"{target}.snap"
     assert_snapshot(actual, snapshot_path, update=snapshot_update)
 
 
@@ -159,4 +169,4 @@ def test_build_reply_output_matches_snapshot(
         if target == "docx"
         else output.read_text(encoding="utf-8")
     )
-    assert_snapshot(actual, SNAPSHOT_ROOT / "reply" / f"{target}.snap", update=snapshot_update)
+    assert_snapshot(actual, case_dir / "snapshots-content" / f"{target}.snap", update=snapshot_update)

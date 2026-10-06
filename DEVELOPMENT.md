@@ -122,6 +122,29 @@ After an intentional output change, regenerate them with:
 uv run pytest tests/test_build_snapshots.py -p no:cacheprovider --snapshot-update
 ```
 
+Each build case keeps its inputs and expected outputs together:
+
+```text
+tests/snapshot_cases/<case>/
+├── <case>.md
+├── snapshots-content/
+│   ├── html.snap
+│   └── docx.snap
+└── snapshots-visual/
+    └── win32-amd64/
+        └── html.png
+```
+
+Only supported output types have baselines; reply content snapshots use
+`docx.snap` and `txt.snap`. The `template` case reads the real
+`template/manuscript.md`, while its baselines live in
+`tests/snapshot_cases/template/` so generated projects do not include test files.
+Fixture copies exclude both snapshot directories. Shared browser/font manifests
+live in `tests/visual/environments/<platform>-<architecture>/environment.json`;
+failure artifacts remain under the Git-ignored `tests/visual/results/`.
+See [HTML regression tests](tests/visual/README.md) for visual verification and
+the independent `--visual-update` switch.
+
 The build snapshots require `pandoc` and `pandoc-crossref` on `PATH`.
 Each CLI build runs from its temporary output directory so concurrently running
 tests cannot overwrite the same project metadata. DOCX normalization uses that
@@ -183,16 +206,30 @@ uv run pytest tests/test_build_snapshots.py -k reply -p no:cacheprovider --snaps
 
 ## Convert snapshots
 
-`papper convert` snapshots are separate from build snapshots. Inputs live in
-`tests/snapshot_cases_convert/`; golden results live in `tests/snapshots-convert/`.
+`papper convert` snapshots follow the same case-local layout as build snapshots.
+Each input lives beside its `snapshots-content/` directory:
+
+```text
+tests/snapshot_cases_convert/comprehensive/
+├── comprehensive.docx
+└── snapshots-content/
+    ├── comprehensive.md
+    └── media/
+        ├── image4.png
+        └── …
+```
+
 Each golden case contains the actual Markdown output and a `media/` tree of
 same-name placeholders. PNG and WMF placeholders are tiny white images with
 black borders; other formats use empty files. Checks compare the Markdown and the
-relative output tree; media contents are deliberately excluded.
+relative output tree; media contents are deliberately excluded. There are no
+visual snapshots for the Convert case yet, so it has no `snapshots-visual/`
+directory.
 The snapshot test normalizes its temporary converted media before comparison
-and copies those normalized files into golden output on updates. Both test
-output directories therefore contain placeholders; the input DOCX and normal
-product conversions retain their real images.
+and copies those normalized files into the case's `snapshots-content/` directory
+on updates. The temporary output and checked-in content snapshot therefore
+contain placeholders; the input DOCX and normal product conversions retain
+their real images.
 
 The comprehensive fixture is derived from the supplied Word document and
 covers ordinary Word content, real MathType/OMML equations, equation layouts,

@@ -28,12 +28,13 @@ from PIL import Image, ImageChops
 from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 from snapshot_utils import semantic_html
-from test_build_snapshots import CASES, DOCX_ONLY_CASES, build_case
+from test_build_snapshots import CASE_ROOT, CASES, DOCX_ONLY_CASES, build_case, copy_case
 
 
 ROOT = Path(__file__).resolve().parents[1]
 VISUAL_ROOT = Path(__file__).with_name("visual")
-VISUAL_SNAPSHOTS = VISUAL_ROOT / "snapshots" / f"{sys.platform}-{platform.machine().lower()}"
+VISUAL_PLATFORM = f"{sys.platform}-{platform.machine().lower()}"
+VISUAL_ENVIRONMENT = VISUAL_ROOT / "environments" / VISUAL_PLATFORM / "environment.json"
 VISUAL_RESULTS = VISUAL_ROOT / "results"
 VISUAL_CASES = tuple(name for name in CASES if name not in DOCX_ONLY_CASES)
 LOGGER = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ class HtmlVisualSession:
             "katex_sha256": assets.hexdigest(),
             "font_sha256": fonts,
         }
-        manifest = VISUAL_SNAPSHOTS / "environment.json"
+        manifest = VISUAL_ENVIRONMENT
         if not update:
             assert manifest.exists(), f"Missing visual environment baseline: {manifest}"
             expected = json.loads(manifest.read_text(encoding="utf-8"))
@@ -154,8 +155,8 @@ class HtmlVisualSession:
         revision = subprocess.run(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True,
         ).stdout.strip()
-        VISUAL_SNAPSHOTS.mkdir(parents=True, exist_ok=True)
-        (VISUAL_SNAPSHOTS / "environment.json").write_text(
+        VISUAL_ENVIRONMENT.parent.mkdir(parents=True, exist_ok=True)
+        VISUAL_ENVIRONMENT.write_text(
             json.dumps({"source_commit": revision, "environment": self.environment}, indent=2) + "\n",
             encoding="utf-8",
         )
@@ -207,14 +208,14 @@ def test_html_render_matches_visual_snapshot(
     """Protect user-visible layout while allowing equivalent HTML/CSS refactors."""
     case_dir, markdown = CASES[case_name]
     copied_case_dir = tmp_path / case_name
-    shutil.copytree(case_dir, copied_case_dir)
+    copy_case(case_dir, copied_case_dir)
     if case_name == "bilingual_captions":
         # This fixture references ../crossrefs/figure.svg; preserve that actual
         # resource layout instead of accepting a broken-image screenshot.
-        shutil.copytree(CASES["crossrefs"][0], tmp_path / "crossrefs")
+        copy_case(CASES["crossrefs"][0], tmp_path / "crossrefs")
     output = copied_case_dir / "rendered.html"
     build_case(copied_case_dir, markdown, "html", output)
-    baseline = VISUAL_SNAPSHOTS / f"{case_name}.png"
+    baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "html.png"
     actual = visual_session.capture(output)
     if visual_session.update:
         baseline.parent.mkdir(parents=True, exist_ok=True)
@@ -259,7 +260,7 @@ def test_revision_text_keeps_automatic_borders_and_borderless_headers(
     """Revision red must affect text only; a custom borderless table has no header edge."""
     case_dir, markdown = CASES["table_attributes"]
     project = tmp_path / "table_attributes"
-    shutil.copytree(case_dir, project)
+    copy_case(case_dir, project)
     source = project / markdown
     if fontcolor is not None:
         source.write_text(f'---\nfontcolor: "{fontcolor}"\n---\n' + source.read_text(encoding="utf-8"), encoding="utf-8")
