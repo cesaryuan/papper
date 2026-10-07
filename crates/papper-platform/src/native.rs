@@ -3,6 +3,7 @@
 use anyhow::{Context, Result};
 pub use latex2wmf::{FormulaStyle, MathFontSelection, SvgBackend, WmfPreview, WmfRenderOptions};
 pub use mathtype_rust::EquationPayload;
+pub use mathtype_rust::trim_latex_whitespace;
 use serde_json::{Value, json};
 use sha1::{Digest, Sha1};
 use std::collections::BTreeMap;
@@ -36,7 +37,107 @@ pub fn render_wmf(
     options: WmfRenderOptions,
     math_font: MathFontSelection<'_>,
 ) -> Result<WmfPreview> {
-    conversion_result(|| latex2wmf::render_latex_to_wmf_with_fonts(latex, options, math_font))
+    let preview_latex = preview_latex(latex, options.svg_backend)?;
+    conversion_result(|| {
+        latex2wmf::render_latex_to_wmf_with_fonts(&preview_latex, options, math_font)
+    })
+}
+
+/// Adapt unsupported preview syntax while keeping the editable OLE source unchanged.
+fn preview_latex(latex: &str, backend: SvgBackend) -> Result<String> {
+    let text = trim_latex_whitespace(latex);
+    let body = if text.starts_with("$$") && text.ends_with("$$") && text.len() >= 4 {
+        &text[2..text.len() - 2]
+    } else if text.starts_with('$') && text.ends_with('$') && text.len() >= 2 {
+        &text[1..text.len() - 1]
+    } else {
+        text
+    };
+    let body = trim_latex_whitespace(body);
+    // The pinned renderer trims again after stripping delimiters. An empty group
+    // protects a final control-space without changing its width or visible content.
+    let mut preview = if body.ends_with(char::is_whitespace) {
+        format!("{body}{{}}")
+    } else {
+        body.to_owned()
+    };
+    if backend == SvgBackend::Typst {
+        // MiTeX lacks mspace; its hspace handler accepts em. TeX defines 18mu = 1em.
+        // Consume other escape tokens too so an escaped backslash is never rewritten.
+        static COMMANDS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(
+                r"\\mspace\s*\{\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*mu\s*\}|\\(?:[a-zA-Z]+|[^a-zA-Z])",
+            ).expect("valid preview command pattern")
+        });
+        preview = COMMANDS
+            .replace_all(&preview, |captures: &regex::Captures<'_>| {
+                match captures
+                    .get(1)
+                    .and_then(|value| value.as_str().parse::<f64>().ok())
+                {
+                    Some(mu) if mu.is_finite() => format!(r"\hspace{{{}em}}", mu / 18.0),
+                    _ => captures[0].to_owned(),
+                }
+            })
+            .into_owned();
+    }
+    Ok(format!("${preview}$"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Check actual preview widths so unsupported mspace cannot silently become a zero-width hint.
+    #[test]
+    fn typst_mspace_preserves_signed_width_and_source() -> Result<()> {
+        let options = WmfRenderOptions {
+            svg_backend: SvgBackend::Typst,
+            formula_style: FormulaStyle::Inline,
+            font_size_pt: 12.0,
+        };
+        let plain = render_wmf("xy", options, MathFontSelection::default())?;
+        for (mu, width) in [
+            ("18", 12.0),
+            ("2", 12.0 / 9.0),
+            ("-2.5", -12.0 * 2.5 / 18.0),
+        ] {
+            let latex = format!(r"x\mspace{{{mu}mu}}y");
+            let rendered = render_wmf(&latex, options, MathFontSelection::default())?;
+            assert!(
+                (rendered.width_pt - plain.width_pt - width).abs() < 0.51,
+                "math spacing must match mu width within Word's half-point rounding"
+            );
+            let encoded = encode_latex(&latex, None)?;
+            assert_eq!(ole_to_latex(&encoded.ole)?, latex);
+        }
+        Ok(())
+    }
+
+    /// Exercise public encoding and both preview backends after trailing source normalization.
+    #[test]
+    fn trailing_control_space_survives_encoding_and_rendering() -> Result<()> {
+        for latex in ["x\\ ", "$x\\ $", "$$x\\ $$", "  x\\   \r\n"] {
+            let encoded = encode_latex(latex, None)?;
+            assert_eq!(ole_to_latex(&encoded.ole)?, "x\\ ");
+            for backend in [SvgBackend::Typst, SvgBackend::Ratex] {
+                let rendered = render_wmf(
+                    latex,
+                    WmfRenderOptions {
+                        svg_backend: backend,
+                        ..Default::default()
+                    },
+                    MathFontSelection::default(),
+                )?;
+                assert!(!rendered.wmf.is_empty());
+            }
+        }
+        assert!(
+            encode_latex("x\\", None).is_err(),
+            "a genuinely dangling slash must still fail"
+        );
+        Ok(())
+    }
 }
 
 /// Recover source TeX from OLE, then retain structural fallback for source-free equations.

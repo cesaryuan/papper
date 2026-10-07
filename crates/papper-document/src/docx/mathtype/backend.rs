@@ -540,7 +540,7 @@ fn validate(equation: &Equation) -> Result<()> {
 fn tex_payload(raw: &str) -> Result<String> {
     let begin = regex::Regex::new(r"\\begin\s*\{\s*aligned\s*\}")?;
     let end = regex::Regex::new(r"\\end\s*\{\s*aligned\s*\}")?;
-    let text = begin.replace_all(raw.trim(), r"\begin{align}");
+    let text = begin.replace_all(native::trim_latex_whitespace(raw), r"\begin{align}");
     let text = end.replace_all(&text, r"\end{align}");
     if text.starts_with('$') && text.ends_with('$') {
         return Ok(text.into_owned());
@@ -549,13 +549,13 @@ fn tex_payload(raw: &str) -> Result<String> {
         .strip_prefix(r"\(")
         .and_then(|text| text.strip_suffix(r"\)"))
     {
-        return Ok(format!("${}$", inner.trim()));
+        return Ok(format!("${}$", native::trim_latex_whitespace(inner)));
     }
     if let Some(inner) = text
         .strip_prefix(r"\[")
         .and_then(|text| text.strip_suffix(r"\]"))
     {
-        return Ok(format!("$${}$$", inner.trim()));
+        return Ok(format!("$${}$$", native::trim_latex_whitespace(inner)));
     }
     Ok(format!("${text}$"))
 }

@@ -188,7 +188,7 @@ fn marker(run: &Element) -> Result<Option<(String, String)>> {
         matches!(style, "inline" | "display"),
         "Unknown MathType marker kind: {style}"
     );
-    Ok(Some((style.into(), latex.trim().into())))
+    Ok(Some((style.into(), latex.into())))
 }
 
 /// Bind document-order marker signals to the immediately following top-level OMML.

@@ -109,8 +109,9 @@ Grouped panels.
 
 
 @pytest.mark.parametrize("has_table_text", [True, False])
-def test_native_table_text_preserves_authored_style_or_keeps_compact(
-    tmp_path: Path, rust_postprocessor: Path, has_table_text: bool,
+@pytest.mark.parametrize("source_style", ["Compact", "First Paragraph", "Body Text"])
+def test_native_table_text_preserves_authored_style_or_keeps_source_style(
+    tmp_path: Path, rust_postprocessor: Path, has_table_text: bool, source_style: str,
 ) -> None:
     """Honor reference style inheritance without creating missing table paragraph styles."""
     from docx import Document
@@ -123,10 +124,14 @@ def test_native_table_text_preserves_authored_style_or_keeps_compact(
         base.font.size = Pt(13)
         style = document.styles.add_style("Table Text", WD_STYLE_TYPE.PARAGRAPH)
         style.base_style = base
-    document.styles.add_style("Compact", WD_STYLE_TYPE.PARAGRAPH)
+    if source_style not in document.styles:
+        document.styles.add_style(source_style, WD_STYLE_TYPE.PARAGRAPH)
+    document.add_paragraph("Body contents", style=source_style)
     paragraph = document.add_table(rows=1, cols=1).cell(0, 0).paragraphs[0]
     paragraph.text = "Table contents"
-    paragraph.style = "Compact"
+    paragraph.style = source_style
+    # Authored cell styles must survive normalization of Pandoc's default styles.
+    document.tables[0].cell(0, 0).add_paragraph("Authored cell contents", style="Caption")
     source = tmp_path / "source.docx"
     document.save(source)
     metadata = tmp_path / "metadata.json"
@@ -139,7 +144,9 @@ def test_native_table_text_preserves_authored_style_or_keeps_compact(
     reopened = Document(output)
     paragraph = reopened.tables[0].cell(0, 0).paragraphs[0]
     assert paragraph.text == "Table contents"
-    assert paragraph.style.name == ("Table Text" if has_table_text else "Compact")
+    assert paragraph.style.name == ("Table Text" if has_table_text else source_style)
+    assert reopened.paragraphs[0].style.name == source_style
+    assert reopened.tables[0].cell(0, 0).paragraphs[1].style.name == "Caption"
     if has_table_text:
         assert paragraph.style.base_style.name == "Authored Table Base"
         assert paragraph.style.base_style.font.size.pt == 13
@@ -299,6 +306,58 @@ def test_native_mathtype_preserves_failed_formulas_layout_and_invalidates_corrup
     with ZipFile(target) as archive:
         assert archive.read("word/embeddings/mathtype_formula_1.bin") == original_parts[0][0]
         assert archive.read("word/media/mathtype_formula_1.wmf") == original_parts[0][1]
+
+
+def test_markdown_mathtype_build_preserves_control_space_and_supports_mspace(
+    tmp_path: Path, rust_executable: Path,
+) -> None:
+    """Convert the reported equation shapes through Lua markers, native OLE, and Typst previews."""
+    from lxml import etree
+    from zipfile import ZipFile
+    import io
+    import olefile
+
+    source = tmp_path / "spacing.md"
+    source.write_text(r"""---
+mathtypeConversionMethod: rust
+mathtypeSvgBackend: typst
+---
+
+$$\left\{ \begin{aligned}
+ & U_n(\omega) = H_n(\omega) F_e(\omega) \\
+ & U_m(\omega) = H_m(\omega) F_e(\omega)
+\end{aligned} \right.\ $$ {#eq:control-space}
+
+$$\mathcal{L}_{adv} = \sum_{i=1}^{n_s}\mspace{2mu}\gamma(y_i) + \sum_{j=1}^{n_t}\mspace{2mu}\eta(x_j)$$ {#eq:adversarial}
+
+$$\mathcal{L}_{total} = \lambda_d\sum_{m=1}^{N_m}\mspace{2mu}\left(L_{adv}+L_{cov}\right) + \lambda_e\sum_{m=1}^{N_m}\mspace{2mu}L_{ent}$$ {#eq:total}
+""", encoding="utf-8")
+    target = tmp_path / "spacing.docx"
+    result = subprocess.run(
+        [str(rust_executable), "build", "docx", "-m", str(source), "-o", str(target)],
+        cwd=tmp_path,
+        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    with ZipFile(target) as archive:
+        document = archive.read("word/document.xml")
+        root = etree.fromstring(document)
+        ns = {"m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
+              "o": "urn:schemas-microsoft-com:office:office"}
+        assert root.xpath("count(.//o:OLEObject)", namespaces=ns) == 3
+        assert not root.xpath(".//m:oMath", namespaces=ns)
+        assert b"MTLATEX:" not in document
+        for index in range(1, 4):
+            wmf = archive.read(f"word/media/mathtype_formula_{index}.wmf")
+            assert wmf.startswith(bytes.fromhex("d7cdc69a"))
+            with olefile.OleFileIO(io.BytesIO(archive.read(f"word/embeddings/mathtype_formula_{index}.bin"))) as ole:
+                native = ole.openstream("Equation Native").read()
+                # Preview compatibility must preserve the recoverable equation source.
+                if index == 1:
+                    assert b"\\right.\\ " in native
+                else:
+                    assert b"\\mspace{2mu}" in native
 
 
 @pytest.mark.parametrize("part", ["body", "header", "footer"])

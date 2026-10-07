@@ -19,7 +19,7 @@ end
 
 -- Build the hidden OpenXML run consumed by the Python MathType pass.
 local function marker_run(latex, kind)
-  latex = latex:gsub("^%s+", ""):gsub("%s+$", "")
+  -- A trailing TeX control-space (backslash + space) is significant source text.
   local marker = marker_prefix .. kind .. ":" .. latex
   local xml = table.concat({
     '<w:r>',

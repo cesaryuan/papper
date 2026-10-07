@@ -19,6 +19,7 @@ latex2wmf.workspace = true
 mitex-spec-gen = { workspace = true, optional = true }
 sha1.workspace = true
 papper-core.workspace = true
+regex.workspace = true
 
 [build-dependencies]
 sha2.workspace = true

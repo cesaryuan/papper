@@ -2440,6 +2440,7 @@ dependencies = [
  "mathtype-rust",
  "mitex-spec-gen",
  "papper-core",
+ "regex",
  "roxmltree 0.21.1",
  "serde_json",
  "sha1",
