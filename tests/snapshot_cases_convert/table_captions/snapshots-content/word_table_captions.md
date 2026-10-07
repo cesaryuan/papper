@@ -8,8 +8,8 @@ An introduction that remains outside the caption and table.
 | 三轴车                  | 2.17                    |                       |
 +-------------------------+-------------------------+-----------------------+
 
-: []{#_Ref202795830 .anchor}表2‑1 武汉市**车辆类型组成**
+: 表2‑1 武汉市**车辆类型组成** {#tbl:_Ref202795830}
 
 Text following the table remains a separate paragraph.
 
-[Table reference](#_Ref202795830)
+[@tbl:_Ref202795830]

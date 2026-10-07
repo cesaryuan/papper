@@ -27,6 +27,7 @@ from snapshot_utils import assert_snapshot
     ("table_captions", "detect_table"),
     ("figure_prefixes", "detect_figure"),
     ("table_prefixes", "detect_table"),
+    ("table_crossrefs", "crossrefs"),
 ])
 def test_convert_cleanup_filter_snapshot(
     case: str, filter_name: str, tmp_path: Path, snapshot_update: bool,
@@ -66,12 +67,13 @@ def test_inline_image_filter_creates_figure_ast(tmp_path: Path) -> None:
 
 
 def test_paired_image_crossrefs_snapshot(tmp_path: Path, snapshot_update: bool) -> None:
-    """Protect bracketed figure/equation references and unknown bookmark links."""
+    """Protect figure references and inline/display equations, including layout tables."""
     pandoc = native_pandoc_executable()
     assert pandoc is not None, "Convert filters require the retained Pandoc engine"
     fixture = ROOT / "tests/snapshot_cases_convert/paired_crossrefs"
     result = subprocess.run(
         [str(pandoc), str(fixture / "input.md"), "--from=markdown", "--to=markdown", "--wrap=none",
+         "--lua-filter", str(ROOT / "pandoc/filters/convert/equation_tables.lua"),
          "--lua-filter", str(ROOT / "pandoc/filters/convert/detect_figure.lua"),
          "--lua-filter", str(ROOT / "pandoc/filters/convert/crossrefs.lua")],
         cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", timeout=30,
@@ -178,7 +180,7 @@ def test_convert_pairs_word_captions_and_removes_nested_toc_links(
 def test_convert_pairs_word_table_caption(
     tmp_path: Path, rust_executable: Path, snapshot_update: bool,
 ) -> None:
-    """Protect table titles, merged cells and bookmarks through the public DOCX importer."""
+    """Protect table titles, merged cells and resolved references through DOCX import."""
     from docx import Document
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -226,8 +228,8 @@ def test_convert_pairs_word_table_caption(
     assert result.returncode == 0, result.stdout + result.stderr
     markdown = (output / "table-captions.md").read_text(encoding="utf-8")
     assert markdown.count("表2‑1 武汉市**车辆类型组成**") == 1
-    assert ": []{#_Ref202795830 .anchor}表2‑1 武汉市**车辆类型组成**" in markdown
-    assert "[Table reference](#_Ref202795830)" in markdown
+    assert ": 表2‑1 武汉市**车辆类型组成** {#tbl:_Ref202795830}" in markdown
+    assert "[@tbl:_Ref202795830]" in markdown
     assert_snapshot(
         markdown, ROOT / "tests/snapshot_cases_convert/table_captions/snapshots-content/word_table_captions.md",
         update=snapshot_update,

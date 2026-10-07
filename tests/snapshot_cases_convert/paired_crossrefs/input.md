@@ -27,3 +27,29 @@ Ordinary inline picture ![[]{#_RefInline .anchor}Inline caption](media/inline.pn
 $$E=mc^2$$ []{#_RefEquation .anchor}(7)
 
 [Equation 7](#_RefEquation), [unknown](#_RefUnknown), and [external](https://example.com/).
+
+[Inline equation](#_RefInlineEquation) and [layout equation](#_RefLayoutEquation).
+
+$a^2+b^2=c^2$ []{#_RefInlineEquation .anchor}(8)
+
+$x+y=z$ []{#_RefDescribedEquation .anchor}**energy balance**
+
+[Described equation](#_RefDescribedEquation)
+
+Before $x=1$ []{#_RefProseEquation .anchor}after.
+
+[Equation in prose](#_RefProseEquation)
+
++----------+------------------------------------------+
+| $$u=v$$  | []{#_RefLayoutEquation .anchor}(9)         |
++----------+------------------------------------------+
+
+$x$ and $y$ []{#_RefMultipleMath .anchor}(10)
+
+$$z=x+y$$ and $x$ []{#_RefMixedMath .anchor}(11)
+
+$x=y$ []{#_RefFirstEquation .anchor}[]{#_RefSecondEquation .anchor}(12)
+
+[Multiple math](#_RefMultipleMath), [Mixed math](#_RefMixedMath), and [Ambiguous bookmark](#_RefFirstEquation)
+
+Ordinary inline math $q=1$ stays inline without a bookmark.

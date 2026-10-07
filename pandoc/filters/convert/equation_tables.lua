@@ -1,12 +1,12 @@
--- Flatten Word's one-row equation layout tables into ordinary math paragraphs.
+-- Flatten Word's one-row equation layout tables into inline math paragraphs.
 -- Run after mtef_parser.lua has recovered MathType previews as DisplayMath, and
 -- before crossrefs.lua assigns equation identifiers. A two-cell formula/label
 -- row, or a three-cell blank/formula/label row, is treated as equation layout.
 -- Example (table cells shown with vertical separators):
---   | $$x^2+y^2$$ | (7) | -> $$x^2+y^2$$ (7)
+--   | $$x^2+y^2$$ | (7) | -> $x^2+y^2$ (7)
 --   | blank | $$E=mc^2$$ | []{#_Ref123 .anchor}(3) |
---     -> $$E=mc^2$$ []{#_Ref123 .anchor}(3)
--- crossrefs.lua then turns the latter into $$E=mc^2$$ {#eq:_Ref123}.
+--     -> $E=mc^2$ []{#_Ref123 .anchor}(3)
+-- Inline math keeps the label on the same line; its bookmark is preserved.
 -- A descriptive label such as "energy balance" is retained after the math.
 -- Only simple, unmerged cells qualify. Captioned tables, multiple rows, a
 -- nonblank leading cell, multiple formulas or structured label content remain
@@ -83,7 +83,8 @@ function Table(table_element)
   local math = equation(cell_inlines(row.cells[formula_index]))
   local label = cell_inlines(row.cells[formula_index + 1])
   if not math or not is_simple_label(label) then return nil end
-  local result = { math, pandoc.Space() }
+  -- Layout tables need inline output so the formula and its label stay together.
+  local result = { pandoc.Math('InlineMath', math.text), pandoc.Space() }
   for _, inline in ipairs(label) do result[#result + 1] = inline end
   return pandoc.Para(result)
 end

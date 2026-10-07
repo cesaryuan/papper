@@ -93,6 +93,22 @@ trailing period. TOC cleanup retains visible text and page numbers. Existing
 captions, multi-image paragraphs and images separated from captions by prose
 are preserved.
 
+Typed figure/table references can be recovered with the optional
+`--fuzzy-crossrefs` flag (disabled by default):
+
+```powershell
+uv run papper convert "测试文档.docx" -o converted --fuzzy-crossrefs
+```
+
+This runs `crossrefs_fuzz.lua` after bookmark-based conversion. It matches unique
+numbered captions to explicit prose phrases such as `如图1-14所示`, `如表1-3所示`,
+`as shown in Fig. 2` and `see Tbl. 3`. Existing `fig:`/`tbl:` IDs are reused;
+unlabelled targets receive stable IDs such as `fig:fuzz-1-14` or `tbl:fuzz-1-3`,
+with suffixes if those IDs are already used. English aliases, single numbers,
+Unicode dashes and references split across formatting runs are supported. Duplicate
+caption numbers, unknown targets and mentions without reference cues remain text.
+Captions, code, existing links/citations and other authored IDs are preserved.
+
 An inline image wider than 2 inches is moved after its containing paragraph as a
 separate figure. Absolute widths in common physical units are supported; images
 with relative or invalid widths, exactly 2-inch images, and already standalone

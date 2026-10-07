@@ -487,6 +487,16 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         );
         command.extend(["--lua-filter".into(), filter.into_os_string()]);
     }
+    if args.fuzzy_crossrefs {
+        let filter = resources.resource("pandoc/filters/convert/crossrefs_fuzz.lua");
+        anyhow::ensure!(
+            filter.is_file(),
+            "Convert filter is missing: {}",
+            filter.display()
+        );
+        command.extend(["--lua-filter".into(), filter.into_os_string()]);
+        println!("[convert] fuzzy figure/table cross-reference recovery enabled");
+    }
     command.extend([
         "--extract-media=.".into(),
         "--output".into(),

@@ -1,19 +1,25 @@
--- Convert confirmed Word figure/equation bookmarks to pandoc-crossref syntax.
+-- Convert confirmed Word figure/table/equation bookmarks to crossref syntax.
 -- Run after equation_tables.lua exposes table-based math and after TOC cleanup
--- and detect_figure.lua. A Figure caption or a standalone Image caption (or
--- its preceding empty paragraph) can carry an empty _Ref span; a display-equation
--- paragraph can carry the same. Pairing images/captions in Lua leaves Para/Image
+-- and detect_figure.lua/detect_table.lua. A Table or Figure caption, or a
+-- standalone Image caption (or its preceding empty paragraph), can carry an
+-- empty _Ref span; an inline/display equation paragraph can carry the same.
+-- Pairing images/captions in Lua leaves Para/Image
 -- nodes in the AST, so both forms must be recognized without re-reading Markdown.
--- These known targets receive fig:/eq: identifiers, then their inbound bookmark
--- links are replaced by [@fig:...]/[@eq:...] references throughout the document.
+-- These known targets receive fig:/tbl:/eq: identifiers, then their inbound
+-- bookmark links become [@fig:...]/[@tbl:...]/[@eq:...] references.
 -- Examples:
 --   Figure caption: []{#_Ref123 .anchor}Network -> ![Network](image.png){#fig:_Ref123}
 --   $$E=mc^2$$ []{#_Ref456 .anchor}(7) -> $$E=mc^2$$ {#eq:_Ref456}
+--   $E=mc^2$ []{#_Ref456 .anchor}(7) -> $E=mc^2$ {#eq:_Ref456}
 --   [Figure 1](#_Ref123) -> [@fig:_Ref123] (only if the figure was confirmed)
 --   [Equation 7](#_Ref456) -> [@eq:_Ref456] (only if the equation was confirmed)
+--   : []{#_Ref789 .anchor}Table title -> : Table title {#tbl:_Ref789}
+--   [Table 1](#_Ref789) -> [@tbl:_Ref789] (only if the table was confirmed)
 -- Manual numeric equation labels are dropped for crossref to regenerate;
--- descriptive labels survive. Unknown links, ordinary tables and section
--- bookmarks are retained. Nested caption spans are not guessed as targets.
+-- descriptive labels survive. Table captions use the same empty _Ref span as
+-- figure captions and receive tbl: identifiers; unknown links, uncaptured
+-- tables and section bookmarks are retained. Nested caption spans and multiple
+-- distinct caption bookmarks are not guessed as targets.
 -- The Image walk also normalizes ./media/image.png to media/image.png.
 -- Run after the earlier filters in the Convert chain:
 --   pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/crossrefs.lua
@@ -42,12 +48,14 @@ local function anchor_paragraph(block)
   return found
 end
 
---- Find a display equation and its bookmark in one flattened paragraph.
+--- Find one inline/display equation and its bookmark in a flattened paragraph.
 local function equation_anchor(block)
   if block.t ~= 'Para' and block.t ~= 'Plain' then return nil end
   local math, id = nil, nil
   for _, inline in ipairs(block.content) do
-    if inline.t == 'Math' and inline.mathtype == 'DisplayMath' then
+    -- equation_tables.lua emits InlineMath to keep the formula and label together.
+    -- Count both types so mixed paragraphs cannot assign a bookmark ambiguously.
+    if inline.t == 'Math' then
       if math then return nil end
       math = inline
     else
@@ -107,23 +115,46 @@ end
 local function label_equation(block, id)
   local kept, math = {}, nil
   for _, inline in ipairs(block.content) do
-    if inline.t == 'Math' and inline.mathtype == 'DisplayMath' then
+    if inline.t == 'Math' then
       math = inline
     elseif not anchor_id(inline) then
       kept[#kept + 1] = inline
     end
   end
   if not math then return block end
-  if is_manual_number(kept) then kept = {} end
-  local result = { math, pandoc.RawInline('markdown', ' {#eq:' .. id .. '}') }
-  if #kept > 0 then
-    result[#result + 1] = pandoc.Space()
-    for _, inline in ipairs(kept) do result[#result + 1] = inline end
+  local label = pandoc.RawInline('markdown', ' {#eq:' .. id .. '}')
+  if is_manual_number(kept) then return pandoc.Para({ math, label }) end
+  local result = {}
+  -- Inline formulas may sit inside prose; keep surrounding text in authored
+  -- order instead of moving the math to the beginning of its paragraph.
+  for _, inline in ipairs(block.content) do
+    if not anchor_id(inline) then
+      result[#result + 1] = inline
+      if inline.t == 'Math' then result[#result + 1] = label end
+    end
   end
   return pandoc.Para(result)
 end
 
---- Apply figure and equation labels before changing their inbound links.
+--- Attach a known table identifier while removing its Word bookmark span.
+local function label_table(block)
+  local caption, id = caption_inlines(block.caption.long)
+  if not id or not caption or #caption == 0 then return nil end
+  local caption_blocks = block.caption.long
+  for _, paragraph in ipairs(caption_blocks) do
+    local kept = {}
+    for _, inline in ipairs(paragraph.content) do
+      if not anchor_id(inline) then kept[#kept + 1] = inline end
+    end
+    paragraph.content = kept
+  end
+  -- Retain caption block boundaries and formatting instead of flattening them.
+  block.caption.long = caption_blocks
+  block.identifier = 'tbl:' .. id
+  return block, id
+end
+
+--- Apply figure, table and equation labels before changing their inbound links.
 function Pandoc(doc)
   local targets, blocks = {}, {}
   local pending_anchor = nil
@@ -165,6 +196,22 @@ function Pandoc(doc)
     blocks[#blocks + 1] = pandoc.Para({ pandoc.Span({}, pandoc.Attr(pending_anchor, { 'anchor' })) })
   end
   doc.blocks = blocks
+  local table_count = 0
+  doc = doc:walk({
+    -- detect_table.lua pairs captions inside lists, quotes and table cells too.
+    -- Collect all table targets before rewriting links, including forward links.
+    Table = function(block)
+      local labeled, id = label_table(block)
+      if id then
+        targets[id] = 'tbl'
+        table_count = table_count + 1
+      end
+      return labeled
+    end,
+  })
+  if table_count > 0 then
+    io.stderr:write('[crossrefs] labeled ' .. table_count .. ' table(s)\n')
+  end
   return doc:walk({
     Link = function(link)
       local id = link.target:match('^#(_Ref[%w_]+)$')
