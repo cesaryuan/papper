@@ -540,7 +540,14 @@ fn validate(equation: &Equation) -> Result<()> {
 fn tex_payload(raw: &str) -> Result<String> {
     let begin = regex::Regex::new(r"\\begin\s*\{\s*aligned\s*\}")?;
     let end = regex::Regex::new(r"\\end\s*\{\s*aligned\s*\}")?;
-    let text = begin.replace_all(native::trim_latex_whitespace(raw), r"\begin{align}");
+    // Bug-fix: MathType preserves input newlines in its TeX source record,
+    // while Rust canonicalizes delimited math to CRLF. Give both the same bytes
+    // so multiline equations cannot report a source-only MTEF difference.
+    let canonical = native::trim_latex_whitespace(raw)
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .replace('\n', "\r\n");
+    let text = begin.replace_all(&canonical, r"\begin{align}");
     let text = end.replace_all(&text, r"\end{align}");
     if text.starts_with('$') && text.ends_with('$') {
         return Ok(text.into_owned());
