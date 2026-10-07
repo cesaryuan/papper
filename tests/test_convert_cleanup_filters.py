@@ -26,6 +26,7 @@ from snapshot_utils import assert_snapshot
     ("table_prefixes", "detect_table"),
     ("table_crossrefs", "crossrefs"),
     ("image_dimensions", "round_image_dimensions"),
+    ("equation_tables", "equation_tables"),
 ])
 def test_convert_cleanup_filter_snapshot(
     case: str, filter_name: str, tmp_path: Path, snapshot_update: bool,
@@ -80,6 +81,8 @@ def test_paired_image_crossrefs_snapshot(tmp_path: Path, snapshot_update: bool) 
     assert "[@fig:_Ref202795969]" in result.stdout
     assert "[@fig:_RefSingle]" in result.stdout
     assert "[@eq:_RefEquation]" in result.stdout
+    assert "[@eq:_RefMergedFirst]" in result.stdout
+    assert "[@eq:_RefMergedSecond]" in result.stdout
     assert '[First bookmark](#_RefFirst)' in result.stdout
     assert '[Inline picture](#_RefInline)' in result.stdout
     assert_snapshot(

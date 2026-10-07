@@ -53,3 +53,11 @@ $x=y$ []{#_RefFirstEquation .anchor}[]{#_RefSecondEquation .anchor}(12)
 [Multiple math](#_RefMultipleMath), [Mixed math](#_RefMixedMath), and [Ambiguous bookmark](#_RefFirstEquation)
 
 Ordinary inline math $q=1$ stays inline without a bookmark.
+
++---------+----------------+------------------------------------------+
+|         | $$p=q$$        | []{#_RefMergedFirst .anchor}(13)          |
++=========+================+==========================================+
+|         | $$r=s$$        | []{#_RefMergedSecond .anchor}(14)         |
++---------+----------------+------------------------------------------+
+
+[First merged equation](#_RefMergedFirst) and [second merged equation](#_RefMergedSecond).
