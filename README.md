@@ -215,8 +215,17 @@ complete `papper` executable or exchange whole documents through JSON.
 DOCX builds also supply a bundled `rsvg-convert` PNG adapter on the conversion
 child's PATH. Pandoc uses it to retain the original SVG and embed a PNG fallback
 through `papper-svg`, without requiring a separate librsvg installation or changing
-the system PATH. `docxConvertSvgToPng: true` still replaces the SVG with PNG when
-full rasterization is requested.
+the system PATH. The adapter reuses content-addressed fallback PNGs under the
+project cache when the SVG is self-contained; edits to the SVG, renderer, DPI, or
+system fonts produce a new entry. SVGs with unresolved external image dependencies
+continue through the normal renderer. `docxConvertSvgToPng: true` still replaces
+the SVG with PNG when full rasterization is requested.
+Fallback entries live in `cache/svg-rsvg` within the project state and are cleared
+by `papper clean`. Set `PAPPER_SVG_CACHE=0` to bypass this adapter cache temporarily.
+Cache hits skip SVG rendering and per-image system font loading; Pandoc still
+launches its converter for each request. Font identity is collected once per DOCX
+build. Unreadable or damaged caches fall back to rendering and cannot prevent a
+successful document build.
 
 Legacy tool downloads automatically use `HTTPS_PROXY` (or `https_proxy`) when set,
 otherwise the configured Windows/macOS system HTTP/HTTPS proxy, and otherwise

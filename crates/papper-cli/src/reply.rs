@@ -5,7 +5,9 @@ mod resolve;
 
 use anyhow::{Context, Result};
 use papper_core::metadata::{MetadataOptions, load_effective_metadata_text, write_pandoc_metadata};
-use papper_core::paths::{atomic_write, canonical_project, display_path, pandoc_path};
+use papper_core::paths::{
+    atomic_write, canonical_project, display_path, pandoc_path, project_state_dir,
+};
 use papper_core::resources::ResourcePaths;
 use papper_document::docx::{
     DocxPostprocessOptions, derive_docx_pandoc_metadata, postprocess_docx,
@@ -221,6 +223,7 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
             &[project.clone(), reply.parent().unwrap().to_path_buf()],
             &temporary.path().join("svg-embedded"),
             &temporary.path().join("svg-png"),
+            &project_state_dir(&project)?.join("cache/svg-rsvg"),
         )?);
         engine.run(&command, &project, &environment)?;
         let processed = temporary.path().join("processed.docx");

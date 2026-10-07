@@ -366,6 +366,7 @@ fn build_other(
             ],
             &cache.join("svg-embedded"),
             &cache.join("svg-png"),
+            &cache.join("svg-rsvg"),
         )?);
     }
     command.push(input.into_os_string());

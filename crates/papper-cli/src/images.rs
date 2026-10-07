@@ -8,6 +8,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// Share typed image settings across manuscript and reply builds without AST processes.
 pub(crate) fn filter_environment(
@@ -16,6 +17,7 @@ pub(crate) fn filter_environment(
     roots: &[PathBuf],
     embedded_dir: &Path,
     png_dir: &Path,
+    rsvg_cache_dir: &Path,
 ) -> Result<BTreeMap<String, Option<String>>> {
     let fields = settings.fields();
     let roots = serde_json::to_string(roots)?;
@@ -32,6 +34,13 @@ pub(crate) fn filter_environment(
         ("PMT_SVG_TO_PNG_BASE_DIRS".into(), Some(roots)),
         ("PMT_SVG_EMBED_DIR".into(), Some(display_path(embedded_dir))),
         ("PMT_SVG_TO_PNG_DIR".into(), Some(display_path(png_dir))),
+        // rsvg-convert is launched by Pandoc itself, so give it the same
+        // project-persistent cache used across independent DOCX builds.
+        (
+            "PAPPER_SVG_CACHE_DIR".into(),
+            Some(display_path(rsvg_cache_dir)),
+        ),
+        ("PAPPER_SVG_FONT_ID".into(), None),
         (
             "PMT_SVG_EMBED_PMT_VERSION".into(),
             Some(env!("CARGO_PKG_VERSION").into()),
@@ -58,6 +67,16 @@ pub(crate) fn filter_environment(
         ),
     ]);
     if let Some(renderer) = resources.svg_renderer() {
+        if !std::env::var("PAPPER_SVG_CACHE").is_ok_and(|value| value == "0") {
+            match renderer_font_identity(&renderer) {
+                Ok(identity) => {
+                    environment.insert("PAPPER_SVG_FONT_ID".into(), Some(identity));
+                }
+                // Cache preparation must not break conversions with older custom
+                // helpers or temporarily unreadable fonts; text images simply miss.
+                Err(error) => eprintln!("[papper-svg] Text image cache unavailable: {error:#}"),
+            }
+        }
         if std::env::var_os("PAPPER_SVG_RENDERER")
             .is_some_and(|configured| Path::new(&configured) == renderer.as_path())
         {
@@ -88,6 +107,29 @@ pub(crate) fn filter_environment(
         }
     }
     Ok(environment)
+}
+
+/// Inspect the renderer's fonts once per build without showing a helper console.
+fn renderer_font_identity(renderer: &Path) -> Result<String> {
+    let mut command = Command::new(renderer);
+    command.arg("font-identity");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let result = command.output()?;
+    anyhow::ensure!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr).trim()
+    );
+    let identity = String::from_utf8(result.stdout)?.trim().to_owned();
+    anyhow::ensure!(
+        identity.len() == 64 && identity.bytes().all(|byte| byte.is_ascii_hexdigit()),
+        "SVG renderer returned an invalid font identity"
+    );
+    Ok(identity)
 }
 
 /// Invalidate caches when a caller replaces an explicit helper, even at the same path.

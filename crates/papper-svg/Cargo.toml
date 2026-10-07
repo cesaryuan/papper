@@ -11,3 +11,6 @@ anyhow.workspace = true
 clap.workspace = true
 flate2.workspace = true
 resvg.workspace = true
+roxmltree.workspace = true
+sha2.workspace = true
+tempfile.workspace = true

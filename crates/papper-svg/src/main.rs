@@ -2,12 +2,16 @@
 //!
 //! `papper-svg render --source <svg-path> [--width <pixels>]` reads normalized
 //! SVG bytes from stdin and writes PNG bytes to stdout. Lua owns document ASTs,
-//! resource selection and caches; this process only supplies resvg rendering.
+//! resource selection and explicit rasterization caches; this command supplies
+//! resvg rendering without a document AST.
 //! `papper-svg gunzip` decodes one SVGZ stream. This small executable depends on
 //! neither Papper's CLI nor its embedded Haskell/MathType/template runtime.
 //! `papper-svg rsvg-convert` accepts Pandoc's PNG fallback arguments; the bundled
 //! `rsvg-convert` launcher forwards those requests without a shell or librsvg.
+//! Fallback PNGs use an optional persistent cache; `font-identity` fingerprints
+//! system fonts once per DOCX build so text-image cache hits skip font loading.
 
+mod cache;
 mod rsvg;
 
 use anyhow::{Context, Result, bail, ensure};
@@ -27,6 +31,8 @@ struct Cli {
 /// Select a byte-stream transformation without accepting a document AST.
 #[derive(Subcommand)]
 enum Operation {
+    /// Fingerprint font bytes and selection order for request-local cache controls.
+    FontIdentity,
     /// Accept the rsvg-convert PNG interface used by Pandoc's DOCX writer.
     RsvgConvert(rsvg::Options),
     /// Render stdin SVG to stdout PNG using the source's adjacent resources.
@@ -55,6 +61,10 @@ fn main() {
 /// Transform one resource and publish stdout only after the operation succeeds.
 fn run() -> Result<()> {
     let operation = Cli::parse().command;
+    if let Operation::FontIdentity = operation {
+        println!("{}", cache::font_identity()?);
+        return Ok(());
+    }
     if let Operation::RsvgConvert(options) = operation {
         return options.convert();
     }
@@ -78,6 +88,7 @@ fn run() -> Result<()> {
             decoded
         }
         Operation::RsvgConvert(_) => unreachable!(),
+        Operation::FontIdentity => unreachable!(),
     };
     std::io::stdout().lock().write_all(&output)?;
     Ok(())

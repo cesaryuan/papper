@@ -52,7 +52,18 @@ impl Options {
             std::io::stdin().lock().read_to_end(&mut input)?;
             (std::env::current_dir()?.join("stdin.svg"), input)
         };
-        let png = super::render(&source, std::str::from_utf8(&input)?, self.dpi_x, 1.0, None)?;
+        let svg = std::str::from_utf8(&input)?;
+        let cache = super::cache::Cache::for_svg(svg, self.dpi_x);
+        let png = match cache.as_ref().and_then(super::cache::Cache::read) {
+            Some(png) => png,
+            None => {
+                let png = super::render(&source, svg, self.dpi_x, 1.0, None)?;
+                if let Some(cache) = cache {
+                    cache.publish(&png);
+                }
+                png
+            }
+        };
         if let Some(path) = self.output.filter(|path| path.as_os_str() != "-") {
             std::fs::write(&path, png)
                 .with_context(|| format!("Cannot write PNG: {}", path.display()))?;
