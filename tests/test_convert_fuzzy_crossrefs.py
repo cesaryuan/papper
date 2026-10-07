@@ -35,6 +35,11 @@ def test_fuzzy_crossrefs_snapshot(tmp_path: Path, snapshot_update: bool) -> None
     assert "如[@eq:fuzz-4-43]" in result.stdout
     assert "[@eq:_RefEquation]" in result.stdout
     assert "参见[@eq:_RefUnicodeEquation]" in result.stdout
+    assert '{#eq:fuzz-4-43}\n\n<!-- original-number: (4-43) -->' in result.stdout
+    assert '{#eq:_RefEquation}\n\n<!-- original-number: (4-45) -->' in result.stdout
+    assert '{#eq:_RefUnicodeEquation}\n\n<!-- original-number: （4‑47） -->' in result.stdout
+    assert '{#eq:fuzz-19}\n\n<!-- original-number: ( 19 ) -->' in result.stdout
+    assert 'original-number="' not in result.stdout
     assert "papper-equation-labels" not in result.stdout
     assert_snapshot(result.stdout, fixture / "snapshots-content/fuzzy_crossrefs.md", update=snapshot_update)
 
@@ -139,6 +144,12 @@ def test_convert_fuzzy_crossrefs_option(
         assert "see [@fig:_RefMixed]" in markdown
         assert "如[@eq:_RefEquation]" in markdown
         assert "As in [@eq:fuzz-4-43]" in markdown
+        assert '{#eq:fuzz-4-43}\n\n<!-- original-number: (4-43) -->' in markdown
+        assert '{#eq:_RefEquation}\n\n<!-- original-number: (4-44) -->' in markdown
+        assert '![不同失效策略下的脆弱性曲线]' in markdown
+        assert '<!-- original-number: 图1‑14 -->' in markdown
+        assert '<!-- original-number: 表1‑3 -->' in markdown
+        assert 'original-number="' not in markdown
         # A Markdown snapshot alone can miss a citation whose target ID was not
         # published correctly. Resolve the output using the real downstream filter.
         pandoc = native_pandoc_executable()

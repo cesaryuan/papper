@@ -5,17 +5,19 @@
 -- and replace matching references in explicit reference phrases in prose.
 -- Prefixes: 图/Figure/Fig. and 表/Table/Tbl. (case-insensitive English, optional
 -- period). Single numbers and chapter-number pairs accept optional spaces and
--- Unicode dashes. Caption spelling, formatting, image attributes and table
--- structure remain authored; only target IDs and prose references are changed.
+-- Unicode dashes. Caption formatting, image attributes and table structure are
+-- preserved; authored numbering moves to a following HTML comment.
 -- Examples:
 --   如图1-14所示 + ![图1‑14 脆弱性曲线](image.svg)
---     -> 如[@fig:fuzz-1-14]所示 + ![图1‑14 脆弱性曲线](image.svg){#fig:fuzz-1-14}
+--     -> 如[@fig:fuzz-1-14]所示 + ![脆弱性曲线](image.svg){#fig:fuzz-1-14}
+--        followed by <!-- original-number: 图1‑14 -->
 --   如表1-3所示 + a Table captioned 表1‑3 鲁棒性度量
 --     -> 如[@tbl:fuzz-1-3]所示 + the same Table with #tbl:fuzz-1-3
 --   As shown in Fig. 4, ... + ![Fig. 4 Result](image.png){#fig:_Ref123}
 --     -> As shown in [@fig:_Ref123], ... (reuse the ID from crossrefs.lua)
 --   $x=y$ (4-43) + 如式 4-43 所示
---     -> $$x=y$$ {#eq:fuzz-4-43} + 如[@eq:fuzz-4-43] 所示
+--     -> $$x=y$$ {#eq:fuzz-4-43} + <!-- original-number: (4-43) -->
+--        and 如[@eq:fuzz-4-43] 所示
 -- A numbered formula must be a standalone paragraph with one Math and only its
 -- trailing parenthesized number. InlineMath becomes DisplayMath for downstream
 -- equation numbering; ordinary prose math and descriptive suffixes are retained.
@@ -23,6 +25,14 @@
 -- label crossrefs.lua saved in temporary metadata. The mapping and enable flag
 -- are removed before writing output. Direct users should set the same flag when
 -- running crossrefs.lua before this filter: -M papper-fuzzy-crossrefs:true.
+-- Original labels preserve parentheses, Unicode dashes and internal spaces in
+-- HTML comments after their objects, e.g. <!-- original-number: (4‑43) -->.
+-- Figure/table captions also remove their leading prefix and number into such
+-- a comment: ![图1‑14 Curves](image.svg) becomes ![Curves](image.svg)
+-- {#fig:fuzz-1-14}, followed by <!-- original-number: 图1‑14 -->.
+-- Comments use separate blocks so images still parse as standalone figures and
+-- equations keep the bare ID suffix required by pandoc-crossref. Formatting in
+-- the remaining caption survives; ambiguous definitions retain their captions.
 -- Cues include 如/见/参见/参考/参照/详见 and 所示/所列/所述, plus English
 -- "as shown in", "as show in", "shown in", "see", "refer to", and similar
 -- illustrated/listed/given phrases. Plain mentions without a cue stay unchanged.
@@ -175,17 +185,90 @@ local function equation_target(block)
     text = cleaned
   end
   local number = equation_number(text)
-  if not number and identifier and text:match('^%s*$') then number = equation_numbers[identifier] end
+  local original = text:gsub('^%s+', ''):gsub('%s+$', '')
+  if not number and identifier and text:match('^%s*$') then
+    local saved = equation_numbers[identifier]
+    if saved then number, original = saved.number, saved.original end
+  end
   if not number then return nil end
-  return { kind = 'eq', number = number }, { t = 'Equation', identifier = identifier or '', math = math }
+  return { kind = 'eq', number = number }, {
+    t = 'Equation', identifier = identifier or '', math = math, original = original,
+  }
 end
 
 --- Recognize a numbered caption only when the label starts its visible text.
 local function caption_label(caption)
   local text = pandoc.utils.stringify(caption)
   local label = next_label(text, 1)
-  if label and text:sub(1, label.first - 1):match('^%s*$') then return label end
+  if label and text:sub(1, label.first - 1):match('^%s*$') then
+    label.original = text:sub(label.first, label.last)
+    label.cut = label.last + #(text:sub(label.last + 1):match('^%s*'))
+    return label
+  end
   return nil
+end
+
+--- Remove a caption prefix across formatting runs while preserving empty bookmarks.
+local function strip_caption_inlines(inlines, state)
+  local result = {}
+  for _, inline in ipairs(inlines) do
+    local length = #pandoc.utils.stringify(inline)
+    if state.remaining == 0 or length == 0 then result[#result + 1] = inline
+    elseif state.remaining >= length then state.remaining = state.remaining - length
+    elseif inline.t == 'Str' then
+      result[#result + 1] = pandoc.Str(inline.text:sub(state.remaining + 1))
+      state.remaining = 0
+    elseif containers[inline.t] then
+      local copy = inline:clone()
+      copy.content = strip_caption_inlines(copy.content, state)
+      if #copy.content > 0 then result[#result + 1] = copy end
+    else result[#result + 1] = inline; state.remaining = 0 end
+  end
+  return result
+end
+
+--- Preserve the imported label as a separate comment so figure/equation syntax stays valid.
+local function original_number_comment(number)
+  return pandoc.RawBlock('html', '<!-- original-number: ' .. number .. ' -->')
+end
+
+--- Remove an original caption prefix without flattening the remaining formatting.
+local function preserve_caption_number(block, owner, label)
+  local state = { remaining = label.cut }
+  if block.t == 'Figure' or block.t == 'Table' then
+    local caption = block.caption.long
+    for _, paragraph in ipairs(caption) do
+      if paragraph.t == 'Plain' or paragraph.t == 'Para' then
+        paragraph.content = strip_caption_inlines(paragraph.content, state)
+      end
+    end
+    block.caption.long = caption
+    if block.t == 'Figure' then
+      -- Markdown's Figure writer falls back to HTML when Figure Attr carries
+      -- custom attributes. Put a simple figure's caption and attributes on its
+      -- single image so conversion keeps the requested ![caption](path){...} form.
+      local image = block.content[1].content[1]
+      local inlines = {}
+      for _, paragraph in ipairs(caption) do
+        for _, inline in ipairs(paragraph.content) do inlines[#inlines + 1] = inline end
+      end
+      image.caption = inlines
+      image.identifier = owner.identifier
+      for key, value in pairs(owner.attributes) do image.attributes[key] = value end
+      if owner.t ~= 'Image' then
+        for _, class in ipairs(owner.classes) do image.classes:insert(class) end
+      end
+      return pandoc.Para({ image })
+    end
+  elseif block.t == 'Div' then
+    local caption = block.content[#block.content]
+    caption.content = strip_caption_inlines(caption.content, state)
+    block.content[#block.content] = caption
+  else
+    owner.caption = strip_caption_inlines(owner.caption, state)
+    block.content = { owner }
+  end
+  return block
 end
 
 --- Return one image from a simple Figure or standalone image paragraph.
@@ -236,7 +319,7 @@ local function walk_targets(doc, callback)
       end
     end,
     -- Figures own their captions and content; do not index their image twice.
-    Figure = function(block) callback(block); return block, false end,
+    Figure = function(block) return callback(block) or block, false end,
     Table = callback,
     Para = callback,
     Plain = callback,
@@ -373,8 +456,11 @@ function Pandoc(doc)
   local stats = { ids = 0, references = 0, ambiguous = 0 }
   equation_numbers = {}
   for _, record in ipairs(doc.meta['papper-equation-labels'] or {}) do
-    local number = equation_number(pandoc.utils.stringify(record.label))
-    if number then equation_numbers[pandoc.utils.stringify(record.id)] = number end
+    local original = pandoc.utils.stringify(record.label):gsub('^%s+', ''):gsub('%s+$', '')
+    local number = equation_number(original)
+    if number then
+      equation_numbers[pandoc.utils.stringify(record.id)] = { number = number, original = original }
+    end
   end
   doc.meta['papper-equation-labels'], doc.meta['papper-fuzzy-crossrefs'] = nil, nil
   -- Reserve every authored identifier, including IDs outside numbered captions.
@@ -425,19 +511,16 @@ function Pandoc(doc)
     local target = label and targets[label.kind .. ':' .. label.number]
     if target and target.id and owner.t == 'Equation' then
       -- Only confirmed standalone numbered formulas are promoted, so ordinary
-      -- inline math keeps its authored position and math type.
+      -- inline math keeps its authored position and math type. Retain the original
+      -- number in a separate comment after the formula.
       block.content = { pandoc.Math('DisplayMath', owner.math.text),
         pandoc.RawInline('markdown', ' {#' .. target.id .. '}') }
-      return block
+      return { block, original_number_comment(owner.original) }
     end
-    if target and target.id and owner.identifier == '' then
-      owner.identifier = target.id
-      -- Nested image properties are copies: write back to the containing block.
-      if owner.t == 'Image' then
-        if block.t == 'Figure' then block.content[1].content = { owner }
-        else block.content = { owner } end
-      end
-      return block
+    if target and target.id then
+      if owner.identifier == '' then owner.identifier = target.id end
+      block = preserve_caption_number(block, owner, label)
+      return { block, original_number_comment(label.original) }
     end
   end)
   local filter

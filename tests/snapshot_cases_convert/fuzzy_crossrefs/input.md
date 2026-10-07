@@ -232,3 +232,9 @@ See Eq. 13 or Eq. 14. 如式15所示。As in Equation 16, nothing is defined.
 $$a+b=c$$ {#eq:unknown-number}
 
 See Eq. 18.
+
+## Preserve spaces inside original equation numbers
+
+$j=k$ ( 19 )
+
+See Eq. 19.
