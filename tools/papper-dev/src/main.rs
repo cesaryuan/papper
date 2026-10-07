@@ -329,6 +329,7 @@ fn add_worker_sources(
         "vendor/pandoc/README.md",
         "vendor/pandoc/SOURCES.json",
         "vendor/pandoc/src/Text/Pandoc/Readers.hs",
+        "vendor/pandoc/src/Text/Pandoc/Readers/Docx/Parse.hs",
         "vendor/pandoc/src/Text/Pandoc/Writers.hs",
         "vendor/pandoc-cli/PandocCLI/Lua.hs",
         "vendor/pandoc-cli/PandocCLI/Server.hs",

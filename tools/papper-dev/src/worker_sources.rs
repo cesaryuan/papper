@@ -1,4 +1,4 @@
-//! Prepare pinned Pandoc sources with the tracked Reader/Writer registry overrides.
+//! Prepare pinned Pandoc sources with tracked format registries and DOCX parser fixes.
 //!
 //! Cabal compiles a private source copy under .pmt, not the upstream package cache.
 //! Wheels keep these overrides and source hashes so the linked profile is reproducible.
@@ -96,7 +96,7 @@ fn upstream_archive(root: &Path, profile: &Value) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// Install the original package once, then update only the maintained registries.
+/// Install the original package once, then update only the maintained source overrides.
 pub fn prepare(root: &Path) -> Result<()> {
     let (overrides, metadata) = profile(root)?;
     let name = field(&metadata, "name")?;
@@ -141,7 +141,7 @@ pub fn prepare(root: &Path) -> Result<()> {
     }
     for path in metadata["overrides"]
         .as_array()
-        .context("Pandoc profile omitted registry overrides")?
+        .context("Pandoc profile omitted source overrides")?
     {
         let path = path.as_str().context("Invalid Pandoc override path")?;
         papper_core::paths::write_if_changed(
@@ -149,7 +149,7 @@ pub fn prepare(root: &Path) -> Result<()> {
             &std::fs::read(overrides.join(path))?,
         )?;
     }
-    println!("[papper package] Prepared Pandoc {version} with Papper's format registries");
+    println!("[papper package] Prepared Pandoc {version} with Papper's source overrides");
     Ok(())
 }
 
