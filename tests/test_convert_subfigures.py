@@ -42,10 +42,11 @@ def run_pandoc(source: Path, *options: str) -> subprocess.CompletedProcess:
 
 
 def test_subfigure_markdown_snapshot(tmp_path: Path, snapshot_update: bool) -> None:
-    """Preserve captions, bookmarks, near misses and typed/anchored group references."""
+    """Preserve group references and round source sizes after detection rewrites layout sizes."""
     fixture = ROOT / "tests/snapshot_cases_convert/subfigures"
     options = ["-f", "markdown", "-t", "markdown-simple_tables-multiline_tables", "--standalone", "--wrap=none"]
-    for name in ["detect_subfigures", "extract_inline_images", "detect_figure", "crossrefs", "crossrefs_fuzz"]:
+    for name in ["detect_subfigures", "extract_inline_images", "detect_figure", "crossrefs",
+                 "round_image_dimensions", "crossrefs_fuzz"]:
         options.extend(["-L", str(ROOT / f"pandoc/filters/convert/{name}.lua")])
     converted = run_pandoc(fixture / "input.md", *options).stdout
     assert_snapshot(converted, fixture / "snapshots-content/subfigures.md", update=snapshot_update)

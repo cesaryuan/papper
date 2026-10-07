@@ -1,6 +1,6 @@
 See [Figure 1](#_RefGrid) and [panel](#_RefPanel). As shown in Fig. 1, the fields agree.
 
-| ![](a.png){width="3in" height="2in"} | ![](b.png){width="3in" height="2in"} |
+| ![](a.png){width="4.455728346456693in" height="3.0708661417322833in"} | ![](b.png){width="3in" height="2in"} |
 |---|---|
 | (a) **Field A** | []{#_RefPanel .anchor}(b) Field B |
 | ![](c.png){width="3in"} | ![](d.png){width="3in"} |

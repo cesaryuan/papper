@@ -5,9 +5,9 @@ subfigGrid: true
 See [@fig:_RefGrid] and [@fig:_RefPanel]. As shown in [@fig:_RefGrid], the fields agree.
 
 ::: {#fig:_RefGrid original-number="Figure 1"}
-![(a) **Field A**](a.png){#fig:_RefGrid-a width="50%" label="a" original-width="3in" original-height="2in"} ![(b) Field B](b.png){#fig:_RefPanel width="50%" label="b" original-width="3in" original-height="2in"}
+![**Field A**](a.png){#fig:_RefGrid-a width="50%" label="a" original-width="4.4557in" original-height="3.0709in"} ![Field B](b.png){#fig:_RefPanel width="50%" label="b" original-width="3in" original-height="2in"}
 
-![(c) Field C](c.png){#fig:_RefGrid-c width="50%" label="c" original-width="3in"} ![(d) Field D](d.png){#fig:_RefGrid-d width="50%" label="d" original-width="3in"}
+![Field C](c.png){#fig:_RefGrid-c width="50%" label="c" original-width="3in"} ![Field D](d.png){#fig:_RefGrid-d width="50%" label="d" original-width="3in"}
 
 Fields
 :::
@@ -15,15 +15,15 @@ Fields
 [@fig:_RefGrid] shows the reconstructed fields. This paragraph must survive.
 
 ::: {#fig:subfig-2 original-number="Fig. 2"}
-![(c) Upper panel](e.png){#fig:subfig-2-c width="50%" label="c" original-width="6cm"} ![（d）Lower panel](f.png){#fig:subfig-2-d width="50%" label="d" original-width="6cm"}
+![Upper panel](e.png){#fig:subfig-2-c width="50%" label="c" original-width="6cm"} ![Lower panel](f.png){#fig:subfig-2-d width="50%" label="d" original-width="6cm"}
 
 Inline child captions
 :::
 
 ::: {#fig:subfig-3 original-number="图3"}
-![(a) Top](g.png){#fig:subfig-3-a width="100%" label="a" original-width="4in"}
+![Top](g.png){#fig:subfig-3-a width="100%" label="a" original-width="4in"}
 
-![(b) Bottom](h.png){#fig:subfig-3-b width="100%" label="b" original-width="4in"}
+![Bottom](h.png){#fig:subfig-3-b width="100%" label="b" original-width="4in"}
 
 纵向子图
 :::
@@ -35,9 +35,9 @@ Inline child captions
 :::
 
 ::: {#fig:subfig-5 original-number="图5"}
-![(a) Upper paragraph](k.png){#fig:subfig-5-a width="100%" label="a" original-width="4in"}
+![Upper paragraph](k.png){#fig:subfig-5-a width="100%" label="a" original-width="4in"}
 
-![（b）Lower paragraph](l.png){#fig:subfig-5-b width="100%" label="b" original-width="4in"}
+![Lower paragraph](l.png){#fig:subfig-5-b width="100%" label="b" original-width="4in"}
 
 段落形式
 :::
@@ -86,7 +86,7 @@ Existing table reference
 As shown in [@fig:existing], both panels agree.
 
 ::: {#fig:subfig-12 original-number="Fig. 12"}
-![(a) Left](aa.png){#fig:custom-panel width="50%" label="a" original-width="2in"} ![(b) Right](ab.png){#fig:subfig-12-b width="50%" label="b" original-width="2in"}
+![Left](aa.png){#fig:custom-panel width="50%" label="a" original-width="2in"} ![Right](ab.png){#fig:subfig-12-b width="50%" label="b" original-width="2in"}
 
 Cell separators left behind by an old export
 :::

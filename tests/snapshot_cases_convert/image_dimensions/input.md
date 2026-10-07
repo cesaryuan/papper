@@ -10,6 +10,16 @@ Invalid ![](invalid.png){width="auto" height="calc(100% - 2px)"} malformed ![](m
 
 [Non-image attributes]{width="5.78125in" height="3.120138888888889in"}
 
+::: {#fig:_Ref213683139 original-number="图1‑13"}
+![(a) 节点流量与边流量](media/image66.svg){#fig:_Ref213683139-a width="100%" label="a" original-width="4.455728346456693in" original-height="3.0708661417322833in"}
+
+![(b) 道路等级](media/image68.svg){#fig:_Ref213683139-b width="100%" label="b" original-width="2.9133858267716537in" original-height="2.9346227034120735in"}
+
+![(c) 节点服务等级](media/image70.svg){#fig:_Ref213683139-c width="100%" label="c" original-width="2.874015748031496in" original-height="2.877010061242345in"}
+
+桥隧网络功能层属性（08:00）
+:::
+
 > Nested ![](quote.png){width="2.8541666666666665in" height="1.15625in"}.
 
 | Image |

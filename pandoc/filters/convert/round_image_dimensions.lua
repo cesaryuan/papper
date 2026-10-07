@@ -1,4 +1,6 @@
 -- Round image width/height to five significant digits before Markdown export.
+-- Include original-width/original-height saved by subfigure detection, which
+-- replaces layout widths with percentages and removes layout heights.
 -- Parse the numeric component separately so units (including %) are preserved.
 -- Use general-format rounding, then expand scientific notation to plain decimal
 -- because downstream dimension readers may not accept exponents. Missing or
@@ -36,10 +38,11 @@ local function round_dimension(raw)
   return plain_decimal(string.format('%.5g', number)) .. unit
 end
 
---- Normalize only image dimensions, including images nested in tables and notes.
+--- Normalize layout and retained source dimensions, including nested subfigures.
 function Image(image)
   local changed = false
-  for _, attribute in ipairs({ 'width', 'height' }) do
+  -- Subfigure source sizes no longer live in width/height after detection.
+  for _, attribute in ipairs({ 'width', 'height', 'original-width', 'original-height' }) do
     local raw = image.attributes[attribute]
     local rounded = round_dimension(raw)
     if rounded and rounded ~= raw then
