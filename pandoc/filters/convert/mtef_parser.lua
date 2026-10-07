@@ -274,7 +274,9 @@ function Pandoc(doc)
   local cache = {}
   local count = 0
   local converted_sources = {}
+  local warned_sources = {}
   -- Prefer editable OLE data, then use the WMF's own validated MTEF comments.
+  --- Recover one preview and report a retained formula only once across both walks.
   local function replace_image(image, style)
     local source = image_source(image.src)
     local ole = previews[source]
@@ -288,8 +290,14 @@ function Pandoc(doc)
     end
     if not body then
       -- Ordinary WMF pictures have no decoded entry and should stay silent.
-      if ole or (wmf and decoded[pandoc.utils.sha1(wmf)] ~= nil) then
-        io.stderr:write('[mtef-parser] MathType decode failed; keeping preview image\n')
+      if not warned_sources[source] and (ole or (wmf and decoded[pandoc.utils.sha1(wmf)] ~= nil)) then
+        warned_sources[source] = true
+        local ole_latex = ole and decoded[pandoc.utils.sha1(ole)]
+        local wmf_latex = wmf and decoded[pandoc.utils.sha1(wmf)]
+        local empty = (type(ole_latex) == 'string' and math_body(ole_latex) == '')
+          or (type(wmf_latex) == 'string' and math_body(wmf_latex) == '')
+        io.stderr:write('[mtef-parser] MathType decode failed for ', source,
+          empty and ' (empty equation)' or '', '; keeping preview image\n')
       end
       return nil
     end

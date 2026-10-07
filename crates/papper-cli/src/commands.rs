@@ -461,7 +461,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         "--wrap=none".into(),
     ];
     let chinese_ratio = papper_document::docx::chinese_character_ratio(&source)?;
-    if chinese_ratio >= 0.9 {
+    if chinese_ratio >= 0.6 {
         // Standalone Markdown emits a leading YAML block; setting metadata on
         // a fragment alone would silently discard the detected language.
         command.extend(["--standalone".into(), "--metadata=lang:zh-CN".into()]);
@@ -474,7 +474,9 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         "mtef_parser.lua",
         "equation_tables.lua",
         "remove_toc_anchors.lua",
-        "figure_captions.lua",
+        "extract_inline_images.lua",
+        "detect_figure.lua",
+        "detect_table.lua",
         "crossrefs.lua",
     ] {
         let filter = resources.resource(format!("pandoc/filters/convert/{filename}"));

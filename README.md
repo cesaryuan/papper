@@ -74,19 +74,29 @@ uv run papper convert "测试文档.docx" -o converted
 ```
 
 This writes `converted/测试文档.md` and only the images still needed by the
-Markdown under `converted/media`. The command combines five bundled Lua
+Markdown under `converted/media`. The command combines seven bundled Lua
 filters: it converts MathType OLE equations and MTEF-bearing WMF images to LaTeX, flattens one-row equation
-layout tables, removes `_Toc...` bookmarks and navigation links, attaches an
-immediately following `图1‑11` or `Figure 1-11` caption paragraph to a single bare
-image, and changes recognizable Word bookmark links to pandoc-crossref
-references such as `@fig:_Ref241620557` and `@eq:_Ref241620691`. It keeps
+layout tables, removes `_Toc...` bookmarks and navigation links, extracts inline
+images wider than 2 inches into separate figures, converts one-column image/caption
+layout tables into figures, attaches an
+immediately following `图1`, `图1‑11`, `Figure 1` or `Fig. 1-11` caption paragraph to a single bare
+image (including a sole image inside a block quote created by Word left indentation),
+attaches a preceding `表2‑1`, `表2`, `Table 2-1` or `Tbl. 2` paragraph to a captionless
+table, and changes recognizable Word bookmark links to pandoc-crossref
+references such as `[@fig:_Ref241620557]` and `[@eq:_Ref241620691]`. It keeps
 ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
 
 Caption pairing retains the original text, formatting, `_Ref...` bookmarks and
-image dimensions. TOC cleanup retains visible text and page numbers. Existing
+image dimensions. English prefixes are case-insensitive and allow an optional
+trailing period. TOC cleanup retains visible text and page numbers. Existing
 captions, multi-image paragraphs and images separated from captions by prose
 are preserved.
+
+An inline image wider than 2 inches is moved after its containing paragraph as a
+separate figure. Absolute widths in common physical units are supported; images
+with relative or invalid widths, exactly 2-inch images, and already standalone
+figures remain where they were.
 
 When Han characters make up at least 90% of the letters and numbers in the DOCX
 body, footnotes, and endnotes, Convert adds `lang: zh-CN` to a leading YAML header

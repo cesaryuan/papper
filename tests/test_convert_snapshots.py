@@ -201,7 +201,7 @@ def test_convert_output_matches_snapshot(
     markdown = (output / markdown_name).read_bytes().decode("utf-8")
     # A Word save can merge fallback previews with genuine equations. Updating
     # snapshots must not silently accept a case that stopped covering recovery.
-    assert "@eq:_RefConvertTwoCell" in markdown and "@eq:_RefConvertTextLabel" in markdown, (
+    assert "[@eq:_RefConvertTwoCell]" in markdown and "[@eq:_RefConvertTextLabel]" in markdown, (
         "Comprehensive fixture lost equation recovery; check shared Word previews before refreshing snapshots"
     )
     # These authored pictures have no OLE; the snapshot must exercise WMF MTEF

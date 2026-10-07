@@ -17,3 +17,13 @@ Ordinary inline picture ![[]{#_RefInline .anchor}Inline caption](media/inline.pn
 []{#_RefFirst .anchor}[]{#_RefSecond .anchor}图3-1 Ambiguous bookmarks
 
 [First bookmark](#_RefFirst) and [Second bookmark](#_RefSecond)
+
+![](media/single.png)
+
+[]{#_RefSingle .anchor}Fig. 4 **Single-number caption**
+
+引用[Fig. 4](#_RefSingle)和[公式](#_RefEquation)。
+
+$$E=mc^2$$ []{#_RefEquation .anchor}(7)
+
+[Equation 7](#_RefEquation), [unknown](#_RefUnknown), and [external](https://example.com/).

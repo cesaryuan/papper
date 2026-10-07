@@ -239,6 +239,37 @@ def test_native_convert_recovers_mathtype_tex_and_extracts_media_without_overwri
     assert result.returncode == 0, result.stdout + result.stderr
     assert "$x^2+y^2$" in (standalone / "paper.md").read_text(encoding="utf-8")
 
+    # Mock only the external decoder result to reproduce an empty equation.
+    # A standalone preview is visited by both display and inline recovery; its
+    # bytes must survive extraction and its path must be reported exactly once.
+    import hashlib
+
+    with ZipFile(source) as archive:
+        previews = [name for name in archive.namelist() if name.endswith(".wmf")]
+        assert len(previews) == 1
+        preview = previews[0]
+        preview_bytes = archive.read(preview)
+        empty_map = {
+            hashlib.sha1(archive.read(name)).hexdigest(): r"\[\]"
+            for name in archive.namelist() if name.endswith((".wmf", ".bin"))
+        }
+    mapping = project / "empty-equations.json"
+    mapping.write_text(json.dumps(empty_map), encoding="utf-8")
+    filter_environment["MATHTYPE_LATEX_MAP"] = str(mapping)
+    result = subprocess.run(
+        [str(pandoc), str(source), "--from=docx", "--to=markdown", "--wrap=none",
+         "--lua-filter", str(ROOT / "pandoc/filters/convert/mtef_parser.lua"),
+         "--extract-media=.", "--output", "empty.md"], cwd=standalone,
+        env=filter_environment, capture_output=True, text=True, encoding="utf-8", timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    relative_preview = preview.removeprefix("word/")
+    assert relative_preview in (standalone / "empty.md").read_text(encoding="utf-8")
+    assert (standalone / relative_preview).read_bytes() == preview_bytes
+    warnings = [line for line in result.stderr.splitlines() if "keeping preview image" in line]
+    assert len(warnings) == 1
+    assert relative_preview in warnings[0] and "empty equation" in warnings[0]
+
 
 def test_native_build_uses_environment_defaults_and_explicit_cli_overrides(
     tmp_path: Path, rust_executable: Path,

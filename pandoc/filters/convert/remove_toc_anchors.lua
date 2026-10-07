@@ -11,7 +11,7 @@
 --     -> []{#_Ref181174213 .anchor}
 --   # Introduction {#_Toc123} -> # Introduction (without the _Toc identifier)
 -- This removes TOC navigation markup, not the visible table-of-contents text.
--- Run before figure_captions.lua and crossrefs.lua so remaining _Ref bookmarks
+-- Run before detect_figure.lua and crossrefs.lua so remaining _Ref bookmarks
 -- are exposed and emptied anchor paragraphs do not separate images/captions:
 --   pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/remove_toc_anchors.lua
 

@@ -1,16 +1,16 @@
 -- Convert confirmed Word figure/equation bookmarks to pandoc-crossref syntax.
 -- Run after equation_tables.lua exposes table-based math and after TOC cleanup
--- and figure_captions.lua. A Figure caption or a standalone Image caption (or
+-- and detect_figure.lua. A Figure caption or a standalone Image caption (or
 -- its preceding empty paragraph) can carry an empty _Ref span; a display-equation
 -- paragraph can carry the same. Pairing images/captions in Lua leaves Para/Image
 -- nodes in the AST, so both forms must be recognized without re-reading Markdown.
 -- These known targets receive fig:/eq: identifiers, then their inbound bookmark
--- links are replaced by @fig:.../@eq:... references throughout the document.
+-- links are replaced by [@fig:...]/[@eq:...] references throughout the document.
 -- Examples:
 --   Figure caption: []{#_Ref123 .anchor}Network -> ![Network](image.png){#fig:_Ref123}
 --   $$E=mc^2$$ []{#_Ref456 .anchor}(7) -> $$E=mc^2$$ {#eq:_Ref456}
---   [Figure 1](#_Ref123) -> @fig:_Ref123 (only if the figure was confirmed)
---   [Equation 7](#_Ref456) -> @eq:_Ref456 (only if the equation was confirmed)
+--   [Figure 1](#_Ref123) -> [@fig:_Ref123] (only if the figure was confirmed)
+--   [Equation 7](#_Ref456) -> [@eq:_Ref456] (only if the equation was confirmed)
 -- Manual numeric equation labels are dropped for crossref to regenerate;
 -- descriptive labels survive. Unknown links, ordinary tables and section
 -- bookmarks are retained. Nested caption spans are not guessed as targets.
@@ -87,7 +87,7 @@ local function figure_image(figure)
   return block.content[1].t == 'Image' and block.content[1] or nil
 end
 
---- Recognize captioned standalone images produced by figure_captions.lua.
+--- Recognize captioned standalone images produced by detect_figure.lua.
 local function paragraph_image(block)
   if (block.t ~= 'Para' and block.t ~= 'Plain') or #block.content ~= 1 then return nil end
   local image = block.content[1]
@@ -169,7 +169,9 @@ function Pandoc(doc)
     Link = function(link)
       local id = link.target:match('^#(_Ref[%w_]+)$')
       if id and targets[id] then
-        return pandoc.RawInline('markdown', '@' .. targets[id] .. ':' .. id)
+        -- Keep brackets literal so the exported Markdown uses citation syntax
+        -- consistently, including references touching surrounding Chinese text.
+        return pandoc.RawInline('markdown', '[@' .. targets[id] .. ':' .. id .. ']')
       end
       return nil
     end,

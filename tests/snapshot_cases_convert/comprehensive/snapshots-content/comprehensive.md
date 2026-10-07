@@ -12,11 +12,11 @@ $$\mathop{\lim }\limits_{x\to \infty }$$
 
 $$\sqrt{{b^2}-4ac}$$ {#eq:_Ref241620691}
 
-对公式的引用 @eq:_Ref241620691
+对公式的引用 [@eq:_Ref241620691]
 
 ![图表 2 打我的](media/image4.png){#fig:_Ref241621754 width="1.3854166666666667in" height="0.46875in"}
 
-对题注的引用@fig:_Ref241621754
+对题注的引用[@fig:_Ref241621754]
 
 ![打我的d打我的](media/image5.png){width="1.84375in" height="0.59375in"}
 
@@ -91,7 +91,7 @@ A multirow table is not an equation layout:
 
   -----------------------------------------------------------------------
 
-References: @eq:_RefConvertTwoCell and @eq:_RefConvertTextLabel; unknown target stays a link: [unknown](#_RefConvertUnknown)
+References: [@eq:_RefConvertTwoCell] and [@eq:_RefConvertTextLabel]; unknown target stays a link: [unknown](#_RefConvertUnknown)
 
 ## Ordinary table
 
@@ -115,7 +115,7 @@ An ordinary picture has no caption:
 
 ![](media/image4.png){width="1.0in" height="0.33834536307961505in"}
 
-Figure references: @fig:_RefConvertCaption and @fig:_RefConvertPreceding
+Figure references: [@fig:_RefConvertCaption] and [@fig:_RefConvertPreceding]
 
 ## Section bookmark
 
