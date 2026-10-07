@@ -25,6 +25,7 @@ from snapshot_utils import assert_snapshot
     ("table_captions", "detect_table"),
     ("table_prefixes", "detect_table"),
     ("table_crossrefs", "crossrefs"),
+    ("image_dimensions", "round_image_dimensions"),
 ])
 def test_convert_cleanup_filter_snapshot(
     case: str, filter_name: str, tmp_path: Path, snapshot_update: bool,
@@ -163,9 +164,9 @@ def test_convert_pairs_word_captions_and_removes_nested_toc_links(
     assert "#fig:_Ref181174213" in markdown
     if image_layout == "inline":
         assert "对桥隧基本信息进行预处理，建立区域\n\n![" in markdown
-        assert 'width="3.0in"' in markdown
+        assert 'width="3in"' in markdown
     else:
-        assert 'width="1.0in"' in markdown
+        assert 'width="1in"' in markdown
     assert "图2‑35 各时段核密度估计 78" in markdown
     assert "[@fig:_Ref181174213]" in markdown
     assert len(list((output / "media").glob("*.png"))) == 1

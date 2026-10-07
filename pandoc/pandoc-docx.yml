@@ -12,6 +12,7 @@ columns: 1
 
 # Filters are applied in order
 filters:
+  - ${.}/filters/shared/normalize_math_roman.lua
   - ${.}/filters/docx/equation_revision_attr.lua
   # Preserve original display/inline context before pandoc-crossref can turn
   # tab-layout display equations into InlineMath. Equation attributes must be

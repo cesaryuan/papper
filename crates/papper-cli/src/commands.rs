@@ -481,6 +481,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         "detect_figure.lua",
         "detect_table.lua",
         "crossrefs.lua",
+        "round_image_dimensions.lua",
     ] {
         let filter = resources.resource(format!("pandoc/filters/convert/{filename}"));
         anyhow::ensure!(

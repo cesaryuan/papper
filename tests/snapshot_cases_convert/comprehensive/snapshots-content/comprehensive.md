@@ -14,11 +14,11 @@ $$\sqrt{{b^2}-4ac}$$ {#eq:_Ref241620691}
 
 对公式的引用 [@eq:_Ref241620691]
 
-![图表 2 打我的](media/image4.png){#fig:_Ref241621754 width="1.3854166666666667in" height="0.46875in"}
+![图表 2 打我的](media/image4.png){#fig:_Ref241621754 width="1.3854in" height="0.46875in"}
 
 对题注的引用[@fig:_Ref241621754]
 
-![打我的d打我的](media/image5.png){width="1.84375in" height="0.59375in"}
+![打我的d打我的](media/image5.png){width="1.8438in" height="0.59375in"}
 
 对题注的引用[Figure 1](#_Ref241623370)
 
@@ -107,13 +107,13 @@ Ordinary table bookmark stays a link: [Table 1](#_RefConvertOrdinaryTable)
 
 # Figures and references
 
-![Figure 3. Caption bookmark with 中文.](media/image4.png){#fig:_RefConvertCaption width="1.0in" height="0.33834536307961505in"}
+![Figure 3. Caption bookmark with 中文.](media/image4.png){#fig:_RefConvertCaption width="1in" height="0.33835in"}
 
-![Figure 4. Preceding bookmark.](media/image4.png){#fig:_RefConvertPreceding width="1.0in" height="0.33834536307961505in"}
+![Figure 4. Preceding bookmark.](media/image4.png){#fig:_RefConvertPreceding width="1in" height="0.33835in"}
 
 An ordinary picture has no caption:
 
-![](media/image4.png){width="1.0in" height="0.33834536307961505in"}
+![](media/image4.png){width="1in" height="0.33835in"}
 
 Figure references: [@fig:_RefConvertCaption] and [@fig:_RefConvertPreceding]
 
