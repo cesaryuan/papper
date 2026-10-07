@@ -154,6 +154,67 @@ def test_native_table_text_preserves_authored_style_or_keeps_source_style(
         assert "Table Text" not in reopened.styles
 
 
+def test_docx_consecutive_grid_tables_keep_table_text_in_multi_paragraph_cells(
+    tmp_path: Path, rust_executable: Path,
+) -> None:
+    """Keep both tables uniformly styled without losing paragraphs inside grid cells."""
+    from docx import Document
+
+    source = tmp_path / "grid-tables.md"
+    # A blank cell line makes Pandoc use First Paragraph/Body Text throughout
+    # the second table; crafted single-cell DOCX tests cannot cover this reader path.
+    source.write_text("""Paragraph before the tables.
+
++-------+-------+
+| A     | B     |
++=======+=======+
+| 1     | 2     |
++-------+-------+
+
+: First table
+
++-------+-------+
+| C     | D     |
++=======+=======+
+| 3     | 4     |
++-------+-------+
+| 5     | 6     |
+|       |       |
+|       | 7     |
++-------+-------+
+
+: Second table
+
+Paragraph after the tables.
+""", encoding="utf-8")
+    output = tmp_path / "grid-tables.docx"
+    result = subprocess.run(
+        [str(rust_executable), "build", "docx", "-m", str(source), "-o", str(output), "--no-mathtype"],
+        cwd=tmp_path,
+        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PMT_ENABLE_DOCX_POSTPROCESS": "true"},
+        capture_output=True, text=True, encoding="utf-8", timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    document = Document(output)
+    assert len(document.tables) == 2
+    expected = [
+        [[["A"], ["B"]], [["1"], ["2"]]],
+        [[["C"], ["D"]], [["3"], ["4"]], [["5"], ["6", "7"]]],
+    ]
+    for table, expected_rows in zip(document.tables, expected):
+        assert [
+            [[paragraph.text for paragraph in cell.paragraphs] for cell in row.cells]
+            for row in table.rows
+        ] == expected_rows
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    assert paragraph.style.name == "Table Text", paragraph.text
+    for text in ["Paragraph before the tables.", "Paragraph after the tables."]:
+        paragraph = next(paragraph for paragraph in document.paragraphs if paragraph.text == text)
+        assert paragraph.style.name != "Table Text"
+
+
 def test_native_package_editor_preserves_unknown_parts_and_cancels_inherited_equation_tabs(
     tmp_path: Path, rust_postprocessor: Path,
 ) -> None:

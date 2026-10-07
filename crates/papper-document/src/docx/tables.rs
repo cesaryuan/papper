@@ -47,7 +47,7 @@ fn margins(table: &mut Element, sides: &[(&str, i64)]) {
     }
 }
 
-/// Use the existing Table Text style while retaining Compact in equation layout tables.
+/// Normalize Pandoc's table paragraph styles to Table Text, excluding equation layout tables.
 pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element) {
     let style_id = |name: &str| {
         style_index(styles, name)
@@ -60,9 +60,11 @@ pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element
             })
             .map(str::to_owned)
     };
-    let compact = style_id("Compact").unwrap_or_else(|| "Compact".into());
+    // Multi-paragraph grid tables use First Paragraph/Body Text even in single-paragraph cells.
+    let source_styles = ["Compact", "First Paragraph", "Body Text"]
+        .map(|name| style_id(name).unwrap_or_else(|| name.split_whitespace().collect()));
     let Some(table_text) = style_id("Table Text") else {
-        // Custom references may omit this style; keep Compact rather than emit a dangling ID.
+        // Custom references may omit this style; preserve source styles rather than emit a dangling ID.
         return;
     };
     let Some(body) = document.child_mut("w:body") else {
@@ -78,7 +80,9 @@ pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element
                     .elements_mut()
                     .filter(|paragraph| paragraph.name == "w:p")
                 {
-                    if paragraph_style(paragraph) == Some(compact.as_str()) {
+                    if paragraph_style(paragraph)
+                        .is_some_and(|style| source_styles.iter().any(|source| source == style))
+                    {
                         paragraph
                             .word("w:pPr")
                             .word("w:pStyle")
