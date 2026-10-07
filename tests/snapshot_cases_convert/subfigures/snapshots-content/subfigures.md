@@ -4,42 +4,42 @@ subfigGrid: true
 
 See [@fig:_RefGrid] and [@fig:_RefPanel]. As shown in [@fig:_RefGrid], the fields agree.
 
-::: {#fig:_RefGrid}
-![**Field A**](a.png){#fig:_RefGrid-a width="50%" label="a" original-width="3in" original-height="2in"} ![Field B](b.png){#fig:_RefPanel width="50%" label="b" original-width="3in" original-height="2in"}
+::: {#fig:_RefGrid original-number="Figure 1"}
+![(a) **Field A**](a.png){#fig:_RefGrid-a width="50%" label="a" original-width="3in" original-height="2in"} ![(b) Field B](b.png){#fig:_RefPanel width="50%" label="b" original-width="3in" original-height="2in"}
 
-![Field C](c.png){#fig:_RefGrid-c width="50%" label="c" original-width="3in"} ![Field D](d.png){#fig:_RefGrid-d width="50%" label="d" original-width="3in"}
+![(c) Field C](c.png){#fig:_RefGrid-c width="50%" label="c" original-width="3in"} ![(d) Field D](d.png){#fig:_RefGrid-d width="50%" label="d" original-width="3in"}
 
-Figure 1 Fields
+Fields
 :::
 
 [@fig:_RefGrid] shows the reconstructed fields. This paragraph must survive.
 
-::: {#fig:subfig-2}
-![Upper panel](e.png){#fig:subfig-2-c width="50%" label="c" original-width="6cm"} ![Lower panel](f.png){#fig:subfig-2-d width="50%" label="d" original-width="6cm"}
+::: {#fig:subfig-2 original-number="Fig. 2"}
+![(c) Upper panel](e.png){#fig:subfig-2-c width="50%" label="c" original-width="6cm"} ![（d）Lower panel](f.png){#fig:subfig-2-d width="50%" label="d" original-width="6cm"}
 
-Fig. 2 Inline child captions
+Inline child captions
 :::
 
-::: {#fig:subfig-3}
-![Top](g.png){#fig:subfig-3-a width="100%" label="a" original-width="4in"}
+::: {#fig:subfig-3 original-number="图3"}
+![(a) Top](g.png){#fig:subfig-3-a width="100%" label="a" original-width="4in"}
 
-![Bottom](h.png){#fig:subfig-3-b width="100%" label="b" original-width="4in"}
+![(b) Bottom](h.png){#fig:subfig-3-b width="100%" label="b" original-width="4in"}
 
-图3 纵向子图
+纵向子图
 :::
 
-::: {#fig:subfig-4}
+::: {#fig:subfig-4 original-number="图4"}
 ![](i.png){#fig:subfig-4-1 width="50%" original-width="2in"} ![](j.png){#fig:subfig-4-2 width="50%" original-width="2in"}
 
-图4 无子题注
+无子题注
 :::
 
-::: {#fig:subfig-5}
-![Upper paragraph](k.png){#fig:subfig-5-a width="100%" label="a" original-width="4in"}
+::: {#fig:subfig-5 original-number="图5"}
+![(a) Upper paragraph](k.png){#fig:subfig-5-a width="100%" label="a" original-width="4in"}
 
-![Lower paragraph](l.png){#fig:subfig-5-b width="100%" label="b" original-width="4in"}
+![（b）Lower paragraph](l.png){#fig:subfig-5-b width="100%" label="b" original-width="4in"}
 
-图5 段落形式
+段落形式
 :::
 
 | ![](m.png)                   | ![](n.png)                    |
@@ -63,7 +63,7 @@ Unnumbered caption: leave the table alone.
 |------------|-----|
 | ![](t.png) | 456 |
 
-: Table 1 Actual data {#tbl:fuzz-1}
+: Actual data {#tbl:fuzz-1 original-number="Table 1"}
 
 ::: {#fig:subfig-10}
 ![Existing A](existing-a.png){#fig:existing-a width="50%"} ![Existing B](existing-b.png){#fig:existing-b width="50%"}
@@ -71,24 +71,24 @@ Unnumbered caption: leave the table alone.
 Already authored caption.
 :::
 
-::: {#fig:subfig-10-2}
+::: {#fig:subfig-10-2 original-number="Fig. 10"}
 ![](u.png){#fig:subfig-10-2-1 width="50%"} ![](v.png){#fig:subfig-10-2-2 width="50%"}
 
-Fig. 10 ID collision
+ID collision
 :::
 
-::: {#fig:existing}
+::: {#fig:existing original-number="Figure 11"}
 ![](w.png){#fig:existing-1 width="50%"} ![](x.png){#fig:existing-2 width="50%"}
 
-Figure 11 Existing table reference
+Existing table reference
 :::
 
 As shown in [@fig:existing], both panels agree.
 
-::: {#fig:subfig-12}
-![Left](aa.png){#fig:custom-panel width="50%" label="a" original-width="2in"} ![Right](ab.png){#fig:subfig-12-b width="50%" label="b" original-width="2in"}
+::: {#fig:subfig-12 original-number="Fig. 12"}
+![(a) Left](aa.png){#fig:custom-panel width="50%" label="a" original-width="2in"} ![(b) Right](ab.png){#fig:subfig-12-b width="50%" label="b" original-width="2in"}
 
-Fig. 12 Cell separators left behind by an old export
+Cell separators left behind by an old export
 :::
 
 See [custom panel](#fig:custom-panel).

@@ -233,7 +233,7 @@ $$a+b=c$$ {#eq:unknown-number}
 
 See Eq. 18.
 
-## Preserve spaces inside original equation numbers
+## Recognize spaces inside equation numbers
 
 $j=k$ ( 19 )
 

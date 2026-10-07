@@ -6,18 +6,17 @@
 -- Prefixes: 图/Figure/Fig. and 表/Table/Tbl. (case-insensitive English, optional
 -- period). Single numbers and chapter-number pairs accept optional spaces and
 -- Unicode dashes. Caption formatting, image attributes and table structure are
--- preserved; authored numbering moves to a following HTML comment.
+-- preserved; figure/table numbering moves to original-number attributes.
 -- Examples:
 --   如图1-14所示 + ![图1‑14 脆弱性曲线](image.svg)
 --     -> 如[@fig:fuzz-1-14]所示 + ![脆弱性曲线](image.svg){#fig:fuzz-1-14}
---        followed by <!-- original-number: 图1‑14 -->
+--        with original-number="图1‑14"
 --   如表1-3所示 + a Table captioned 表1‑3 鲁棒性度量
 --     -> 如[@tbl:fuzz-1-3]所示 + the same Table with #tbl:fuzz-1-3
 --   As shown in Fig. 4, ... + ![Fig. 4 Result](image.png){#fig:_Ref123}
 --     -> As shown in [@fig:_Ref123], ... (reuse the ID from crossrefs.lua)
 --   $x=y$ (4-43) + 如式 4-43 所示
---     -> $$x=y$$ {#eq:fuzz-4-43} + <!-- original-number: (4-43) -->
---        and 如[@eq:fuzz-4-43] 所示
+--     -> $$x=y$$ {#eq:fuzz-4-43} + 如[@eq:fuzz-4-43] 所示
 -- A numbered formula must be a standalone paragraph with one Math and only its
 -- trailing parenthesized number. InlineMath becomes DisplayMath for downstream
 -- equation numbering; ordinary prose math and descriptive suffixes are retained.
@@ -25,14 +24,12 @@
 -- label crossrefs.lua saved in temporary metadata. The mapping and enable flag
 -- are removed before writing output. Direct users should set the same flag when
 -- running crossrefs.lua before this filter: -M papper-fuzzy-crossrefs:true.
--- Original labels preserve parentheses, Unicode dashes and internal spaces in
--- HTML comments after their objects, e.g. <!-- original-number: (4‑43) -->.
--- Figure/table captions also remove their leading prefix and number into such
--- a comment: ![图1‑14 Curves](image.svg) becomes ![Curves](image.svg)
--- {#fig:fuzz-1-14}, followed by <!-- original-number: 图1‑14 -->.
--- Comments use separate blocks so images still parse as standalone figures and
--- equations keep the bare ID suffix required by pandoc-crossref. Formatting in
--- the remaining caption survives; ambiguous definitions retain their captions.
+-- Figure/table captions remove their leading prefix and number into an
+-- original-number attribute: ![图1‑14 Curves](image.svg) becomes
+-- ![Curves](image.svg){#fig:fuzz-1-14 original-number="图1‑14"}.
+-- Formulas keep only the generated bare ID; their authored number is discarded.
+-- Formatting in the remaining caption survives; ambiguous definitions retain
+-- their captions.
 -- Cues include 如/见/参见/参考/参照/详见 and 所示/所列/所述, plus English
 -- "as shown in", "as show in", "shown in", "see", "refer to", and similar
 -- illustrated/listed/given phrases. Plain mentions without a cue stay unchanged.
@@ -185,14 +182,12 @@ local function equation_target(block)
     text = cleaned
   end
   local number = equation_number(text)
-  local original = text:gsub('^%s+', ''):gsub('%s+$', '')
   if not number and identifier and text:match('^%s*$') then
-    local saved = equation_numbers[identifier]
-    if saved then number, original = saved.number, saved.original end
+    number = equation_numbers[identifier]
   end
   if not number then return nil end
   return { kind = 'eq', number = number }, {
-    t = 'Equation', identifier = identifier or '', math = math, original = original,
+    t = 'Equation', identifier = identifier or '', math = math,
   }
 end
 
@@ -227,13 +222,9 @@ local function strip_caption_inlines(inlines, state)
   return result
 end
 
---- Preserve the imported label as a separate comment so figure/equation syntax stays valid.
-local function original_number_comment(number)
-  return pandoc.RawBlock('html', '<!-- original-number: ' .. number .. ' -->')
-end
-
 --- Remove an original caption prefix without flattening the remaining formatting.
 local function preserve_caption_number(block, owner, label)
+  owner.attributes['original-number'] = label.original
   local state = { remaining = label.cut }
   if block.t == 'Figure' or block.t == 'Table' then
     local caption = block.caption.long
@@ -456,10 +447,9 @@ function Pandoc(doc)
   local stats = { ids = 0, references = 0, ambiguous = 0 }
   equation_numbers = {}
   for _, record in ipairs(doc.meta['papper-equation-labels'] or {}) do
-    local original = pandoc.utils.stringify(record.label):gsub('^%s+', ''):gsub('%s+$', '')
-    local number = equation_number(original)
+    local number = equation_number(pandoc.utils.stringify(record.label))
     if number then
-      equation_numbers[pandoc.utils.stringify(record.id)] = { number = number, original = original }
+      equation_numbers[pandoc.utils.stringify(record.id)] = number
     end
   end
   doc.meta['papper-equation-labels'], doc.meta['papper-fuzzy-crossrefs'] = nil, nil
@@ -510,17 +500,16 @@ function Pandoc(doc)
     local label, owner = target_for(block)
     local target = label and targets[label.kind .. ':' .. label.number]
     if target and target.id and owner.t == 'Equation' then
-      -- Only confirmed standalone numbered formulas are promoted, so ordinary
-      -- inline math keeps its authored position and math type. Retain the original
-      -- number in a separate comment after the formula.
+      -- Only confirmed standalone numbered formulas are promoted. The authored
+      -- number is intentionally discarded so pandoc-crossref sees a bare ID.
       block.content = { pandoc.Math('DisplayMath', owner.math.text),
         pandoc.RawInline('markdown', ' {#' .. target.id .. '}') }
-      return { block, original_number_comment(owner.original) }
+      return block
     end
     if target and target.id then
       if owner.identifier == '' then owner.identifier = target.id end
       block = preserve_caption_number(block, owner, label)
-      return { block, original_number_comment(label.original) }
+      return block
     end
   end)
   local filter

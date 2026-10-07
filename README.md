@@ -124,17 +124,14 @@ with suffixes if those IDs are already used. English aliases, single numbers,
 Unicode dashes and references split across formatting runs are supported. Duplicate
 caption numbers, unknown targets and mentions without reference cues remain text.
 Caption formatting, code, existing links/citations and other authored IDs are preserved.
-The leading figure/table prefix and number move into a following HTML comment:
+The leading figure/table prefix and number move into an `original-number` attribute:
 `![图1‑14 Vulnerability](image.png)` becomes
-`![Vulnerability](image.png){#fig:fuzz-1-14}`, followed by
-`<!-- original-number: 图1‑14 -->` in a separate block.
+`![Vulnerability](image.png){#fig:fuzz-1-14 original-number="图1‑14"}`.
 Table captions follow the same rule, keeping their table structure intact.
 
 A standalone formula followed only by a parenthesized number, such as
-`$x=y$ (4-43)` becomes `$$x=y$$ {#eq:fuzz-4-43}`, followed by
-`<!-- original-number: (4-43) -->` in a separate block.
-The comment retains the authored parentheses, dash and internal spaces,
-including Unicode variants such as `（4‑43）`.
+`$x=y$ (4-43)` becomes `$$x=y$$ {#eq:fuzz-4-43}`; the authored number is
+discarded after it has been used to recover references.
 `如式 4-43` becomes `如[@eq:fuzz-4-43]`. Numbered standalone inline formulas
 are promoted to display math so pandoc-crossref can number and resolve them.
 Original equation numbers removed by bookmark conversion are retained internally

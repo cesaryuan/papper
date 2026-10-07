@@ -20,8 +20,8 @@
 -- are preserved. This conservative boundary avoids discarding authored content.
 -- Output is pandoc-crossref's Div syntax, with each image row in one paragraph:
 --   ::: {#fig:_Ref123}
---   ![A](a.png){#fig:_Ref123-a width="50%" label="a"}
---   ![B](b.png){#fig:_Ref123-b width="50%" label="b"}
+--   ![(a) A](a.png){#fig:_Ref123-a width="50%" label="a"}
+--   ![(b) B](b.png){#fig:_Ref123-b width="50%" label="b"}
 --
 --   图1‑13 Overall caption
 --   :::
@@ -33,6 +33,8 @@
 -- sizes its grid from the first row and can silently drop later extra columns.
 -- Existing bookmarks become parent/child fig: IDs; otherwise deterministic IDs
 -- derive from the overall figure number. ID collisions get a numeric suffix.
+-- Authored (a)/(b) and full-width markers remain in child captions; their letters
+-- also supply panel IDs and label attributes without replacing the visible text.
 -- crossrefs.lua resolves Word links; crossrefs_fuzz.lua can resolve typed references.
 
 local used, remapped = {}, {}
@@ -214,20 +216,14 @@ local function unique_id(base)
   return id
 end
 
---- Remove an authored (a) marker while retaining formatted caption text.
+--- Read an authored panel marker without removing its visible caption text.
 local function subcaption(inlines)
   local text = pandoc.utils.stringify(inlines)
   local label = text:match('^%s*%(([A-Za-z])%)') or text:match('^%s*（([A-Za-z])）')
   if not label then return inlines, nil end
-  local removed = false
-  local cleaned = pandoc.Span(inlines):walk({ Str = function(str)
-    if not removed then
-      local after, count = str.text:gsub('^%(([A-Za-z])%)', '', 1)
-      if count == 0 then after, count = str.text:gsub('^（([A-Za-z])）', '', 1) end
-      if count > 0 then removed = true; return after ~= '' and pandoc.Str(after) or {} end
-    end
-  end })
-  return trim(cleaned.content), label:lower()
+  -- Keep the original inlines so conversion preserves markers and formatting,
+  -- including full-width parentheses and markers split across Word text runs.
+  return inlines, label:lower()
 end
 
 --- Build a crossref Div; normalize irregular rows to prevent dropped panels.

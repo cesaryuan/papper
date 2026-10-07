@@ -1,8 +1,6 @@
 在当前时间节点下，网络在不同失效策略下的脆弱性曲线如[@fig:fuzz-1-14]所示。
 
-![不同失效策略下](media/image72.svg){#fig:fuzz-1-14 width="5.7680in" height="3.3344in"}
-
-<!-- original-number: 图1‑14 -->
+![不同失效策略下](media/image72.svg){#fig:fuzz-1-14 width="5.7680in" height="3.3344in" original-number="图1‑14"}
 
 对该网络的静态拓扑鲁棒性进行了初步评估，如[@tbl:fuzz-1-3]所示。
 
@@ -14,9 +12,7 @@
 |                | 有效阻抗        | 435282.033 | 连通性中等               |
 +----------------+-----------------+------------+--------------------------+
 
-: 基于复杂网络理论的鲁棒性度量 {#tbl:fuzz-1-3}
-
-<!-- original-number: 表1‑3 -->
+: 基于复杂网络理论的鲁棒性度量 {#tbl:fuzz-1-3 original-number="表1‑3"}
 
 As shown in [@fig:fuzz-1-14], the curves agree. As show in [@tbl:fuzz-1-3], connectivity is moderate.
 
@@ -32,9 +28,7 @@ See Fig. 1-14-2 and see Fig. 1.14; these are different numbers.
 
 ## Mixed bookmark and text references
 
-![**Anchored caption**](media/mixed.png){#fig:_RefMixed}
-
-<!-- original-number: Fig. 2 -->
+![**Anchored caption**](media/mixed.png){#fig:_RefMixed original-number="Fig. 2"}
 
 [@fig:_RefMixed] and see [@fig:_RefMixed]. 如[@fig:_RefMixed]所示。
 
@@ -54,9 +48,7 @@ The result is shown in [@fig:fuzz-1-14] and is described in ordinary text.
 
 ## Caption text and protected syntax
 
-![Caption says see Fig. 2 and 如图1-14所示](media/caption.png){#fig:fuzz-3}
-
-<!-- original-number: Fig. 3 -->
+![Caption says see Fig. 2 and 如图1-14所示](media/caption.png){#fig:fuzz-3 original-number="Fig. 3"}
 
 [see Fig. 2](https://example.com/), `see Fig. 2`, $\text{see Fig. 2}$, and [@fig:_RefMixed].
 
@@ -78,9 +70,7 @@ The result is shown in [@fig:fuzz-1-14] and is described in ordinary text.
   ------ -------
   A      1
 
-  : Tables have their own numbering namespace. {#tbl:fuzz-4}
-
-<!-- original-number: Table 4 -->
+  : Tables have their own numbering namespace. {#tbl:fuzz-4 original-number="Table 4"}
 
 See [@tbl:fuzz-4].
 
@@ -88,15 +78,11 @@ See [@tbl:fuzz-4].
 
 []{#fig:fuzz-5}
 
-![Generated identifier must not collide](media/collision.png){#fig:fuzz-5-2}
-
-<!-- original-number: Fig. 5 -->
+![Generated identifier must not collide](media/collision.png){#fig:fuzz-5-2 original-number="Fig. 5"}
 
 See [@fig:fuzz-5-2].
 
-![Existing compatible ID](media/existing.png){#fig:authored}
-
-<!-- original-number: Fig. 6 -->
+![Existing compatible ID](media/existing.png){#fig:authored original-number="Fig. 6"}
 
 See [@fig:authored].
 
@@ -108,9 +94,7 @@ See Fig. 7.
 
 > Nested definition:
 >
-> ![引用块内的图](media/nested.png){#fig:fuzz-8}
->
-> <!-- original-number: 图8 -->
+> ![引用块内的图](media/nested.png){#fig:fuzz-8 original-number="图8"}
 
 见[@fig:fuzz-8]。See [@fig:fuzz-8].
 
@@ -118,9 +102,7 @@ See Fig. 7.
   --------- ------------------------
   Prose     如[@fig:fuzz-1-14]所示
 
-  : Caption refers to Figure 2 as shown in Fig. 2. {#tbl:fuzz-9}
-
-<!-- original-number: Tbl. 9 -->
+  : Caption refers to Figure 2 as shown in Fig. 2. {#tbl:fuzz-9 original-number="Tbl. 9"}
 
 See [@tbl:fuzz-9].
 
@@ -130,18 +112,13 @@ See [@tbl:fuzz-9].
 
 See Fig. 10.
 
-![Spaced Unicode numbering](media/spaces.png){#fig:fuzz-12-3}
-
-<!-- original-number: Fig. 12‑3 -->
+![Spaced Unicode numbering](media/spaces.png){#fig:fuzz-12-3 original-number="Fig. 12‑3"}
 
 如[@fig:fuzz-12-3] 所示。See [@fig:fuzz-12-3].
 
-+-------------------------------------------------------------+
-| Content                                                     |
-+=============================================================+
-| ![Target inside a table cell](media/cell.png){#fig:fuzz-13} |
-| <!-- original-number: Fig. 13 -->                           |
-+-------------------------------------------------------------+
+  Content
+  ---------------------------------------------------------------------------------------
+  ![Target inside a table cell](media/cell.png){#fig:fuzz-13 original-number="Fig. 13"}
 
 See [@fig:fuzz-13].
 
@@ -155,9 +132,7 @@ See Fig. 14 or Fig. 15.
   ---------- -------
   Existing   1
 
-  : Existing compatible table ID {#tbl:authored}
-
-<!-- original-number: Tbl. 16 -->
+  : Existing compatible table ID {#tbl:authored original-number="Tbl. 16"}
 
 As shown in [@tbl:authored], the table already has an ID.
 
@@ -165,9 +140,7 @@ As shown in [@tbl:authored], the table already has an ID.
   ---------- -------
   Anchored   2
 
-  : Mixed anchored and typed table references {#tbl:_RefTableMixed}
-
-<!-- original-number: Tbl. 17 -->
+  : Mixed anchored and typed table references {#tbl:_RefTableMixed original-number="Tbl. 17"}
 
 [@tbl:_RefTableMixed] and see [@tbl:_RefTableMixed].
 
@@ -177,11 +150,7 @@ As shown in [@tbl:authored], the table already has an ID.
 
 $$x=y$$ {#eq:fuzz-4-43}
 
-<!-- original-number: (4-43) -->
-
 $$a=b$$ {#eq:fuzz-4-44}
-
-<!-- original-number: (4‑44) -->
 
 根据[@eq:fuzz-4-44]和[@eq:fuzz-4-43]，可以得到结果。See [@eq:fuzz-4-44] and [@eq:fuzz-4-43].
 
@@ -189,19 +158,13 @@ $$a=b$$ {#eq:fuzz-4-44}
 
 $$u=v$$ {#eq:_RefEquation}
 
-<!-- original-number: (4-45) -->
-
 [@eq:_RefEquation], 如[@eq:_RefEquation]所示。See [@eq:_RefEquation] and [@eq:fuzz-4-43].
 
 $$h=k$$ {#eq:_RefUnicodeEquation}
 
-<!-- original-number: （4‑47） -->
-
 参见[@eq:_RefUnicodeEquation]和[@eq:fuzz-4-43]；[@eq:_RefUnicodeEquation]。
 
 $$p=q$$ {#eq:authored}
-
-<!-- original-number: (4-46) -->
 
 As shown in [@eq:authored], an existing ID is reused.
 
@@ -209,13 +172,9 @@ As shown in [@eq:authored], an existing ID is reused.
 
 $$r=s$$ {#eq:fuzz-7}
 
-<!-- original-number: （7） -->
-
 如[@eq:fuzz-7]所示，见[@eq:fuzz-7]。Using [@eq:fuzz-7], the estimate is derived.
 
 $$m=n$$ {#eq:fuzz-8}
-
-<!-- original-number: (8) -->
 
 **如**[@eq:fuzz-8]所示，保留**其他加粗**内容。Refer to [@eq:fuzz-8].
 
@@ -224,17 +183,12 @@ $$m=n$$ {#eq:fuzz-8}
 > Numbered formula:
 >
 > $$c=d$$ {#eq:fuzz-9}
->
-> <!-- original-number: (9) -->
 
 见[@eq:fuzz-9]。See [@eq:fuzz-9].
 
-+--------------------------------+
-| Content                        |
-+================================+
-| $$e=f$$ {#eq:fuzz-10}          |
-| <!-- original-number: (10) --> |
-+--------------------------------+
+  Content
+  -----------------------
+  $$e=f$$ {#eq:fuzz-10}
 
 参见[@eq:fuzz-10]。
 
@@ -249,8 +203,6 @@ $$i=j$$ (11)
 []{#eq:fuzz-12}
 
 $$k=l$$ {#eq:fuzz-12-2}
-
-<!-- original-number: (12) -->
 
 See [@eq:fuzz-12-2].
 
@@ -280,10 +232,8 @@ $$a+b=c$$ {#eq:unknown-number}
 
 See Eq. 18.
 
-## Preserve spaces inside original equation numbers
+## Recognize spaces inside equation numbers
 
 $$j=k$$ {#eq:fuzz-19}
-
-<!-- original-number: ( 19 ) -->
 
 See [@eq:fuzz-19].
