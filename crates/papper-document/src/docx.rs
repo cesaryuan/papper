@@ -220,7 +220,20 @@ fn validate_syntax(package: &Package, document: &xml::Element) -> Result<()> {
     )?;
     let citation = regex::Regex::new(r"-?@[A-Za-z0-9_][A-Za-z0-9_:+-]*")?;
     let citation_brackets = regex::Regex::new(r"\[\s*@[\w:-]+(?:\s*;\s*@[\w:-]+)*\s*\]")?;
-    let raw_html = regex::Regex::new(r"<!--.*?-->|</?[A-Za-z][A-Za-z0-9:-]*(?:\s+[^<>]*?)?\s*/?>")?;
+    // Match only HTML's standard element names. Scientific notation such as
+    // `<k>` or `<degree>` is ordinary visible text, while known elements such
+    // as `<div>` and `<span>` still indicate raw HTML that Pandoc failed to render.
+    let raw_html = regex::Regex::new(concat!(
+        r"(?i)<!--.*?-->|</?(?:",
+        r"a|abbr|address|area|article|aside|audio|b|base|bdi|bdo|blockquote|body|br|button|",
+        r"canvas|caption|cite|code|col|colgroup|data|datalist|dd|del|details|dfn|dialog|div|dl|dt|",
+        r"em|embed|fieldset|figcaption|figure|footer|form|h[1-6]|head|header|hgroup|hr|html|",
+        r"i|iframe|img|input|ins|kbd|label|legend|li|link|main|map|mark|menu|meta|meter|",
+        r"nav|noscript|object|ol|optgroup|option|output|p|picture|pre|progress|q|rp|rt|ruby|",
+        r"s|samp|script|search|section|select|slot|small|source|span|strong|style|sub|summary|sup|",
+        r"table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr|track|u|ul|var|video|wbr",
+        r")(?:\s+[^<>]*?)?\s*/?>",
+    ))?;
     let duplicate = regex::Regex::new(
         r"\b(Section|Figure|Table|Equation)\s+(Section|Figure|Table|Equation)\b",
     )?;

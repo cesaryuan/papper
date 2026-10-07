@@ -301,6 +301,42 @@ def test_native_mathtype_preserves_failed_formulas_layout_and_invalidates_corrup
         assert archive.read("word/media/mathtype_formula_1.wmf") == original_parts[0][1]
 
 
+@pytest.mark.parametrize("part", ["body", "header", "footer"])
+def test_native_docx_preserves_angle_bracket_notation(
+    tmp_path: Path, rust_postprocessor: Path, part: str,
+) -> None:
+    """Preserve literal scientific notation without rejecting it as unrendered HTML."""
+    from docx import Document
+
+    document = Document()
+    paragraph = (
+        document.add_paragraph()
+        if part == "body"
+        else getattr(document.sections[0], part).paragraphs[0]
+    )
+    # Word can split the reported <k> notation across runs; validation must
+    # accept the joined text and preserve every character in the saved result.
+    for text in ["式中，<", "k", ">为网络的平均度；<degree>、<K> 和 <k:avg> 为其他记号"]:
+        paragraph.add_run(text)
+    expected = paragraph.text
+    source = tmp_path / "notation.docx"
+    document.save(source)
+    metadata = tmp_path / "metadata.json"
+    metadata.write_text(json.dumps({"pmt_settings": {"values": {}, "provided": [], "pandoc_metadata": {}, "reply": None},
+                                   "pandoc_metadata": {}, "has_yaml_header": False}), encoding="utf-8")
+    output = tmp_path / "output.docx"
+    result = subprocess.run([str(rust_postprocessor), str(source), str(output), str(metadata)],
+                            capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    reopened = Document(output)
+    actual = (
+        reopened.paragraphs[0]
+        if part == "body"
+        else getattr(reopened.sections[0], part).paragraphs[0]
+    )
+    assert actual.text == expected
+
+
 def test_native_docx_rejects_unrendered_reference_syntax_without_replacing_existing_output(
     tmp_path: Path, rust_postprocessor: Path,
 ) -> None:
@@ -312,7 +348,11 @@ def test_native_docx_rejects_unrendered_reference_syntax_without_replacing_exist
                                    "pandoc_metadata": {}, "has_yaml_header": False}), encoding="utf-8")
     output = tmp_path / "previous.docx"
     original = b"previous successful output"
-    for text in ["Equation (Equation 6)", "Table 3 Table 3", "[@citation]", "::: {.note}", "Figure 2.1 Figure 2.1"]:
+    for text in [
+        "Equation (Equation 6)", "Table 3 Table 3", "[@citation]", "::: {.note}", "Figure 2.1 Figure 2.1",
+        "<div>", "</span>", '<img src="figure.png">', "<BR/>", "<!-- unrendered comment -->",
+        "式中，<k>为网络的平均度 <span>残留标签</span>",
+    ]:
         document = Document()
         if text.startswith("Figure"):
             document.add_paragraph("A valid body")
