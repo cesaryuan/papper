@@ -5,8 +5,11 @@
 --   3. A BlockQuote containing only a bare image, followed by a caption outside
 --      the quote. Word's left paragraph indent can import as this structure.
 --   4. A one-column, one-row image table with its numbered Table.caption.
+--   5. A captionless, single-cell table containing only one image, including
+--      images that already have captions and fig: identifiers.
 -- Adjacent pairing also works inside lists, quotes and table cells. Table layouts
--- become standalone Figures; paired paragraphs become standalone Image paragraphs.
+-- with numbered table captions become Figures; image-only tables and paired
+-- paragraphs become standalone Image paragraphs.
 -- Caption inlines, formatting, bookmarks, image source, title and dimensions
 -- are retained. All cases share the same numbered-caption recognition.
 -- Recognized prefixes: 图1, 图 1‑11, Figure1, Figure 1–11, Fig. 1 and fig 1-11.
@@ -52,6 +55,20 @@
 
 local paired_count, table_count, indented_count = 0, 0, 0
 
+--- Return a paragraph's sole image without changing its caption or attributes.
+local function sole_image(block)
+  if not block or (block.t ~= 'Para' and block.t ~= 'Plain') then return nil end
+  local image = nil
+  for _, inline in ipairs(block.content) do
+    if inline.t == 'Image' and not image then
+      image = inline
+    elseif inline.t ~= 'Space' and inline.t ~= 'SoftBreak' and inline.t ~= 'LineBreak' then
+      return nil
+    end
+  end
+  return image
+end
+
 --- Return the sole bare image in a paragraph, ignoring surrounding whitespace.
 local function bare_image(block)
   if not block then return nil end
@@ -65,17 +82,9 @@ local function bare_image(block)
     if #block.caption.long > 0 or block.caption.short or #block.content ~= 1 then return nil end
     block = block.content[1]
   end
-  if block.t ~= 'Para' and block.t ~= 'Plain' then return nil end
-  local image = nil
-  for _, inline in ipairs(block.content) do
-    if inline.t == 'Image' and not image and #inline.caption == 0
-      and not inline.identifier:match('^fig:') then
-      image = inline
-    elseif inline.t ~= 'Space' and inline.t ~= 'SoftBreak' and inline.t ~= 'LineBreak' then
-      return nil
-    end
-  end
-  return image
+  local image = sole_image(block)
+  if image and #image.caption == 0 and not image.identifier:match('^fig:') then return image end
+  return nil
 end
 
 --- Return every physical table row in source order, including promoted headers.
@@ -98,6 +107,22 @@ local function cell_block(cell)
   return block
 end
 
+--- Read an image-only cell, tolerating one stranded grid-table closing border.
+local function cell_image(cell)
+  local block = cell_block(cell)
+  if not block then return nil end
+  local image = sole_image(block)
+  if image then return image end
+  -- An exported grid border shorter than its image syntax leaves the closing
+  -- pipe as literal cell text. Ignore only this final pipe, never adjacent prose.
+  local inlines = pandoc.List(block.content)
+  while #inlines > 0 and (inlines[#inlines].t == 'Space' or inlines[#inlines].t == 'SoftBreak'
+    or inlines[#inlines].t == 'LineBreak') do inlines:remove(#inlines) end
+  if #inlines == 0 or inlines[#inlines].t ~= 'Str' or inlines[#inlines].text ~= '|' then return nil end
+  inlines:remove(#inlines)
+  return sole_image(pandoc.Plain(inlines))
+end
+
 --- Recognize single or chapter-figure numbers with Chinese/English prefixes.
 local function is_caption(block)
   if not block or (block.t ~= 'Para' and block.t ~= 'Plain') then return false end
@@ -117,12 +142,20 @@ local function is_caption(block)
   return true
 end
 
---- Replace a confirmed one-picture/one-caption layout table with a Figure.
+--- Unwrap image-only cells or combine confirmed image/caption layout tables.
 function Table(table_element)
   if #table_element.colspecs ~= 1 or table_element.caption.short then return nil end
   local table_rows = rows(table_element)
   local caption
-  if #table_element.caption.long > 0 then
+  if #table_element.caption.long == 0 and #table_rows == 1 then
+    if #table_rows[1].cells ~= 1 then return nil end
+    local image = cell_image(table_rows[1].cells[1])
+    if not image then return nil end
+    -- Word may wrap an already labeled figure in a single-cell layout table.
+    -- Remove only that shell; bare-image rules would reject its existing title/ID.
+    table_count = table_count + 1
+    return pandoc.Para({ image })
+  elseif #table_element.caption.long > 0 then
     -- Word's caption style can attach a figure title to the image table itself.
     -- Require one simple row/title so no data or competing caption is discarded.
     if #table_rows ~= 1 or #table_element.caption.long ~= 1 then return nil end

@@ -274,3 +274,37 @@ Figure caption without a number.
 表1-6 普通表题注
 
 ![](media/trailing.png)
+
+# Single-cell image tables
+
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| ![[]{#_Ref181222315 .anchor}基于AAE-SDR神经网络的可靠度主动学习方法流程](media/image947.jpeg){#fig:fuzz-3-27 width="3.3858in" height="3.2043in" original-number="图3‑27"} |
++:===========================================================================================================================================================================:+
+
+| |
+|---|
+| ![Existing **caption**](media/single-cell-body.png "Picture title"){width="3in" height="2in"} |
+
+Figure 6-1 This separate caption must remain outside the existing image caption.
+
+| ![](media/single-cell-bare.png){width="3in"} |
+|---|
+
+[]{#_RefUnwrapped .anchor}图6‑2 表格外的图注
+
+| ![](media/single-cell-uncaptioned.png){width="2in"} |
+|---|
+
+## Single-cell prose and multiple images remain tables
+
+| |
+|---|
+| Notes beside ![](media/single-cell-prose.png){width="3in"} |
+
+| |
+|---|
+| ![](media/single-cell-prose-border.png){width="3in"} Notes must survive \| |
+
+| |
+|---|
+| ![](media/single-cell-left.png) ![](media/single-cell-right.png) |
