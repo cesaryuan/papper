@@ -4,10 +4,11 @@
 --   2. A one-column, two-row table: one bare image, then its numbered caption.
 --   3. A BlockQuote containing only a bare image, followed by a caption outside
 --      the quote. Word's left paragraph indent can import as this structure.
+--   4. A one-column, one-row image table with its numbered Table.caption.
 -- Adjacent pairing also works inside lists, quotes and table cells. Table layouts
 -- become standalone Figures; paired paragraphs become standalone Image paragraphs.
 -- Caption inlines, formatting, bookmarks, image source, title and dimensions
--- are retained. All three cases share the same numbered-caption recognition.
+-- are retained. All cases share the same numbered-caption recognition.
 -- Recognized prefixes: 图1, 图 1‑11, Figure1, Figure 1–11, Fig. 1 and fig 1-11.
 -- English prefixes are case-insensitive and allow an optional trailing period.
 -- Single numbers and chapter-figure numbers are accepted, including common
@@ -23,6 +24,10 @@
 --   | []{#_Ref181215092 .anchor}图3‑17 车辆荷载示意图 |
 -- becomes:
 --   ![[]{#_Ref181215092 .anchor}图3‑17 车辆荷载示意图](media/image762.png){width="4.9869in" height="2.7143in"}
+-- A single-row image table followed by ": 图4‑1 方法流程图" likewise becomes
+-- a Figure: DOCX imports store this title in Table.caption, even when the
+-- image row is promoted to Table.head. Wrapped attributes in Markdown output
+-- do not represent separate cells in the original DOCX AST.
 -- Indented-image example:
 --   > ![](media/image224.png){width="4.09375in" height="2.231709317585302in"}
 --
@@ -39,8 +44,9 @@
 -- Pictures that already have captions, multi-image paragraphs, intervening
 -- prose and non-numbered paragraphs are preserved rather than guessed at.
 -- Quotes containing prose or multiple blocks, or lacking a following caption,
--- keep their quote structure. Tables with their own captions, merged cells,
--- multiple columns or anything other than two simple rows keep their structure.
+-- keep their quote structure. Tables with non-figure captions, merged cells,
+-- multiple columns or extra content keep their structure. A table caption
+-- is used only for a single image row, never to override a second caption row.
 -- Run after extract_inline_images.lua and TOC cleanup, before crossrefs.lua:
 --   pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/detect_figure.lua
 
@@ -113,12 +119,20 @@ end
 
 --- Replace a confirmed one-picture/one-caption layout table with a Figure.
 function Table(table_element)
-  if #table_element.colspecs ~= 1 or #table_element.caption.long > 0
-    or table_element.caption.short then return nil end
+  if #table_element.colspecs ~= 1 or table_element.caption.short then return nil end
   local table_rows = rows(table_element)
-  if #table_rows ~= 2 or #table_rows[1].cells ~= 1 or #table_rows[2].cells ~= 1 then return nil end
+  local caption
+  if #table_element.caption.long > 0 then
+    -- Word's caption style can attach a figure title to the image table itself.
+    -- Require one simple row/title so no data or competing caption is discarded.
+    if #table_rows ~= 1 or #table_element.caption.long ~= 1 then return nil end
+    caption = table_element.caption.long[1]
+  else
+    if #table_rows ~= 2 or #table_rows[2].cells ~= 1 then return nil end
+    caption = cell_block(table_rows[2].cells[1])
+  end
+  if #table_rows[1].cells ~= 1 then return nil end
   local image = bare_image(cell_block(table_rows[1].cells[1]))
-  local caption = cell_block(table_rows[2].cells[1])
   if not image or not is_caption(caption) then return nil end
   image.caption = caption.content
   table_count = table_count + 1

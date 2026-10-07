@@ -19,13 +19,10 @@ from snapshot_utils import assert_snapshot
 
 
 @pytest.mark.parametrize(("case", "filter_name"), [
-    ("figure_captions", "detect_figure"),
     ("toc_cleanup", "remove_toc_anchors"),
     ("inline_images", "extract_inline_images"),
-    ("table_figures", "detect_figure"),
-    ("indented_figures", "detect_figure"),
+    ("detect_figures", "detect_figure"),
     ("table_captions", "detect_table"),
-    ("figure_prefixes", "detect_figure"),
     ("table_prefixes", "detect_table"),
     ("table_crossrefs", "crossrefs"),
 ])
@@ -89,7 +86,7 @@ def test_paired_image_crossrefs_snapshot(tmp_path: Path, snapshot_update: bool) 
     )
 
 
-@pytest.mark.parametrize("image_layout", ["standalone", "inline", "table", "indented"])
+@pytest.mark.parametrize("image_layout", ["standalone", "inline", "table", "captioned-table", "indented"])
 def test_convert_pairs_word_captions_and_removes_nested_toc_links(
     tmp_path: Path, rust_executable: Path, snapshot_update: bool, image_layout: str,
 ) -> None:
@@ -106,10 +103,12 @@ def test_convert_pairs_word_captions_and_removes_nested_toc_links(
         paragraph.add_run().add_picture(image_path, width=Inches(3))
         paragraph.add_run("处理，建立区域")
         caption = document.add_paragraph()
-    elif image_layout == "table":
-        table = document.add_table(rows=2, cols=1)
+    elif image_layout in {"table", "captioned-table"}:
+        table = document.add_table(rows=1 if image_layout == "captioned-table" else 2, cols=1)
         table.cell(0, 0).paragraphs[0].add_run().add_picture(image_path, width=Inches(1))
-        caption = table.cell(1, 0).paragraphs[0]
+        # Word's Caption style imports into Table.caption, outside its only row.
+        caption = (document.add_paragraph(style="Caption") if image_layout == "captioned-table"
+                   else table.cell(1, 0).paragraphs[0])
     else:
         document.add_picture(image_path, width=Inches(1))
         if image_layout == "indented":
