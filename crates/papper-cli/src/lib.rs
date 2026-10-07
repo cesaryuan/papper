@@ -175,7 +175,7 @@ pub struct ConvertArgs {
     /// Directory for the converted Markdown file and extracted media.
     #[arg(short = 'o', long = "output-dir", default_value = "converted")]
     pub output_dir: PathBuf,
-    /// Infer figure/table references from numbered captions and plain-text reference phrases.
+    /// Infer figure/table/equation references from numbers and plain-text reference phrases.
     #[arg(long)]
     pub fuzzy_crossrefs: bool,
     #[command(flatten)]

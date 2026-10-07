@@ -15,11 +15,17 @@
 --   [Equation 7](#_Ref456) -> [@eq:_Ref456] (only if the equation was confirmed)
 --   : []{#_Ref789 .anchor}Table title -> : Table title {#tbl:_Ref789}
 --   [Table 1](#_Ref789) -> [@tbl:_Ref789] (only if the table was confirmed)
+-- Subfigure Divs and images labeled by detect_subfigures.lua are registered too:
+--   ::: {#fig:_Ref123} ... -> [Figure 1](#_Ref123) becomes [@fig:_Ref123].
 -- Manual numeric equation labels are dropped for crossref to regenerate;
 -- descriptive labels survive. Table captions use the same empty _Ref span as
 -- figure captions and receive tbl: identifiers; unknown links, uncaptured
 -- tables and section bookmarks are retained. Nested caption spans and multiple
 -- distinct caption bookmarks are not guessed as targets.
+-- When papper-fuzzy-crossrefs metadata is enabled, save equation IDs and their
+-- original numeric labels in temporary metadata before removing those labels.
+-- crossrefs_fuzz.lua consumes this mapping and removes it before Markdown export,
+-- allowing typed "如式4-43" references to reuse an anchored equation's ID.
 -- The Image walk also normalizes ./media/image.png to media/image.png.
 -- Run after the earlier filters in the Convert chain:
 --   pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/crossrefs.lua
@@ -157,6 +163,9 @@ end
 --- Apply figure, table and equation labels before changing their inbound links.
 function Pandoc(doc)
   local targets, blocks = {}, {}
+  local equation_labels = pandoc.MetaList({})
+  local fuzzy_enabled = doc.meta['papper-fuzzy-crossrefs'] == true
+    or pandoc.utils.stringify(doc.meta['papper-fuzzy-crossrefs'] or '') == 'true'
   local pending_anchor = nil
   for _, block in ipairs(doc.blocks) do
     local standalone = anchor_paragraph(block)
@@ -185,6 +194,16 @@ function Pandoc(doc)
       end
       local id = equation_anchor(block)
       if id then
+        if fuzzy_enabled then
+          local label = {}
+          for _, inline in ipairs(block.content) do
+            if inline.t ~= 'Math' and not anchor_id(inline) then label[#label + 1] = inline end
+          end
+          equation_labels:insert(pandoc.MetaMap({
+            id = pandoc.MetaString('eq:' .. id),
+            label = pandoc.MetaString(pandoc.utils.stringify(label)),
+          }))
+        end
         blocks[#blocks + 1] = label_equation(block, id)
         targets[id] = 'eq'
       else
@@ -196,8 +215,19 @@ function Pandoc(doc)
     blocks[#blocks + 1] = pandoc.Para({ pandoc.Span({}, pandoc.Attr(pending_anchor, { 'anchor' })) })
   end
   doc.blocks = blocks
+  if fuzzy_enabled then doc.meta['papper-equation-labels'] = equation_labels end
   local table_count = 0
   doc = doc:walk({
+    -- Subfigure groups and their panels already own IDs from detect_subfigures.
+    -- Register them before rewriting links, including forward references.
+    Div = function(block)
+      local id = block.identifier:match('^fig:(_Ref[%w_]+)$')
+      if id then targets[id] = 'fig' end
+    end,
+    Image = function(image)
+      local id = image.identifier:match('^fig:(_Ref[%w_]+)$')
+      if id then targets[id] = 'fig' end
+    end,
     -- detect_table.lua pairs captions inside lists, quotes and table cells too.
     -- Collect all table targets before rewriting links, including forward links.
     Table = function(block)

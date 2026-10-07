@@ -143,3 +143,92 @@ As shown in Tbl. 16, the table already has an ID.
 : []{#_RefTableMixed .anchor}Tbl. 17 Mixed anchored and typed table references
 
 [Tbl. 17](#_RefTableMixed) and see Tbl. 17.
+
+
+## Equation references
+
+如式 4-43 所示。参见公式4‑43；as in Eq. (4-43), the result agrees.
+
+$x=y$ (4-43)
+
+$$a=b$$ (4‑44)
+
+根据式（4-44）和式4-43，可以得到结果。See Equation 4-44 and Eq. 4-43.
+
+## Anchored equations mixed with text references
+
+$u=v$ []{#_RefEquation .anchor}(4-45)
+
+[Equation 4-45](#_RefEquation), 如式4-45所示。See [Equation 4-45](#_RefEquation) and Eq. 4-43.
+
+$h=k$ []{#_RefUnicodeEquation .anchor}（4‑47）
+
+参见式4-47和公式4-43；[Equation 4-47](#_RefUnicodeEquation)。
+
+$$p=q$$ (4-46) {#eq:authored}
+
+As shown in Equation (4-46), an existing ID is reused.
+
+## Single numbers, formatting and Unicode parentheses
+
+$r=s$ （7）
+
+如式7所示，见公式（7）。Using Eq. 7, the estimate is derived.
+
+$m=n$ **(8)**
+
+**如式**8所示，保留**其他加粗**内容。Refer to **Eq.** *8*.
+
+## Equations in containers
+
+> Numbered formula:
+>
+> $c=d$ (9)
+
+见式9。See Equation 9.
+
+| Content |
+|---------|
+| $e=f$ (10) |
+
+参见式10。
+
+## Ambiguity and collisions
+
+$g=h$ (11)
+
+$$i=j$$ (11)
+
+如式11所示。See Eq. 11.
+
+[]{#eq:fuzz-12}
+
+$k=l$ (12)
+
+See Eq. 12.
+
+## Preserve nondefinitions and protected content
+
+普通正文中的$x=y$ (13) 不应变成公式定义。
+
+$x$ and $y$ (14)
+
+$z$ (15) descriptive label
+
+$w$ (16-)
+
+$v$ (17.2)
+
+See Eq. 13 or Eq. 14. 如式15所示。As in Equation 16, nothing is defined.
+
+普通提及式4-43和Equation 4-44不改写。如式4-430所示不匹配短编号。
+
+`如式4-43所示` and $\text{如式4-43所示}$ remain unchanged.
+
+[see Eq. 4-43](https://example.com/) remains a link.
+
+## Bare existing ID without an original number
+
+$$a+b=c$$ {#eq:unknown-number}
+
+See Eq. 18.

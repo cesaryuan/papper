@@ -17,3 +17,11 @@ A plain text reference to an anchored picture: see [@fig:_RefMixed].
 ![Fig. 2 Mixed anchored and typed references](media/image1.png){#fig:_RefMixed width="1.0in" height="0.5833333333333334in"}
 
 [@fig:_RefMixed]
+
+As in [@eq:fuzz-4-43], the variables agree. 如[@eq:_RefEquation] 所示。
+
+$$x = y$$ {#eq:fuzz-4-43}
+
+$$u = v$$ {#eq:_RefEquation}
+
+[@eq:_RefEquation]

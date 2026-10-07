@@ -34,6 +34,8 @@
 -- oversized inline picture moved out of prose to acquire its following caption.
 -- crossrefs.lua then promotes a unique _Ref caption bookmark to an image
 -- identifier such as #fig:_Ref181174213 and rewrites its inbound figure links.
+-- Images already labeled fig: belong to established figures/subfigure groups;
+-- their following overall caption must stay outside the child image caption.
 -- Pictures that already have captions, multi-image paragraphs, intervening
 -- prose and non-numbered paragraphs are preserved rather than guessed at.
 -- Quotes containing prose or multiple blocks, or lacking a following caption,
@@ -60,7 +62,8 @@ local function bare_image(block)
   if block.t ~= 'Para' and block.t ~= 'Plain' then return nil end
   local image = nil
   for _, inline in ipairs(block.content) do
-    if inline.t == 'Image' and not image and #inline.caption == 0 then
+    if inline.t == 'Image' and not image and #inline.caption == 0
+      and not inline.identifier:match('^fig:') then
       image = inline
     elseif inline.t ~= 'Space' and inline.t ~= 'SoftBreak' and inline.t ~= 'LineBreak' then
       return nil

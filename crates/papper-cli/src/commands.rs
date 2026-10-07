@@ -457,14 +457,16 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     let mut command = vec![
         source.as_os_str().to_owned(),
         "--from=docx".into(),
-        "--to=markdown".into(),
+        // Simple/multiline tables can split long image syntax at a column
+        // boundary. Pipe/grid tables retain conservatively preserved layouts.
+        "--to=markdown-simple_tables-multiline_tables".into(),
         "--wrap=none".into(),
+        // Filters can add metadata such as subfigGrid even to English documents.
+        "--standalone".into(),
     ];
     let chinese_ratio = papper_document::docx::chinese_character_ratio(&source)?;
     if chinese_ratio >= 0.6 {
-        // Standalone Markdown emits a leading YAML block; setting metadata on
-        // a fragment alone would silently discard the detected language.
-        command.extend(["--standalone".into(), "--metadata=lang:zh-CN".into()]);
+        command.push("--metadata=lang:zh-CN".into());
         println!(
             "[convert] Chinese characters: {:.1}%; adding lang: zh-CN",
             chinese_ratio * 100.0
@@ -474,6 +476,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         "mtef_parser.lua",
         "equation_tables.lua",
         "remove_toc_anchors.lua",
+        "detect_subfigures.lua",
         "extract_inline_images.lua",
         "detect_figure.lua",
         "detect_table.lua",
@@ -494,8 +497,12 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
             "Convert filter is missing: {}",
             filter.display()
         );
-        command.extend(["--lua-filter".into(), filter.into_os_string()]);
-        println!("[convert] fuzzy figure/table cross-reference recovery enabled");
+        command.extend([
+            "--metadata=papper-fuzzy-crossrefs:true".into(),
+            "--lua-filter".into(),
+            filter.into_os_string(),
+        ]);
+        println!("[convert] fuzzy figure/table/equation cross-reference recovery enabled");
     }
     command.extend([
         "--extract-media=.".into(),

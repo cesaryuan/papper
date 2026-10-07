@@ -143,3 +143,91 @@ As shown in [@tbl:authored], the table already has an ID.
   : Tbl. 17 Mixed anchored and typed table references {#tbl:_RefTableMixed}
 
 [@tbl:_RefTableMixed] and see [@tbl:_RefTableMixed].
+
+## Equation references
+
+如[@eq:fuzz-4-43] 所示。参见[@eq:fuzz-4-43]；as in [@eq:fuzz-4-43], the result agrees.
+
+$$x=y$$ {#eq:fuzz-4-43}
+
+$$a=b$$ {#eq:fuzz-4-44}
+
+根据[@eq:fuzz-4-44]和[@eq:fuzz-4-43]，可以得到结果。See [@eq:fuzz-4-44] and [@eq:fuzz-4-43].
+
+## Anchored equations mixed with text references
+
+$$u=v$$ {#eq:_RefEquation}
+
+[@eq:_RefEquation], 如[@eq:_RefEquation]所示。See [@eq:_RefEquation] and [@eq:fuzz-4-43].
+
+$$h=k$$ {#eq:_RefUnicodeEquation}
+
+参见[@eq:_RefUnicodeEquation]和[@eq:fuzz-4-43]；[@eq:_RefUnicodeEquation]。
+
+$$p=q$$ {#eq:authored}
+
+As shown in [@eq:authored], an existing ID is reused.
+
+## Single numbers, formatting and Unicode parentheses
+
+$$r=s$$ {#eq:fuzz-7}
+
+如[@eq:fuzz-7]所示，见[@eq:fuzz-7]。Using [@eq:fuzz-7], the estimate is derived.
+
+$$m=n$$ {#eq:fuzz-8}
+
+**如**[@eq:fuzz-8]所示，保留**其他加粗**内容。Refer to [@eq:fuzz-8].
+
+## Equations in containers
+
+> Numbered formula:
+>
+> $$c=d$$ {#eq:fuzz-9}
+
+见[@eq:fuzz-9]。See [@eq:fuzz-9].
+
+  Content
+  -----------------------
+  $$e=f$$ {#eq:fuzz-10}
+
+参见[@eq:fuzz-10]。
+
+## Ambiguity and collisions
+
+$g=h$ (11)
+
+$$i=j$$ (11)
+
+如式11所示。See Eq. 11.
+
+[]{#eq:fuzz-12}
+
+$$k=l$$ {#eq:fuzz-12-2}
+
+See [@eq:fuzz-12-2].
+
+## Preserve nondefinitions and protected content
+
+普通正文中的$x=y$ (13) 不应变成公式定义。
+
+$x$ and $y$ (14)
+
+$z$ (15) descriptive label
+
+$w$ (16-)
+
+$v$ (17.2)
+
+See Eq. 13 or Eq. 14. 如式15所示。As in Equation 16, nothing is defined.
+
+普通提及式4-43和Equation 4-44不改写。如式4-430所示不匹配短编号。
+
+`如式4-43所示` and $\text{如式4-43所示}$ remain unchanged.
+
+[see Eq. 4-43](https://example.com/) remains a link.
+
+## Bare existing ID without an original number
+
+$$a+b=c$$ {#eq:unknown-number}
+
+See Eq. 18.

@@ -74,9 +74,9 @@ uv run papper convert "测试文档.docx" -o converted
 ```
 
 This writes `converted/测试文档.md` and only the images still needed by the
-Markdown under `converted/media`. The command combines seven bundled Lua
+Markdown under `converted/media`. The command combines eight bundled Lua
 filters: it converts MathType OLE equations and MTEF-bearing WMF images to LaTeX, flattens one-row equation
-layout tables, removes `_Toc...` bookmarks and navigation links, extracts inline
+layout tables, removes `_Toc...` bookmarks and navigation links, recovers subfigure layouts, extracts inline
 images wider than 2 inches into separate figures, converts one-column image/caption
 layout tables into figures, attaches an
 immediately following `图1`, `图1‑11`, `Figure 1` or `Fig. 1-11` caption paragraph to a single bare
@@ -91,9 +91,24 @@ Caption pairing retains the original text, formatting, `_Ref...` bookmarks and
 image dimensions. English prefixes are case-insensitive and allow an optional
 trailing period. TOC cleanup retains visible text and page numbers. Existing
 captions, multi-image paragraphs and images separated from captions by prose
-are preserved.
+are not paired by the single-figure detector.
 
-Typed figure/table references can be recovered with the optional
+`detect_subfigures.lua` runs by default. It recognizes horizontal/vertical image
+tables, multiple image rows, captions in separate rows or before/after an image
+inside a cell, and sequential image/child-caption paragraphs. A unique numbered
+overall caption must occur in the table caption, a merged cell, or the next
+paragraph. Output uses pandoc-crossref's `::: {#fig:...}` syntax, one paragraph
+per image row and the overall caption last, with `subfigGrid: true` metadata.
+Bookmarks remain usable; missing IDs derive from the figure number. Grid widths
+become percentages; source dimensions remain in `original-width` / `original-height`.
+Unequal row lengths become vertical rows in source order because pandoc-crossref
+can discard extra columns after its first row. Multiple independent figure
+numbers, conflicting captions, row spans and nested tables remain unchanged;
+caption conflicts are logged. Retained tables use pipe/grid Markdown to avoid
+column boundaries splitting long image syntax in simple/multiline tables.
+Reconvert the original DOCX when an older Markdown export already damaged images.
+
+Typed figure/table/equation references can be recovered with the optional
 `--fuzzy-crossrefs` flag (disabled by default):
 
 ```powershell
@@ -102,12 +117,22 @@ uv run papper convert "测试文档.docx" -o converted --fuzzy-crossrefs
 
 This runs `crossrefs_fuzz.lua` after bookmark-based conversion. It matches unique
 numbered captions to explicit prose phrases such as `如图1-14所示`, `如表1-3所示`,
-`as shown in Fig. 2` and `see Tbl. 3`. Existing `fig:`/`tbl:` IDs are reused;
+`如式4-43所示`, `as shown in Fig. 2`, `see Tbl. 3` and `as in Eq. (4-43)`.
+Existing `fig:`/`tbl:`/`eq:` IDs are reused;
 unlabelled targets receive stable IDs such as `fig:fuzz-1-14` or `tbl:fuzz-1-3`,
 with suffixes if those IDs are already used. English aliases, single numbers,
 Unicode dashes and references split across formatting runs are supported. Duplicate
 caption numbers, unknown targets and mentions without reference cues remain text.
 Captions, code, existing links/citations and other authored IDs are preserved.
+
+A standalone formula followed only by a parenthesized number, such as
+`$x=y$ (4-43)` or `$$x=y$$ (4‑43)`, becomes `$$x=y$$ {#eq:fuzz-4-43}`;
+`如式 4-43` becomes `如[@eq:fuzz-4-43]`. Numbered standalone inline formulas
+are promoted to display math so pandoc-crossref can number and resolve them.
+Original equation numbers removed by bookmark conversion are retained internally
+until recovery completes, allowing typed references to reuse an existing `eq:_Ref...`
+ID. The temporary metadata is omitted from the output. Formulas embedded in prose,
+multiple formulas in one paragraph and descriptive trailing labels remain authored.
 
 An inline image wider than 2 inches is moved after its containing paragraph as a
 separate figure. Absolute widths in common physical units are supported; images
