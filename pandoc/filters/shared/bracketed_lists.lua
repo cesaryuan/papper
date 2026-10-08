@@ -6,7 +6,8 @@
 -- carry that marker into Papper's package editor, which sets native brackets.
 
 local list_class = 'pmt-bracketed-list'
-local docx_item_style = 'Papper Bracketed List Item'
+local paragraph_style = 'Bracketed List'
+local has_bracketed_lists = false
 
 --- Split one inline sequence at physical or soft Markdown line breaks.
 local function split_lines(inlines)
@@ -70,6 +71,7 @@ end
 
 --- Convert one validated run into a styled ordered list.
 local function make_list(items)
+  has_bracketed_lists = true
   local list_items = pandoc.List()
   for _, item in ipairs(items) do
     local paragraph = pandoc.Plain(item.content)
@@ -77,8 +79,11 @@ local function make_list(items)
       -- Plain always uses Compact in Pandoc's DOCX writer, ignoring custom-style.
       -- Para preserves the marker style and still receives native list numbering.
       paragraph = pandoc.Div({ pandoc.Para(item.content) }, pandoc.Attr('', {}, {
-        ['custom-style'] = docx_item_style,
+        ['custom-style'] = paragraph_style,
       }))
+    elseif FORMAT:match('^html') then
+      -- HTML custom paragraph CSS targets p elements, not bare text inside li.
+      paragraph = pandoc.Para(item.content)
     end
     list_items:insert(pandoc.List { paragraph })
   end
@@ -88,7 +93,13 @@ local function make_list(items)
     'Period'
   )
   local ordered = pandoc.OrderedList(list_items, attributes)
-  return pandoc.Div({ ordered }, pandoc.Attr('', { list_class }))
+  local wrapper_attributes = {}
+  if FORMAT:match('^html') then
+    -- Pandoc writes this as data-custom-style; the HTML style collector then
+    -- carries the paragraph scope onto each list item's p element.
+    wrapper_attributes['custom-style'] = paragraph_style
+  end
+  return pandoc.Div({ ordered }, pandoc.Attr('', { list_class }, wrapper_attributes))
 end
 
 --- Replace consecutive marker items while leaving non-consecutive text untouched.
@@ -135,6 +146,40 @@ local function convert_blocks(blocks)
   return result
 end
 
-return {
-  Blocks = convert_blocks,
+--- Add output-specific support after converting every block list in the document.
+function Pandoc(document)
+  has_bracketed_lists = false
+  document = document:walk({ Blocks = convert_blocks })
+  if FORMAT:match('^html') and has_bracketed_lists then
+    local css = pandoc.MetaBlocks { pandoc.RawBlock('html', [[<style>
+/* Reserve a label column instead of shifting paragraph text into its marker. */
+.pmt-bracketed-list > ol {
+  padding-inline-start: 0;
 }
+.pmt-bracketed-list > ol > li {
+  list-style: none;
+}
+.pmt-bracketed-list > ol > li > p {
+  position: relative;
+  padding-inline-start: var(--pmt-bracketed-hanging, 2em);
+  text-indent: 0;
+}
+/* Native list-item counters still respect ol[start] and nested list scopes. */
+.pmt-bracketed-list > ol > li > p::before {
+  content: "[" counter(list-item) "] ";
+  position: absolute;
+  inset-inline-start: 0;
+  text-indent: 0;
+}
+</style>]]) }
+    local includes = document.meta['header-includes']
+    if includes == nil then
+      includes = pandoc.MetaList {}
+    elseif pandoc.utils.type(includes) ~= 'List' then
+      includes = pandoc.MetaList { includes }
+    end
+    includes:insert(1, css)
+    document.meta['header-includes'] = includes
+  end
+  return document
+end

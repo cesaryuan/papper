@@ -36,6 +36,7 @@ pub(super) fn custom_style_css_text(
 ) -> Result<String> {
     let styles = read_reference_styles_with_overrides(xml, records)?;
     let mut targets = Vec::new();
+    let mut list_layout = String::new();
     for (kind, name) in used {
         let Some(style) = find_style_definition(&styles, *kind, name) else {
             eprintln!("[WARN] Unknown {kind:?} custom style: {name}");
@@ -61,13 +62,26 @@ pub(super) fn custom_style_css_text(
                     selector,
                     mode: CssStyleMode::CustomParagraph,
                 });
+                // A list marker already implements the hanging first line. Applying
+                // Word's negative indent to its inner p would overlap marker and text.
+                if name == "Bracketed List" {
+                    let hanging = style
+                        .effective
+                        .first_line
+                        .as_deref()
+                        .and_then(|value| value.strip_prefix('-'))
+                        .unwrap_or("2em");
+                    list_layout.push_str(&format!(
+                        "\n/* Reserve the Word hanging indent for the numbered label column. */\n:is(.pmt-page, body) .pmt-bracketed-list > ol > li > p{attribute} {{\n  --pmt-bracketed-hanging: {hanging};\n  text-indent: 0;\n}}\n"
+                    ));
+                }
             }
             StyleKind::Character => {
                 targets.push(StyleTarget { id: style.id.clone(), selector: format!(":is(.pmt-page, body) :not(div, p, table){attribute}, :is(.pmt-page, body) :is(td, th){attribute} > p"), mode: CssStyleMode::Character });
             }
         }
     }
-    Ok(cascade_style_css(&styles, &targets))
+    Ok(cascade_style_css(&styles, &targets) + &list_layout)
 }
 /// Generate CSS from reference styles and raw docxStyle metadata.
 pub fn build_reference_style_css(styles_path: &Path, docx_style: Option<&Value>) -> Result<String> {

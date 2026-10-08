@@ -90,7 +90,7 @@ pub(crate) fn bracketed(
     document: &mut Element,
     styles: &mut Element,
 ) -> Result<()> {
-    let Some(index) = style_index(styles, "Papper Bracketed List Item") else {
+    let Some(index) = style_index(styles, "Bracketed List") else {
         return Ok(());
     };
     let Node::Element(style) = &mut styles.children[index] else {
