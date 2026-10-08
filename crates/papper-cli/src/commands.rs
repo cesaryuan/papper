@@ -592,7 +592,7 @@ fn initialize(args: InitArgs) -> Result<()> {
         (".vscode", ".vscode"),
         ("examples", "examples"),
         (".gitignore", ".gitignore"),
-        ("CLAUDE.md", "CLAUDE.md"),
+        ("AGENTS.md", "AGENTS.md"),
         (manuscript, "manuscript.md"),
         (reply, "reply_to_reviewers.md"),
         ("style-project.yml", "style.yml"),
