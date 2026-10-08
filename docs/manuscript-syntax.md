@@ -362,9 +362,22 @@ display math. Papper renders the declaration's remaining brace-group contents
 as roman text. Prefer explicit `\mathrm{T}` for mathematical symbols or
 `\textrm{...}` for text when writing new formulas.
 
-When a formula needs both `\hat{...}` and a style macro such as `\mathbf{...}`,
-write the hat inside the style macro: `\mathbf{\hat{C}}`. MathType-exported PDFs
-may hide the hat in the reversed form `\hat{\mathbf{C}}`.
+Papper automatically moves `\hat` inside mathematical font commands when the
+whole hat operand is styled, including nested font wrappers:
+
+```tex
+\hat{\mathbf{C}}           -> \mathbf{\hat{C}}
+\hat{\mathcal{C}}          -> \mathcal{\hat{C}}
+\hat{\mathbf{\mathcal{C}}} -> \mathbf{\mathcal{\hat{C}}}
+```
+
+This avoids a MathType preview issue that can hide the hat. The correction applies
+to inline and display math in DOCX, HTML, and LaTeX builds, while leaving source
+Markdown unchanged. Supported wrappers are `\mathbf`, `\mathcal`, `\mathbb`,
+`\mathfrak`, `\mathit`, `\mathrm`, `\mathsf`, `\mathscr`, `\mathtt`, `\mathbfit`,
+`\boldsymbol`, and `\bm`. Writing the corrected form directly is also supported.
+Operands with extra terms or scripts outside the style wrapper, such as
+`\hat{\mathbf{x}+y}` or `\hat{\mathbf{x}_i}`, keep their original scope.
 
 For MathType conversion settings and math font choices, see
 [`style-configuration.md`](style-configuration.md#mathtype-equations).

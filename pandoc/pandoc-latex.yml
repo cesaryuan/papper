@@ -11,7 +11,7 @@ number-sections: true
 # Filters are applied in order
 filters:
   - ${.}/filters/shared/bracketed_lists.lua
-  - ${.}/filters/shared/normalize_math_roman.lua
+  - ${.}/filters/shared/fix_math.lua
   - pandoc-crossref  # Must come before citeproc for cross-references
   - ${.}/filters/shared/normalize_chinese_numbering.lua
   - ${.}/filters/shared/merge_table_cells.lua

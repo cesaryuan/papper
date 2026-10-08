@@ -18,7 +18,7 @@ math-method:
 # before Pandoc writes the standalone HTML document.
 filters:
   - ${.}/filters/shared/bracketed_lists.lua
-  - ${.}/filters/shared/normalize_math_roman.lua
+  - ${.}/filters/shared/fix_math.lua
   - ${.}/filters/shared/bilingual_captions.lua
   - ${.}/filters/shared/table_autofit.lua
   - pandoc-crossref

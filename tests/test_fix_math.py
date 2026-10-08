@@ -1,4 +1,4 @@
-"""Protect legacy roman math scopes and real writer output for the reported formula."""
+"""Protect roman math scopes, styled hats, and real writer output across build defaults."""
 
 from __future__ import annotations
 
@@ -19,16 +19,16 @@ def math_pandoc() -> str:
     """Use a real retained engine, falling back to standalone Pandoc for filter checks."""
     executable = native_pandoc_executable() or shutil.which("pandoc")
     if executable is None:
-        pytest.skip("Roman math conversion requires Pandoc")
+        pytest.skip("Math correction requires Pandoc")
     return str(executable)
 
 
-def test_roman_math_scope_snapshot(math_pandoc: str, snapshot_update: bool) -> None:
-    """Preserve nested/escaped scopes and literal code, with an idempotent normalization."""
-    fixture = ROOT / "tests/snapshot_cases/math_roman"
+def test_math_correction_snapshot(math_pandoc: str, snapshot_update: bool) -> None:
+    """Catch altered operands or damaged comments/code and ensure the fix is idempotent."""
+    fixture = ROOT / "tests/snapshot_cases/fix_math"
     arguments = [
         math_pandoc, "--from=markdown", "--to=markdown", "--wrap=none",
-        "--lua-filter", str(ROOT / "pandoc/filters/shared/normalize_math_roman.lua"),
+        "--lua-filter", str(ROOT / "pandoc/filters/shared/fix_math.lua"),
     ]
     source = (fixture / "input.md").read_text(encoding="utf-8")
     result = subprocess.run(
@@ -51,13 +51,14 @@ def test_roman_math_scope_snapshot(math_pandoc: str, snapshot_update: bool) -> N
     pytest.param("html", False, id="html"),
     pytest.param("latex", False, id="latex"),
 ])
-def test_roman_formula_renders_with_defaults(
+def test_corrected_formula_renders_with_defaults(
     math_pandoc: str, target: str, markers: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Convert the reported formula through each default chain without a TeX fallback."""
+    """Render corrected hats and a roman transpose across the actual default chains."""
     if native_pandoc_executable() is None and shutil.which("pandoc-crossref") is None:
         pytest.skip("Default filter chains require the retained engine or pandoc-crossref")
     formula = (
+        r"\hat{\mathbf{C}}+\hat{\mathcal{C}}+"
         r"\mathbf{\Sigma }_i^t=(E-\boldsymbol{\mu }_i^t)"
         r"(E-\boldsymbol{\mu }_i^t)^{{\rm T}}"
     )
@@ -78,6 +79,7 @@ def test_roman_formula_renders_with_defaults(
         equations = document.xpath("//m:oMath", namespaces=namespace)
         assert len(equations) == 2
         for equation in equations:
+            assert len(equation.xpath(".//m:acc", namespaces=namespace)) >= 2
             # Assert an actual roman transpose in OMML, rather than raw fallback text.
             assert equation.xpath(".//m:sSup/m:sup//m:t[text()='T']", namespaces=namespace)
             assert equation.xpath(
@@ -91,6 +93,9 @@ def test_roman_formula_renders_with_defaults(
             assert len(sources) == 2
             assert sources[0].startswith("MTLATEX:inline:")
             assert sources[1].startswith("MTLATEX:display:")
-            assert all(source.endswith(r")^{{\textrm{T}}}") for source in sources)
+            assert all(source.strip().endswith(r")^{{\textrm{T}}}") for source in sources)
+            assert all(r"\mathbf{\hat{C}}+\mathcal{\hat{C}}" in source for source in sources)
     else:
-        assert r"\textrm{T}" in output.read_text(encoding="utf-8")
+        content = output.read_text(encoding="utf-8")
+        assert r"\textrm{T}" in content
+        assert r"\mathbf{\hat{C}}+\mathcal{\hat{C}}" in content

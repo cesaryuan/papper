@@ -89,6 +89,12 @@ layouts can remove ordinary table borders and cell padding.
 
 ## Equations and Revision Markers
 
+The shared [`fix_math.lua`](../pandoc/filters/shared/fix_math.lua) filter runs
+before crossref and DOCX MathType markers in all three build defaults. It
+converts scoped legacy `\rm` declarations to `\textrm` and moves `\hat` through
+complete math-font wrappers before equations reach Word math or MathType.
+Unmatched groups and operands with extra terms or scripts are not reordered.
+
 [`equation_revision_attr.lua`](../pandoc/filters/docx/equation_revision_attr.lua)
 extracts `revision=true` before crossref handles equation attributes, preserving
 the equation label. DOCX metadata transports the revision state to the native
