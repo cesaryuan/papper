@@ -6,11 +6,13 @@ Papper manuscript. For reusable project formatting and build settings, see
 
 ## Basic Markdown and Manuscript Metadata
 
-Papper reads Pandoc Markdown. Ordinary headings, paragraphs, emphasis, bold,
+Use Pandoc Markdown for manuscript text and a YAML header for title, authors,
+abstract, keywords, bibliography, and language.
+
+Ordinary headings, paragraphs, emphasis, bold,
 links, block quotes, numbered and bulleted lists, fenced code blocks, pipe
 tables, footnotes, and inline/display math are available. Keep a blank line
-between blocks. The sections below explain the manuscript patterns and Papper
-extensions you will use most often.
+between blocks.
 
 ```markdown
 # Methods {#sec:methods}
@@ -50,7 +52,10 @@ affiliations and correspondence details. Reusable formatting belongs in
 
 ### Bracketed Numbered Lists
 
-Write at least two consecutive numbered items with a space after each marker:
+Write consecutive `[1]`, `[2]` items for square-bracket numbered lists in DOCX
+and HTML; at least two items are required.
+
+Put a space after each marker:
 
 ```markdown
 [1] Collect the samples.
@@ -107,10 +112,11 @@ Formatting below.
 
 ## Author Metadata
 
-Add author information to the YAML header in `manuscript.md`. Papper formats
-author names, affiliations, and corresponding-author notes below the title in
-DOCX and HTML output.
-Use `authors`; `author` is also accepted as an alias.
+Use `authors` in manuscript YAML to format names, affiliations, and
+corresponding-author notes in DOCX and HTML.
+
+Author names and affiliations appear below the title. `author` is also
+accepted as an alias for `authors`.
 
 Each author must be written as a YAML mapping with at least a `name` field. Optional fields are:
 
@@ -124,7 +130,8 @@ Affiliations can be written inline under each author, or defined once in a top-l
 
 ### Format 1: Inline Single Affiliation
 
-Use a single string when each author has one affiliation:
+Set each author's `affiliation` to a single institution string when the author
+has one affiliation:
 
 ```yaml
 authors:
@@ -140,9 +147,10 @@ authors:
 
 ### Format 2: Inline Multiple Affiliations
 
-Use `affiliations` as a list when an author has more than one affiliation.
-`affiliation` also accepts a list, as in the starter manuscript. Repeated
-affiliation text is automatically assigned the same superscript label.
+Set each author's `affiliations` to a list of institution strings for multiple
+affiliations; repeated institutions share a superscript label.
+
+`affiliation` also accepts a list, as in the starter manuscript.
 
 ```yaml
 authors:
@@ -161,7 +169,8 @@ authors:
 
 ### Format 3: Keyed Affiliations
 
-Use a top-level `affiliations` map when several authors share the same institutions. Author entries can reference one key with `affiliation`, or several keys with `affiliations`.
+Define shared institutions in a top-level `affiliations` map, then reference
+their keys in each author's `affiliation` or `affiliations`.
 
 ```yaml
 authors:
@@ -207,11 +216,13 @@ containing the complete note.
 
 ## Optional LaTeX Source Configuration
 
-The primary workflow is DOCX generation. If you also generate LaTeX source, you can edit the YAML header in `manuscript.md` for document-class-specific output:
+Choose a journal document class and options in manuscript YAML for LaTeX
+source, including figure and table layouts spanning two columns.
 
 ### Example 1: Elsevier Journal
 
-Add this section to the manuscript YAML header:
+Use Elsevier's `elsarticle` class with preprint, 3p layout, and author-date
+citation options in the manuscript YAML header:
 
 ````yaml
 documentclass: elsarticle
@@ -225,12 +236,16 @@ header-includes:
 
 ### Example 2: Springer Journal
 
+Use the Springer `svjour3` class with its small extended layout:
+
 ```yaml
 documentclass: svjour3
 classoption: [smallextended]
 ```
 
 ### Example 3: Wiley Journal (e.g., Computer-Aided Civil Engineering)
+
+Use Wiley's `WileyNJDv5` class with Harvard citations and two-column Times text:
 
 ````yaml
 documentclass: WileyNJDv5
@@ -248,6 +263,8 @@ header-includes:
 
 ### Example 4: IEEE Journal
 
+Use the IEEE journal document class `IEEEtran` with `classoption: [journal]`:
+
 ```yaml
 documentclass: IEEEtran
 classoption: [journal]
@@ -258,7 +275,10 @@ environment containing the selected document class and any packages it needs.
 
 ### Figures and Tables Across Two Columns
 
-In LaTeX output, add `twocol=true` to a figure to make it span both columns:
+Use `twocol` attributes to control whether figures and tables span both columns
+in a two-column LaTeX document; DOCX and HTML are unaffected.
+
+Add `twocol=true` to a figure to make it span both columns:
 
 ```markdown
 ![Full-width comparison.](images/comparison.png){#fig:wide twocol=true}
@@ -272,7 +292,8 @@ DOCX or HTML layout.
 
 ## Cross-References
 
-The template uses [pandoc-crossref](https://github.com/lierdakil/pandoc-crossref) for automatic numbering:
+Give figures, tables, equations, and sections stable labels, then cite them
+with `@fig:`, `@tbl:`, `@eq:`, or `@sec:` for numbered references.
 
 - **Figures**: `![Caption](image.png){#fig:label}` -> Reference with `@fig:label`
 - **Tables**: `: Caption {#tbl:label}` -> Reference with `@tbl:label`
@@ -298,7 +319,8 @@ numbering depth are project settings described in
 
 ### Bilingual Figure and Table Captions
 
-For HTML and DOCX, add `caption-en` to an ordinary numbered figure or table:
+Add `caption-en` to ordinary numbered figures or tables for an English caption
+sharing the primary caption's number in DOCX and HTML.
 
 ```markdown
 ![MT-MoE ViT 网络架构图](images/architecture.svg){#fig:architecture caption-en="Architecture diagram of the *MT-MoE ViT* network"}
@@ -330,8 +352,11 @@ tables. For caption fonts and Word numbering options, see
 
 ## Equations
 
-Write inline math with `$...$` and display equations with `$$...$$`. Add an
-`eq:` label to a display equation when you need a numbered cross-reference:
+Write inline/display math and labeled equations, with DOCX/HTML `where`
+styling, legacy `\rm` support, and `\hat` fixes around font macros.
+
+Use `$...$` for inline math and `$$...$$` for display math. Add an `eq:` label
+to a display equation when you need a numbered cross-reference:
 
 ```markdown
 $$
@@ -384,6 +409,9 @@ For MathType conversion settings and math font choices, see
 
 ## Images
 
+Insert standalone images with optional captions, `fig:` labels for numbered
+references, and percentage or physical widths for sizing.
+
 Put a numbered figure on its own line, separated from surrounding text by
 blank lines. Add a `fig:` label for references and a width for sizing:
 
@@ -407,6 +435,9 @@ For LaTeX, the figure layout may choose its own width; see the two-column
 figure guidance above.
 
 ## Subfigure Layouts
+
+Compose panels in one SVG for explicit layout, or use `subfigGrid` for grouped
+Markdown images with separate panel references.
 
 For most multi-panel figures, prefer creating one SVG layout file that
 references the child image files. The Markdown manuscript then inserts that SVG
@@ -514,6 +545,9 @@ appearance; ordinary manuscript tables keep their own style.
 
 ## Marking Revisions in Red
 
+Mark revised text, figure captions, and table cells red in DOCX/HTML; native
+Word display equations also support revision coloring.
+
 Use the `Revision Char` custom style to mark substantive manuscript revisions
 in red in generated DOCX and HTML files:
 
@@ -561,7 +595,11 @@ This revision coloring currently targets native Word equations only. If the DOCX
 
 ## Writing Pseudocode
 
-For method or workflow descriptions, the recommended pattern is to write pseudocode as a one-column pipe table. This format is easy to edit in Markdown and stays visually stable after DOCX conversion.
+Write pseudocode as a one-column pipe table with control keywords and optional
+line numbers; captions use ordinary table numbering.
+
+This format is easy to edit in Markdown and stays visually stable after DOCX
+conversion.
 
 **Recommended conventions**:
 
@@ -625,6 +663,9 @@ There is no separate algorithm numbering or algorithm cross-reference syntax.
 
 ## Citations
 
+Select bibliography files in manuscript YAML and cite their keys with Pandoc
+citation syntax; CSL controls DOCX/HTML citation formatting.
+
 Set `bibliography: references.bib` in the manuscript YAML header and use keys
 from that database. A list selects several bibliography files. For example,
 an entry with the key `smith2023` can be cited as follows:
@@ -645,18 +686,23 @@ document-class citation settings. See
 
 ## Advanced Table Formatting
 
-Use table caption attributes to choose Word table styles, control layout,
-merge cells, and mark revisions. Table styles, cell text styles, cell margins,
+Use table caption attributes for styles, cell text, layout, merging, and
+revision marks; support varies between DOCX, HTML, and LaTeX.
+
+Table styles, cell text styles, cell margins,
 revision attributes, and autofit are supported in DOCX and HTML. Cell spacing,
 row height, and table alignment below are DOCX layout controls. Cell merging
 also runs for LaTeX output; final layout follows that output's table renderer.
 
 ### Custom Table Styles and Borderless Layouts
 
-Use the bundled `TableNoBorder` table style for tables with no visible
-borders, including aligned blocks of text. Add `custom-style="TableNoBorder"`
-to the table caption attributes. This styles the table itself; `Table Text`
-is the paragraph style for text inside cells.
+Use `custom-style="TableNoBorder"` for borderless tables; table appearance and
+cell paragraph styles are configured separately.
+
+The bundled `TableNoBorder` table style has no visible borders and can be used
+for aligned blocks of text. Add it to the table caption attributes. This
+styles the table itself; `Table Text` is the paragraph style for text inside
+cells.
 
 For a table with a visible caption:
 
@@ -689,8 +735,10 @@ LaTeX uses its own table formatting.
 
 ### Table Cell Text Styles
 
-Use `custom-text-style` to select the paragraph style inside table cells,
-independently of the table's `custom-style`. For example:
+Use `custom-text-style` for table cell paragraphs in DOCX and HTML,
+independently of the table appearance selected by `custom-style`.
+
+For example:
 
 ```markdown
 | Item | Description |
@@ -708,7 +756,8 @@ this setting.
 
 ### 1. Table Attributes
 
-Add attributes to table captions to control DOCX table layout.
+Set table caption attributes for cell margins, spacing, row height, alignment,
+autofit, and revision coloring; output support varies.
 
 **Syntax**: Add attributes at the end of the Pandoc table caption.
 For tables that should not have a visible caption, use an attribute-only caption line such as `: {revision_rows="*"}`.
@@ -744,7 +793,8 @@ The attributes are applied to the DOCX table without appearing in the final capt
 
 ### 2. Cell Merging
 
-Use special markers to merge table cells:
+Put `!<!` alone in a cell to merge left, or `!^!` to merge upward; a target cell
+must exist in that direction.
 
 - `!<!` - Merge with the cell to the left
 - `!^!` - Merge with the cell above
@@ -769,8 +819,10 @@ cells in the output.
 
 ### 3. Auto-fit Tables
 
-Set the top-level string option `tableAutofit` in `style.yml` to control authored
-tables without an explicit `autofit` attribute in both DOCX and HTML:
+Set `tableAutofit` for DOCX/HTML authored tables; per-table `autofit` takes
+priority, and `reply.tableAutofit` can override reply defaults.
+
+Set the top-level string option in `style.yml`:
 
 ```yaml
 tableAutofit: window
@@ -789,6 +841,9 @@ manuscript setting for reviewer replies. This is a Papper setting outside
 `pandocMetadata`; manuscript YAML does not override it.
 
 ## Reviewer Replies
+
+Style reviewer responses with `Reply to Reviewers` and use `papper build-reply`
+to reuse manuscript item numbers and resolve line references.
 
 Keep reviewer comments as ordinary text and wrap each response in the
 `Reply to Reviewers` paragraph style. Other available reply styles include
@@ -811,8 +866,10 @@ Unresolved labels remain unchanged so you can identify missing references.
 
 ### Manuscript Line References
 
-Write a location as ``(Line `regex`)``. The regular expression is matched
-case-insensitively against the rendered manuscript's PDF text. Exactly one
+Resolve ``(Line `regex`)`` against rendered manuscript PDF text; only a unique
+match is replaced, while invalid, missing, or ambiguous matches warn.
+
+The regular expression is matched case-insensitively. Exactly one
 match replaces the placeholder with its starting line number, such as
 `(Line 128)`. Invalid expressions, zero matches, or multiple matches produce
 warnings and leave the placeholder unchanged.

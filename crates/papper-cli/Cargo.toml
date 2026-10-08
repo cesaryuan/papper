@@ -36,6 +36,7 @@ xz2.workspace = true
 sevenz-rust2.workspace = true
 pep440_rs.workspace = true
 fancy-regex.workspace = true
+pulldown-cmark.workspace = true
 # PDF text extraction does not require legacy encryption, rendering, OCR or bindings.
 # Cargo.lock pins office_oxide 0.1.9; 0.1.13 has an incompatible DocumentIR API.
 pdf_oxide = { version = "=0.3.78", default-features = false }

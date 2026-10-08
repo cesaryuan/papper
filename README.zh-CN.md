@@ -321,6 +321,13 @@ Papper 关注的不只是“把 Markdown 转成 Word”，还包括那些常常�
 
 ## 文档导航
 
+运行 `papper guide` 查看语法与配置的章节目录和简介，再按需读取，例如
+`papper guide syntax equations` 或 `papper guide style docx-text-styles`。
+有子小节的章节会列出小节目录；例如
+`papper guide syntax advanced-table-formatting/cell-merging` 只读取单元格合并说明。
+需要全文时使用 `papper guide syntax --full` 或 `papper guide style --full`。
+章节名称以当前命令列出的目录为准。
+
 - `papper guide syntax`：稿件 YAML 与 Markdown 语法、引用、交叉引用、图片、表格和修订标记（[指南源文件](docs/manuscript-syntax.md)）
 - `papper guide style`：项目排版、引文样式、DOCX 选项和构建设置（[指南源文件](docs/style-configuration.md)）
 - [`template/manuscript.md`](template/manuscript.md)：示例稿件

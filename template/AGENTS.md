@@ -1,8 +1,8 @@
-For manuscript Markdown and YAML syntax, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`.
+For manuscript Markdown and YAML syntax, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`. These commands list topics with brief descriptions; read only the relevant topic using `papper guide syntax <topic>` or `papper guide style <topic>`. Parent topics list their subtopics. Use `--full` only when you need the complete guide.
 
 ## Style Metadata
 
-If the user wants to change reusable style behavior, update `style.yml`. The YAML header in `manuscript.md` overrides only `pandocMetadata`; it does not override Papper-owned settings. Run `papper guide style` for details.
+If the user wants to change reusable style behavior, update `style.yml`. The YAML header in `manuscript.md` overrides only `pandocMetadata`; it does not override Papper-owned settings. Run `papper guide style configuration-placement-and-precedence` for details.
 
 ## Pandoc Markdown Syntax
 
@@ -30,9 +30,9 @@ If the user wants to change reusable style behavior, update `style.yml`. The YAM
 - For borderless DOCX tables, including aligned blocks of text, add
   `custom-style="TableNoBorder"` to the table caption attributes.
   For a layout without a visible caption, use `: {custom-style="TableNoBorder"}`.
-- For advanced DOCX table formatting (cell merging, metadata), run `papper guide syntax`.
+- For advanced DOCX table formatting (cell merging, metadata), run `papper guide syntax advanced-table-formatting` and select the relevant subtopic.
 
-**Subfigures:** See `papper guide syntax` for details on handling multi-panel figures and subfigure cross-references.
+**Subfigures:** Run `papper guide syntax subfigure-layouts` for details on handling multi-panel figures and subfigure cross-references.
 
 **Pseudocode/Algorithms:**
 ```markdown
@@ -52,7 +52,7 @@ Write pseudocode as a one-column pipe table. Use bold control words such as `**f
 
 1. Visit [Zotero Style Repository](https://www.zotero.org/styles) and find a CSL file for user required target journal or preferred citation style.
 2. Download CSL file and save to some location, e.g., `pandoc/csl-style-downloaded.csl`
-3. **Update `style.yml`** (run `papper guide style` for configuration details):
+3. **Update `style.yml`** (run `papper guide style changing-citation-styles` for configuration details):
    ```yaml
    pandocMetadata:
      csl: pandoc/csl-style-downloaded.csl

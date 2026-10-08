@@ -6,6 +6,9 @@ Papper project. For manuscript Markdown and YAML syntax, see
 
 ## Configuration Placement and Precedence
 
+Keep Papper settings at the top level and Pandoc settings under
+`pandocMetadata`; manuscript YAML overrides only Pandoc metadata.
+
 `style.yml` separates two configuration domains. Its top-level Papper settings control
 build behavior such as MathType conversion, SVG handling, page margins, line
 numbers, and DOCX styles. Metadata consumed by Pandoc, citeproc, or
@@ -56,6 +59,9 @@ title, author, abstract, and bibliography values in the manuscript YAML.
 
 ## MathType Equations
 
+Choose native Word or editable MathType equations for DOCX, with conversion
+methods, preview renderers, and math fonts.
+
 Set `mathtype: true` at the top level of `style.yml` to generate editable
 MathType equations in DOCX. Set it to `false` to keep native Word equations.
 If the conversion environment is unavailable, the build keeps native Word
@@ -94,8 +100,10 @@ the previews produced by installed MathType or the `ratex` renderer.
 
 ## Native Word Cross-References
 
-Native Word cross-references are opt-in for manuscript DOCX builds. Set this
-at the top level of `style.yml`:
+Enable `docxNativeCrossref` for updateable Word numbering and references in
+manuscript DOCX, including numeric citations.
+
+This setting is opt-in. Set it at the top level of `style.yml`:
 
 ```yaml
 docxNativeCrossref: true
@@ -123,6 +131,9 @@ or other output formats.
 
 ## Language Defaults
 
+Select English or Chinese build defaults; explicit formatting settings
+override bundled values, and DOCX `--lang` selects language for one build.
+
 The bundled English and Chinese style YAML files provide build defaults.
 `papper init` creates a project `style.yml` with explicit settings for MathType,
 SVG handling, line numbers, page numbers, and table autofit, plus an empty
@@ -143,8 +154,10 @@ rewritten by the build.
 
 ## Pandoc Metadata and Numbering
 
-Put reusable Pandoc, citation, and cross-reference settings under
-`pandocMetadata`. For example:
+Use `pandocMetadata` for caption labels, reference prefixes and links, section
+and item numbering, subfigure layouts, and CSL citation settings.
+
+For example:
 
 ```yaml
 pandocMetadata:
@@ -191,6 +204,9 @@ document-class options and bibliography input syntax, see
 
 ## Numeric Citation Formatting
 
+Configure DOCX numeric citation range delimiters in `style.yml`; edit the CSL
+layout delimiter for commas between separate numeric citations.
+
 Set the delimiter for collapsed numeric citation ranges at the top level of
 `style.yml`:
 
@@ -217,7 +233,8 @@ This changes citations such as `[1,3]` to `[1, 3]`. It does not control collapse
 
 ## Table Layout Defaults
 
-`tableAutofit` sets the layout for ordinary authored tables in DOCX and HTML:
+Set `tableAutofit` for ordinary DOCX/HTML tables using `window`, `content`,
+`fixed`, or `none`; per-table attributes take priority.
 
 ```yaml
 tableAutofit: window
@@ -237,6 +254,9 @@ cell merging, and revision attributes are documented in
 [`manuscript-syntax.md`](manuscript-syntax.md#advanced-table-formatting).
 
 ## SVG Images in DOCX
+
+Embed SVG child images or rasterize SVGs to PNG in DOCX; configure PNG
+resolution globally or enable conversion on individual images.
 
 When SVG files link to local child images, enable embedding so the generated
 DOCX includes those images while SVG text and vector elements stay sharp:
@@ -277,7 +297,10 @@ for Word compatibility. Source Markdown and SVG files are not rewritten.
 
 ## DOCX Line Numbers
 
-Set `docxShowLineNumbers` at the top level of `style.yml`:
+Use `docxShowLineNumbers` for continuous, per-page, or per-section DOCX line
+numbers; `false` preserves the reference DOCX's settings.
+
+Set it at the top level of `style.yml`:
 
 ```yaml
 docxShowLineNumbers: continuous
@@ -298,6 +321,9 @@ the Chinese default. A reference document that already has line numbers needs
 those numbers disabled in Word when you want `false` to produce no line numbers.
 
 ## DOCX Page Layout
+
+Configure DOCX page margins and footer page numbers, including how to retain
+reference DOCX settings; margins also determine image sizing width.
 
 Set DOCX page margins under `docxPageMargins`. Image sizing uses the resulting
 writable page width. Omitted sides preserve the corresponding reference DOCX
@@ -333,8 +359,8 @@ Leave `tableEqns`, `eqnBlockTemplate`, and `eqnBlockInlineMath` out of
 
 ## One-Off DOCX Builds
 
-For a one-off DOCX build, the command line can override the top-level
-`mathtype` setting without editing `style.yml`:
+Use DOCX command-line flags to override MathType conversion or select Chinese
+language defaults for one build without editing `style.yml`.
 
 ```powershell
 papper build docx --mathtype
@@ -373,6 +399,9 @@ papper init my-paper --lang zh-cn
 ```
 
 ## DOCX Text Styles
+
+Use `docxStyle` to configure fonts and paragraph formatting for existing
+reference DOCX styles; HTML uses the supported text style settings too.
 
 Set style names under the top-level `docxStyle` key. Styles must exist in the
 reference DOCX; missing styles produce warnings. Omitted properties retain
@@ -435,6 +464,9 @@ To change a table's cell paragraph style, use `custom-text-style`; table
 appearance is a separate `custom-style`. See the syntax guide for examples.
 
 ## Changing Citation Styles
+
+Choose or download a CSL file and set `pandocMetadata.csl` to its path for
+DOCX/HTML citations and bibliography formatting.
 
 1. **Browse styles**: Visit [Zotero Style Repository](https://www.zotero.org/styles)
 2. **Download CSL file**: Save to `pandoc/` directory

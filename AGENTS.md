@@ -8,6 +8,7 @@ This repository is the `papper` tool, not a manuscript project.
 ### 用户文档职责与同步更新
 
 - `docs/manuscript-syntax.md` 和 `docs/style-configuration.md` 是提供给 Papper 用户及其 AI Agent 的使用指南，编译时嵌入 CLI，分别通过 `papper guide syntax` 和 `papper guide style` 获取，不随模板复制到生成的稿件项目。
+- `papper guide` 默认输出章节目录与首段简介，按 `<topic>` 读取该章节的正文及子小节目录，按 `章节/小节` 读取更细内容，`--full` 输出全文。标题是章节地址来源；每个章节应以简短说明段落开头，避免直接以代码示例开头。
 - `manuscript-syntax.md` 说明支持的稿件 YAML 与 Markdown 语法、用途、可直接使用的示例、输出效果及使用限制；`style-configuration.md` 说明 `style.yml` 配置项的用途、写法、默认行为、优先级和适用范围。
 - 不要把开发过程记录或内部实现说明写入这两份用户指南，包括滤镜处理顺序、内部 AST/XML 标记、缓存结构、源码位置、依赖实现、内部编号/书签算法和渲染计算细节。用户完成写稿或配置操作所必需的路径、选项和限制可以保留，但应以用户操作和可见结果解释。
 - 有维护价值的实现说明放到 `docs/MANUSCRIPT_RENDERING.md`；其他开发说明放到 `docs/` 下职责合适的文档中。

@@ -2,6 +2,7 @@
 
 mod commands;
 mod docx_pipeline;
+mod guide;
 mod images;
 mod reply;
 mod tools;
@@ -27,7 +28,7 @@ pub struct Cli {
 /// Keep product command names stable while hiding internal service entry points.
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
-    /// Print Papper's supported manuscript syntax and style configuration guide.
+    /// Browse manuscript syntax and style configuration topics.
     Guide(GuideArgs),
     /// Initialize a manuscript project from the packaged template.
     Init(InitArgs),
@@ -56,21 +57,29 @@ pub enum CliCommand {
 /// Select the authoring guide content written to standard output.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
 pub enum GuideSection {
-    /// Include both Markdown syntax and style configuration.
+    /// Browse both Markdown syntax and style configuration.
     #[default]
     All,
-    /// Include Markdown manuscript syntax only.
+    /// Browse Markdown manuscript syntax.
     Syntax,
-    /// Include reusable style configuration only.
+    /// Browse reusable style configuration.
     Style,
 }
 
 /// Choose which authoring guide to print.
 #[derive(Debug, Args)]
+#[command(
+    after_help = "Examples:\n  papper guide syntax\n  papper guide syntax equations\n  papper guide syntax advanced-table-formatting/cell-merging\n  papper guide style --full"
+)]
 pub struct GuideArgs {
-    /// Guide section to print; defaults to both guides.
+    /// Guide whose topics to list; defaults to both guides.
     #[arg(value_enum, default_value = "all")]
     pub section: GuideSection,
+    /// Topic slug or nested path from the index, e.g. equations or author-metadata/format-3-keyed-affiliations.
+    pub subsection: Option<String>,
+    /// Print the complete guide instead of its topic index.
+    #[arg(long, conflicts_with = "subsection")]
+    pub full: bool,
 }
 
 /// Common logging option with no ambient environment-variable input.
@@ -155,7 +164,7 @@ pub struct InitArgs {
     /// Overwrite existing template files; cannot be combined with --merge.
     #[arg(long)]
     pub force: bool,
-    /// Add missing template files while keeping existing files; cannot be combined with --force.
+    /// Add missing template files except examples, keeping existing files; incompatible with --force.
     #[arg(long)]
     pub merge: bool,
     /// Also validate the native engine or prepare managed tools after initialization.

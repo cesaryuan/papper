@@ -415,6 +415,13 @@ The output is scripted, reproducible, and version-controlled, but the source pro
 
 ## Documentation Map
 
+Run `papper guide` to list syntax and style topics with brief descriptions. Read
+only what you need, for example `papper guide syntax equations` or
+`papper guide style docx-text-styles`. Parent topics list their subtopics;
+`papper guide syntax advanced-table-formatting/cell-merging` reads one such
+subtopic. Use `papper guide syntax --full` or `papper guide style --full` for a
+complete guide. Topic names come from the current index.
+
 - `papper guide syntax`: manuscript YAML and Markdown syntax, citations, cross-references, figures, tables, and revision markup ([source guide](docs/manuscript-syntax.md))
 - `papper guide style`: project formatting, citation styles, DOCX options, and build settings ([source guide](docs/style-configuration.md))
 - [`template/manuscript.md`](template/manuscript.md): example manuscript content

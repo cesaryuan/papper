@@ -41,6 +41,7 @@ xz2 = "0.1"
 sevenz-rust2 = "0.20"
 pep440_rs = "0.7"
 fancy-regex = "0.17"
+pulldown-cmark = { version = "0.13", default-features = false }
 windows = { version = "0.58", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Ole", "Win32_System_Variant"] }
 papper-core = { path = "crates/papper-core" }
 papper-document = { path = "crates/papper-document" }

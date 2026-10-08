@@ -5,7 +5,7 @@ This template converts Pandoc Markdown manuscripts to DOCX, with optional LaTeX 
 - Images: place in `images/` directory
 - References: `.bib` file specified in YAML header
 
-For manuscript syntax and writing patterns, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`.
+For manuscript syntax and writing patterns, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`. These commands list topics with brief descriptions; read only the relevant topic using `papper guide syntax <topic>` or `papper guide style <topic>`. Parent topics list their subtopics. Use `--full` only when you need the complete guide.
 
 ## Style Metadata
 
@@ -31,7 +31,7 @@ If the user wants to change reusable style behavior, update `style.yml`. Papper-
 ```
 - Bold only for highlighting best results in comparison tables
 - Alignment: `:--` left, `:--:` center, `--:` right
-- For advanced DOCX table formatting (cell merging, metadata), run `papper guide syntax`.
+- For advanced DOCX table formatting (cell merging, metadata), run `papper guide syntax advanced-table-formatting` and select the relevant subtopic.
 
 **Subfigures** (requires `pandocMetadata.subfigGrid: true` in `style.yml` or `subfigGrid: true` in manuscript YAML):
 ```markdown

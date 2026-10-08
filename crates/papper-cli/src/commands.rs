@@ -15,12 +15,12 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use crate::{BuildArgs, BuildTarget, CleanArgs, CliCommand, GuideArgs, GuideSection, InitArgs};
+use crate::{BuildArgs, BuildTarget, CleanArgs, CliCommand, InitArgs};
 
 /// Dispatch to native implementations, loading resources only when a command needs them.
 pub fn dispatch(command: CliCommand) -> Result<()> {
     match command {
-        CliCommand::Guide(args) => guide(args),
+        CliCommand::Guide(args) => crate::guide::print(args),
         CliCommand::NativeServer(args) => papper_server::run_server_with_options(
             &args.config,
             &args.host,
@@ -42,60 +42,6 @@ pub fn dispatch(command: CliCommand) -> Result<()> {
         CliCommand::BuildReply(args) => crate::reply::build(&args),
         CliCommand::NativePdf(args) => crate::reply::extract_pdf_command(&args.input),
     }
-}
-
-/// Print version-matched authoring guides without discovering or extracting runtime resources.
-fn guide(args: GuideArgs) -> Result<()> {
-    use std::io::Write;
-
-    // Embed these guides outside the template so installed agents can read them
-    // even before a manuscript project or runtime resource directory exists.
-    let syntax = include_str!("../../../docs/manuscript-syntax.md");
-    let style = include_str!("../../../docs/style-configuration.md");
-    let all = matches!(args.section, GuideSection::All);
-    let selected: &[&str] = match args.section {
-        GuideSection::All => &[syntax, style],
-        GuideSection::Syntax => &[syntax],
-        GuideSection::Style => &[style],
-    };
-    let mut output = String::new();
-    for (index, content) in selected.iter().enumerate() {
-        if index > 0 {
-            output.push_str("\n\n");
-        }
-        output.push_str(content.trim_end());
-    }
-    output.push('\n');
-    if all {
-        output = output
-            .replace(
-                "[`style-configuration.md`](style-configuration.md)",
-                "[Style Configuration](#style-configuration)",
-            )
-            .replace(
-                "[`manuscript-syntax.md`](manuscript-syntax.md)",
-                "[Manuscript Syntax](#manuscript-syntax)",
-            )
-            .replace("(style-configuration.md#", "(#");
-    } else if args.section == GuideSection::Syntax {
-        for destination in [
-            "style-configuration.md",
-            "style-configuration.md#mathtype-equations",
-            "style-configuration.md#svg-images-in-docx",
-        ] {
-            output = output.replace(
-                &format!("[`style-configuration.md`]({destination})"),
-                "`papper guide style`",
-            );
-        }
-    } else {
-        output = output.replace(
-            "[`manuscript-syntax.md`](manuscript-syntax.md)",
-            "`papper guide syntax`",
-        );
-    }
-    std::io::stdout().lock().write_all(output.as_bytes())?;
-    Ok(())
 }
 
 /// Resolve files relative to the project and strip Windows extended prefixes.
@@ -663,6 +609,11 @@ fn initialize(args: InitArgs) -> Result<()> {
         root.display()
     );
     for (source_name, target_name) in entries {
+        // Merge updates project support files without introducing template examples.
+        if args.merge && target_name == "examples" {
+            println!("[INFO] Skipped examples in merge mode");
+            continue;
+        }
         let source = resources.template.join(source_name);
         if !source.exists() {
             continue;
