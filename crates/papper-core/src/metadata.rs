@@ -57,7 +57,7 @@ impl Default for MetadataOptions {
     fn default() -> Self {
         Self {
             style_paths: vec![PathBuf::from("style.yml")],
-            bundled_style_dir: PathBuf::from("template"),
+            bundled_style_dir: PathBuf::from("defaults"),
             allow_missing_header: false,
             reply: false,
             lang_override: None,
@@ -1000,11 +1000,11 @@ fn bundled_settings(chinese: bool, options: &MetadataOptions) -> Result<PmtSetti
     if path.is_file() {
         PmtSettings::load(&path)
     } else {
-        // Installed native binaries cannot assume a Python package resource directory.
+        // Native binaries retain defaults when the authored YAML files are absent on disk.
         let embedded = if chinese {
-            include_str!("../../../template/style-cn.yml")
+            include_str!("../../../defaults/style-cn.yml")
         } else {
-            include_str!("../../../template/style.yml")
+            include_str!("../../../defaults/style.yml")
         };
         PmtSettings::from_yaml_text(embedded, &path)
     }

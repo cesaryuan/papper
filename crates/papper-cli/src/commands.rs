@@ -204,7 +204,7 @@ fn build_other(
     ];
     let options = MetadataOptions {
         style_paths: styles.into_iter().filter(|path| path.is_file()).collect(),
-        bundled_style_dir: resources.template.clone(),
+        bundled_style_dir: resources.resource("defaults"),
         allow_missing_header: true,
         lang_override: args.lang.clone(),
         resource_roots: roots,

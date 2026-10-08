@@ -180,7 +180,7 @@ fn prepare(
                 .into_iter()
                 .filter(|path| path.is_file())
                 .collect(),
-            bundled_style_dir: resources.template.clone(),
+            bundled_style_dir: resources.resource("defaults"),
             allow_missing_header: true,
             resource_roots: unique_paths(
                 std::iter::once(source.parent().unwrap_or(&config.project_dir).to_path_buf())
@@ -361,8 +361,8 @@ impl ConversionState {
         let header_len = text.len() - body.len();
         let mut dependencies = style_candidates(&self.config, &source);
         dependencies.extend([
-            self.resources.template.join("style.yml"),
-            self.resources.template.join("style-cn.yml"),
+            self.resources.resource("defaults/style.yml"),
+            self.resources.resource("defaults/style-cn.yml"),
             self.resources
                 .resource("pandoc/manuscript-template/reference-doc/word/styles.xml"),
         ]);

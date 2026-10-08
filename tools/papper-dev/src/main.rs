@@ -541,6 +541,11 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         &root.join("template"),
         &format!("{prefix}/template"),
     )?;
+    add_tree(
+        &mut files,
+        &root.join("defaults"),
+        &format!("{prefix}/defaults"),
+    )?;
     add_worker_sources(&mut files, &root, &prefix)?;
     files.insert(
         format!("{prefix}/bin/pmt-pandoc-worker{exe_suffix}"),
