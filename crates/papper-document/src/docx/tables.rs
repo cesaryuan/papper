@@ -33,6 +33,49 @@ pub(crate) fn is_equation(table: &Element) -> bool {
         .is_match(&filtered)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::convert_table_text_styles;
+    use crate::docx::xml::parse;
+
+    /// Preserve an explicit table text style while normalizing an adjacent default table.
+    #[test]
+    fn convert_table_text_styles_skips_tables_with_custom_text_style() {
+        let mut document = parse(
+            br#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+                <w:p><w:r><w:t>PMT_TABLE_METADATA:{"attributes":{"custom_text_style":"Body Text"}}</w:t></w:r></w:p>
+                <w:tbl><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr></w:p></w:tc></w:tr></w:tbl>
+                <w:tbl><w:tr><w:tc><w:p><w:pPr><w:pStyle w:val="BodyText"/></w:pPr></w:p></w:tc></w:tr></w:tbl>
+            </w:body></w:document>"#,
+        )
+        .unwrap();
+        let styles = parse(
+            br#"<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                <w:style w:styleId="BodyText"><w:name w:val="Body Text"/></w:style>
+                <w:style w:styleId="TableText"><w:name w:val="Table Text"/></w:style>
+            </w:styles>"#,
+        )
+        .unwrap();
+
+        convert_table_text_styles(&mut document, &styles);
+
+        let paragraph_styles: Vec<_> = document
+            .child("w:body")
+            .unwrap()
+            .elements()
+            .filter(|element| element.name == "w:tbl")
+            .map(|table| {
+                table
+                    .child("w:tr")
+                    .and_then(|row| row.child("w:tc"))
+                    .and_then(|cell| cell.child("w:p"))
+                    .and_then(crate::docx::formatting::paragraph_style)
+            })
+            .collect();
+        assert_eq!(paragraph_styles, vec![Some("BodyText"), Some("TableText")]);
+    }
+}
+
 /// Replace table-level margins in the original side order.
 fn margins(table: &mut Element, sides: &[(&str, i64)]) {
     let properties = table.word("w:tblPr");
@@ -47,7 +90,7 @@ fn margins(table: &mut Element, sides: &[(&str, i64)]) {
     }
 }
 
-/// Normalize Pandoc's table paragraph styles to Table Text, excluding equation layout tables.
+/// Normalize default table paragraph styles, preserving explicit text styles and equation tables.
 pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element) {
     let style_id = |name: &str| {
         style_index(styles, name)
@@ -70,23 +113,48 @@ pub(crate) fn convert_table_text_styles(document: &mut Element, styles: &Element
     let Some(body) = document.child_mut("w:body") else {
         return;
     };
-    for table in body.elements_mut().filter(|table| table.name == "w:tbl") {
-        if is_equation(table) {
+    let mut pending_custom_text_style = false;
+    for node in &mut body.children {
+        let Node::Element(child) = node else {
             continue;
+        };
+        if child.name == "w:p"
+            && let Some(record) = child
+                .text()
+                .strip_prefix("PMT_TABLE_METADATA:")
+                .and_then(|record| serde_json::from_str::<Value>(record).ok())
+        {
+            pending_custom_text_style = record
+                .get("attributes")
+                .and_then(Value::as_object)
+                .and_then(|attributes| {
+                    attributes
+                        .get("custom_text_style")
+                        .or_else(|| attributes.get("custom-text-style"))
+                })
+                .and_then(Value::as_str)
+                .is_some_and(|style| !style.trim().is_empty());
         }
-        for row in table.elements_mut().filter(|row| row.name == "w:tr") {
-            for cell in row.elements_mut().filter(|cell| cell.name == "w:tc") {
-                for paragraph in cell
-                    .elements_mut()
-                    .filter(|paragraph| paragraph.name == "w:p")
-                {
-                    if paragraph_style(paragraph)
-                        .is_some_and(|style| source_styles.iter().any(|source| source == style))
-                    {
-                        paragraph
-                            .word("w:pPr")
-                            .word("w:pStyle")
-                            .set("w:val", &table_text);
+        if child.name == "w:tbl" {
+            // Explicit Body Text/Compact styles overlap Pandoc defaults and must not be replaced.
+            let explicit_style_table = pending_custom_text_style;
+            pending_custom_text_style = false;
+            if !explicit_style_table && !is_equation(child) {
+                for row in child.elements_mut().filter(|row| row.name == "w:tr") {
+                    for cell in row.elements_mut().filter(|cell| cell.name == "w:tc") {
+                        for paragraph in cell
+                            .elements_mut()
+                            .filter(|paragraph| paragraph.name == "w:p")
+                        {
+                            if paragraph_style(paragraph).is_some_and(|style| {
+                                source_styles.iter().any(|source| source == style)
+                            }) {
+                                paragraph
+                                    .word("w:pPr")
+                                    .word("w:pStyle")
+                                    .set("w:val", &table_text);
+                            }
+                        }
                     }
                 }
             }

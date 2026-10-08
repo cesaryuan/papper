@@ -29,6 +29,8 @@ local supported_table_keys = {
   ["revision-columns"] = true,
   ["revision_rows"] = true,
   ["revision-rows"] = true,
+  ["custom_text_style"] = true,
+  ["custom-text-style"] = true,
   ["alignment"] = true,
   ["autofit"] = true,
 }

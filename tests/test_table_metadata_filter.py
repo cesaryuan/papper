@@ -19,6 +19,11 @@ def test_table_metadata_filter_keeps_uncaptioned_table_attributes(tmp_path) -> N
 |---|
 | Step |
 : {revision_rows="*"}
+
+| Text style |
+|---|
+| Body text |
+: {custom-text-style="Body Text"}
 """
 
     subprocess.run(
@@ -34,3 +39,4 @@ def test_table_metadata_filter_keeps_uncaptioned_table_attributes(tmp_path) -> N
 
     assert "PMT_TABLE_METADATA:" in document_xml
     assert '"revision_rows":"*"' in document_xml
+    assert '"custom_text_style":"Body Text"' in document_xml
