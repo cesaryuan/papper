@@ -20,9 +20,12 @@ use crate::{BuildArgs, BuildTarget, CleanArgs, CliCommand, InitArgs};
 /// Dispatch to native implementations, loading resources only when a command needs them.
 pub fn dispatch(command: CliCommand) -> Result<()> {
     match command {
-        CliCommand::NativeServer(args) => {
-            papper_server::run_server(&args.config, &args.host, args.port)
-        }
+        CliCommand::NativeServer(args) => papper_server::run_server_with_options(
+            &args.config,
+            &args.host,
+            args.port,
+            args.refresh_runtime,
+        ),
         CliCommand::NativeDecode(args) => {
             let decoded = papper_platform::native::decode_documents(&args.documents)?;
             serde_json::to_writer(std::io::stdout().lock(), &decoded)?;

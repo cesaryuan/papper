@@ -222,6 +222,9 @@ pub struct ServerArgs {
     /// Port on which the HTTP server listens.
     #[arg(long, default_value_t = 3030)]
     pub port: u16,
+    /// Refresh bundled resources after handing off to an upgraded runtime.
+    #[arg(long, hide = true)]
+    pub refresh_runtime: bool,
 }
 
 /// Decode MathType objects for a standalone retained Lua DOCX import filter.

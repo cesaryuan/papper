@@ -1,6 +1,7 @@
 //! Build standalone HTML and supervise the same pipeline in a persistent HTTP service.
 
 use anyhow::{Context, Result, bail};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use papper_core::metadata::{
     EffectiveMetadata, MetadataOptions, load_effective_metadata_text, markdown_without_yaml_header,
     write_pandoc_metadata,
@@ -20,6 +21,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -785,6 +787,12 @@ fn ensure_server(
         .args(["--host", host, "--port", &port.to_string()])
         .current_dir(&config.project_dir)
         .stdin(Stdio::null());
+    if let Some(executable) = executable.as_ref() {
+        command.env(
+            crate::process::SERVER_UPDATE_SOURCE_ENV,
+            &executable.source_path,
+        );
+    }
     let log_path = config_path.with_file_name("server.log");
     let log = OpenOptions::new()
         .create(true)
@@ -841,10 +849,35 @@ fn ensure_server(
 
 /// Serve the versioned project API with bounded bodies, queued conversions and cache memory.
 pub fn run_server(config_path: &Path, host: &str, port: u16) -> Result<()> {
-    let config: ServerConfig = serde_json::from_reader(File::open(config_path)?)?;
+    run_server_with_options(config_path, host, port, false)
+}
+
+/// Serve the project API and optionally refresh bundled paths after a runtime handoff.
+pub fn run_server_with_options(
+    config_path: &Path,
+    host: &str,
+    port: u16,
+    refresh_runtime: bool,
+) -> Result<()> {
+    let mut config: ServerConfig = serde_json::from_reader(File::open(config_path)?)?;
+    if refresh_runtime {
+        refresh_runtime_config(&mut config, config_path)?;
+    }
     let listener = Server::http((host, port))
         .map_err(|error| anyhow::anyhow!("Cannot bind HTML server: {error}"))?;
     let mut conversion = ConversionState::new(config)?;
+    let config_fingerprint = digest(&serde_json::to_vec(&conversion.config)?);
+    save_server_state(
+        config_path,
+        host,
+        port,
+        &conversion.version(),
+        &config_fingerprint,
+    )?;
+    let update_source =
+        std::env::var_os(crate::process::SERVER_UPDATE_SOURCE_ENV).map(PathBuf::from);
+    let (watcher, updates) = update_watcher(update_source.as_deref());
+    let runtime_identity = conversion.runtime_id.clone();
     let state = Arc::new(HttpState {
         version: RwLock::new(conversion.version()),
         conversion: Mutex::new(conversion),
@@ -855,24 +888,70 @@ pub fn run_server(config_path: &Path, host: &str, port: u16) -> Result<()> {
         "[Pandoc server] Native HTTP service listening on {}",
         base_url(host, port)
     );
+    let mut restart = None;
+    let mut pending_check = None;
+    let mut last_check = Instant::now();
     while !state.shutdown.load(Ordering::Acquire) {
-        let Some(request) = listener.recv_timeout(Duration::from_millis(100))? else {
-            continue;
-        };
-        if active.fetch_add(1, Ordering::AcqRel) >= 32 {
-            active.fetch_sub(1, Ordering::AcqRel);
-            let _ = request.respond(json_response(
-                &json!({"error":"Conversion queue is full"}),
-                503,
-            ));
-            continue;
+        if let Some(request) = listener.recv_timeout(Duration::from_millis(100))? {
+            if active.fetch_add(1, Ordering::AcqRel) >= 32 {
+                active.fetch_sub(1, Ordering::AcqRel);
+                let _ = request.respond(json_response(
+                    &json!({"error":"Conversion queue is full"}),
+                    503,
+                ));
+                continue;
+            }
+            let state = Arc::clone(&state);
+            let active = Arc::clone(&active);
+            thread::spawn(move || {
+                handle_request(request, &state);
+                active.fetch_sub(1, Ordering::AcqRel);
+            });
         }
-        let state = Arc::clone(&state);
-        let active = Arc::clone(&active);
-        thread::spawn(move || {
-            handle_request(request, &state);
-            active.fetch_sub(1, Ordering::AcqRel);
-        });
+
+        while update_source.is_some() {
+            match updates.try_recv() {
+                Ok(Ok(_)) => pending_check = Some(Instant::now() + Duration::from_millis(300)),
+                Ok(Err(error)) => {
+                    eprintln!("[Pandoc server] Update watcher error: {error}");
+                    pending_check = Some(Instant::now() + Duration::from_secs(1));
+                }
+                Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
+            }
+        }
+        if update_source.is_some()
+            && (pending_check.is_some_and(|deadline| Instant::now() >= deadline)
+                || last_check.elapsed() >= Duration::from_secs(30))
+        {
+            pending_check = None;
+            last_check = Instant::now();
+            if let Some(source) = update_source.as_deref() {
+                match stable_executable(source) {
+                    Ok(mut candidate) if candidate.identity != runtime_identity => {
+                        match candidate.install() {
+                            Ok(path) => {
+                                eprintln!(
+                                    "[Pandoc server] Papper installation changed; restarting with runtime {}",
+                                    candidate.identity
+                                );
+                                restart = Some((path, candidate.identity));
+                                break;
+                            }
+                            Err(error) => eprintln!(
+                                "[Pandoc server] Could not stage updated runtime: {error:#}"
+                            ),
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        eprintln!(
+                            "[Pandoc server] Could not inspect Papper installation: {error:#}"
+                        );
+                        pending_check = Some(Instant::now() + Duration::from_secs(1));
+                    }
+                }
+            }
+        }
     }
     let deadline = Instant::now() + Duration::from_secs(10);
     while active.load(Ordering::Acquire) > 0 && Instant::now() < deadline {
@@ -882,7 +961,146 @@ pub fn run_server(config_path: &Path, host: &str, port: u16) -> Result<()> {
         conversion.worker.close();
     }
     eprintln!("[Pandoc server] Native service stopped");
+    drop(watcher);
+    drop(listener);
+    if let (Some((executable, identity)), Some(source)) = (restart, update_source) {
+        restart_with_runtime(&executable, &identity, config_path, host, port, &source)?;
+    }
     Ok(())
+}
+
+/// Watch the installed executable's directory so atomic replacement is observable.
+fn update_watcher(
+    source: Option<&Path>,
+) -> (
+    Option<RecommendedWatcher>,
+    Receiver<notify::Result<notify::Event>>,
+) {
+    let (sender, receiver) = mpsc::channel();
+    let Some(source) = source else {
+        return (None, receiver);
+    };
+    let Some(parent) = source.parent() else {
+        eprintln!("[Pandoc server] Cannot watch an installation path without a parent directory");
+        return (None, receiver);
+    };
+    match notify::recommended_watcher(move |event| {
+        let _ = sender.send(event);
+    }) {
+        Ok(mut watcher) => match watcher.watch(parent, RecursiveMode::NonRecursive) {
+            Ok(()) => (Some(watcher), receiver),
+            Err(error) => {
+                eprintln!("[Pandoc server] Could not watch Papper installation: {error}");
+                (None, receiver)
+            }
+        },
+        Err(error) => {
+            eprintln!("[Pandoc server] Could not create Papper update watcher: {error}");
+            (None, receiver)
+        }
+    }
+}
+
+/// Require two identical reads so an in-place updater cannot publish a partial image.
+fn stable_executable(path: &Path) -> Result<crate::process::ServerExecutable> {
+    let first = crate::process::ServerExecutable::from_path(path)?;
+    thread::sleep(Duration::from_millis(120));
+    let second = crate::process::ServerExecutable::from_path(path)?;
+    anyhow::ensure!(
+        first.identity == second.identity,
+        "Papper executable is still being updated"
+    );
+    Ok(second)
+}
+
+/// Refresh paths whose files came from the old executable's embedded resource archive.
+fn refresh_runtime_config(config: &mut ServerConfig, config_path: &Path) -> Result<()> {
+    let previous_root = config.resource_root.clone();
+    let resources = ResourcePaths::discover()?;
+    if let Some(previous_root) = previous_root {
+        if let Some(index) = config
+            .pandoc_args
+            .iter()
+            .position(|argument| argument == "--defaults")
+            && let Some(defaults) = config.pandoc_args.get_mut(index + 1)
+            && let Ok(relative) = Path::new(defaults).strip_prefix(&previous_root)
+        {
+            *defaults = resources.root.join(relative).to_string_lossy().into_owned();
+        }
+    }
+    config.resource_root = Some(resources.root.clone());
+    config.runtime_version = format!("{}-rust-v1", env!("CARGO_PKG_VERSION"));
+    write_if_changed(config_path, &serde_json::to_vec_pretty(config)?)?;
+    Ok(())
+}
+
+/// Start the replacement only after the old listener and its worker are released.
+fn restart_with_runtime(
+    executable: &Path,
+    identity: &str,
+    config_path: &Path,
+    host: &str,
+    port: u16,
+    source: &Path,
+) -> Result<()> {
+    let config: ServerConfig = serde_json::from_reader(File::open(config_path)?)?;
+    let log_path = config_path.with_file_name("server.log");
+    let log = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)?;
+    let mut command = Command::new(executable);
+    command
+        .arg("__server")
+        .arg("--config")
+        .arg(config_path)
+        .arg("--host")
+        .arg(host)
+        .arg("--port")
+        .arg(port.to_string())
+        .arg("--refresh-runtime")
+        .current_dir(&config.project_dir)
+        .env(crate::process::SERVER_UPDATE_SOURCE_ENV, source)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log.try_clone()?))
+        .stderr(Stdio::from(log));
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000 | 0x0000_0200);
+    }
+    let mut child = crate::process::spawn_background(&mut command)
+        .context("Could not start the upgraded Papper server")?;
+    let version_url = format!("{}/version", base_url(host, port));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline {
+        if let Ok(response) = local_agent(Duration::from_millis(500))
+            .get(&version_url)
+            .call()
+        {
+            let version: Value = response.into_json()?;
+            if version["runtime_id"].as_str() == Some(identity)
+                && version["project_dir"].as_str()
+                    == Some(display_path(&config.project_dir).as_str())
+            {
+                return Ok(());
+            }
+        }
+        if let Some(status) = child.try_wait()? {
+            anyhow::bail!(
+                "Upgraded Papper server exited before becoming ready ({status}); see {}",
+                log_path.display()
+            );
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+    anyhow::bail!(
+        "Upgraded Papper server did not become ready at {}; see {}",
+        version_url,
+        log_path.display()
+    )
 }
 
 /// Construct one exact-length UTF-8 JSON response.

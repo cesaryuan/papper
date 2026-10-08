@@ -6,4 +6,7 @@ mod process;
 mod service;
 
 pub use process::spawn_background;
-pub use service::{HtmlBuildRequest, ServerConfig, build_html, run_server, stop_project_server};
+pub use service::{
+    HtmlBuildRequest, ServerConfig, build_html, run_server, run_server_with_options,
+    stop_project_server,
+};

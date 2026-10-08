@@ -646,6 +646,52 @@ def test_native_upgrade_replaces_unlocked_entrypoint_and_restarts_one_shared_ser
         _close_project_service(project, port, owned)
 
 
+def test_native_server_watches_installation_and_restarts_with_updated_runtime(
+    native_project_factory,
+) -> None:
+    """A changed installed image must replace the server and its owned Pandoc worker."""
+    project = native_project_factory()
+    launcher = project.directory / project.executable.name
+    shutil.copy2(project.executable, launcher)
+    environment = {
+        **project.environment,
+        "PAPPER_SERVER_UPDATE_SOURCE": str(launcher),
+    }
+    installed = NativeProject(project.directory, project.source, launcher, environment)
+    port = _available_port()
+    owned: set[int] = set()
+    try:
+        installed.build(project.directory / "before-upgrade.html", server_port=port)
+        _, raw = _http_request(port, "GET", "/version")
+        previous = json.loads(raw)
+        old_pids = {previous["pid"], previous["worker_pid"]}
+        owned.update(old_pids)
+
+        with launcher.open("ab") as executable:
+            executable.write(b"Papper watched upgrade image\n")
+        expected_identity = hashlib.sha256(launcher.read_bytes()).hexdigest()
+
+        deadline = time.monotonic() + 15
+        current = previous
+        while time.monotonic() < deadline:
+            try:
+                _, raw = _http_request(port, "GET", "/version")
+                current = json.loads(raw)
+                if current.get("runtime_id") == expected_identity:
+                    break
+            except (OSError, http.client.HTTPException):
+                pass
+            time.sleep(0.05)
+        owned.update([current["pid"], current.get("worker_pid")])
+        assert current["runtime_id"] == expected_identity
+        assert current["pid"] != previous["pid"]
+        assert current["worker_pid"] != previous["worker_pid"]
+        assert _wait_for_exit(old_pids), "Self-upgrade left the old server or worker alive"
+        assert (project.directory / "before-upgrade.html").is_file()
+    finally:
+        _close_project_service(installed, port, owned)
+
+
 @pytest.mark.parametrize("old_identity", ["older-version", "missing-runtime-id", "shutdown-refused"])
 def test_native_upgrade_retires_older_http_runtime_even_with_matching_config(
     native_project_factory, old_identity: str,

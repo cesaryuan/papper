@@ -5,8 +5,10 @@ use papper_core::paths::home_dir;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{Read, Seek, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
+
+pub(crate) const SERVER_UPDATE_SOURCE_ENV: &str = "PAPPER_SERVER_UPDATE_SOURCE";
 
 /// Start a service while preventing a daemon from keeping CLI capture handles alive.
 pub fn spawn_background(command: &mut Command) -> Result<Child> {
@@ -18,13 +20,24 @@ pub fn spawn_background(command: &mut Command) -> Result<Child> {
 /// Keep the hashed image open so publication copies exactly the inspected binary.
 pub(crate) struct ServerExecutable {
     pub identity: String,
+    pub source_path: PathBuf,
     source: fs::File,
 }
 
 impl ServerExecutable {
     /// Hash the actual program, including rebuilds carrying the same package version.
     pub(crate) fn current() -> Result<Self> {
-        let mut source = fs::File::open(std::env::current_exe()?)?;
+        Self::from_path(&std::env::current_exe()?)
+    }
+
+    /// Hash one installed entry point while retaining the exact image for publication.
+    pub(crate) fn from_path(path: &Path) -> Result<Self> {
+        let source_path = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(path)
+        };
+        let mut source = fs::File::open(&source_path)?;
         let mut hash = Sha256::new();
         let mut buffer = [0_u8; 64 * 1024];
         loop {
@@ -39,7 +52,11 @@ impl ServerExecutable {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect();
-        Ok(Self { identity, source })
+        Ok(Self {
+            identity,
+            source_path,
+            source,
+        })
     }
 
     /// Atomically publish an independent executable without replacing running copies.
