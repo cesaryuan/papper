@@ -1,0 +1,167 @@
+# Manuscript Rendering Internals
+
+This document is for maintainers of Papper's manuscript rendering pipeline.
+Author-facing syntax lives in
+[`manuscript-syntax.md`](manuscript-syntax.md) (`papper guide syntax`), and project
+configuration lives in
+[`style-configuration.md`](style-configuration.md) (`papper guide style`).
+Keep pipeline order, source locations, intermediate artifacts, and rendering
+algorithms here rather than in the user guides exposed by `papper guide`.
+
+## Author and Style Processing
+
+DOCX author formatting reads manuscript YAML mappings and inserts author names,
+affiliations, and corresponding-author footnotes after the title. The native
+implementation is in
+[`authors.rs`](../crates/papper-document/src/docx/authors.rs).
+
+Caption typography comes from the reference DOCX styles, including
+`Image Caption` and `Table Caption`. The bundled editable definitions are in
+`pandoc/manuscript-template/reference-doc/word/styles.xml`, with the matching
+`reference-doc.docx`. HTML styling also reads the reference DOCX definitions.
+
+Page margins are applied to the reference DOCX before Pandoc conversion so
+Pandoc sizes images against the writable width of the final document. Page
+numbers use Word `PAGE` fields and the `page number` character style. Removing
+page-number fields preserves other footer content; the build does not request
+a document-wide field update when Word opens the output.
+
+## Native Word Numbering and Bilingual Captions
+
+The native cross-reference path uses Word `SEQ` fields for Arabic figure,
+table, and equation numbers, and `REF` fields for their references. Numbered
+headings use a multilevel list linked to heading styles; section references use
+`REF ... \r \h`. Subfigure references combine the parent's number bookmark
+with the panel-letter bookmark; panels do not increment the figure sequence.
+
+Figure and table sequence identifiers use trimmed `figureTitle` and
+`tableTitle`, with `Figure` and `Table` as empty-label fallbacks. Equation
+sequences use `Equation`. Reference bookmarks use `PapperRef-` followed by
+nine random lowercase letters or digits, with collision checks within a build.
+Numeric bookmark IDs are randomized in matched start/end pairs across XML
+parts to reduce collisions when documents are combined.
+
+For standard level-1 chapter prefixes, `STYLEREF` reads the heading number and
+`SEQ \s 1` restarts item numbering by chapter. Custom chapter prefixes retain
+Pandoc text with explicit sequence resets. Unsupported templates and non-Arabic
+numbering retain their Pandoc result with a warning. Field results are cached
+at build time so the document has usable numbers before Word updates fields.
+
+With native numbering enabled, a bilingual caption's primary number uses the
+item's `SEQ` field and the English caption uses a `REF` to the same bookmark.
+Both captions therefore refer to one sequence item. Figure and table lists
+retain the primary title once. Rendering is split between the shared
+[`bilingual_captions.lua`](../pandoc/filters/shared/bilingual_captions.lua),
+[`native_crossrefs.lua`](../pandoc/filters/docx/native_crossrefs.lua), and the
+native DOCX post-processor under
+[`docx/`](../crates/papper-document/src/docx).
+
+## Table Attributes and Layouts
+
+Pandoc's DOCX writer does not preserve arbitrary table attributes. The
+[`docx_metadata.lua`](../pandoc/filters/docx/docx_metadata.lua) filter transports
+supported settings through hidden WordprocessingML markers. The native
+[`tables.rs`](../crates/papper-document/src/docx/tables.rs) implementation
+applies the attributes and removes the markers from the final document.
+
+The shared
+[`table_autofit.lua`](../pandoc/filters/shared/table_autofit.lua) filter runs
+before crossref creates equation and subfigure layout tables. It supplies
+defaults only to authored tables; post-processing does not supply a second
+default. HTML retains `data-autofit`, allowing `window` tables to use full
+width while other tables retain natural or authored widths.
+
+The shared
+[`merge_table_cells.lua`](../pandoc/filters/shared/merge_table_cells.lua)
+processes `!<!` before `!^!` and updates the AST before DOCX, HTML, and LaTeX
+writers run. A marker cell must contain only its marker.
+
+Pandoc writes a table's `custom-style` value as a Word style ID. The bundled
+borderless table style uses `TableNoBorder` for both its display name and ID
+to avoid ambiguity. `Table Text` is a separate paragraph style used inside
+cells; its definition and inheritance are preserved.
+
+The shared
+[`subfigure_layout_styles.lua`](../pandoc/filters/shared/subfigure_layout_styles.lua)
+marks tables inside subfigure groups, including nested tables, with
+`TableSubfigure`. HTML keeps `data-custom-style="TableSubfigure"` so subfigure
+layouts can remove ordinary table borders and cell padding.
+
+## Equations and Revision Markers
+
+[`equation_revision_attr.lua`](../pandoc/filters/docx/equation_revision_attr.lua)
+extracts `revision=true` before crossref handles equation attributes, preserving
+the equation label. DOCX metadata transports the revision state to the native
+post-processor, which colors the native Word equation. This coloring does not
+survive conversion to MathType OLE objects.
+
+DOCX equation layout is derived automatically using a three-column layout table
+with a separate text number. This keeps Word math and MathType equations
+centered while native numbering fields remain right-aligned. Copied, labeled
+equations in reviewer replies use the manuscript's number with a DOCX tab-stop
+layout instead.
+
+[`paragraph_custom_styles.lua`](../pandoc/filters/shared/paragraph_custom_styles.lua)
+recognizes `where` paragraphs after display equations or equation-layout tables
+and marks them with `Para Where`. HTML uses this marker to remove the usual
+first-line indent.
+
+## MathType Conversion and Preview Geometry
+
+Conversion orchestration and caches are managed by
+[`backend.rs`](../crates/papper-document/src/docx/mathtype/backend.rs).
+
+| Method | Artifact path |
+| --- | --- |
+| `rust` | LaTeX to `mathtype-rust` OLE/MTEF, plus LaTeX to SVG to `latex2wmf` WMF/JSON. |
+| `set-data` | Installed MathType's Windows TeX input OLE conversion. |
+| `rust-sdk` | `mathtype-rust` generates OLE/MTEF, then the prebuilt helper's `sdk-xform-ole` generates WMF/JSON. |
+| `auto` | Windows with MathType: try `set-data`, `rust-sdk`, then `rust`; otherwise use `rust`. |
+| `both` | Compare `rust` and `set-data` MTEF streams extracted from OLE, warn on differences, and use `set-data` output. |
+
+The `both` comparison excludes WMF previews and JSON metadata. Runtime
+conversion does not build the .NET helper; Windows wheels contain its
+executable. Paths that use the SDK require Windows, MathType registration, and
+the helper.
+
+RaTeX parses LaTeX directly into outlined glyphs and provides layout depth for
+Word baseline placement. It preserves inline versus display math style, so
+fractions, operators, and limits retain the corresponding layout. Typst uses
+the pinned MiTeX 0.2.7 converter and matching official MiTeX scope embedded in
+the executable, with separately configurable body and calligraphic fonts.
+The bundled defaults select the Typst preview renderer.
+
+Typst reads the labeled formula frame's descent before page composition loses
+child baselines, and expands the transparent canvas for overhanging glyph ink.
+Both renderers reject SVG features outside the formula vector subset rather
+than silently rasterizing unsupported features.
+
+Preview geometry starts with a `0.02em` glyph-overshoot safety margin and expands
+transparent canvas space until width and baseline-side extents align with
+Word's half-point grid. After Typst's adaptive WMF clipping protection, inline
+previews may receive additional bottom whitespace to restore baseline-grid
+alignment. This final step does not move, scale, or trim formula paths; display
+previews skip it.
+
+## SVG Resources and Metadata Transport
+
+DOCX SVG child-image embedding writes self-contained SVGs under
+`.pmt/cache/svg-embedded/`, embedding child resources as data URIs while keeping
+text and vector elements. Rasterization writes PNGs under
+`.pmt/cache/svg-png/`. Source Markdown and SVG files are not rewritten.
+Nested SVG children trigger parent rasterization because Word cannot render an
+SVG data URI nested inside an SVG. Global rasterization disables embedding.
+
+The filters are
+[`svg_embed_images.lua`](../pandoc/filters/docx/svg_embed_images.lua) and
+[`svg_to_png.lua`](../pandoc/filters/docx/svg_to_png.lua). Rasterization is
+provided by the native
+[`papper-svg`](../crates/papper-svg/src/main.rs) renderer using Rust `resvg`.
+
+Generated Pandoc-only metadata is written under `.pmt/work/`; source
+`style.yml` is preserved. Citation range formatting passes the top-level
+`citationNumberRangeDelimiter` to the filter through
+`PMT_CITATION_NUMBER_RANGE_DELIMITER` rather than adding it to Pandoc metadata.
+Language selection similarly removes `lang` from metadata passed to Pandoc;
+a temporary cleaned Markdown copy avoids localization warnings when the
+manuscript header contains `lang`.

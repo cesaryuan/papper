@@ -415,9 +415,11 @@ The output is scripted, reproducible, and version-controlled, but the source pro
 
 ## Documentation Map
 
-- [`template/.agents/manuscript-syntax.md`](template/.agents/manuscript-syntax.md): manuscript syntax, citations, cross-references, pseudocode, revision markup, and style metadata
+- `papper guide syntax`: manuscript YAML and Markdown syntax, citations, cross-references, figures, tables, and revision markup ([source guide](docs/manuscript-syntax.md))
+- `papper guide style`: project formatting, citation styles, DOCX options, and build settings ([source guide](docs/style-configuration.md))
 - [`template/manuscript.md`](template/manuscript.md): example manuscript content
 - [`AGENTS.md`](AGENTS.md): repository-specific guidance for coding agents
+- [`docs/MANUSCRIPT_RENDERING.md`](docs/MANUSCRIPT_RENDERING.md): rendering internals for Papper maintainers
 
 In generated projects, `style.yml` keeps Papper-owned build settings at the top
 level and places metadata sent to Pandoc under `pandocMetadata`. Manuscript YAML
@@ -762,7 +764,7 @@ therefore fails the warm-up instead of silently leaving future releases uncached
 
 ## Support
 
-- Review the syntax guide in [`template/.agents/manuscript-syntax.md`](template/.agents/manuscript-syntax.md)
+- Run `papper guide syntax` for the manuscript syntax guide and `papper guide style` for configuration guidance
 - Open an issue with a minimal reproducible example
 
 ### Typst equation font

@@ -321,9 +321,11 @@ Papper 关注的不只是“把 Markdown 转成 Word”，还包括那些常常�
 
 ## 文档导航
 
-- [`template/.agents/manuscript-syntax.md`](template/.agents/manuscript-syntax.md)：稿件语法、引用、交叉引用、伪代码、修订标记、样式元数据
+- `papper guide syntax`：稿件 YAML 与 Markdown 语法、引用、交叉引用、图片、表格和修订标记（[指南源文件](docs/manuscript-syntax.md)）
+- `papper guide style`：项目排版、引文样式、DOCX 选项和构建设置（[指南源文件](docs/style-configuration.md)）
 - [`template/manuscript.md`](template/manuscript.md)：示例稿件
 - [`AGENTS.md`](AGENTS.md)：仓库级 agent 指南
+- [`docs/MANUSCRIPT_RENDERING.md`](docs/MANUSCRIPT_RENDERING.md)：面向 Papper 维护者的渲染实现说明
 
 ## 什么时候特别适合用 Papper
 
@@ -447,5 +449,5 @@ Rust 缓存键包含源码和嵌入资源，避免只修改源码时一直恢复
 
 ## 支持
 
-- 先查看 [`template/.agents/manuscript-syntax.md`](template/.agents/manuscript-syntax.md)
+- 运行 `papper guide syntax` 查看稿件语法，运行 `papper guide style` 查看配置说明
 - 提 issue 时尽量附上最小可复现示例

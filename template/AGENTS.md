@@ -1,15 +1,8 @@
-This template converts Pandoc Markdown manuscripts to DOCX, with optional LaTeX source generation for advanced users.
-
-- Main file: `manuscript.md` — edit this to write the paper
-- Style file: `style.yml` — keep Papper build settings at the top level and Pandoc/cross-reference defaults under `pandocMetadata`
-- Images: place in `images/` directory
-- References: `.bib` file specified in YAML header
-
-For content syntax, formatting patterns, or writing fragments not covered in this file, consult `.agents/manuscript-syntax.md` first. For `style.yml` fields and style-related defaults, consult its `Style Metadata` section.
+For manuscript Markdown and YAML syntax, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`.
 
 ## Style Metadata
 
-If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxShowPageNumbers` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults such as `csl` and `subfigGrid` belong under `pandocMetadata`. The YAML header in `manuscript.md` overrides only `pandocMetadata`; it does not override Papper-owned settings. See the `Style Metadata` section in `.agents/manuscript-syntax.md` for details.
+If the user wants to change reusable style behavior, update `style.yml`. The YAML header in `manuscript.md` overrides only `pandocMetadata`; it does not override Papper-owned settings. Run `papper guide style` for details.
 
 ## Pandoc Markdown Syntax
 
@@ -43,9 +36,7 @@ this when a DOCX build actually starts MathType conversion.
 - For borderless DOCX tables, including aligned blocks of text, add
   `custom-style="TableNoBorder"` to the table caption attributes.
   For a layout without a visible caption, use `: {custom-style="TableNoBorder"}`.
-  The bundled Word style's display name and internal style ID are both
-  `TableNoBorder`.
-- For advanced DOCX table formatting (cell merging, metadata), see `.agents/manuscript-syntax.md`
+- For advanced DOCX table formatting (cell merging, metadata), run `papper guide syntax`.
 
 **Subfigures:** Prefer building multi-panel figure layouts as a single SVG that
 references the child image files with relative paths. Insert that SVG as one
@@ -56,8 +47,8 @@ the generated DOCX uses a self-contained SVG. Add `to-png=true` to an image only
 when that SVG must be rasterized; add `to-png-scale=2` on the same image when it
 needs a local PNG scale override. Use `docxConvertSvgToPng: true` only when all
 SVG images should be rasterized. Enable at most one global rasterization sizing
-control: `docxSvgToPngWidth`, `docxSvgToPngScale`, or `docxSvgToPngDpi`. See
-`.agents/manuscript-syntax.md` for a complete SVG-based example.
+control: `docxSvgToPngWidth`, `docxSvgToPngScale`, or `docxSvgToPngDpi`. Run
+`papper guide syntax` for a complete SVG-based example.
 
 Use the built-in `subfigGrid` syntax only when the manuscript needs separate
 child-figure cross-references such as `@fig:a` and `@fig:b` (requires
@@ -76,7 +67,7 @@ Main caption ( 2x2 grid of subfigures, change line by adding a blank line betwee
 
 **Pseudocode/Algorithms:**
 ```markdown
-Write pseudocode as a one-column pipe table. Use bold control words such as `**for**` and `**if**`. This template does not currently support cross references.
+Write pseudocode as a one-column pipe table. Use bold control words such as `**for**` and `**if**`. Use a `tbl:` label for table cross-references; there is no separate algorithm numbering.
 
 | **Algorithm: Library borrowing workflow** |
 |---|
@@ -92,7 +83,7 @@ Write pseudocode as a one-column pipe table. Use bold control words such as `**f
 
 1. Visit [Zotero Style Repository](https://www.zotero.org/styles) and find a CSL file for user required target journal or preferred citation style.
 2. Download CSL file and save to `pandoc/` directory
-3. **Update `style.yml`** (see the `Style Metadata` section in `.agents/manuscript-syntax.md`):
+3. **Update `style.yml`** (run `papper guide style` for configuration details):
    ```yaml
    pandocMetadata:
      csl: pandoc/csl-style-downloaded.csl
@@ -127,7 +118,7 @@ Write pseudocode as a one-column pipe table. Use bold control words such as `**f
 
 ## Reminders
 
-- Image paths relative to `manuscript.md` location
+- Image paths relative to `.md` location
 - Citation keys must match `.bib` entries exactly
 - Always preserve technical content when improving structure and flow
 - When in doubt, follow conventions of the user's target journal

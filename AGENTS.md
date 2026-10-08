@@ -5,6 +5,16 @@ This repository is the `papper` tool, not a manuscript project.
 - Template content for generated paper projects lives in `template/`.
 - Bundled build defaults live in `defaults/`; project override templates remain in `template/`.
 
+### 用户文档职责与同步更新
+
+- `docs/manuscript-syntax.md` 和 `docs/style-configuration.md` 是提供给 Papper 用户及其 AI Agent 的使用指南，编译时嵌入 CLI，分别通过 `papper guide syntax` 和 `papper guide style` 获取，不随模板复制到生成的稿件项目。
+- `manuscript-syntax.md` 说明支持的稿件 YAML 与 Markdown 语法、用途、可直接使用的示例、输出效果及使用限制；`style-configuration.md` 说明 `style.yml` 配置项的用途、写法、默认行为、优先级和适用范围。
+- 不要把开发过程记录或内部实现说明写入这两份用户指南，包括滤镜处理顺序、内部 AST/XML 标记、缓存结构、源码位置、依赖实现、内部编号/书签算法和渲染计算细节。用户完成写稿或配置操作所必需的路径、选项和限制可以保留，但应以用户操作和可见结果解释。
+- 有维护价值的实现说明放到 `docs/MANUSCRIPT_RENDERING.md`；其他开发说明放到 `docs/` 下职责合适的文档中。
+- 新增、修改或删除稿件语法或其用户可见行为时，必须同步更新 `docs/manuscript-syntax.md`，说明写法、作用、示例和支持范围。新增特殊 Markdown 语法还须遵守下方的快照案例要求。
+- 新增、修改或删除 style 配置项，或改变其默认行为、优先级、适用范围时，必须同步更新 `docs/style-configuration.md`。语法与配置相互关联的变更必须同时更新两份指南。
+- 文档路径、章节或职责变化时，同步更新 `template/AGENTS.md`、`template/CLAUDE.md` 和中英文 README 中受影响的入口与链接，避免留下过时指引。
+
 ### 测试规范
 
 - **测试目标**：独立验证稳定、用户可见且有实际回归风险的行为，例如：

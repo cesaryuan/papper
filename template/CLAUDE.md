@@ -5,7 +5,7 @@ This template converts Pandoc Markdown manuscripts to DOCX, with optional LaTeX 
 - Images: place in `images/` directory
 - References: `.bib` file specified in YAML header
 
-For any syntax, formatting pattern, or writing fragment not covered in this file, consult `README.md` first and follow its more detailed guidance.
+For manuscript syntax and writing patterns, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`.
 
 ## Style Metadata
 
@@ -31,7 +31,7 @@ If the user wants to change reusable style behavior, update `style.yml`. Papper-
 ```
 - Bold only for highlighting best results in comparison tables
 - Alignment: `:--` left, `:--:` center, `--:` right
-- For advanced DOCX table formatting (cell merging, metadata), see README.md
+- For advanced DOCX table formatting (cell merging, metadata), run `papper guide syntax`.
 
 **Subfigures** (requires `pandocMetadata.subfigGrid: true` in `style.yml` or `subfigGrid: true` in manuscript YAML):
 ```markdown
@@ -47,7 +47,7 @@ Main caption ( 2x2 grid of subfigures, change line by adding a blank line betwee
 
 **Pseudocode/Algorithms:**
 ```markdown
-Write pseudocode as a one-column pipe table. Use bold control words such as `**for**` and `**if**`. This template does not currently support cross references.
+Write pseudocode as a one-column pipe table. Use bold control words such as `**for**` and `**if**`. Use a `tbl:` label for table cross-references; there is no separate algorithm numbering.
 
 | **Algorithm: Library borrowing workflow** |
 |---|

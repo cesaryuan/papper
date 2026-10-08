@@ -27,6 +27,8 @@ pub struct Cli {
 /// Keep product command names stable while hiding internal service entry points.
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
+    /// Print Papper's supported manuscript syntax and style configuration guide.
+    Guide(GuideArgs),
     /// Initialize a manuscript project from the packaged template.
     Init(InitArgs),
     /// Validate the native engine or prepare managed tools.
@@ -49,6 +51,26 @@ pub enum CliCommand {
     NativePdf(PdfArgs),
     #[command(name = "__update", hide = true)]
     NativeUpdate,
+}
+
+/// Select the authoring guide content written to standard output.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum GuideSection {
+    /// Include both Markdown syntax and style configuration.
+    #[default]
+    All,
+    /// Include Markdown manuscript syntax only.
+    Syntax,
+    /// Include reusable style configuration only.
+    Style,
+}
+
+/// Choose which authoring guide to print.
+#[derive(Debug, Args)]
+pub struct GuideArgs {
+    /// Guide section to print; defaults to both guides.
+    #[arg(value_enum, default_value = "all")]
+    pub section: GuideSection,
 }
 
 /// Common logging option with no ambient environment-variable input.
