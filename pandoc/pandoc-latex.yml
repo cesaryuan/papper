@@ -10,6 +10,7 @@ number-sections: true
 
 # Filters are applied in order
 filters:
+  - ${.}/filters/shared/bracketed_lists.lua
   - ${.}/filters/shared/normalize_math_roman.lua
   - pandoc-crossref  # Must come before citeproc for cross-references
   - ${.}/filters/shared/normalize_chinese_numbering.lua

@@ -17,6 +17,7 @@ math-method:
 # Filters are applied in order so cross-references and citations are resolved
 # before Pandoc writes the standalone HTML document.
 filters:
+  - ${.}/filters/shared/bracketed_lists.lua
   - ${.}/filters/shared/normalize_math_roman.lua
   - ${.}/filters/shared/bilingual_captions.lua
   - ${.}/filters/shared/table_autofit.lua

@@ -3,6 +3,7 @@
 mod authors;
 mod captions;
 mod formatting;
+mod lists;
 mod mathtype;
 mod native;
 mod package;
@@ -176,6 +177,7 @@ pub fn postprocess_docx(
     if options.native_crossrefs {
         native::finalize(&mut package, &mut document, &mut styles)?;
     }
+    lists::bracketed(&mut package, &mut document, &mut styles)?;
     if !options.skip_author_info {
         authors::insert(
             &mut package,

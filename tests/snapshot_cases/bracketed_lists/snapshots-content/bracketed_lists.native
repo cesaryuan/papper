@@ -1,0 +1,46 @@
+[ Div
+    ( "" , [ "pmt-bracketed-list" ] , [] )
+    [ OrderedList
+        ( 1 , Decimal , Period )
+        [ [ Plain [ Str "\31532\19968\39033" ] ]
+        , [ Plain [ Strong [ Str "\31532\20108\39033" ] ] ]
+        , [ Plain
+              [ Link
+                  ( "" , [] , [] )
+                  [ Str "\38142\25509" ]
+                  ( "https://example.com" , "" )
+              ]
+          ]
+        ]
+    ]
+, Para [ Str "\20174\22235\24320\22987\65306" ]
+, Div
+    ( "" , [ "pmt-bracketed-list" ] , [] )
+    [ OrderedList
+        ( 4 , Decimal , Period )
+        [ [ Plain [ Str "\31532\22235\39033" ] ]
+        , [ Plain [ Str "\31532\20116\39033" ] ]
+        ]
+    ]
+, Para
+    [ Str "\26222\36890\24341\29992"
+    , Space
+    , Str "[1]"
+    , Space
+    , Str "\19981\36716\25442\12290"
+    ]
+, Para
+    [ Str "[7]"
+    , Space
+    , Str "\21333\39033\32534\21495\20445\30041\12290"
+    ]
+, Para
+    [ Str "[8]"
+    , Space
+    , Str "\19981\36830\32493\32534\21495\31532\19968\39033"
+    , LineBreak
+    , Str "[10]"
+    , Space
+    , Str "\19981\36830\32493\32534\21495\31532\20108\39033"
+    ]
+]
