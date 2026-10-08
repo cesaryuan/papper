@@ -14,12 +14,6 @@ If the user wants to change reusable style behavior, update `style.yml`. The YAM
 - Sections: `# Title {#sec:label}` → `[@sec:label]`
 - Citations: `[@key]` (parenthetical), `[@key1; @key2]` (multiple)
 
-When writing formulas, do not wrap style macros inside `\hat{...}` such as
-`\hat{\mathbf{C}}` or `\hat{\mathcal{C}}`. Write the hat inside the style macro
-instead, for example `\mathbf{\hat{C}}` or `\mathcal{\hat{C}}`, because
-MathType-exported PDFs may otherwise hide the hat. The build only warns about
-this when a DOCX build actually starts MathType conversion.
-
 **Tables:** Please prefer to use pipe_tables which is identical to PHP Markdown Extra tables.
 
 ```markdown
@@ -38,32 +32,7 @@ this when a DOCX build actually starts MathType conversion.
   For a layout without a visible caption, use `: {custom-style="TableNoBorder"}`.
 - For advanced DOCX table formatting (cell merging, metadata), run `papper guide syntax`.
 
-**Subfigures:** Prefer building multi-panel figure layouts as a single SVG that
-references the child image files with relative paths. Insert that SVG as one
-normal figure in Markdown. This keeps spacing, labels, and panel alignment under
-explicit control and avoids Word table-layout drift. For DOCX builds with linked
-child images inside one SVG, keep `docxEmbedSvgImages: true` in `style.yml` so
-the generated DOCX uses a self-contained SVG. Add `to-png=true` to an image only
-when that SVG must be rasterized; add `to-png-scale=2` on the same image when it
-needs a local PNG scale override. Use `docxConvertSvgToPng: true` only when all
-SVG images should be rasterized. Enable at most one global rasterization sizing
-control: `docxSvgToPngWidth`, `docxSvgToPngScale`, or `docxSvgToPngDpi`. Run
-`papper guide syntax` for a complete SVG-based example.
-
-Use the built-in `subfigGrid` syntax only when the manuscript needs separate
-child-figure cross-references such as `@fig:a` and `@fig:b` (requires
-`pandocMetadata.subfigGrid: true` in `style.yml` or `subfigGrid: true` in manuscript YAML):
-```markdown
-<div id="fig:results">
-![caption of a](a.png){#fig:a width=50%} # Only percent allowed in subfigure width
-![caption of b](b.png){#fig:b width=50%}
-
-![caption of c](c.png){#fig:c width=50%}
-![caption of d](d.png){#fig:d width=50%}
-<!-- here should be a blank line -->
-Main caption ( 2x2 grid of subfigures, change line by adding a blank line between images).
-</div>
-```
+**Subfigures:** See `papper guide syntax` for details on handling multi-panel figures and subfigure cross-references.
 
 **Pseudocode/Algorithms:**
 ```markdown
@@ -82,7 +51,7 @@ Write pseudocode as a one-column pipe table. Use bold control words such as `**f
 ## If User want to Change Citation Styles
 
 1. Visit [Zotero Style Repository](https://www.zotero.org/styles) and find a CSL file for user required target journal or preferred citation style.
-2. Download CSL file and save to `pandoc/` directory
+2. Download CSL file and save to some location, e.g., `pandoc/csl-style-downloaded.csl`
 3. **Update `style.yml`** (run `papper guide style` for configuration details):
    ```yaml
    pandocMetadata:

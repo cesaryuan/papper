@@ -14,6 +14,7 @@ This repository is the `papper` tool, not a manuscript project.
 - 新增、修改或删除稿件语法或其用户可见行为时，必须同步更新 `docs/manuscript-syntax.md`，说明写法、作用、示例和支持范围。新增特殊 Markdown 语法还须遵守下方的快照案例要求。
 - 新增、修改或删除 style 配置项，或改变其默认行为、优先级、适用范围时，必须同步更新 `docs/style-configuration.md`。语法与配置相互关联的变更必须同时更新两份指南。
 - 文档路径、章节或职责变化时，同步更新 `template/AGENTS.md`、`template/CLAUDE.md` 和中英文 README 中受影响的入口与链接，避免留下过时指引。
+- 你添加的每个 filter 都要在前面清楚的注释其所干的事情，尽量举例
 
 ### 测试规范
 
