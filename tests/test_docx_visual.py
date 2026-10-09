@@ -41,7 +41,7 @@ def test_docx_render_matches_visual_snapshot(
         copy_case(CASE_ROOT / "reply", project)
         output = project / "rendered.docx"
         result = subprocess.run(
-            [*papper_command(), "build-reply", str(project / "reply.md"),
+            [*papper_command(), "build", "docx", str(project / "reply.md"),
              "--manuscript-line-source", str(project / "manuscript.pdf"), "-o", str(output)],
             cwd=project, capture_output=True, text=True, encoding="utf-8", timeout=60,
         )

@@ -344,3 +344,64 @@ def test_native_reply_literal_attribute_example_without_manuscript(reply_project
     project.run("reply.md", "--reply-manuscript", "absent.md", "-o", "native.txt")
     assert "`{#fig:literal}`" in (project.directory / "native.txt").read_text(encoding="utf-8")
     assert "1\\.example" in (project.directory / "native.txt").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("target", ["html", "docx"])
+def test_build_detects_reply_header_and_preserves_selected_manuscript_numbers(
+    reply_project: ReplyProject, target: str,
+) -> None:
+    """A nested reply uses its YAML manuscript and explicit style, including copied equation numbers."""
+    from docx import Document
+    from lxml import html
+
+    project = reply_project
+    folder = project.directory / "responses"
+    folder.mkdir()
+    manuscript = folder / "selected paper.md"
+    manuscript.write_text("$$ a=1 $$ {#eq:first}\n\n$$ b=2 $$ {#eq:second}\n\n$$ x+y $$ {#eq:sum}\n", encoding="utf-8")
+    (folder / "style.yml").write_text("reply:\n  pandocMetadata:\n    title: Wrong local title\n", encoding="utf-8")
+    (project.directory / "selected.yml").write_text(
+        "mathtype: true\nreply:\n  pandocMetadata:\n    title: Selected reply title\n", encoding="utf-8",
+    )
+    reply = folder / "answer.md"
+    reply.write_bytes(("\ufeff---\r\nreply: selected paper.md\r\n---\r\n\r\n"
+                       '::: {custom-style="Reply to Reviewers"}\r\n'
+                       "We revised Equation @eq:sum.\r\n\r\n$$ x+y $$ {#eq:sum}\r\n:::\r\n").encode("utf-8"))
+    output = project.directory / f"answer.{target}"
+    command = [str(project.executable), "build", target, "responses/answer.md", "-o", str(output),
+               "--style-file", "selected.yml"]
+    if target == "docx":
+        command.append("--no-mathtype")
+    result = subprocess.run(command, cwd=project.directory, env=project.environment, capture_output=True,
+                            text=True, encoding="utf-8", timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    if target == "docx":
+        paragraphs = [paragraph.text for paragraph in Document(output).paragraphs]
+        assert "Selected reply title" in paragraphs and "Wrong local title" not in paragraphs
+        assert "We revised Equation 3." in paragraphs
+        assert any("(3)" in paragraph for paragraph in paragraphs)
+        with ZipFile(output) as archive:
+            assert b"OLEObject" not in archive.read("word/document.xml")
+    else:
+        rendered = html.fromstring(output.read_text(encoding="utf-8"))
+        assert "Selected reply title" in rendered.text_content() and "Wrong local title" not in rendered.text_content()
+        assert "We revised Equation 3." in rendered.text_content()
+        assert "\\tag{3}" in rendered.xpath('string(//span[contains(@class,"math")])')
+
+
+@pytest.mark.parametrize("target", ["html", "docx"])
+@pytest.mark.parametrize("selector", ["null", "false", "[]", '""', "missing.md"])
+def test_build_invalid_reply_header_preserves_existing_output(
+    reply_project: ReplyProject, target: str, selector: str,
+) -> None:
+    """Invalid reply selectors fail before publishing a replacement submission."""
+    project = reply_project
+    (project.directory / "reply.md").write_text(f"---\nreply: {selector}\n---\n\nResponse.\n", encoding="utf-8")
+    output = project.directory / f"submission.{target}"
+    output.write_bytes(b"Keep submitted version")
+    result = subprocess.run([str(project.executable), "build", target, "reply.md", "-o", str(output)],
+                            cwd=project.directory, env=project.environment, capture_output=True,
+                            text=True, encoding="utf-8", timeout=90)
+    assert result.returncode != 0
+    assert "reply" in result.stderr.lower()
+    assert output.read_bytes() == b"Keep submitted version"

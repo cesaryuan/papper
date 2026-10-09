@@ -1,3 +1,7 @@
+---
+reply: manuscript-cn.md
+---
+
 # 对审稿意见的回复
 
 ::: {custom-style="Reply Header"}

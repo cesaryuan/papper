@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use papper_core::metadata::{
     EffectiveMetadata, MetadataOptions, load_effective_metadata_text, markdown_without_yaml_header,
-    write_pandoc_metadata,
+    reply_manuscript_text, write_pandoc_metadata,
 };
 use papper_core::paths::{
     atomic_write, canonical_project, display_path, pandoc_path, project_work_dir, write_if_changed,
@@ -37,6 +37,7 @@ pub struct HtmlBuildRequest {
     pub output: PathBuf,
     pub style_file: Option<PathBuf>,
     pub resource_path: Option<String>,
+    pub manuscript_line_source: Option<PathBuf>,
     pub resources: ResourcePaths,
 }
 
@@ -51,6 +52,8 @@ pub struct MetadataSources {
     pub project_name: String,
     #[serde(default)]
     pub resource_path_explicit: bool,
+    #[serde(default)]
+    pub manuscript_line_source: Option<PathBuf>,
 }
 
 /// Preserve automatic style discovery when older service configs omit its name.
@@ -184,6 +187,7 @@ fn prepare(
                 .collect(),
             bundled_style_dir: resources.resource("defaults"),
             allow_missing_header: true,
+            reply: reply_manuscript_text(text, source)?.is_some(),
             resource_roots: unique_paths(
                 std::iter::once(source.parent().unwrap_or(&config.project_dir).to_path_buf())
                     .chain(std::iter::once(config.project_dir.clone()))
@@ -393,6 +397,23 @@ impl ConversionState {
             prepared
         };
         let asset_started = Instant::now();
+        // Reply output depends on another manuscript and its rendered line source.
+        // Resolve those current inputs on every request rather than reuse manuscript-only caches.
+        if reply_manuscript_text(&text, &source)?.is_some() {
+            let html = render_reply_html(
+                &self.config,
+                &self.resources,
+                &source,
+                &text,
+                &prepared,
+                self.work.path(),
+                mode == "preview",
+            )?;
+            return Ok(
+                json!({"path":path,"output":html,"cache_hit":false,"citeproc_cache_hit":false,"mode":mode,
+                "timings":{"total":started.elapsed().as_secs_f64()*1000.0}}),
+            );
+        }
         let fingerprint = self.assets.fingerprint(
             &prepared.effective.pandoc_metadata,
             &source,
@@ -530,6 +551,13 @@ fn build_config(
             .unwrap_or_else(default_style_file),
         project_name,
         resource_path_explicit: request.resource_path.is_some(),
+        manuscript_line_source: request.manuscript_line_source.as_ref().map(|path| {
+            if path.is_absolute() {
+                path.clone()
+            } else {
+                request.project.join(path)
+            }
+        }),
         ..MetadataSources::default()
     };
     let mut config = ServerConfig {
@@ -611,6 +639,19 @@ pub fn build_html(
     }
     let temporary = tempfile::Builder::new().prefix("papper-html-").tempdir()?;
     let text = normalize_text(&std::fs::read_to_string(&request.source)?);
+    if reply_manuscript_text(&text, &request.source)?.is_some() {
+        let prepared = prepare(&config, &request.resources, &request.source, &text, &work)?;
+        let html = render_reply_html(
+            &config,
+            &request.resources,
+            &request.source,
+            &text,
+            &prepared,
+            temporary.path(),
+            false,
+        )?;
+        return atomic_write(&request.output, html.as_bytes());
+    }
     let input = temporary.path().join("input.md");
     atomic_write(&input, markdown_without_yaml_header(&text).as_bytes())?;
     let output = temporary.path().join("output.html");
@@ -648,6 +689,85 @@ pub fn build_html(
         &effective.pmt_settings,
     )?;
     atomic_write(&request.output, html.as_bytes())
+}
+
+/// Render resolved reply prose with HTML defaults that preserve manuscript numbers.
+fn render_reply_html(
+    config: &ServerConfig,
+    resources: &ResourcePaths,
+    source: &Path,
+    text: &str,
+    prepared: &PreparedMetadata,
+    work: &Path,
+    preview: bool,
+) -> Result<String> {
+    let manuscript = reply_manuscript_text(text, source)?.context("Reply header is missing")?;
+    anyhow::ensure!(
+        manuscript.is_file(),
+        "Reply manuscript not found: {}",
+        manuscript.display()
+    );
+    eprintln!("[REPLY] Using manuscript: {}", manuscript.display());
+    let engine = PandocCli::new(discover_engine(&resources.root)?);
+    let resolver = papper_document::reply::ReplyResolver {
+        manuscript: &manuscript,
+        metadata: &prepared.metadata_file,
+        work,
+        effective: &prepared.effective,
+        from_format: "markdown",
+        engine: &engine,
+        environment: &prepared.environment,
+    };
+    let numbered = papper_document::reply::resolve_reply_markdown(
+        markdown_without_yaml_header(text),
+        &resolver,
+        papper_document::reply::ReplyFormat::Html,
+    )?;
+    let line_source = config
+        .metadata_sources
+        .as_ref()
+        .and_then(|context| context.manuscript_line_source.as_deref())
+        .unwrap_or(&manuscript);
+    let resolved = papper_document::reply::resolve_line_regexes(&numbered, line_source, work)?;
+    let input = work.join("reply.md");
+    let output = work.join("reply.html");
+    atomic_write(&input, resolved.as_bytes())?;
+    let roots = if config
+        .metadata_sources
+        .as_ref()
+        .is_some_and(|context| context.resource_path_explicit)
+    {
+        config.resource_paths.clone()
+    } else {
+        unique_paths(
+            std::iter::once(source.parent().unwrap().to_path_buf())
+                .chain(config.resource_paths.clone()),
+        )
+    };
+    let resource_path = roots
+        .iter()
+        .map(|path| pandoc_path(path))
+        .collect::<Vec<_>>()
+        .join(if cfg!(windows) { ";" } else { ":" });
+    let args: Vec<OsString> = vec![
+        "--defaults".into(),
+        papper_document::reply::reply_defaults(resources, work, "html")?.into_os_string(),
+        "--metadata-file".into(),
+        prepared.metadata_file.as_os_str().to_owned(),
+        "--resource-path".into(),
+        resource_path.into(),
+        "-o".into(),
+        output.as_os_str().to_owned(),
+        input.into_os_string(),
+    ];
+    engine.run(&args, &config.project_dir, &prepared.environment)?;
+    postprocess_html_text_with_style_settings(
+        &std::fs::read_to_string(output)?,
+        &Value::Object(prepared.effective.pandoc_metadata.clone()),
+        preview,
+        &prepared.reference_styles_xml,
+        &prepared.effective.pmt_settings,
+    )
 }
 
 /// Format IPv4, hostname or bracketed IPv6 HTTP endpoints.

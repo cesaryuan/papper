@@ -446,6 +446,33 @@ pub fn parse_yaml_header_text(text: &str, source: &Path) -> Result<Map<String, V
         .with_context(|| format!("YAML front matter must be a mapping: {}", source.display()))
 }
 
+/// Identify replies only from their own header, resolving paths beside the reply.
+pub fn reply_manuscript_text(text: &str, source: &Path) -> Result<Option<PathBuf>> {
+    let normalized = text.trim_start_matches('\u{feff}').replace("\r\n", "\n");
+    if !header_pattern().is_match(&normalized) {
+        return Ok(None);
+    }
+    let header = parse_yaml_header_text(&normalized, source)?;
+    let Some(value) = header.get("reply") else {
+        return Ok(None);
+    };
+    let path = value
+        .as_str()
+        .filter(|path| !path.trim().is_empty())
+        .with_context(|| {
+            format!(
+                "YAML `reply` must be a non-empty manuscript path: {}",
+                source.display()
+            )
+        })?;
+    let path = PathBuf::from(path);
+    Ok(Some(if path.is_absolute() {
+        path
+    } else {
+        source.parent().unwrap_or(Path::new(".")).join(path)
+    }))
+}
+
 /// Parse front matter from an on-disk manuscript using its full source identity.
 pub fn parse_yaml_header(path: impl AsRef<Path>) -> Result<Map<String, Value>> {
     let path = path.as_ref();
@@ -1087,6 +1114,9 @@ pub fn load_effective_metadata_text(
             source.display()
         )
     };
+    // The reply path selects build behavior and must not become a Word property
+    // or Pandoc template variable; recognition reads the original header separately.
+    manuscript.remove("reply");
     if manuscript
         .remove("citation-number-range-delimiter")
         .is_some()

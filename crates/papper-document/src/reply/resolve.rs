@@ -11,6 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::path::Path;
 
+use super::ReplyFormat;
+
 const LABEL: &str = r"[A-Za-z0-9][A-Za-z0-9_:\-]*(?:\.[A-Za-z0-9_:\-]+)*";
 const REF_SENTINEL: &str = "PANDOC_REPLY_REF_PROBE";
 const CITE_SENTINEL: &str = "PANDOC_REPLY_CITE_PROBE";
@@ -334,9 +336,10 @@ fn replace_equations(
     text: &str,
     references: &BTreeMap<String, String>,
     settings: &PmtSettings,
+    format: ReplyFormat,
 ) -> Result<String> {
     let (center, right) = if settings.fields().docx_page_margins.is_some() {
-        papper_document::docx::equation_tab_stops(settings)?
+        crate::docx::equation_tab_stops(settings)?
     } else {
         (4888, 9746)
     };
@@ -355,6 +358,11 @@ fn replace_equations(
                 format!("({short})")
             };
             let math = pattern(r"[ \t]*\r?\n[ \t]*").replace_all(capture[1].trim(), " ");
+            if format == ReplyFormat::Html {
+                // A bare `(2)` paragraph is a Markdown list marker; keep the
+                // manuscript label inside the displayed formula instead.
+                return format!("$$ {math} \\tag{{{}}} $$", number.trim_matches(['(', ')']));
+            }
             format!("`{prefix}`{{=openxml}}${math}$`<w:r><w:tab /></w:r>`{{=openxml}}{number}")
         })
         .into_owned())
@@ -396,7 +404,7 @@ fn replace_citations(
 pub fn resolve_reply_markdown(
     text: &str,
     resolver: &ReplyResolver<'_>,
-    format_equations: bool,
+    format: ReplyFormat,
 ) -> Result<String> {
     let mut labels: BTreeSet<String> = pattern(&format!(r"@((?:sec|fig|tbl|eq):{LABEL})"))
         .captures_iter(text)
@@ -407,7 +415,7 @@ pub fn resolve_reply_markdown(
             labels.insert(capture[4].into());
         }
     }
-    if format_equations {
+    if format != ReplyFormat::Text {
         for capture in equation_pattern().captures_iter(text).flatten() {
             labels.insert(capture[2].into());
         }
@@ -444,8 +452,8 @@ pub fn resolve_reply_markdown(
                 .map(|display| (cluster.clone(), display.clone()))
         })
         .collect();
-    let resolved = if format_equations {
-        replace_equations(text, &references, &resolver.effective.pmt_settings)?
+    let resolved = if format != ReplyFormat::Text {
+        replace_equations(text, &references, &resolver.effective.pmt_settings, format)?
     } else {
         text.into()
     };

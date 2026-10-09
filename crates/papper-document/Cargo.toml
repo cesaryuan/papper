@@ -14,6 +14,14 @@ html-escape.workspace = true
 zip.workspace = true
 papper-core.workspace = true
 papper-platform.workspace = true
+papper-engine.workspace = true
+serde_yaml.workspace = true
+fancy-regex.workspace = true
+# Reply line lookup uses native PDF text extraction without rendering or OCR.
+pdf_oxide = { version = "=0.3.78", default-features = false }
 sha2.workspace = true
 tempfile.workspace = true
 encoding_rs = "0.8"
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true

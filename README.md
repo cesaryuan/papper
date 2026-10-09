@@ -16,7 +16,7 @@ start a Python interpreter.
 Hero image idea for the README:
 - Use a wide 3-panel workflow graphic instead of a logo-only banner.
 - Left panel: a clean Markdown manuscript in an editor, with citations, cross-references, and a short AI chat prompt visible.
-- Middle panel: a terminal running `papper build docx` and `papper build-reply`.
+- Middle panel: a terminal running `papper build docx` and `papper build docx reply.md`.
 - Right panel: a polished Word manuscript page plus a reviewer-reply DOCX page.
 - Add 3 short callouts on top of the image: "AI writes Markdown well", "Papper turns it into DOCX", "Journal-ready output".
 - The most eye-catching version will show the same content flowing from raw Markdown to polished Word, not abstract icons.
@@ -43,7 +43,7 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 - **AI-friendly authoring**: Markdown is easier for LLMs to generate and easier for humans to review in Git.
 - **One-command project bootstrap**: `papper init` creates a reusable paper workspace with manuscript files, style metadata, references, and agent guidance.
 - **Submission-oriented post-processing**: Papper applies format-specific cleanup and formatting after Pandoc runs.
-- **Reviewer reply support**: build response letters as DOCX or TXT, while resolving manuscript references and citations.
+- **Reviewer reply support**: add `reply: manuscript.md` to the YAML header and build response letters with `build html/docx`, resolving manuscript references and citations.
 - **Bundled Pandoc engine**: one native binary provides the Pandoc CLI, embedded crossref, and the persistent HTML worker; platform wheels need no separate Pandoc downloads.
 - **Optional HTML, LaTeX, and JSON output**: keep a Markdown-centered workflow without giving up other export targets.
 
@@ -54,7 +54,7 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 - Project-local tool setup with `papper setup`
 - DOCX, LaTeX, and JSON builds with `papper build`
 - DOCX-to-Markdown manuscript import with `papper convert`
-- Reviewer reply builds with `papper build-reply`
+- Reviewer reply builds with `papper build docx reply.md`
 - Cross-references for figures, tables, equations, and sections
 - CSL-based citations
 - Reference DOCX support for Word styling
@@ -360,8 +360,9 @@ papper build html -o build/paper.html
 # Pass a raw Pandoc resource path value through unchanged
 papper build html --resource-path 'assets;shared-assets'
 
-# Build a reviewer reply
-papper build-reply reply.md --reply-manuscript manuscript.md -o output/docx/reply.docx
+# Build a reviewer reply whose YAML header contains reply: manuscript.md
+papper build docx reply.md -o output/docx/reply.docx
+papper build html reply.md
 ```
 
 HTML builds use the shared Pandoc filters for Chinese nested numbering and
@@ -535,7 +536,7 @@ papper build docx
 papper build html
 papper build latex
 papper build json
-papper build-reply reply.md -o output/docx/reply.docx
+papper build docx reply.md -o output/docx/reply.docx
 papper clean
 ```
 

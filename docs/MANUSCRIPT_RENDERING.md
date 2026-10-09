@@ -207,3 +207,17 @@ Generated Pandoc-only metadata is written under `.pmt/work/`; source
 Language selection similarly removes `lang` from metadata passed to Pandoc;
 a temporary cleaned Markdown copy avoids localization warnings when the
 manuscript header contains `lang`.
+
+## Automatic Reply Builds
+
+HTML/DOCX builds recognize only the input header `reply` path. Paths are resolved
+beside the reply, and the selector is excluded from transported Pandoc metadata.
+Shared reply resolution and PDF line lookup live in `papper-document::reply`.
+DOCX output applies reply styling and disables manuscript-native bookmarks.
+HTML uses the same defaults with crossref/citeproc numbering passes omitted;
+copied equations retain their source number through a display-math tag.
+
+Persistent HTML requests resolve replies against current manuscript and line-source
+contents on every request, bypassing the manuscript-only output cache. This also
+supports editor buffers that add or remove the reply header without restarting
+the server. `build-reply` remains hidden for compatibility and TXT exports.

@@ -140,6 +140,24 @@ def test_native_service_restores_cached_header_after_another_header_build(native
     assert raw == output.read_bytes()
 
 
+def test_native_service_detects_reply_buffers_and_refreshes_manuscript_numbers(native_service_factory) -> None:
+    """Unsaved reply headers and changes to their manuscript must affect warm HTML output."""
+    service = native_service_factory()
+    project = service.project
+    manuscript = project.directory / "original.md"
+    manuscript.write_text("# First\n\n# Selected {#sec:chosen}\n", encoding="utf-8")
+    reply = "---\nreply: original.md\n---\n\nWe revised @sec:chosen.\n"
+    first = service.convert(text=reply)
+    assert "We revised Section 2." in first["output"]
+    manuscript.write_text("# Leading\n\n" + manuscript.read_text(encoding="utf-8"), encoding="utf-8")
+    updated = service.convert(text=reply)
+    assert "We revised Section 3." in updated["output"]
+    ordinary = service.convert(text="# Reply\n\nreply: missing.md\n\n# Local {#sec:chosen}\n\nSee @sec:chosen.\n")
+    visible = " ".join(html_parser.fromstring(ordinary["output"]).text_content().split())
+    assert "See Section 2." in visible
+    assert "reply: missing.md" in ordinary["output"]
+
+
 def test_native_service_updates_used_custom_styles_and_preserves_table_text_overrides(
     native_service_factory,
 ) -> None:

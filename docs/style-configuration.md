@@ -18,7 +18,9 @@ cross-reference labels and prefixes, numbering, and subfigure layout.
 The YAML header in `manuscript.md` is manuscript/Pandoc metadata. It recursively
 overrides `style.yml:pandocMetadata`, but it does not override Papper-owned top-level
 settings. The optional `reply:` section can override both Papper settings and its own
-`reply.pandocMetadata` for `papper build-reply`.
+`reply.pandocMetadata` when `papper build html/docx` detects a `reply` path in
+the input Markdown header. The Markdown `reply` field is a manuscript path;
+the style `reply` section contains formatting overrides.
 
 Without an explicit style file, Papper loads the project-root `style.yml`, then
 overlays a `style.yml` beside the input Markdown if it is in a different

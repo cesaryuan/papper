@@ -502,7 +502,7 @@ pub fn run(wheel: &Path) -> Result<()> {
     );
     std::fs::write(
         installed.project.join("reply.md"),
-        "# Response\n\nSee @eq:sum and @tbl:values [@packaged].\n",
+        "---\nreply: manuscript.md\n---\n\n# Response\n\nSee @eq:sum and @tbl:values [@packaged].\n",
     )?;
     installed.command(&["build-reply", "reply.md", "-o", "reply.txt"])?;
     let reply = std::fs::read_to_string(installed.project.join("reply.txt"))?;
@@ -510,7 +510,7 @@ pub fn run(wheel: &Path) -> Result<()> {
         !reply.contains("@eq:sum") && reply.contains('1'),
         "Installed reply omitted manuscript numbering"
     );
-    installed.command(&["build-reply", "reply.md"])?;
+    installed.command(&["build", "docx", "reply.md"])?;
     ensure!(
         zip_part(
             &installed.project.join("output/docx/reply.docx"),

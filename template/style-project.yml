@@ -74,7 +74,7 @@ tableAutofit: window
 #       before: 0pt
 #       after: 0pt
 
-# reply: 审稿回复输出的覆盖配置。`papper build-reply` 会将上方的顶层元数据与本节合并，
+# reply: 审稿回复输出的覆盖配置。Markdown 顶部 YAML 中的 reply 路径让 build html/docx 自动应用本节
 #   docxStyle:
 #     Body Text:
 #       firstLineIndentChars: 0

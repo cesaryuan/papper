@@ -1,10 +1,10 @@
 //! Build reviewer replies with manuscript numbering and native DOCX/TXT outputs.
 
-mod line_source;
-mod resolve;
-
 use anyhow::{Context, Result};
-use papper_core::metadata::{MetadataOptions, load_effective_metadata_text, write_pandoc_metadata};
+use papper_core::metadata::{
+    MetadataOptions, load_effective_metadata_text, markdown_without_yaml_header,
+    reply_manuscript_text, write_pandoc_metadata,
+};
 use papper_core::paths::{
     atomic_write, canonical_project, display_path, pandoc_path, project_state_dir,
 };
@@ -12,12 +12,16 @@ use papper_core::resources::ResourcePaths;
 use papper_document::docx::{
     DocxPostprocessOptions, derive_docx_pandoc_metadata, postprocess_docx,
 };
+use papper_document::reply::{
+    ReplyFormat, ReplyResolver, render_reply_txt_markdown, resolve_line_regexes,
+    resolve_reply_markdown,
+};
 use papper_engine::{PandocCli, discover_engine};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-pub use line_source::extract_pdf_command;
+pub use papper_document::reply::extract_pdf_command;
 
 /// Resolve companions beside the reply first, retaining absolute explicit paths.
 fn companion(reply: &Path, requested: &Path, project: &Path) -> PathBuf {
@@ -95,8 +99,24 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
                 )
             })?;
     }
-    let manuscript = companion(&reply, &args.reply_manuscript, &project);
-    let line_source = companion(&reply, &args.manuscript_line_source, &project);
+    let text = std::fs::read_to_string(&reply)?
+        .trim_start_matches('\u{feff}')
+        .replace("\r\n", "\n");
+    let header_manuscript = reply_manuscript_text(&text, &reply)?;
+    let manuscript = if args.reply_manuscript == Path::new("manuscript.md") {
+        header_manuscript
+            .clone()
+            .unwrap_or_else(|| companion(&reply, &args.reply_manuscript, &project))
+    } else {
+        companion(&reply, &args.reply_manuscript, &project)
+    };
+    let line_source = if header_manuscript.is_some()
+        && args.manuscript_line_source == Path::new("manuscript.md")
+    {
+        manuscript.clone()
+    } else {
+        companion(&reply, &args.manuscript_line_source, &project)
+    };
     let resources = ResourcePaths::discover()?;
     let temporary = tempfile::Builder::new().prefix("papper-reply-").tempdir()?;
     let mut styles = vec![
@@ -116,7 +136,6 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         ],
         ..MetadataOptions::default()
     };
-    let text = std::fs::read_to_string(&reply)?.replace("\r\n", "\n");
     let effective = load_effective_metadata_text(&text, &reply, &options)?;
     let use_mathtype = if extension == "docx" && effective.pmt_settings.fields().mathtype {
         match papper_document::docx::check_mathtype_available(&resources, &effective) {
@@ -160,9 +179,9 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
                 .into(),
         ),
     );
-    let resolved = resolve::resolve_reply_markdown(
-        &text,
-        &resolve::ReplyResolver {
+    let resolved = resolve_reply_markdown(
+        markdown_without_yaml_header(&text),
+        &ReplyResolver {
             manuscript: &manuscript,
             metadata: &metadata_path,
             work: temporary.path(),
@@ -171,19 +190,21 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
             engine: &engine,
             environment: &environment,
         },
-        extension == "docx",
+        if extension == "docx" {
+            ReplyFormat::Docx
+        } else {
+            ReplyFormat::Text
+        },
     )?;
-    let resolved = line_source::resolve_line_regexes(&resolved, &line_source, temporary.path())?;
+    let resolved = resolve_line_regexes(&resolved, &line_source, temporary.path())?;
     if extension == "txt" {
-        atomic_write(
-            &output,
-            resolve::render_reply_txt_markdown(&resolved).as_bytes(),
-        )?;
+        atomic_write(&output, render_reply_txt_markdown(&resolved).as_bytes())?;
     } else {
         let source = temporary.path().join("resolved.md");
         atomic_write(&source, resolved.as_bytes())?;
         let generated = temporary.path().join("raw.docx");
-        let defaults = crate::docx_pipeline::reply_defaults(&resources, temporary.path())?;
+        let defaults =
+            papper_document::reply::reply_defaults(&resources, temporary.path(), "docx")?;
         let reference = args.reference_doc.as_deref().map(|path| {
             if path.is_absolute() {
                 path.to_path_buf()
@@ -220,7 +241,7 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         environment.extend(crate::images::filter_environment(
             &resources,
             &effective.pmt_settings,
-            &[project.clone(), reply.parent().unwrap().to_path_buf()],
+            &[reply.parent().unwrap().to_path_buf(), project.clone()],
             &temporary.path().join("svg-embedded"),
             &temporary.path().join("svg-png"),
             &project_state_dir(&project)?.join("cache/svg-rsvg"),

@@ -3,7 +3,7 @@
 use anyhow::{Context, Result, bail};
 use papper_core::metadata::{
     MetadataOptions, load_effective_metadata_text, markdown_without_yaml_header,
-    write_pandoc_metadata,
+    reply_manuscript_text, write_pandoc_metadata,
 };
 use papper_core::paths::{
     atomic_write, canonical_project, display_path, pandoc_path, project_state_dir,
@@ -76,6 +76,11 @@ fn validate_build(args: &BuildArgs) -> Result<()> {
     anyhow::ensure!(
         !args.start_server || args.target == BuildTarget::Html,
         "--start-server is only supported by the html target."
+    );
+    anyhow::ensure!(
+        args.manuscript_line_source.is_none()
+            || matches!(args.target, BuildTarget::Docx | BuildTarget::Html),
+        "--manuscript-line-source is only supported by html/docx reply builds."
     );
     Ok(())
 }
@@ -158,6 +163,7 @@ fn build(mut args: BuildArgs) -> Result<()> {
                 .style_file
                 .map(|style| absolute(&style, &std::env::current_dir().unwrap_or_default())),
             resource_path: args.resource_path,
+            manuscript_line_source: args.manuscript_line_source,
             resources,
         };
         let command = args
@@ -206,17 +212,31 @@ fn build_other(
         project.to_path_buf(),
         resources.root.clone(),
     ];
+    let text = std::fs::read_to_string(source)?
+        .trim_start_matches('\u{feff}')
+        .replace("\r\n", "\n");
+    let reply = if args.target == BuildTarget::Docx {
+        reply_manuscript_text(&text, source)?
+    } else {
+        None
+    };
+    if let Some(manuscript) = &reply {
+        anyhow::ensure!(
+            manuscript.is_file(),
+            "Reply manuscript not found: {}",
+            manuscript.display()
+        );
+        eprintln!("[REPLY] Using manuscript: {}", manuscript.display());
+    }
     let options = MetadataOptions {
         style_paths: styles.into_iter().filter(|path| path.is_file()).collect(),
         bundled_style_dir: resources.resource("defaults"),
         allow_missing_header: true,
         lang_override: args.lang.clone(),
+        reply: reply.is_some(),
         resource_roots: roots,
         ..MetadataOptions::default()
     };
-    let text = std::fs::read_to_string(source)?
-        .trim_start_matches('\u{feff}')
-        .replace("\r\n", "\n");
     let mut effective = load_effective_metadata_text(&text, source, &options)?;
     let mut environment = BTreeMap::from([(
         "PMT_CITATION_NUMBER_RANGE_DELIMITER".into(),
@@ -272,7 +292,7 @@ fn build_other(
             "PMT_CHINESE_MODE".into(),
             if chinese { Some("true".into()) } else { None },
         );
-        let native = effective.pmt_settings.fields().docx_native_crossref;
+        let native = reply.is_none() && effective.pmt_settings.fields().docx_native_crossref;
         environment.insert("PMT_DOCX_NATIVE_CROSSREFS".into(), Some(native.to_string()));
         environment.insert(
             "PMT_ENABLE_MATHTYPE_MARKERS".into(),
@@ -306,13 +326,47 @@ fn build_other(
     let metadata_file =
         write_pandoc_metadata(&pandoc_metadata, temporary.path().join("metadata.yml"))?;
     let input = temporary.path().join("input.md");
-    atomic_write(&input, markdown_without_yaml_header(&text).as_bytes())?;
+    let body = markdown_without_yaml_header(&text);
+    let resolved;
+    let body = if let Some(manuscript) = &reply {
+        let engine = PandocCli::new(discover_engine(&resources.root)?);
+        let resolver = papper_document::reply::ReplyResolver {
+            manuscript,
+            metadata: &metadata_file,
+            work: temporary.path(),
+            effective: &effective,
+            from_format: "markdown",
+            engine: &engine,
+            environment: &environment,
+        };
+        let numbered = papper_document::reply::resolve_reply_markdown(
+            body,
+            &resolver,
+            papper_document::reply::ReplyFormat::Docx,
+        )?;
+        let line_source = args
+            .manuscript_line_source
+            .as_deref()
+            .map(|path| absolute(path, project))
+            .unwrap_or_else(|| manuscript.clone());
+        resolved = papper_document::reply::resolve_line_regexes(
+            &numbered,
+            &line_source,
+            temporary.path(),
+        )?;
+        resolved.as_str()
+    } else {
+        body
+    };
+    atomic_write(&input, body.as_bytes())?;
     let defaults = if args.target == BuildTarget::Latex {
         "pandoc/pandoc-latex.yml"
     } else {
         "pandoc/pandoc-docx.yml"
     };
-    let defaults_path = if args.target == BuildTarget::Latex {
+    let defaults_path = if reply.is_some() {
+        papper_document::reply::reply_defaults(resources, temporary.path(), "docx")?
+    } else if args.target == BuildTarget::Latex {
         native_latex_defaults(resources, temporary.path())?
     } else {
         resources.resource(defaults)
@@ -342,8 +396,21 @@ fn build_other(
         "--output".into(),
         generated.as_os_str().to_owned(),
         "--resource-path".into(),
-        resource_path.into(),
+        resource_path.clone().into(),
     ];
+    let resource_roots: Vec<PathBuf> = std::env::split_paths(&resource_path)
+        .map(|path| absolute(&path, project))
+        .collect();
+    if args.target == BuildTarget::Latex {
+        environment.insert(
+            "PMT_LATEX_TARGET_DIR".into(),
+            Some(pandoc_path(output.parent().unwrap_or(project))),
+        );
+        environment.insert(
+            "PMT_LATEX_RESOURCE_PATH".into(),
+            Some(serde_json::to_string(&resource_roots)?),
+        );
+    }
     if args.target == BuildTarget::Json {
         command.extend(["--to".into(), "json".into()]);
     }
@@ -364,10 +431,7 @@ fn build_other(
         environment.extend(crate::images::filter_environment(
             resources,
             &effective.pmt_settings,
-            &[
-                project.to_path_buf(),
-                source.parent().unwrap().to_path_buf(),
-            ],
+            &resource_roots,
             &cache.join("svg-embedded"),
             &cache.join("svg-png"),
             &cache.join("svg-rsvg"),
@@ -403,7 +467,10 @@ fn build_other(
                 &formatted,
                 &effective,
                 &papper_document::docx::DocxPostprocessOptions {
-                    native_crossrefs: effective.pmt_settings.fields().docx_native_crossref,
+                    skip_author_info: reply.is_some(),
+                    reply_style_formatting: reply.is_some(),
+                    native_crossrefs: reply.is_none()
+                        && effective.pmt_settings.fields().docx_native_crossref,
                     ..Default::default()
                 },
             )?;

@@ -143,7 +143,7 @@ def test_build_output_matches_snapshot(
     assert_snapshot(actual, snapshot_path, update=snapshot_update)
 
 
-@pytest.mark.parametrize("target", ["docx", "txt"])
+@pytest.mark.parametrize("target", ["html", "docx", "txt"])
 def test_build_reply_output_matches_snapshot(
     target: str,
     tmp_path: Path,
@@ -156,7 +156,7 @@ def test_build_reply_output_matches_snapshot(
     output = tmp_path / f"reply.{target}"
     result = subprocess.run(
         [
-            *papper_command(), "build-reply",
+            *papper_command(), *(["build-reply"] if target == "txt" else ["build", target]),
             str(case_dir / "reply.md"),
             "--manuscript-line-source", str(line_source),
             "-o", str(output),
@@ -167,6 +167,6 @@ def test_build_reply_output_matches_snapshot(
     actual = (
         canonical_docx(output, repository_root=ROOT, project_dir=tmp_path)
         if target == "docx"
-        else output.read_text(encoding="utf-8")
+        else canonical_html(output) if target == "html" else output.read_text(encoding="utf-8")
     )
     assert_snapshot(actual, case_dir / "snapshots-content" / f"{target}.snap", update=snapshot_update)

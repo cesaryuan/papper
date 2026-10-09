@@ -102,3 +102,7 @@ Write pseudocode as a one-column pipe table. Use bold control words such as `**f
 - Citation keys must match `.bib` entries exactly
 - Always preserve technical content when improving structure and flow
 - When in doubt, follow conventions of the user's target journal
+
+## Reviewer Replies
+
+Add `reply: manuscript.md` to the reply Markdown YAML header, with the manuscript path relative to the reply file. Use `papper build docx reply.md` or `papper build html reply.md`; Papper detects the reply and reuses manuscript numbering. Read `papper guide syntax reviewer-replies` for line references and reply styles.

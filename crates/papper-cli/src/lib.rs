@@ -34,11 +34,12 @@ pub enum CliCommand {
     Init(InitArgs),
     /// Validate the native engine or prepare managed tools.
     Setup(SetupArgs),
-    /// Build a manuscript target.
+    /// Build a manuscript or a reviewer reply identified by its YAML reply path.
     Build(BuildArgs),
     /// Convert a DOCX document to Markdown.
     Convert(ConvertArgs),
     /// Build a reply to reviewers.
+    #[command(hide = true)]
     BuildReply(ReplyArgs),
     /// Remove generated outputs, work files, and reusable project caches.
     Clean(CleanArgs),
@@ -107,7 +108,7 @@ pub enum BuildTarget {
 /// Preserve explicit option presence rather than filling project defaults during parsing.
 #[derive(Debug, Args)]
 #[command(
-    after_help = "Examples:\n  papper build docx paper.md\n  papper build html -m paper.md -o output/paper.html --start-server"
+    after_help = "Examples:\n  papper build docx paper.md\n  papper build html -m paper.md -o output/paper.html --start-server\n  papper build docx reply.md\nFor HTML/DOCX, a YAML header containing `reply: manuscript.md` selects reviewer-reply builds."
 )]
 pub struct BuildArgs {
     /// Output format to build.
@@ -127,6 +128,9 @@ pub struct BuildArgs {
     /// Replace resource search paths; separate directories with ';' on Windows or ':' elsewhere.
     #[arg(long)]
     pub resource_path: Option<String>,
+    /// Override the line-number source for replies; defaults to the YAML reply path.
+    #[arg(long)]
+    pub manuscript_line_source: Option<PathBuf>,
     /// DOCX equations: true, false, or auto (follow metadata); no value means true.
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     pub mathtype: Option<String>,

@@ -14,7 +14,7 @@ PyPI wheel 后，`papper` 和 `pmt` 直接运行原生可执行文件，构建�
 README 首图建议，方便你后面自己截图或绘制：
 - 用一个横向 3 面板流程图，不要只放 logo。
 - 左侧放 Markdown 稿件编辑界面，最好能看到引用、交叉引用，以及一个简短的 AI 提示词或对话片段。
-- 中间放终端，显示 `papper build docx` 和 `papper build-reply`。
+- 中间放终端，显示 `papper build docx` 和 `papper build docx reply.md`。
 - 右侧放排版完成的 Word 主稿页面，再加一个 reviewer reply 的 DOCX 页面。
 - 图上只保留 3 个短标语最抓眼球，比如：“AI writes Markdown well”, “Papper turns it into DOCX”, “Journal-ready output”。
 - 最重要的是让人一眼看懂“同一份内容从 Markdown 流到 Word”的前后对比，而不是抽象图标。
@@ -41,7 +41,7 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 - **对 AI 友好**：Markdown 更适合 LLM 生成，也更适合人在 Git 里审阅。
 - **一条命令初始化项目**：`papper init` 可以直接生成论文目录结构、稿件、样式元数据、参考文献和 agent 指南。
 - **面向投稿的后处理**：Pandoc 结束后，Papper 还会做 DOCX 侧的格式整理和增强。
-- **支持审稿回复**：`build-reply` 可以生成 DOCX 或 TXT，并自动解析正文中的引用和交叉引用。
+- **支持审稿回复**：在 YAML 顶部添加 `reply: manuscript.md` 后，`build html/docx` 可以生成审稿回复，并自动解析正文中的引用和交叉引用。
 - **内置 Pandoc 工具链**：平台 wheel 内置 Pandoc 3.12、crossref 和持久 HTML worker，无需另外下载；源码开发环境也支持受管工具。
 - **保留其他输出**：虽然以 DOCX 为核心，但仍然支持 HTML、LaTeX 和 JSON 输出。
 
@@ -52,7 +52,7 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 - 用 `papper setup` 准备项目本地工具
 - 用 `papper build` 构建 DOCX、LaTeX、JSON
 - 用 `papper convert` 将已有 DOCX 论文导入 Markdown
-- 用 `papper build-reply` 构建审稿回复
+- 用 `papper build docx reply.md` 构建审稿回复
 - 图、表、公式、章节的交叉引用
 - 基于 CSL 的参考文献格式
 - 通过 reference DOCX 控制 Word 样式
@@ -278,8 +278,9 @@ papper build docx paper.md --style-file styles/journal.yml
 # 构建一个资源内嵌的独立 HTML 文件
 papper build html -o build/paper.html
 
-# 构建审稿回复
-papper build-reply reply.md --reply-manuscript manuscript.md -o output/docx/reply.docx
+# 构建审稿回复（reply.md 顶部 YAML 添加 reply: manuscript.md）
+papper build docx reply.md -o output/docx/reply.docx
+papper build html reply.md
 ```
 
 HTML 构建使用通用 Pandoc filter 处理中文嵌套编号和
@@ -358,7 +359,7 @@ papper build docx
 papper build html
 papper build latex
 papper build json
-papper build-reply reply.md -o output/docx/reply.docx
+papper build docx reply.md -o output/docx/reply.docx
 papper clean
 ```
 

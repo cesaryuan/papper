@@ -881,8 +881,22 @@ documents do not receive an automatic language tag.
 
 ## Reviewer Replies
 
-Style reviewer responses with `Reply to Reviewers` and use `papper build-reply`
-to reuse manuscript item numbers and resolve line references.
+Put `reply: manuscript.md` in the reply Markdown YAML header and use
+`papper build html` or `papper build docx` to reuse manuscript item numbers
+and resolve line references. Style reviewer responses with `Reply to Reviewers`.
+
+```yaml
+---
+reply: manuscript.md
+---
+```
+
+The `reply` field must be a non-empty path to an existing manuscript Markdown
+file. Relative paths are resolved beside the reply file; absolute paths are
+also accepted. For example, `responses/reply.md` can use `reply: ../paper.md`.
+Only the top-level YAML header selects reply behavior; ordinary body text and
+`style.yml:reply` do not. Without this field, HTML/DOCX builds produce a normal
+manuscript. Automatic reply processing applies to HTML and DOCX outputs.
 
 Keep reviewer comments as ordinary text and wrap each response in the
 `Reply to Reviewers` paragraph style. Other available reply styles include
@@ -897,7 +911,7 @@ We clarified the procedure in @sec:methods
 :::
 ```
 
-`papper build-reply` can reuse manuscript references in a reviewer reply.
+Both HTML and DOCX reply builds reuse manuscript references in a reviewer reply.
 Write `@fig:...`, `@tbl:...`, `@sec:...`, or `@eq:...` to refer to the
 manuscript's existing numbered items. When copying a figure, table, or equation
 into the reply, keep its manuscript label to reuse its manuscript number.
@@ -915,13 +929,15 @@ warnings and leave the placeholder unchanged.
 
 Match distinctive visible prose and use `\s+` for flexible whitespace. Avoid
 Markdown labels, fixed line numbers, and formula glyphs as anchors. Choose the
-manuscript used for cross-references and the source used for line lookup:
+manuscript using the YAML `reply` path. To use a different source for line lookup:
 
 ```powershell
-papper build-reply reply.md --reply-manuscript manuscript.md --manuscript-line-source output/pdf/manuscript.pdf
+papper build docx reply.md --manuscript-line-source output/pdf/manuscript.pdf
 ```
 
-Both options default to `manuscript.md`. The line source accepts Markdown,
+The line source defaults to the manuscript named by `reply`. An explicit
+`--manuscript-line-source` path is resolved from the project directory and
+applies to both HTML and DOCX reply builds. It accepts Markdown,
 DOCX/DOCM, or PDF; Markdown and Word sources require conversion to PDF for
 lookup. A PDF should include the line numbers whose locations you want to cite.
 Converting Word or Markdown line sources requires Microsoft Word on Windows,
@@ -929,16 +945,23 @@ or LibreOffice on other platforms. Providing a PDF avoids that conversion.
 
 ### Reply Output
 
-Choose a `.docx` output path for Word, or a `.txt` path for plain text:
+Select the output format with the regular build command:
 
 ```powershell
-papper build-reply reply.md -o output/txt/reply.txt
+papper build docx reply.md
+papper build html reply.md
+papper build docx reply.md -o submission/response.docx
+papper build html reply.md --start-server
 ```
 
-TXT output keeps Markdown bold, emphasis, tables, and formulas. Images become
-`[Image: ...]` placeholders; manuscript cross-references and ``(Line `regex`)``
-placeholders are resolved. Item label attributes and reply-only formatting
-wrappers are omitted from the text output.
+Default outputs are `output/docx/reply.docx` and `output/html/reply.html` for
+`reply.md`. The usual `--style-file`, `--resource-path`, and DOCX equation
+options apply to replies too. HTML replies retain manuscript numbers on copied
+figures, tables, and display equations. HTML builds with `--start-server` also
+recognize replies, including unsaved editor text.
+
+The hidden compatibility command `papper build-reply` remains available for
+existing scripts and `.txt` exports; new HTML/DOCX workflows use `papper build`.
 
 DOCX replies use the reply paragraph styles and format copied table text and
 captions in blue italic text. Reusable reply overrides belong in `style.yml`

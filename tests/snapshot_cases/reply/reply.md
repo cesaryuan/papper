@@ -1,3 +1,7 @@
+---
+reply: manuscript.md
+---
+
 # Reply to reviewers
 
 ::: {custom-style="Reply Header"}
