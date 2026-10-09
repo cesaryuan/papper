@@ -1,5 +1,6 @@
 # Use native Word equations so the snapshots do not require MathType tools.
-mathtype: false
+mathtype: true
+mathtypeConversionMethod: rust
 docxNativeCrossref: false
 docxShowLineNumbers: true
 reply:
