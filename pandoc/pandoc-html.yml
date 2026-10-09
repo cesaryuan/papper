@@ -12,7 +12,7 @@ math-method:
   # url: "https://cdn.jsdmirror.com/npm/mathjax@4/tex-chtml.js"
   method: katex
   url: "https://cdn.jsdmirror.com/npm/katex@latest/dist/"
-
+columns: 1
 # Filters are applied in order so cross-references and citations are resolved
 # before Pandoc writes the standalone HTML document.
 filters:

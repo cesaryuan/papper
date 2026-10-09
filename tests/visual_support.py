@@ -15,9 +15,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def write_visual_difference(actual: bytes | None, expected: bytes | None, diff_path: Path | None = None) -> dict | None:
-    """Compare pixels, optionally saving only a diff PNG, including added/removed pages."""
-    if diff_path is not None:
-        diff_path.unlink(missing_ok=True)
+    """Save only visible changes, preserving the existing diff when pixels are unchanged."""
     if actual == expected:
         return None
     # A missing DOCX page is a visible pagination change, even if the page was blank.
@@ -87,9 +85,7 @@ def record_visual_changes(images: dict[str, bytes], baseline: Path) -> None:
         # Diff PNGs share the baseline directory, so never compare them as source pages.
         if path.parent.as_posix() == relative and (path.name == "html.png" or re.fullmatch(r"page-\d+\.png", path.name)):
             previous[path.name] = metadata.split()[2].decode("ascii")
-    pattern = "diff.png" if "html.png" in images else "page-*-diff.png"
-    for stale in baseline.glob(pattern):
-        stale.unlink()
+    # Unchanged pages retain their last review diff, including after a baseline commit.
     changed = 0
     for name in sorted(images.keys() | previous.keys()):
         expected = None

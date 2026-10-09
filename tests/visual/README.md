@@ -95,8 +95,9 @@ PDF exports remain in pytest's temporary rendering directory.
 
 Diff PNGs are not ignored by Git and can be committed with reviewed baselines.
 Repeated updates keep comparing with `HEAD`, so overwriting a local baseline
-does not erase the review difference. Images unchanged from `HEAD` produce no
-diff; rerunning a case replaces its diff PNGs and removes stale differences.
+does not erase the review difference. Images unchanged from `HEAD` are skipped:
+their existing diff PNGs are preserved without rewriting or deleting them.
+Rerunning a changed case replaces only the diff PNGs for images with visible changes.
 The first baseline for a new case is reported as added.
 
 Verification still compares exact pixels with the working baseline and fails on

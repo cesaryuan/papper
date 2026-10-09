@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 import visual_support
 import docx_visual_support
@@ -39,8 +40,8 @@ def snapshot_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path
     return baseline
 
 
-def test_previous_version_diff_survives_updates_and_clears_when_reverted(snapshot_repository: Path) -> None:
-    """A repeated update must retain HEAD's old pixels, while a reverted change removes stale diffs."""
+def test_previous_version_diff_survives_updates_and_unchanged_render(snapshot_repository: Path) -> None:
+    """Repeated updates retain HEAD's comparison; an unchanged render preserves the last diff."""
     baseline = snapshot_repository
     images = {"page-001.png": png("red"), "page-002.png": png("white")}
     visual_support.record_visual_changes(images, baseline)
@@ -52,8 +53,10 @@ def test_previous_version_diff_survives_updates_and_clears_when_reverted(snapsho
     with Image.open(baseline / "page-001-diff.png") as difference:
         assert difference.getpixel((0, 0)) != (0, 0, 0)
     images["page-001.png"] = png("black")
+    modified = (baseline / "page-001-diff.png").stat().st_mtime_ns
     visual_support.record_visual_changes(images, baseline)
-    assert not (baseline / "page-001-diff.png").exists(), "Reverted images left a stale review difference"
+    assert (baseline / "page-001-diff.png").read_bytes() == first
+    assert (baseline / "page-001-diff.png").stat().st_mtime_ns == modified
 
 
 def test_previous_version_diff_exposes_added_and_removed_blank_pages(snapshot_repository: Path) -> None:
@@ -61,10 +64,31 @@ def test_previous_version_diff_exposes_added_and_removed_blank_pages(snapshot_re
     baseline = snapshot_repository
     images = {"page-001.png": png("black"), "page-003.png": png("white")}
     visual_support.record_visual_changes(images, baseline)
-    assert {path.name for path in baseline.glob("*-diff.png")} == {"page-002-diff.png", "page-003-diff.png"}
+    assert {path.name for path in baseline.glob("*-diff.png")} == {"page-001-diff.png", "page-002-diff.png", "page-003-diff.png"}
     for name in ("page-002", "page-003"):
         with Image.open(baseline / f"{name}-diff.png") as difference:
             assert difference.getpixel((0, 0)) != (255, 255, 255)
+
+
+@pytest.mark.parametrize("different_encoding", [False, True])
+def test_unchanged_html_pixels_preserve_existing_diff(tmp_path: Path, different_encoding: bool) -> None:
+    """Identical HTML pixels must leave the previous diff untouched, even if PNG metadata changes."""
+    expected = png("black")
+    actual = expected
+    if different_encoding:
+        metadata = PngInfo()
+        metadata.add_text("render", "same pixels with new metadata")
+        output = io.BytesIO()
+        Image.new("RGB", (3, 2), "black").save(output, format="PNG", pnginfo=metadata)
+        actual = output.getvalue()
+        assert actual != expected
+    diff_path = tmp_path / "diff.png"
+    existing = png("magenta")
+    diff_path.write_bytes(existing)
+    modified = diff_path.stat().st_mtime_ns
+    assert visual_support.write_visual_difference(actual, expected, diff_path) is None
+    assert diff_path.read_bytes() == existing
+    assert diff_path.stat().st_mtime_ns == modified
 
 
 def test_docx_update_preserves_deleted_page_diff(snapshot_repository: Path, monkeypatch: pytest.MonkeyPatch) -> None:
