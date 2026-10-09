@@ -84,6 +84,13 @@ fn zip_part(path: &Path, part: &str) -> Result<String> {
     Ok(text)
 }
 
+/// Ignore writer line wrapping when checking prose in generated output.
+fn normalize_whitespace(text: &str) -> String {
+    // HTML columns=1 wraps between words; literal phrase checks would reject
+    // correctly rendered citations, captions and edits on every platform.
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// Validate complete PNG chunks and actual compressed image data without a decoder dependency.
 fn png_dimensions(png: &[u8]) -> Result<(u32, u32)> {
     ensure!(
@@ -396,11 +403,18 @@ pub fn run(wheel: &Path) -> Result<()> {
     installed.command(&["build", "html"])?;
     let html_path = installed.project.join("output/html/manuscript.html");
     let cold = std::fs::read_to_string(&html_path)?;
+    let cold_text = normalize_whitespace(&cold);
     ensure!(
-        cold.contains("Bundled citation entry")
-            && cold.contains("Packaged values")
-            && !cold.contains("@tbl:values"),
-        "Installed HTML failed citations/crossrefs"
+        cold_text.contains("Bundled citation entry"),
+        "Installed HTML omitted the rendered bibliography entry"
+    );
+    ensure!(
+        cold_text.contains("Packaged values"),
+        "Installed HTML omitted the table caption"
+    );
+    ensure!(
+        !cold_text.contains("@tbl:values") && !cold_text.contains("@eq:sum"),
+        "Installed HTML retained unresolved table/equation references"
     );
     let socket = std::net::TcpListener::bind(("127.0.0.1", 0))?;
     let port = socket.local_addr()?.port().to_string();
@@ -431,7 +445,7 @@ pub fn run(wheel: &Path) -> Result<()> {
     ensure!(
         edited["output"]
             .as_str()
-            .is_some_and(|text| text.contains("Unsaved wheel prose"))
+            .is_some_and(|text| normalize_whitespace(text).contains("Unsaved wheel prose"))
             && edited["citeproc_cache_hit"] == true,
         "Installed worker did not reuse citations on an unsaved edit"
     );
@@ -449,10 +463,10 @@ pub fn run(wheel: &Path) -> Result<()> {
         .into_json()?;
     ensure!(
         disk["cache_hit"] == false
-            && disk["output"]
-                .as_str()
-                .is_some_and(|html| html.contains("On-disk wheel edit")
-                    && !html.contains("Unsaved wheel prose")),
+            && disk["output"].as_str().is_some_and(|html| {
+                let text = normalize_whitespace(html);
+                text.contains("On-disk wheel edit") && !text.contains("Unsaved wheel prose")
+            }),
         "Installed service did not invalidate HTML after an on-disk source edit"
     );
     std::fs::write(installed.project.join("manuscript.md"), &source)?;
