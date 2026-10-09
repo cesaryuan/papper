@@ -158,6 +158,65 @@ def test_native_service_detects_reply_buffers_and_refreshes_manuscript_numbers(n
     assert "reply: missing.md" in ordinary["output"]
 
 
+@pytest.mark.parametrize("reply", [False, True])
+def test_html_reply_caption_table_and_where_colors_match_word(native_service_factory, reply: bool) -> None:
+    """Inspect browser styles in cold, warm and preview HTML; prose/math and ordinary builds keep their colors."""
+    from playwright.sync_api import sync_playwright
+
+    service = native_service_factory()
+    project = service.project
+    (project.directory / "original.md").write_text("# Manuscript\n", encoding="utf-8")
+    (project.directory / "style.yml").write_text(
+        "docxStyle:\n  Table Text:\n    fontColor: '#AA0000'\n"
+        "  Table Caption:\n    fontColor: '#00AA00'\n"
+        "  Image Caption:\n    fontColor: '#00AA00'\n"
+        "  Para Where:\n    fontColor: '#AA0000'\n", encoding="utf-8",
+    )
+    markdown = ('---\nreply: original.md\n---\n\n' if reply else '') + (
+        '<p id="comment">Reviewer comment.</p>\n\n'
+        '![Figure caption](data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22/%3E)\n\n'
+        '| **Header** | Value |\n|---|---|\n| **Strong cell** | [Linked cell](https://example.test) |\n\n'
+        ': Table caption {revision_rows="2"}\n\n'
+        '$$ x=1 $$\n\nwhere $x$ is the variable.\n'
+    )
+    project.source.write_text(markdown, encoding="utf-8")
+    output = project.directory / "colors.html"
+    project.build(output)
+    sources = [output.read_text(encoding="utf-8"), service.convert(text=markdown)["output"],
+               service.convert(text=markdown, mode="preview")["output"]]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            page = browser.new_page()
+            def block_external_assets(route) -> None:
+                """Keep color checks independent of external fonts, math scripts and hyperlinks."""
+                route.abort()
+
+            page.route("**/*", block_external_assets)
+            for source in sources:
+                document = html_parser.fromstring(source)
+                for script in document.xpath("//script"):
+                    script.drop_tree()  # Computed text styles do not need external math scripts.
+                page.set_content(html_parser.tostring(document, encoding="unicode"))
+                caption_color = "rgb(0, 0, 255)" if reply else "rgb(0, 170, 0)"
+                for selector in ["figcaption", "caption", "th", "th strong", "td", "td strong", "td a"]:
+                    style = page.locator(selector).first.evaluate(
+                        "element => ({color: getComputedStyle(element).color, italic: getComputedStyle(element).fontStyle})"
+                    )
+                    if reply:
+                        assert style == {"color": caption_color, "italic": "italic"}, (selector, style)
+                    elif selector in {"caption", "figcaption"}:
+                        assert style["color"] == caption_color
+                where = page.locator('div[data-custom-style="Para Where"] > p').evaluate(
+                    "element => getComputedStyle(element).color"
+                )
+                assert where == ("rgb(0, 0, 255)" if reply else "rgb(170, 0, 0)")
+                assert page.locator("#comment").evaluate("element => getComputedStyle(element).color") != "rgb(0, 0, 255)"
+                assert page.locator(".math.display").evaluate("element => getComputedStyle(element).color") != "rgb(0, 0, 255)"
+        finally:
+            browser.close()
+
+
 def test_native_service_updates_used_custom_styles_and_preserves_table_text_overrides(
     native_service_factory,
 ) -> None:

@@ -229,6 +229,10 @@ manuscript header contains `lang`.
 
 HTML/DOCX builds recognize only the input header `reply` path. Paths are resolved
 beside the reply, and the selector is excluded from transported Pandoc metadata.
+HTML reply postprocessing mirrors Word's blue italic captions/table runs and
+blue `Para Where` styling after custom CSS generation. Inline declarations on
+text-bearing elements also override nested character and revision styles;
+formula, SVG, script and stylesheet contents are left to their own renderers.
 Shared reply resolution and PDF line lookup live in `papper-document::reply`.
 DOCX output applies reply styling and disables manuscript-native bookmarks.
 HTML uses the same defaults with crossref/citeproc numbering passes omitted;

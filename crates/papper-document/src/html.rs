@@ -5,7 +5,7 @@ pub mod styles;
 
 pub use postprocess::{
     postprocess_html_text, postprocess_html_text_with_style_settings,
-    postprocess_html_text_with_styles,
+    postprocess_html_text_with_styles, postprocess_reply_html_text_with_style_settings,
 };
 pub use styles::{
     build_reference_style_css, build_reference_style_css_text,

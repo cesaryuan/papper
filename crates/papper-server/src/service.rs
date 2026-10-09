@@ -10,7 +10,10 @@ use papper_core::paths::{
     atomic_write, canonical_project, display_path, pandoc_path, project_work_dir, write_if_changed,
 };
 use papper_core::resources::ResourcePaths;
-use papper_document::html::{postprocess_html_text_with_style_settings, prepare_html_metadata};
+use papper_document::html::{
+    postprocess_html_text_with_style_settings, postprocess_reply_html_text_with_style_settings,
+    prepare_html_metadata,
+};
 use papper_engine::{PandocCli, PersistentWorker, WorkerConfig, WorkerRequest, discover_engine};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -761,7 +764,7 @@ fn render_reply_html(
         input.into_os_string(),
     ];
     engine.run(&args, &config.project_dir, &prepared.environment)?;
-    postprocess_html_text_with_style_settings(
+    postprocess_reply_html_text_with_style_settings(
         &std::fs::read_to_string(output)?,
         &Value::Object(prepared.effective.pandoc_metadata.clone()),
         preview,

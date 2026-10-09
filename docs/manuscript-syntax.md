@@ -968,6 +968,8 @@ recognize replies, including unsaved editor text.
 The hidden compatibility command `papper build-reply` remains available for
 existing scripts and `.txt` exports; new HTML/DOCX workflows use `papper build`.
 
-DOCX replies use the reply paragraph styles and format copied table text and
-captions in blue italic text. Reusable reply overrides belong in `style.yml`
+HTML and DOCX replies use the reply paragraph styles and format table text and
+figure/table captions in blue italic text. Formula explanations using `Para Where`
+are blue too. This formatting applies throughout the reply, including copied
+items outside a `Reply to Reviewers` wrapper. Reusable reply overrides belong in `style.yml`
 under `reply`; see [`style-configuration.md`](style-configuration.md).

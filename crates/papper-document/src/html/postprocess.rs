@@ -820,7 +820,7 @@ pub fn postprocess_html_text(
     metadata: &Value,
     skip_author_info: bool,
 ) -> Result<String> {
-    postprocess_html(html, metadata, skip_author_info, None, None)
+    postprocess_html(html, metadata, skip_author_info, None, None, false)
 }
 
 /// Apply used custom Word styles alongside the shared HTML postprocessing steps.
@@ -830,7 +830,14 @@ pub fn postprocess_html_text_with_styles(
     skip_author_info: bool,
     reference_xml: &str,
 ) -> Result<String> {
-    postprocess_html(html, metadata, skip_author_info, Some(reference_xml), None)
+    postprocess_html(
+        html,
+        metadata,
+        skip_author_info,
+        Some(reference_xml),
+        None,
+        false,
+    )
 }
 
 /// Resolve custom-style ancestry using the effective settings applied to named Word styles.
@@ -847,7 +854,91 @@ pub fn postprocess_html_text_with_style_settings(
         skip_author_info,
         Some(reference_xml),
         Some(settings),
+        false,
     )
+}
+
+/// Match Word reply caption, table and equation-explanation formatting in HTML.
+pub fn postprocess_reply_html_text_with_style_settings(
+    html: &str,
+    metadata: &Value,
+    skip_author_info: bool,
+    reference_xml: &str,
+    settings: &papper_core::metadata::PmtSettings,
+) -> Result<String> {
+    postprocess_html(
+        html,
+        metadata,
+        skip_author_info,
+        Some(reference_xml),
+        Some(settings),
+        true,
+    )
+}
+
+/// Apply reply colors to text-bearing elements without altering formulas or image contents.
+fn apply_reply_styles(node: &mut HtmlNode, table: bool, caption: bool, explanation: bool) {
+    let style = node.attribute("data-custom-style").unwrap_or_default();
+    let caption =
+        caption || style == "caption" || style.contains("Caption") || style.contains("题注");
+    let explanation = if style.is_empty() {
+        explanation
+    } else {
+        style == "Para Where"
+    };
+    // Formula renderers own their nested text and SVG; styling these as table
+    // prose would recolor equation glyphs and formula-number layout helpers.
+    if node.has_class("math") || node.has_class("katex") {
+        return;
+    }
+    if let HtmlNode::Element {
+        name,
+        attributes,
+        children,
+    } = node
+    {
+        if is_raw(name) || matches!(name.as_str(), "svg" | "math") {
+            return;
+        }
+        let table = table || name == "table";
+        let caption = caption || matches!(name.as_str(), "caption" | "figcaption");
+        if (table || caption || explanation)
+            && (matches!(name.as_str(), "p" | "th" | "td" | "caption" | "figcaption")
+                || children
+                    .iter()
+                    .any(|child| matches!(child, HtmlNode::Text(text) if !text.trim().is_empty())))
+        {
+            // Word's reply postprocessor overrides direct run colors too, so
+            // named character styles and revision colors must yield here.
+            let position = attributes.iter().position(|(key, _)| key == "style");
+            let original = position
+                .map(|index| attributes[index].1.as_str())
+                .unwrap_or_default();
+            let mut declarations: Vec<_> = original
+                .split(';')
+                .filter(|rule| {
+                    let property = rule.split(':').next().unwrap_or_default().trim();
+                    !property.eq_ignore_ascii_case("color")
+                        && (!(table || caption) || !property.eq_ignore_ascii_case("font-style"))
+                        && !rule.trim().is_empty()
+                })
+                .map(str::trim)
+                .collect();
+            declarations.push("color: #0000FF");
+            if table || caption {
+                declarations.push("font-style: italic");
+            }
+            let rendered = format!("{};", declarations.join("; "));
+            if let Some(index) = position {
+                attributes[index].1 = rendered;
+            } else {
+                attributes.push(("style".into(), rendered));
+            }
+        }
+        for child in children {
+            apply_reply_styles(child, table, caption, explanation);
+        }
+    }
 }
 
 /// Collect actual body attributes, ignoring style/script text and HTML comments.
@@ -969,6 +1060,7 @@ fn postprocess_html(
     skip_author_info: bool,
     reference_xml: Option<&str>,
     settings: Option<&papper_core::metadata::PmtSettings>,
+    reply: bool,
 ) -> Result<String> {
     let normalized = html.replace("\r\n", "\n").replace('\r', "\n");
     let mut document = parse_document(&normalized)?;
@@ -978,6 +1070,11 @@ fn postprocess_html(
     apply_table_cell_margins(&mut document);
     if let Some(xml) = reference_xml {
         apply_custom_styles(&mut document, xml, metadata, settings)?;
+    }
+    if reply {
+        if let Some(body) = document.find_mut("body") {
+            apply_reply_styles(body, false, false, false);
+        }
     }
     let mut output = "<!DOCTYPE html>\n".to_owned();
     render_node(&document, false, &mut output);

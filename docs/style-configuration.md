@@ -59,6 +59,11 @@ Reply overrides affect reply builds only. The reply Markdown's YAML header
 still has the highest priority for Pandoc metadata. Keep manuscript-specific
 title, author, abstract, and bibliography values in the manuscript YAML.
 
+HTML and DOCX reply formatting sets table text and figure/table captions to
+blue italic text, and `Para Where` explanations to blue. These reply effects
+take priority over configured colors for those elements; ordinary manuscript
+builds keep their configured colors.
+
 When both the project root and the reply Markdown directory contain `style.yml`,
 their `reply` sections are merged recursively too. Reply-directory values override
 project-root values, while unspecified reply settings remain inherited. Within
