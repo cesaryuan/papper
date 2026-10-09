@@ -333,7 +333,7 @@ impl Default for SettingsValues {
             docx_embed_svg_images: true,
             docx_convert_svg_to_png: false,
             docx_native_crossref: false,
-            table_autofit: TableAutofit::Window,
+            table_autofit: TableAutofit::None,
             docx_svg_to_png_width: None,
             docx_svg_to_png_dpi: None,
             docx_svg_to_png_scale: None,

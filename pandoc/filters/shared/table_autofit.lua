@@ -14,7 +14,7 @@ end
 
 -- Read request-local settings before walking only tables authored in Markdown.
 function Pandoc(document)
-  local mode = pandoc.system.environment().PMT_TABLE_AUTOFIT or "window"
+  local mode = pandoc.system.environment().PMT_TABLE_AUTOFIT or "none"
   if mode == "none" then
     return document
   end

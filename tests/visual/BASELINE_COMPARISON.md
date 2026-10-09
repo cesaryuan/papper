@@ -62,12 +62,15 @@ uv run --no-sync pytest tests/test_html_visual.py --visual -q --tb=short
 uv run --no-sync pytest tests/test_build_snapshots.py tests/test_html_snapshot_contract.py tests/test_html_layout_filters.py tests/test_rust_cli_contract.py tests/test_rust_server_regressions.py -q --tb=short
 ```
 
-See `README.md` in this directory for dependency/browser setup. Each changed
-case has ignored local artifacts under `tests/visual/results/<case>/`:
+See `README.md` in this directory for dependency/browser setup. At the time of
+this initial comparison, each changed case had ignored local artifacts under
+`tests/visual/results/<case>/`:
 `expected.png`, `actual.png`, `diff.png`, and `difference.json`. During the
 initial review, `comparison.png` was also generated with the old rendering on
 the left and current rendering on the right; template geometry details were
-saved in `template/layout-differences.json`.
+saved in `template/layout-differences.json`. Current tests instead save only
+diff PNGs (`diff.png` for HTML, `page-001-diff.png`, ... for DOCX) beside the
+baselines in each case's `snapshots-visual/` directory without Git ignore rules.
 
 The old PNGs remain committed unchanged. This comparison does not change
 product CSS or accept a new visual baseline. Whether each observed change is

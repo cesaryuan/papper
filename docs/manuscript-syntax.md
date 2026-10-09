@@ -838,12 +838,12 @@ priority, and `reply.tableAutofit` can override reply defaults.
 Set the top-level string option in `style.yml`:
 
 ```yaml
-tableAutofit: window
+tableAutofit: none
 ```
 
-The default `window` fits tables to the available page width. `content` sizes
-them to their contents; `fixed` preserves authored widths; `none` keeps each
-table's own settings. This default applies to tables written in Markdown and
+The default `none` keeps each table's own settings. `window` fits tables to
+the available page width; `content` sizes them to their contents; `fixed`
+preserves authored widths. This default applies to tables written in Markdown and
 does not affect generated equation or subfigure layouts.
 
 Per-table `autofit="window"`, `autofit="content"`, or `autofit="fixed"` takes

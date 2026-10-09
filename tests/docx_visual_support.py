@@ -7,7 +7,6 @@ import json
 import logging
 import os
 import platform
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -15,7 +14,7 @@ from pathlib import Path
 import pymupdf
 
 from native_support import ROOT
-from visual_support import assert_visual
+from visual_support import assert_visual, record_visual_changes
 
 
 VISUAL_ROOT = Path(__file__).with_name("visual")
@@ -127,16 +126,23 @@ class WordVisualSession:
         assert renders[0] == renders[1], f"Word exports did not produce stable page pixels: {directory}"
         return renders[1]
 
-    def check(self, source: Path, baseline: Path, results: Path) -> None:
-        """Compare all pages and collect every failing page's images and geometry."""
+    def check(self, source: Path, baseline: Path) -> None:
+        """Compare page pixels/geometry and save only per-page diffs against Git HEAD."""
         images, geometry = self.capture(source, source.parent / "word-render")
         manifest = baseline / "pages.json"
+        record_visual_changes(
+            {f"page-{index:03d}.png": image for index, image in enumerate(images, 1)},
+            baseline,
+        )
         if self.update:
             baseline.mkdir(parents=True, exist_ok=True)
             for index, image in enumerate(images, 1):
                 (baseline / f"page-{index:03d}.png").write_bytes(image)
             # A shorter intentional document must discard only superseded DOCX page PNGs.
             for stale in baseline.glob("page-*.png"):
+                # Diff images for deleted pages must survive baseline updates for review.
+                if stale.name.endswith("-diff.png"):
+                    continue
                 if stale.name not in {f"page-{index:03d}.png" for index in range(1, len(images) + 1)}:
                     stale.unlink()
             manifest.write_text(json.dumps({"pages": geometry}, indent=2) + "\n", encoding="utf-8")
@@ -154,17 +160,12 @@ class WordVisualSession:
                 failures.append(f"Missing expected page: {expected}")
                 continue
             try:
-                assert_visual(image, expected, results / f"page-{index:03d}")
+                # Temporary harness baselines have no Git version; compare their local PNGs.
+                diff_path = None if baseline.resolve().is_relative_to(ROOT) else baseline / f"page-{index:03d}-diff.png"
+                assert_visual(image, expected, diff_path)
             except AssertionError as error:
                 failures.append(str(error))
         if failures:
-            results.mkdir(parents=True, exist_ok=True)
-            for index, image in enumerate(images, 1):
-                page_dir = results / f"page-{index:03d}"
-                page_dir.mkdir(exist_ok=True)
-                (page_dir / "actual.png").write_bytes(image)
-            shutil.copyfile(source.parent / "word-render/export-2/rendered.pdf", results / "actual.pdf")
-            (results / "pages.json").write_text(json.dumps({"expected": expected_geometry, "actual": geometry}, indent=2) + "\n", encoding="utf-8")
             raise AssertionError("\n".join(failures))
 
     def save_environment(self) -> None:

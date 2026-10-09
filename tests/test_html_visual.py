@@ -26,6 +26,7 @@ from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 from snapshot_utils import semantic_html
 from visual_support import assert_visual as _assert_visual
+from visual_support import record_visual_changes
 from test_build_snapshots import CASE_ROOT, CASES, DOCX_ONLY_CASES, build_case, copy_case
 
 
@@ -33,7 +34,6 @@ ROOT = Path(__file__).resolve().parents[1]
 VISUAL_ROOT = Path(__file__).with_name("visual")
 VISUAL_PLATFORM = f"{sys.platform}-{platform.machine().lower()}"
 VISUAL_ENVIRONMENT = VISUAL_ROOT / "environments" / VISUAL_PLATFORM / "environment.json"
-VISUAL_RESULTS = VISUAL_ROOT / "results"
 VISUAL_CASES = tuple(name for name in CASES if name not in DOCX_ONLY_CASES)
 LOGGER = logging.getLogger(__name__)
 
@@ -189,6 +189,7 @@ def test_html_render_matches_visual_snapshot(
     build_case(copied_case_dir, markdown, "html", output)
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "html.png"
     actual = visual_session.capture(output)
+    record_visual_changes({baseline.name: actual}, baseline.parent)
     if visual_session.update:
         baseline.parent.mkdir(parents=True, exist_ok=True)
         baseline.write_bytes(actual)
@@ -197,7 +198,7 @@ def test_html_render_matches_visual_snapshot(
     else:
         if not baseline.exists():
             raise AssertionError(f"Visual baseline is missing: {baseline}; use --visual-update explicitly")
-        _assert_visual(actual, baseline, VISUAL_RESULTS / case_name)
+        _assert_visual(actual, baseline)
 
 
 @pytest.mark.visual
@@ -214,12 +215,10 @@ def test_equivalent_css_passes_but_one_visible_pixel_fails(
     baseline.write_bytes(visual_session.capture(document))
     document.write_text(after, encoding="utf-8")
     assert semantic_html(before) == semantic_html(after)
-    _assert_visual(visual_session.capture(document), baseline, tmp_path / "equivalent")
+    _assert_visual(visual_session.capture(document), baseline, tmp_path / "equivalent-diff.png")
     document.write_text(after.replace("background:black", "background:red"), encoding="utf-8")
-    with pytest.raises(AssertionError, match="Visual mismatch"):
-        _assert_visual(visual_session.capture(document), baseline, tmp_path / "changed")
-    details = json.loads((tmp_path / "changed/difference.json").read_text(encoding="utf-8"))
-    assert details["changed_pixels"] == 1
+    with pytest.raises(AssertionError, match="'changed_pixels': 1,"):
+        _assert_visual(visual_session.capture(document), baseline, tmp_path / "changed-diff.png")
 
 
 @pytest.mark.visual

@@ -96,11 +96,11 @@ def test_build_rejects_invalid_explicit_style(
     assert not output.exists()
 
 
-@pytest.mark.parametrize("mode", ["window", "content", "fixed", "none"])
+@pytest.mark.parametrize("mode", [pytest.param(None, id="default"), "window", "content", "fixed", "none"])
 def test_table_autofit_defaults_are_shared_by_html_and_docx(
-    tmp_path: Path, rust_executable: Path, mode: str,
+    tmp_path: Path, rust_executable: Path, mode: str | None,
 ) -> None:
-    """Share authored-table defaults and overrides while preserving generated layout tables."""
+    """Verify implicit/explicit table defaults and overrides in output, preserving layout tables."""
     from lxml import etree, html
     from zipfile import ZipFile
 
@@ -146,7 +146,8 @@ x=1
 $$ {{#eq:example}}
 """, encoding="utf-8")
     style = tmp_path / "style.yml"
-    style.write_text(f"tableAutofit: {mode}\n", encoding="utf-8")
+    style.write_text(f"tableAutofit: {mode}\n" if mode else "", encoding="utf-8")
+    mode = mode or "none"
     environment = {**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)}
     for target in ["html", "docx"]:
         output = tmp_path / f"tables.{target}"
@@ -170,7 +171,8 @@ $$ {{#eq:example}}
             with ZipFile(output) as archive:
                 document = etree.fromstring(archive.read("word/document.xml"))
             ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
-            for heading, kind, width in [("Default", "pct" if mode == "window" else "auto", "5000" if mode == "window" else "0"),
+            # Pandoc emits a full-width table here; none/fixed preserve it rather than forcing auto width.
+            for heading, kind, width in [("Default", "auto" if mode == "content" else "pct", "0" if mode == "content" else "5000"),
                                          ("Content", "auto", "0"), ("Window", "pct", "5000")]:
                 table = document.xpath(f"//w:tbl[.//w:t='{heading}']", namespaces=ns)[0]
                 preferred = table.find("w:tblPr/w:tblW", ns)

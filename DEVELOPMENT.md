@@ -132,7 +132,12 @@ tests/snapshot_cases/<case>/
 │   └── docx.snap
 └── snapshots-visual/
     └── win32-amd64/
-        └── html.png
+        ├── html.png
+        ├── diff.png           # Rendered HTML difference against Git HEAD
+        └── docx-word/
+            ├── pages.json
+            ├── page-001.png
+            └── page-001-diff.png # Word page difference against Git HEAD
 ```
 
 Only supported output types have baselines; reply content snapshots use
@@ -141,7 +146,8 @@ Only supported output types have baselines; reply content snapshots use
 `tests/snapshot_cases/template/` so generated projects do not include test files.
 Fixture copies exclude both snapshot directories. Shared browser/font manifests
 live in `tests/visual/environments/<platform>-<architecture>/environment.json`;
-failure artifacts remain under the Git-ignored `tests/visual/results/`.
+only diff PNGs against Git `HEAD` are saved beside the baselines under
+`snapshots-visual/` and are not ignored by Git, including during updates.
 See [HTML regression tests](tests/visual/README.md) for visual verification and
 the independent `--visual-update` switch.
 

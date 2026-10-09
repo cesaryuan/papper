@@ -3,34 +3,103 @@
 from __future__ import annotations
 
 import io
-import json
-import shutil
+import logging
+import re
+import subprocess
 from pathlib import Path
 
 from PIL import Image, ImageChops
 
+ROOT = Path(__file__).resolve().parents[1]
+LOGGER = logging.getLogger(__name__)
 
-def assert_visual(actual: bytes, expected: Path, result_dir: Path) -> None:
-    """Compare exact pixels and preserve readable artifacts, including size changes."""
-    with Image.open(expected) as reference, Image.open(io.BytesIO(actual)) as received:
-        width, height = max(reference.width, received.width), max(reference.height, received.height)
+
+def write_visual_difference(actual: bytes | None, expected: bytes | None, diff_path: Path | None = None) -> dict | None:
+    """Compare pixels, optionally saving only a diff PNG, including added/removed pages."""
+    if diff_path is not None:
+        diff_path.unlink(missing_ok=True)
+    if actual == expected:
+        return None
+    # A missing DOCX page is a visible pagination change, even if the page was blank.
+    reference = Image.open(io.BytesIO(expected)) if expected is not None else None
+    received = Image.open(io.BytesIO(actual)) if actual is not None else None
+    try:
+        expected_size = reference.size if reference is not None else None
+        actual_size = received.size if received is not None else None
+        sizes = [size for size in (expected_size, actual_size) if size is not None]
+        width, height = max(size[0] for size in sizes), max(size[1] for size in sizes)
         before, after = Image.new("RGB", (width, height), "white"), Image.new("RGB", (width, height), "white")
-        before.paste(reference.convert("RGB"))
-        after.paste(received.convert("RGB"))
+        if reference is not None:
+            before.paste(reference.convert("RGB"))
+        if received is not None:
+            after.paste(received.convert("RGB"))
         difference = ImageChops.difference(before, after)
         red, green, blue = difference.split()
         mask = ImageChops.lighter(ImageChops.lighter(red, green), blue).point([0] + [255] * 255)
+        if reference is None or received is None:
+            mask = Image.new("L", (width, height), 255)
         changed = mask.histogram()[255]
-        if changed or reference.size != received.size:
-            result_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(expected, result_dir / "expected.png")
-            (result_dir / "actual.png").write_bytes(actual)
-            overlay = Image.blend(before, Image.new("RGB", before.size, "magenta"), 0.65)
-            Image.composite(overlay, before, mask).save(result_dir / "diff.png")
+        if changed or expected_size != actual_size:
+            if diff_path is not None:
+                diff_path.parent.mkdir(parents=True, exist_ok=True)
+                overlay = Image.blend(before, Image.new("RGB", before.size, "magenta"), 0.65)
+                Image.composite(overlay, before, mask).save(diff_path)
             details = {
                 "changed_pixels": changed, "total_pixels": width * height,
-                "expected_size": reference.size, "actual_size": received.size,
+                "expected_size": expected_size, "actual_size": actual_size,
                 "changed_bounds": mask.getbbox(),
+                "status": "added" if reference is None else "removed" if received is None else "changed",
             }
-            (result_dir / "difference.json").write_text(json.dumps(details, indent=2) + "\n", encoding="utf-8")
-            raise AssertionError(f"Visual mismatch: {details}; artifacts: {result_dir}")
+            return details
+        return None
+    finally:
+        if reference is not None:
+            reference.close()
+        if received is not None:
+            received.close()
+
+
+def assert_visual(actual: bytes, expected: Path, diff_path: Path | None = None) -> None:
+    """Reject changed working-baseline pixels without overwriting the separate HEAD comparison."""
+    details = write_visual_difference(actual, expected.read_bytes(), diff_path)
+    if details is not None:
+        raise AssertionError(f"Visual mismatch: {details}; baseline: {expected}")
+
+
+def record_visual_changes(images: dict[str, bytes], baseline: Path) -> None:
+    """Compare rendered images with Git HEAD, retaining diffs across repeated baseline updates."""
+    if not baseline.resolve().is_relative_to(ROOT):
+        # Harness checks use temporary baselines and must not compare unrelated Git files.
+        return
+    relative = baseline.resolve().relative_to(ROOT).as_posix()
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    tree = subprocess.run(
+        ["git", "ls-tree", "-rz", revision, "--", relative], cwd=ROOT, check=True, capture_output=True,
+    ).stdout
+    previous = {}
+    for entry in tree.split(b"\0"):
+        if not entry:
+            continue
+        metadata, filename = entry.split(b"\t", 1)
+        path = Path(filename.decode("utf-8"))
+        # Diff PNGs share the baseline directory, so never compare them as source pages.
+        if path.parent.as_posix() == relative and (path.name == "html.png" or re.fullmatch(r"page-\d+\.png", path.name)):
+            previous[path.name] = metadata.split()[2].decode("ascii")
+    pattern = "diff.png" if "html.png" in images else "page-*-diff.png"
+    for stale in baseline.glob(pattern):
+        stale.unlink()
+    changed = 0
+    for name in sorted(images.keys() | previous.keys()):
+        expected = None
+        if name in previous:
+            expected = subprocess.run(
+                ["git", "cat-file", "blob", previous[name]], cwd=ROOT, check=True, capture_output=True,
+            ).stdout
+        diff_path = baseline / ("diff.png" if name == "html.png" else f"{Path(name).stem}-diff.png")
+        details = write_visual_difference(images.get(name), expected, diff_path)
+        if details is not None:
+            changed += 1
+    if changed:
+        LOGGER.info("Saved visual diff PNGs against %s: %s (%s images)", revision[:12], baseline, changed)

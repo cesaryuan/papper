@@ -16,10 +16,11 @@ from pathlib import Path
 
 import pytest
 import pymupdf
+from PIL import Image, ImageChops
 from docx import Document
 from docx.shared import RGBColor
 
-from docx_visual_support import VISUAL_PLATFORM, VISUAL_ROOT, WordVisualSession
+from docx_visual_support import VISUAL_PLATFORM, WordVisualSession
 from native_support import papper_command
 from test_build_snapshots import CASE_ROOT, CASES, build_case, copy_case
 
@@ -56,15 +57,14 @@ def test_docx_render_matches_visual_snapshot(
         style_file = project / "style.yml" if case_name in {"native_crossrefs", "equation_attributes_no_mathtype"} else None
         build_case(project, markdown, "docx", output, style_file=style_file)
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "docx-word"
-    results = VISUAL_ROOT / "results/docx" / case_name
-    word_visual_session.check(output, baseline, results)
+    word_visual_session.check(output, baseline)
 
 
 @pytest.mark.visual
 def test_docx_visual_reports_color_and_pagination_changes(
     tmp_path: Path, word_visual_session: WordVisualSession, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Verify real Word rendering rejects changed text color and added pages with useful artifacts."""
+    """Verify Word rejects visible color/page changes, keeping only a diff PNG beside snapshots."""
     source = tmp_path / "layout.docx"
     document = Document()
     run = document.add_paragraph().add_run("DOCX visual regression contract")
@@ -79,17 +79,15 @@ def test_docx_visual_reports_color_and_pagination_changes(
     monkeypatch.setattr(word_visual_session, "update", False)
     run.font.color.rgb = RGBColor(255, 0, 0)
     document.save(source)
-    color_results = tmp_path / "color-difference"
     with pytest.raises(AssertionError, match="Visual mismatch"):
-        word_visual_session.check(source, baseline, color_results)
-    difference = json.loads((color_results / "page-001/difference.json").read_text(encoding="utf-8"))
-    assert difference["changed_pixels"] > 0, "Changed text color produced no visible difference artifact"
+        word_visual_session.check(source, baseline)
+    with Image.open(baseline / "page-001.png") as original, Image.open(baseline / "page-001-diff.png") as difference:
+        assert ImageChops.difference(original, difference).getbbox(), "Changed text color produced no visible diff"
 
     document.add_page_break()
     document.add_paragraph("Additional DOCX page")
     document.save(source)
-    pagination_results = tmp_path / "pagination-difference"
     with pytest.raises(AssertionError, match="DOCX page count/geometry changed"):
-        word_visual_session.check(source, baseline, pagination_results)
-    with pymupdf.open(pagination_results / "actual.pdf") as actual:
+        word_visual_session.check(source, baseline)
+    with pymupdf.open(tmp_path / "word-render/export-2/rendered.pdf") as actual:
         assert actual.page_count > len(geometry), "Failure PDF lost the additional page"

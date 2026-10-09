@@ -250,15 +250,15 @@ Set `tableAutofit` for ordinary DOCX/HTML tables using `window`, `content`,
 `fixed`, or `none`; per-table attributes take priority.
 
 ```yaml
-tableAutofit: window
+tableAutofit: none
 ```
 
 | Value | Behavior |
 | --- | --- |
-| `window` | Fit the table to the available page width; this is the default. |
+| `window` | Fit the table to the available page width. |
 | `content` | Size the table to its contents. |
 | `fixed` | Preserve authored column widths and disable automatic resizing. |
-| `none` | Leave tables without an explicit autofit attribute at their own settings. |
+| `none` | Leave tables without an explicit autofit attribute at their own settings; this is the default. |
 
 A table caption's `autofit` attribute takes priority. This default does not
 change generated equation or subfigure layouts. Set `reply.tableAutofit` to

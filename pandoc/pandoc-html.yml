@@ -13,7 +13,6 @@ math-method:
   method: katex
   url: "https://cdn.jsdmirror.com/npm/katex@latest/dist/"
 
-
 # Filters are applied in order so cross-references and citations are resolved
 # before Pandoc writes the standalone HTML document.
 filters:

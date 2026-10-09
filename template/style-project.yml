@@ -57,7 +57,7 @@ docxShowLineNumbers: continuous
 docxShowPageNumbers: true
 
 # 手写表格默认 autofit：window、content、fixed；none 不补默认属性，自动生成的布局表格始终跳过。
-tableAutofit: window
+tableAutofit: none
 
 # docxPageMargins: # 控制输出的 DOCX 页面边距。
 #   top: 2.54cm

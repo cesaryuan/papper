@@ -79,13 +79,28 @@ Baseline comparisons verify this environment before checking images. Other OSes
 need separately reviewed baselines and consistent fonts; Linux must not reuse
 the Windows PNGs. Chromium is the bundled headless browser, never user Chrome.
 
-On failure, inspect `tests/visual/results/<case>/expected.png`, `actual.png`,
-`diff.png` (changed pixels highlighted in magenta) and `difference.json`
-(changed pixel count, image dimensions and bounding rectangle). These generated
-artifacts are ignored by Git. The committed PNGs and manifest are review inputs.
-For DOCX, inspect `tests/visual/results/docx/<case>/page-*/actual.png`,
-`actual.pdf`, and `pages.json`; the PDF is the exact Word export that was
-rasterized for the failure.
+Every visual run compares newly rendered images with the last committed
+baselines in Git `HEAD`, including runs with `--visual-update`. Review differences
+beside the baselines under each case's `snapshots-visual/<platform>-<architecture>/`:
+
+- HTML: `diff.png`, beside `html.png`.
+- DOCX: `docx-word/page-001-diff.png`, `page-002-diff.png`, ... beside the page
+  baselines, for each changed, added, or removed page.
+
+Only diff PNGs are saved, with changed pixels highlighted in magenta. Added or
+removed pages, including blank pages, are highlighted across the page. No extra
+old/new screenshots, JSON reports or failure PDFs are saved beside the snapshots.
+Comparison statistics remain in pytest's failure message; Word's intermediate
+PDF exports remain in pytest's temporary rendering directory.
+
+Diff PNGs are not ignored by Git and can be committed with reviewed baselines.
+Repeated updates keep comparing with `HEAD`, so overwriting a local baseline
+does not erase the review difference. Images unchanged from `HEAD` produce no
+diff; rerunning a case replaces its diff PNGs and removes stale differences.
+The first baseline for a new case is reported as added.
+
+Verification still compares exact pixels with the working baseline and fails on
+any mismatch; recording differences against `HEAD` does not accept a baseline.
 
 Update only after reviewing an intentional change:
 
