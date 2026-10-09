@@ -2440,7 +2440,6 @@ dependencies = [
  "papper-engine",
  "papper-platform",
  "papper-server",
- "pdf_oxide",
  "pep440_rs",
  "pulldown-cmark",
  "regex",
@@ -2498,14 +2497,19 @@ version = "0.10.2"
 dependencies = [
  "anyhow",
  "encoding_rs",
+ "fancy-regex 0.17.0",
  "html-escape",
  "papper-core",
+ "papper-engine",
  "papper-platform",
+ "pdf_oxide",
  "regex",
  "roxmltree 0.21.1",
  "serde_json",
+ "serde_yaml",
  "sha2 0.11.0",
  "tempfile",
+ "windows",
  "zip 2.4.2",
 ]
 

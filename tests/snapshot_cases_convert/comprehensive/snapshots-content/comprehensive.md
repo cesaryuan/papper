@@ -2,15 +2,15 @@
 
 下面是个公式
 
-$$\sqrt{{b^2}-4ac}$$
+$$\sqrt{b^2-4ac}$$
 
-这是一个行内公式：$\sqrt{{a^2}+{b^2}}$
+这是一个行内公式：$\sqrt{a^2+b^2}$
 
 这是一个右编号公式：
 
 $$\mathop{\lim }\limits_{x\to \infty }$$
 
-$$\sqrt{{b^2}-4ac}$$ {#eq:_Ref241620691}
+$$\sqrt{b^2-4ac}$$ {#eq:_Ref241620691}
 
 对公式的引用 [@eq:_Ref241620691]
 
@@ -64,44 +64,41 @@ OMML remains a formula: $a + b = c$
 
 Two-column equation with a Word bookmark:
 
-$$\sqrt{{b^2}-4ac}$$ {#eq:_RefConvertTwoCell}
+$$\sqrt{b^2-4ac}$$ {#eq:_RefConvertTwoCell}
 
 Three-column equation without a bookmark:
 
-$$\sqrt{{b^2}-4ac}$$ (7)
+$\sqrt{b^2-4ac}$ (7)
 
 Descriptive label is preserved:
 
-$$\sqrt{{b^2}-4ac}$$ {#eq:_RefConvertTextLabel} energy balance
+$$\sqrt{b^2-4ac}$$ {#eq:_RefConvertTextLabel} energy balance
 
 A nonempty leading cell is ordinary table content:
 
-  -----------------------------------------------------------------------
-  physical quantity       $$\sqrt{{b^2}-4ac}$$    \(8\)
-  ----------------------- ----------------------- -----------------------
-
-  -----------------------------------------------------------------------
++----------------------+-----------------------+----------------------+
+| physical quantity    | $$\sqrt{b^2-4ac}$$    | \(8\)                |
++======================+=======================+======================+
 
 A multirow table is not an equation layout:
 
-  -----------------------------------------------------------------------
-  $$\sqrt{{b^2}-4ac}$$                \(9\)
-  ----------------------------------- -----------------------------------
-  ordinary data row                   must remain a table
-
-  -----------------------------------------------------------------------
++-----------------------------------+-----------------------------------+
+| $$\sqrt{b^2-4ac}$$                | \(9\)                             |
++===================================+===================================+
+| ordinary data row                 | must remain a table               |
++-----------------------------------+-----------------------------------+
 
 References: [@eq:_RefConvertTwoCell] and [@eq:_RefConvertTextLabel]; unknown target stays a link: [unknown](#_RefConvertUnknown)
 
 ## Ordinary table
 
-  -------------------------------------------------------------------------------
-  Item[]{#_RefConvertOrdinaryTable .anchor}   Value
-  ------------------------------------------- -----------------------------------
-  Alpha                                       10
-
-  中文                                        20
-  -------------------------------------------------------------------------------
++-------------------------------------------+-----------------------------------+
+| Item[]{#_RefConvertOrdinaryTable .anchor} | Value                             |
++===========================================+===================================+
+| Alpha                                     | 10                                |
++-------------------------------------------+-----------------------------------+
+| 中文                                      | 20                                |
++-------------------------------------------+-----------------------------------+
 
 Ordinary table bookmark stays a link: [Table 1](#_RefConvertOrdinaryTable)
 
@@ -143,8 +140,8 @@ Text with a formula footnote[^1]
 
 # 仅有WMF的公式
 
-在本节中，${\hat y_i}$表示预测得到的节点温度${T_i}$、应力${\sigma _i}$或位移${u_i}$，${f_{de}}$仍然为3层MLP。为了通过反向传播来训练GNN，均方误差（MSE）被用作损失函数：
+在本节中，$\hat{y}_i$表示预测得到的节点温度$T_i$、应力$\sigma _i$或位移$u_i$，$f_{de}$仍然为3层MLP。为了通过反向传播来训练GNN，均方误差（MSE）被用作损失函数：
 
-$$Los{s_{\text{MSE}}}=\frac{1}{n}\cdot \sum\limits_{i=1}^n({y_i}-{\hat y_i}{)^2}$$
+$$Loss_{\text{MSE}}=\frac{1}{n}\cdot \sum\limits_{i=1}^n(y_i-\hat{y}_i)^2$$
 
-[^1]: Footnote formula: $\sqrt{{a^2}+{b^2}}$
+[^1]: Footnote formula: $\sqrt{a^2+b^2}$

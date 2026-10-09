@@ -57,6 +57,12 @@ Reply overrides affect reply builds only. The reply Markdown's YAML header
 still has the highest priority for Pandoc metadata. Keep manuscript-specific
 title, author, abstract, and bibliography values in the manuscript YAML.
 
+When both the project root and the reply Markdown directory contain `style.yml`,
+their `reply` sections are merged recursively too. Reply-directory values override
+project-root values, while unspecified reply settings remain inherited. Within
+the merged style, `reply.pandocMetadata` overrides top-level `pandocMetadata`;
+the reply Markdown's YAML header can override both.
+
 ## MathType Equations
 
 Choose native Word or editable MathType equations for DOCX, with conversion
@@ -294,6 +300,11 @@ and leave global SVG-to-PNG conversion disabled.
 Global SVG rasterization takes priority over child-image embedding. If a
 linked child image is itself an SVG, the composed parent is converted to PNG
 for Word compatibility. Source Markdown and SVG files are not rewritten.
+
+SVG selection follows the effective resource search order: the input Markdown's
+directory, then the project directory by default. `--resource-path` replaces this
+order for both SVG processing and other image formats. A same-named project image
+therefore does not override an image beside the manuscript.
 
 ## DOCX Line Numbers
 

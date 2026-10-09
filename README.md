@@ -74,7 +74,7 @@ uv run papper convert "测试文档.docx" -o converted
 ```
 
 This writes `converted/测试文档.md` and only the images still needed by the
-Markdown under `converted/media`. The command combines eight bundled Lua
+Markdown under `converted/media`. The command combines ten bundled Lua
 filters: it converts MathType OLE equations and MTEF-bearing WMF images to LaTeX, flattens one-row equation
 layout tables, removes `_Toc...` bookmarks and navigation links, recovers subfigure layouts, extracts inline
 images wider than 2 inches into separate figures, converts one-column image/caption
@@ -86,6 +86,11 @@ table, and changes recognizable Word bookmark links to pandoc-crossref
 references such as `[@fig:_Ref241620557]` and `[@eq:_Ref241620691]`. It keeps
 ordinary tables and unrecognized links as Pandoc produced them. When an
 equation cannot be decoded, its preview image remains available.
+
+When another import already uses a media filename, identical image bytes reuse
+the file; different bytes receive a new filename and updated Markdown links.
+Existing images, including edited images, are preserved. Importing the same
+DOCX again replaces its generated Markdown file.
 
 Caption pairing retains the original text, formatting, `_Ref...` bookmarks and
 image dimensions. English prefixes are case-insensitive and allow an optional
@@ -144,7 +149,7 @@ separate figure. Absolute widths in common physical units are supported; images
 with relative or invalid widths, exactly 2-inch images, and already standalone
 figures remain where they were.
 
-When Han characters make up at least 90% of the letters and numbers in the DOCX
+When Han characters make up at least 60% of the letters and numbers in the DOCX
 body, footnotes, and endnotes, Convert adds `lang: zh-CN` to a leading YAML header
 in the Markdown. Whitespace, punctuation, and formatting do not affect the ratio;
 empty and picture-only documents do not receive an automatic language tag.

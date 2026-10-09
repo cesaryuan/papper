@@ -10,7 +10,8 @@
 -- Examples:
 --   Figure caption: []{#_Ref123 .anchor}Network -> ![Network](image.png){#fig:_Ref123}
 --   $$E=mc^2$$ []{#_Ref456 .anchor}(7) -> $$E=mc^2$$ {#eq:_Ref456}
---   $E=mc^2$ []{#_Ref456 .anchor}(7) -> $E=mc^2$ {#eq:_Ref456}
+--   $E=mc^2$ []{#_Ref456 .anchor}(7) -> $$E=mc^2$$ {#eq:_Ref456}
+--   $F=ma$ []{#_Ref789 .anchor}force balance -> $$F=ma$$ {#eq:_Ref789} force balance
 --   [Figure 1](#_Ref123) -> [@fig:_Ref123] (only if the figure was confirmed)
 --   [Equation 7](#_Ref456) -> [@eq:_Ref456] (only if the equation was confirmed)
 --   : []{#_Ref789 .anchor}Table title -> : Table title {#tbl:_Ref789}
@@ -18,7 +19,11 @@
 -- Subfigure Divs and images labeled by detect_subfigures.lua are registered too:
 --   ::: {#fig:_Ref123} ... -> [Figure 1](#_Ref123) becomes [@fig:_Ref123].
 -- Manual numeric equation labels are dropped for crossref to regenerate;
--- descriptive labels survive. Table captions use the same empty _Ref span as
+-- descriptive labels survive.
+-- A bookmarked equation at the start of its paragraph becomes DisplayMath here,
+-- after equation_tables.lua has flattened layouts as InlineMath. Equations with
+-- preceding prose retain their inline context.
+-- Table captions use the same empty _Ref span as
 -- figure captions and receive tbl: identifiers; unknown links, uncaptured
 -- tables and section bookmarks are retained. Nested caption spans and multiple
 -- distinct caption bookmarks are not guessed as targets.
@@ -59,8 +64,8 @@ local function equation_anchor(block)
   if block.t ~= 'Para' and block.t ~= 'Plain' then return nil end
   local math, id = nil, nil
   for _, inline in ipairs(block.content) do
-    -- equation_tables.lua emits InlineMath to keep the formula and label together.
-    -- Count both types so mixed paragraphs cannot assign a bookmark ambiguously.
+    -- Word can import numbered object paragraphs as InlineMath too. Count both
+    -- types so mixed paragraphs cannot assign a bookmark ambiguously.
     if inline.t == 'Math' then
       if math then return nil end
       math = inline
@@ -119,17 +124,26 @@ end
 
 --- Attach a known equation identifier and remove its old numeric label.
 local function label_equation(block, id)
-  local kept, math = {}, nil
+  local kept, math, has_prefix = {}, nil, false
   for _, inline in ipairs(block.content) do
     if inline.t == 'Math' then
       math = inline
     elseif not anchor_id(inline) then
       kept[#kept + 1] = inline
+      if not math and pandoc.utils.stringify({ inline }):match('%S') then has_prefix = true end
     end
   end
   if not math then return block end
+  if not has_prefix then
+    -- Flattened layout equations may have descriptive labels instead of numbers.
+    -- Promote the confirmed bookmark target here so later builds can resolve its ID.
+    -- Preceding prose keeps an inline equation in its authored context.
+    math.mathtype = 'DisplayMath'
+  end
   local label = pandoc.RawInline('markdown', ' {#eq:' .. id .. '}')
-  if is_manual_number(kept) then return pandoc.Para({ math, label }) end
+  if is_manual_number(kept) or pandoc.utils.stringify(kept):match('^%s*$') then
+    return pandoc.Para({ math, label })
+  end
   local result = {}
   -- Inline formulas may sit inside prose; keep surrounding text in authored
   -- order instead of moving the math to the beginning of its paragraph.

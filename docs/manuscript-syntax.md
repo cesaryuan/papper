@@ -219,6 +219,14 @@ containing the complete note.
 Choose a journal document class and options in manuscript YAML for LaTeX
 source, including figure and table layouts spanning two columns.
 
+`papper build latex paper.md -o submission/paper.tex` copies local image resources
+beside the selected `.tex` file. Relative paths are resolved from the manuscript
+directory first, then the project directory; `--resource-path` replaces this search
+order. Files outside the output's relative layout are copied under `resources/`
+and their output references are updated, so the output directory can be shared
+without the original source folders. Journal classes and external LaTeX packages
+still need to be installed in the recipient's LaTeX environment.
+
 ### Example 1: Elsevier Journal
 
 Use Elsevier's `elsarticle` class with preprint, 3p layout, and author-date
@@ -839,6 +847,37 @@ disables automatic resizing. Set `alignment` separately to control a table's
 alignment. The optional top-level `reply.tableAutofit` setting overrides the
 manuscript setting for reviewer replies. This is a Papper setting outside
 `pandocMetadata`; manuscript YAML does not override it.
+
+## Importing Word Documents
+
+Use `papper convert` to import a DOCX manuscript as Markdown with adjacent media,
+recovering supported formula previews, captions, and bookmark references.
+
+```powershell
+papper convert existing-paper.docx -o converted
+```
+
+This writes `converted/existing-paper.md` and the images it still needs under
+`converted/media/`. Importing another document into the same directory preserves
+existing media: identical images reuse their filenames, while different images
+with the same filename receive a content-based suffix and updated Markdown paths.
+Existing edited images are preserved too. Reimporting the same document replaces
+its Markdown file; use a separate output directory to keep multiple Markdown versions.
+
+An independent formula with a confirmed Word bookmark and a numeric equation
+label becomes a display equation such as `$$x=y$$ {#eq:_Ref123}`. Formulas recovered
+from equation layout tables are exported as inline math beside their labels;
+when a formula starts its paragraph and has a confirmed Word bookmark, it becomes
+a display equation, including formulas with descriptive labels. Those labels are
+retained after the formula. A matching
+bookmark link becomes `[@eq:_Ref123]`, which remains resolvable in later builds.
+Ordinary inline formulas and formulas embedded in prose keep their original
+context. Unrecognized equation previews remain images.
+
+When Han characters account for at least 60% of the letters and numbers in the
+body, footnotes, and endnotes, Convert adds `lang: zh-CN` to the Markdown YAML
+header. Whitespace and punctuation do not affect the ratio; empty and picture-only
+documents do not receive an automatic language tag.
 
 ## Reviewer Replies
 

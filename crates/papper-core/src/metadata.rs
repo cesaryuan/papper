@@ -1057,8 +1057,20 @@ pub fn load_effective_metadata_text(
                 ))?;
                 merged.pandoc_metadata =
                     merge_metadata(&previous.pandoc_metadata, &current.pandoc_metadata);
-                // Existing multi-style loading drops reply records at this merge boundary.
-                // Preserve that observable contract during migration rather than silently fixing it.
+                // Reply overrides are a separate domain and must survive source-local overlays.
+                merged.reply = match (&previous.reply, &current.reply) {
+                    (Some(base), Some(overrides)) => Some(ReplySettings {
+                        pmt_overrides: serde_json::from_value(Value::Object(merge_metadata(
+                            &base.pmt_overrides.to_mapping(),
+                            &overrides.pmt_overrides.to_mapping(),
+                        )))?,
+                        pandoc_metadata: merge_metadata(
+                            &base.pandoc_metadata,
+                            &overrides.pandoc_metadata,
+                        ),
+                    }),
+                    (base, overrides) => overrides.clone().or_else(|| base.clone()),
+                };
                 merged
             }
         });
@@ -1092,6 +1104,7 @@ pub fn load_effective_metadata_text(
     if overrides.get("csl").is_none_or(is_empty) {
         overrides.remove("csl");
         project_metadata.remove("csl");
+        manuscript.remove("csl");
     }
     let selected_language = options
         .lang_override
@@ -1128,7 +1141,9 @@ pub fn load_effective_metadata_text(
         }
     }
     let pmt_settings = PmtSettings::from_mapping(&settings_mapping)?;
-    let mut pandoc_metadata = merge_metadata(&pandoc_defaults, &overrides);
+    // Project metadata was already applied before reply overrides. Reapplying it here
+    // would erase reply-specific values; only the manuscript header has higher priority.
+    let mut pandoc_metadata = merge_metadata(&pandoc_defaults, &manuscript);
     if let Some(Value::String(raw)) = bundled_csl
         && pandoc_metadata.get("csl") == Some(&Value::String(raw.clone()))
         && !options.resource_roots.is_empty()

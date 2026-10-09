@@ -164,6 +164,42 @@ The filters are
 provided by the native
 [`papper-svg`](../crates/papper-svg/src/main.rs) renderer using Rust `resvg`.
 
+Image filters receive the same ordered resource roots as Pandoc, including an
+explicit `--resource-path`. Font fingerprints are requested only when an SVG
+contains text or potentially text-bearing nested images. Both explicit PNG
+conversion and Pandoc's fallback cache include font identity for text images;
+vector-only rendering skips loading the system font database.
+
+## Import Media and Package Publication
+
+The equation-table filter flattens confirmed layout rows to InlineMath, retaining
+their labels and bookmarks. The cross-reference filter owns promotion to
+DisplayMath: a confirmed bookmarked equation at the start of its paragraph is
+promoted, including one with a descriptive label, so its exported ID resolves on
+rebuild. Equations with preceding prose retain their inline context; unbookmarked
+flattened equations remain inline unless fuzzy reference recovery identifies them.
+
+The final convert filter,
+[`media_paths.lua`](../pandoc/filters/convert/media_paths.lua), compares imported
+media with the destination before Pandoc extracts it. Conflicting bytes receive
+a content-hash suffix; an edited hash-named file receives an additional numeric
+suffix. References and media-bag entries change together. Native publication
+uses no-clobber writes and permits identical bytes, so a concurrent conflicting
+import fails safely and can be retried without replacing prior media.
+
+DOCX package saves borrow unchanged binary parts and stream ZIP members and the
+central directory into a temporary file beside the destination. XML parts that
+require normalization are serialized separately. Only a completed archive
+replaces the output; an interrupted write retains the previous document. This
+avoids cloning every image and retaining a second complete compressed archive
+in memory during publication.
+
+LaTeX resource copying uses the effective resource roots and the actual output
+file's parent directory. Absolute paths and paths outside the relative output
+tree receive portable URLs under `resources/<source-path-hash>/`.
+
+## Pandoc Metadata Transport
+
 Generated Pandoc-only metadata is written under `.pmt/work/`; source
 `style.yml` is preserved. Citation range formatting passes the top-level
 `citationNumberRangeDelimiter` to the filter through

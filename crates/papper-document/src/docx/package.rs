@@ -2,8 +2,9 @@
 
 use super::xml::{Element, parse};
 use anyhow::{Context, Result};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 use std::path::Path;
 use zip::write::SimpleFileOptions;
 
@@ -45,7 +46,12 @@ impl Package {
 
     /// Publish a complete valid archive atomically, preserving the previous output on failure.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let mut entries = self.entries.clone();
+        // Borrow unchanged binary parts: large figures must not be duplicated during saving.
+        let mut entries: BTreeMap<String, Cow<'_, [u8]>> = self
+            .entries
+            .iter()
+            .map(|(name, bytes)| (name.clone(), Cow::Borrowed(bytes.as_slice())))
+            .collect();
         // Pandoc emits an empty note relationship part even without note links.
         // The existing OPC writer omits that harmless, unused relationship part.
         for name in [
@@ -74,9 +80,12 @@ impl Package {
             .cloned()
             .collect();
         for name in names {
-            entries.insert(name.clone(), parse(&entries[&name])?.bytes());
+            entries.insert(name.clone(), Cow::Owned(parse(&entries[&name])?.bytes()));
         }
-        entries.insert("[Content_Types].xml".into(), content_types(&entries)?);
+        entries.insert(
+            "[Content_Types].xml".into(),
+            Cow::Owned(content_types(&entries)?),
+        );
         publish(&entries, path)
     }
 
@@ -87,27 +96,28 @@ impl Package {
 }
 
 /// Build and atomically publish the archive only after every member has been written.
-fn publish(entries: &BTreeMap<String, Vec<u8>>, path: &Path) -> Result<()> {
-    let mut buffer = Cursor::new(Vec::new());
-    {
-        let mut writer = zip::ZipWriter::new(&mut buffer);
+fn publish<T: AsRef<[u8]>>(entries: &BTreeMap<String, T>, path: &Path) -> Result<()> {
+    // ZIP members and the central directory stream to disk, retaining atomic replacement.
+    papper_core::paths::atomic_write_with(path, |file| {
+        let mut writer = zip::ZipWriter::new(file);
         let options =
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         for (name, data) in entries {
             writer.start_file(name, options)?;
-            writer.write_all(data)?;
+            writer.write_all(data.as_ref())?;
         }
         writer.finish()?;
-    }
-    papper_core::paths::atomic_write(path, buffer.get_ref())
+        Ok(())
+    })
 }
 
 /// Canonicalize OPC declarations using actual package parts while retaining unknown data.
-fn content_types(entries: &BTreeMap<String, Vec<u8>>) -> Result<Vec<u8>> {
+fn content_types<T: AsRef<[u8]>>(entries: &BTreeMap<String, T>) -> Result<Vec<u8>> {
     let original = parse(
         entries
             .get("[Content_Types].xml")
-            .context("Missing OPC content types")?,
+            .context("Missing OPC content types")?
+            .as_ref(),
     )?;
     let mut declared_defaults = BTreeMap::new();
     let mut declared_overrides = BTreeMap::new();

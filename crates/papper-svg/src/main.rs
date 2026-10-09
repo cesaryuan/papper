@@ -9,7 +9,7 @@
 //! `papper-svg rsvg-convert` accepts Pandoc's PNG fallback arguments; the bundled
 //! `rsvg-convert` launcher forwards those requests without a shell or librsvg.
 //! Fallback PNGs use an optional persistent cache; `font-identity` fingerprints
-//! system fonts once per DOCX build so text-image cache hits skip font loading.
+//! system fonts on demand for text images, leaving other builds free of font scans.
 
 mod cache;
 mod rsvg;
@@ -119,6 +119,15 @@ fn font_database() -> Arc<resvg::usvg::fontdb::Database> {
         .clone()
 }
 
+/// Avoid loading system fonts for vector-only SVGs, conservatively retaining nested-image support.
+fn requires_fonts(svg: &str) -> bool {
+    roxmltree::Document::parse(svg).map_or(true, |document| {
+        document
+            .descendants()
+            .any(|node| node.is_element() && matches!(node.tag_name().name(), "text" | "image"))
+    })
+}
+
 /// Preserve intrinsic-size rounding and width-over-scale precedence for PNG parity.
 fn render(
     source: &Path,
@@ -138,7 +147,11 @@ fn render(
         },
         default_size: resvg::usvg::Size::from_wh(width.unwrap_or(100) as f32, 100.0)
             .context("SVG default viewport is invalid")?,
-        fontdb: font_database(),
+        fontdb: if requires_fonts(normalized) {
+            font_database()
+        } else {
+            Arc::new(resvg::usvg::fontdb::Database::new())
+        },
         ..resvg::usvg::Options::default()
     };
     let tree = resvg::usvg::Tree::from_str(normalized, &options)

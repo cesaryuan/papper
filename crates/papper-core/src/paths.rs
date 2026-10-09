@@ -75,6 +75,18 @@ pub fn project_work_dir(project: &Path) -> Result<PathBuf> {
 /// Atomically publish bytes; failed writes leave the previous output intact.
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     use std::io::Write;
+    atomic_write_with(path, |file| {
+        file.write_all(bytes)?;
+        Ok(())
+    })
+}
+
+/// Stream a staged output beside its destination and publish only after writing succeeds.
+pub fn atomic_write_with(
+    path: &Path,
+    write: impl FnOnce(&mut std::fs::File) -> Result<()>,
+) -> Result<()> {
+    use std::io::Write;
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -87,7 +99,7 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     let parent = parent.canonicalize()?;
     let destination = parent.join(path.file_name().context("Output path must name a file")?);
     let mut temporary = tempfile::NamedTempFile::new_in(&parent)?;
-    temporary.write_all(bytes)?;
+    write(temporary.as_file_mut())?;
     temporary.flush()?;
     for attempt in 0..=7 {
         match temporary.persist(&destination) {
@@ -114,6 +126,36 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     unreachable!("Every persist attempt either returns or retains its temporary file")
 }
 
+/// Publish immutable imported media; a concurrent or user-edited file must never be replaced.
+pub fn publish_media(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::io::Write;
+    let parent = path.parent().context("Media path must have a parent")?;
+    std::fs::create_dir_all(parent)?;
+    #[cfg(windows)]
+    let parent = parent.canonicalize()?;
+    let destination = parent.join(path.file_name().context("Media path must name a file")?);
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    temporary.write_all(bytes)?;
+    temporary.flush()?;
+    match temporary.persist_noclobber(&destination) {
+        Ok(_) => Ok(()),
+        Err(error) if destination.exists() => {
+            // The Lua collision check and publication can race with another importer.
+            // Reuse identical bytes, otherwise fail safely so a retry can choose a new name.
+            anyhow::ensure!(
+                std::fs::read(&destination)? == bytes,
+                "Media changed during import; existing file preserved: {}. Retry the conversion",
+                path.display()
+            );
+            drop(error);
+            Ok(())
+        }
+        Err(error) => {
+            Err(error.error).with_context(|| format!("Could not publish media: {}", path.display()))
+        }
+    }
+}
+
 /// Preserve timestamps when a generated configuration has identical content.
 pub fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<bool> {
     if std::fs::read(path).ok().as_deref() == Some(bytes) {
@@ -121,4 +163,33 @@ pub fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<bool> {
     }
     atomic_write(path, bytes)?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    /// Interrupted streaming writes and conflicting media imports must preserve prior user data.
+    #[test]
+    fn failed_stream_and_conflicting_media_preserve_existing_files() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let output = directory.path().join("output.docx");
+        atomic_write(&output, b"previous complete document")?;
+        let result = atomic_write_with(&output, |file| {
+            file.write_all(b"incomplete document")?;
+            anyhow::bail!("Simulated conversion failure")
+        });
+        assert!(result.is_err());
+        assert_eq!(std::fs::read(&output)?, b"previous complete document");
+        assert!(publish_media(&output, b"different imported image").is_err());
+        assert_eq!(std::fs::read(&output)?, b"previous complete document");
+        publish_media(&output, b"previous complete document")?;
+        atomic_write_with(&output, |file| {
+            file.write_all(b"new complete document")?;
+            Ok(())
+        })?;
+        assert_eq!(std::fs::read(output)?, b"new complete document");
+        Ok(())
+    }
 }

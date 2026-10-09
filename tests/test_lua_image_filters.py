@@ -81,6 +81,35 @@ def render_reference(renderer: Path, source: Path, svg: bytes) -> bytes:
     return result.stdout
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Isolate the renderer's Windows system font roots")
+def test_rasterized_text_refreshes_when_fonts_are_installed(
+    tmp_path: Path, image_filter_tools: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lazy font checks must prevent stale text PNGs after actual font installation."""
+    system_font = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "Fonts/times.ttf"
+    fonts = tmp_path / "system/Fonts"
+    fonts.mkdir(parents=True)
+    monkeypatch.setenv("SYSTEMROOT", str(fonts.parent))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "user"))
+    monkeypatch.delenv("PAPPER_SVG_FONT_ID", raising=False)
+    source = tmp_path / "label.svg"
+    source.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="30">'
+        '<text x="0" y="20" font-family="Times New Roman">Papper</text></svg>', encoding="utf-8",
+    )
+    result, image = run_image_filters(image_filter_tools, tmp_path, source, embed=False)
+    assert result.returncode == 0, result.stderr
+    blank = Path(image["c"][2][0]).read_bytes()
+    shutil.copy2(system_font, fonts / "times.ttf")
+    result, image = run_image_filters(image_filter_tools, tmp_path, source, embed=False)
+    assert result.returncode == 0, result.stderr
+    text = Path(image["c"][2][0]).read_bytes()
+    assert text != blank
+    result, image = run_image_filters(image_filter_tools, tmp_path, source, embed=False)
+    assert result.returncode == 0, result.stderr
+    assert Path(image["c"][2][0]).read_bytes() == text
+
+
 def embedded_child_bytes(target: Path) -> bytes:
     """Decode the generated SVG image reference without depending on sidecar internals."""
     image = next(element for element in ET.fromstring(target.read_bytes()).iter()

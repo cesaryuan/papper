@@ -24,9 +24,9 @@ $$E=mc^2$$ {#eq:_RefEquation}
 
 [@eq:_RefInlineEquation] and [@eq:_RefLayoutEquation].
 
-$a^2+b^2=c^2$ {#eq:_RefInlineEquation}
+$$a^2+b^2=c^2$$ {#eq:_RefInlineEquation}
 
-$x+y=z$ {#eq:_RefDescribedEquation} **energy balance**
+$$x+y=z$$ {#eq:_RefDescribedEquation} **energy balance**
 
 [@eq:_RefDescribedEquation]
 
@@ -34,7 +34,7 @@ Before $x=1$ {#eq:_RefProseEquation} after.
 
 [@eq:_RefProseEquation]
 
-$u=v$ {#eq:_RefLayoutEquation}
+$$u=v$$ {#eq:_RefLayoutEquation}
 
 $x$ and $y$ []{#_RefMultipleMath .anchor}(10)
 
@@ -46,8 +46,8 @@ $x=y$ []{#_RefFirstEquation .anchor}[]{#_RefSecondEquation .anchor}(12)
 
 Ordinary inline math $q=1$ stays inline without a bookmark.
 
-$p=q$ {#eq:_RefMergedFirst}
+$$p=q$$ {#eq:_RefMergedFirst}
 
-$r=s$ {#eq:_RefMergedSecond}
+$$r=s$$ {#eq:_RefMergedSecond}
 
 [@eq:_RefMergedFirst] and [@eq:_RefMergedSecond].

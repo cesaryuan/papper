@@ -164,7 +164,7 @@ def test_native_json_and_latex_preserve_crossrefs_and_relative_resources(
         assert r"\begin{document}" in text and r"\end{document}" in text
         assert "Unknown reference" not in text
         assert any(data == (source / "figure.svg").read_bytes()
-                   for data in _tree(native / "output/latex").values())
+                   for data in _tree(native / "output").values())
 
 
 def test_native_convert_recovers_mathtype_tex_and_extracts_media_without_overwriting_user_files(

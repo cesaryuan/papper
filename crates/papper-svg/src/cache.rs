@@ -77,11 +77,18 @@ impl Cache {
         };
         digest.update(identity.as_bytes());
         if text {
-            // Papper collects this once per build. Standalone callers without a
-            // verified font identity still render text normally, without caching it.
+            // Compute fonts in this helper only for text SVGs. The same database is
+            // reused on a miss, so DOCX builds without SVGs incur no font scan.
             let fonts = std::env::var("PAPPER_SVG_FONT_ID")
                 .ok()
-                .filter(|value| !value.is_empty())?;
+                .filter(|value| !value.is_empty())
+                .or_else(|| match font_identity() {
+                    Ok(identity) => Some(identity),
+                    Err(error) => {
+                        eprintln!("[papper-svg] Text image cache unavailable: {error:#}");
+                        None
+                    }
+                })?;
             digest.update([0]);
             digest.update(fonts.as_bytes());
         }

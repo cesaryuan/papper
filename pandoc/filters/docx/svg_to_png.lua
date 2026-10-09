@@ -16,6 +16,24 @@ local version = resource.getenv('PMT_SVG_TO_PNG_PMT_VERSION') or 'unknown'
 local renderer_identity = resource.getenv('PAPPER_SVG_RENDERER_ID')
 local request_keys = {'to-png', 'to_png', 'toPng'}
 local scale_keys = {'to-png-scale', 'to_png_scale', 'toPngScale'}
+local fonts
+
+--- Fingerprint fonts once per conversion only for text or potentially text-bearing nested SVGs.
+local function font_identity(text)
+  if not text:find('<text[/%s>]') and not text:find('<[%w_.-]+:text[/%s>]')
+    and not text:find('<image[/%s>]') and not text:find('<[%w_.-]+:image[/%s>]') then
+    return ''
+  end
+  if fonts == nil then
+    local ok, identity = pcall(pandoc.pipe, resource.svg_helper(), {'font-identity'}, '')
+    if ok then
+      fonts = identity:gsub('%s+$', '')
+      if #fonts ~= 64 or fonts:find('[^%x]') then fonts = false end
+    else fonts = false end
+    if not fonts then resource.warn('Text image cache unavailable; rendering without reuse') end
+  end
+  return fonts
+end
 
 --- Find the first configured attribute alias while preserving historical precedence
 local function attribute(element, names)
@@ -79,16 +97,17 @@ function Image(element)
     target = target:gsub('%.png$', '.scale-' .. label .. '.png')
   end
   local normalized = svg.normalize(source, false)
+  local font_id = font_identity(normalized.text)
   local fingerprint = svg.fingerprint(source, normalized,
-    {'lua-svg-png-v1', implementation(), version, dpi, scale, width or 'intrinsic'})
-  if not resource.cache_matches(target, fingerprint) then
+    {'lua-svg-png-v2', implementation(), version, dpi, scale, width or 'intrinsic', font_id or ''})
+  if font_id == false or not resource.cache_matches(target, fingerprint) then
     local arguments = {'render', '--source', source, '--dpi', tostring(dpi), '--scale', tostring(scale)}
     if width then arguments[#arguments + 1], arguments[#arguments + 2] = '--width', tostring(width) end
     local pixels = pandoc.pipe(resource.svg_helper(), arguments, normalized.text)
     resource.atomic_write(target, pixels)
     resource.publish_metadata(target, fingerprint, {version = 1, source = resource.fingerprint(source, normalized.original),
       resources = normalized.resources, dpi = dpi, scale = scale, width = width or pandoc.json.null,
-      pmt_version = version, converter = 'lua-svg-png-v1', renderer = renderer_identity})
+      pmt_version = version, converter = 'lua-svg-png-v2', renderer = renderer_identity})
   end
   element.src = resource.pandoc_path(target)
   return element

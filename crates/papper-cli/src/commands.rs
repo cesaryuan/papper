@@ -511,11 +511,23 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         println!("[convert] fuzzy figure/table/equation cross-reference recovery enabled");
     }
     command.extend([
+        "--lua-filter".into(),
+        resources
+            .resource("pandoc/filters/convert/media_paths.lua")
+            .into_os_string(),
+    ]);
+    command.extend([
         "--extract-media=.".into(),
         "--output".into(),
         output_name.clone().into(),
     ]);
-    let environment = BTreeMap::from([("MATHTYPE_LATEX_MAP".into(), Some(display_path(&map)))]);
+    let environment = BTreeMap::from([
+        ("MATHTYPE_LATEX_MAP".into(), Some(display_path(&map))),
+        (
+            "PAPPER_CONVERT_OUTPUT_DIR".into(),
+            Some(pandoc_path(&destination)),
+        ),
+    ]);
     PandocCli::new(discover_engine(&resources.root)?).run(
         &command,
         temporary.path(),
@@ -531,17 +543,27 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     // published only after conversion succeeds, preserving existing user files.
     std::fs::create_dir_all(&destination)?;
     if temporary.path().join("media").is_dir() {
-        copy_tree(
-            &temporary.path().join("media"),
-            &destination.join("media"),
-            false,
-        )?;
+        publish_media_tree(&temporary.path().join("media"), &destination.join("media"))?;
     }
     atomic_write(&destination.join(&output_name), markdown.as_bytes())?;
     println!(
         "[convert] Wrote {}",
         destination.join(output_name).display()
     );
+    Ok(())
+}
+
+/// Publish extracted media without replacing any existing file, including concurrent imports.
+fn publish_media_tree(source: &Path, destination: &Path) -> Result<()> {
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let target = destination.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            publish_media_tree(&entry.path(), &target)?;
+        } else {
+            papper_core::paths::publish_media(&target, &std::fs::read(entry.path())?)?;
+        }
+    }
     Ok(())
 }
 

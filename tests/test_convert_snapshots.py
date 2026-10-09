@@ -27,12 +27,12 @@ CASE_ROOT = Path(__file__).with_name("snapshot_cases_convert")
 
 
 @pytest.mark.parametrize(("text", "expected_language"), [
-    pytest.param("中文正文转换语言中a", "zh-CN", id="exactly-90-percent"),
-    pytest.param("中" * 91 + "a" * 9, "zh-CN", id="above-90-percent"),
-    pytest.param("中" * 89 + "a" * 11, None, id="below-90-percent"),
-    pytest.param("𠀀" * 9 + "a", "zh-CN", id="supplementary-han"),
-    pytest.param("中文， 正文！\t转换：语言；中。 a", "zh-CN", id="ignore-punctuation-and-space"),
-    pytest.param("中" * 8 + "a1", None, id="count-digits"),
+    pytest.param("中" * 6 + "abcd", "zh-CN", id="exactly-60-percent"),
+    pytest.param("中" * 61 + "a" * 39, "zh-CN", id="above-60-percent"),
+    pytest.param("中" * 59 + "a" * 41, None, id="below-60-percent"),
+    pytest.param("𠀀" * 6 + "abcd", "zh-CN", id="supplementary-han"),
+    pytest.param("中文， 正文！\t转换：；。 abcd", "zh-CN", id="ignore-punctuation-and-space"),
+    pytest.param("中" * 6 + "abc12", None, id="count-digits"),
     pytest.param("An English manuscript", None, id="english"),
     pytest.param("", None, id="empty"),
     pytest.param("，。！？", None, id="punctuation-only"),

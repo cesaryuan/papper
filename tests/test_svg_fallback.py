@@ -242,7 +242,7 @@ def test_concurrent_fallback_requests_publish_complete_reusable_pngs(svg_tools, 
 
 @pytest.mark.skipif(os.name != "nt", reason="Isolate the renderer's Windows system font roots")
 def test_text_fallback_cache_tracks_actual_installed_font_bytes(svg_tools, tmp_path) -> None:
-    """Installing a font must invalidate text PNGs; standalone text without an identity bypasses."""
+    """Installing a font must invalidate text PNGs, including lazily identified standalone text."""
     system = tmp_path / "system"
     fonts = system / "Fonts"
     fonts.mkdir(parents=True)

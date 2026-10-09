@@ -1,3 +1,6 @@
+---
+reply: manuscript.md # path/to/your/manuscript.md. Linenumbers, Image/Table/Equation cross-references will be automatically handled.
+---
 # Reply to comments of reviewers
 
 ::: {custom-style="Reply Header"}

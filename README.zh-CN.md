@@ -71,7 +71,7 @@ uv run papper convert "测试文档.docx" -o converted
 ```
 
 命令会生成 `converted/测试文档.md`，并只把 Markdown 仍需要的图片放进
-`converted/media`。八个内置 Lua 过滤器依次将 MathType OLE 公式转换为 LaTeX、
+`converted/media`。十个内置 Lua 过滤器依次将 MathType OLE 公式转换为 LaTeX、
 展平单行的公式排版表格、清理 `_Toc...` 目录锚点及链接、识别子图排版、提取宽度超过 2 英寸的行内图片，
 将只用于图片排版的一列两行图片/题注表格转换为 figure，再将单张无题注图片与紧接着的
 `图1`、`图1‑11`、`Figure 1` 或 `Fig. 1-11` 这类编号题注段落合并（包括因 Word 左侧缩进而单独处在引用块中的图片），
@@ -80,6 +80,10 @@ uv run papper convert "测试文档.docx" -o converted
 最后把可确认的 Word 书签链接转换为 `[@fig:_Ref241620557]`
 或 `[@eq:_Ref241620691]` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
 Pandoc 的结果；公式无法解码时会保留预览图片。
+
+多次导入遇到同名图片时，相同内容复用原文件，不同内容使用新文件名并更新
+Markdown 链接。已有图片及用户编辑过的图片均会保留；重新导入同一 DOCX
+会替换该文档生成的 Markdown 文件。
 
 题注合并保留原有文字、格式、`_Ref...` 书签和图片尺寸；目录链接清理保留显示文字及页码。
 单图检测不会重新配对已有题注、多图段落和中间隔着正文的图文。
@@ -125,7 +129,7 @@ uv run papper convert "测试文档.docx" -o converted --fuzzy-crossrefs
 支持常见绝对单位；百分比或无效宽度、恰好 2 英寸的图片及已经独立成段的图片保持原位。
 
 当 DOCX 正文及脚注、尾注中的汉字占文字字符（汉字、其他语言字母和数字）的比例
-达到 90% 时，命令会在 Markdown 最前面的 YAML header 中添加 `lang: zh-CN`。
+达到 60% 时，命令会在 Markdown 最前面的 YAML header 中添加 `lang: zh-CN`。
 空白、标点和格式信息不参与统计；空文档和纯图片文档不会自动设置语言。
 
 MathType 反向解码复用 LaTeX 转 MTEF 时直接链接的同一份 Rust 公式库。
