@@ -55,7 +55,7 @@ The following tables show horizontally, vertically, and jointly grouped results.
 | !^! | !<! | Second result |
 
 $$
-y = x + 1
+\mathcal{L}(\theta) = \frac{1}{N} \sum_{j=1}^{N} \ell(y_j, \hat{y}_j) + \lambda R(\theta)
 $$ {#eq:revised}
 
 where $x$ is the baseline score.
