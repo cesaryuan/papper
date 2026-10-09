@@ -6,7 +6,7 @@ mathtype: true
 # set-data: LaTeX -> MathType OLE TeX 输入 -> OLE/WMF/JSON。
 # auto: Windows 且 MathType 可用时依次尝试 set-data、rust-sdk、rust；否则直接使用 rust。
 # both: 仅限 Windows；同时使用 rust 和 set-data，仅比较 OLE 中的 MTEF 公式数据流，不同时发出警告，并采用 set-data 的结果。
-mathtypeConversionMethod: rust
+mathtypeConversionMethod: both
 # 跨平台 rust 后端使用的 SVG 渲染器：ratex 或 typst。
 # ratex 直接解析 LaTeX；typst 通过 MiTeX 转换，默认使用内置的 XITS Math 字体，
 # 并读取公式框的实际基线深度。
@@ -19,9 +19,7 @@ mathtypeSvgBackend: typst
 # 字符串表示主体与花体都使用同一字体。例如：
 # mathtypeTypstMathFont: XITS Math
 # 对象的 font、calligraphicFont 都必须填写，以下也是未配置时的默认值。
-mathtypeTypstMathFont:
-  font: XITS Math
-  calligraphicFont: New Computer Modern Math
+mathtypeTypstMathFont: "New Computer Modern Math"
 
 # true 使用 Word 原生 REF/SEQ 域和章节多级列表编号。
 # false 保留原有 Pandoc 编号和超链接引用行为。
