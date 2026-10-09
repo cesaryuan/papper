@@ -21,6 +21,10 @@ keywords: [Keyword 1, Keyword 2, Keyword 3, Keyword 4, Keyword 5]
 
 # Bibliography configuration
 bibliography: examples/references/sample-references.bib
+
+# toc: true
+# lof: true
+# lot: true
 ---
 
 # Introduction {#sec:introduction}
