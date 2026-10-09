@@ -102,7 +102,11 @@ $$
 
     assert "MTLATEX:inline:E=mc^2" in document_xml
     assert "MTLATEX:inline:x_i" in document_xml
-    assert r"MTLATEX:display:\frac{1}{2}" in document_xml
+    # Pandoc versions retain different surrounding whitespace for display math;
+    # the marked TeX and its display context are the behavior being verified.
+    markers = [node.text or "" for node in Document(output_path).element.iter(qn("w:t"))]
+    assert any(marker.startswith("MTLATEX:display:")
+               and marker.removeprefix("MTLATEX:display:").strip() == r"\frac{1}{2}" for marker in markers)
     assert "MTLATEX:display:t" not in document_xml
 
 
@@ -145,9 +149,9 @@ def test_native_equation_metadata_colors_word_display_equations(tmp_path, rust_p
     math_runs = equation_paragraph._p.findall(f".//{qn('m:r')}")
     assert math_runs
     for math_run in math_runs:
-        math_rpr = math_run.find(qn("m:rPr"))
-        assert math_rpr is not None
-        word_rpr = math_rpr.find(qn("w:rPr"))
+        # OMML's Word formatting is a direct child of m:r; nesting it in
+        # m:rPr creates an unsupported property that Word can discard.
+        word_rpr = math_run.find(qn("w:rPr"))
         assert word_rpr is not None
         color = word_rpr.find(qn("w:color"))
         assert color is not None

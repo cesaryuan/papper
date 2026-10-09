@@ -79,7 +79,7 @@ mod tests {
 /// Replace table-level margins in the original side order.
 fn margins(table: &mut Element, sides: &[(&str, i64)]) {
     let properties = table.word("w:tblPr");
-    let margins = properties.ensure("w:tblCellMar");
+    let margins = properties.word("w:tblCellMar");
     for (side, amount) in sides {
         let name = format!("w:{side}");
         margins.remove(&name);
@@ -187,13 +187,9 @@ fn consume_equation_markers(element: &mut Element, pending: &mut Option<Value>) 
                 {
                     child.visit_mut(&mut |run| {
                         if run.name == "m:r" {
-                            if run.child("m:rPr").is_none() {
-                                run.children.insert(0, Node::Element(Element::new("m:rPr")));
-                            }
-                            run.ensure("m:rPr")
-                                .ensure("w:rPr")
-                                .ensure("w:color")
-                                .set("w:val", "FF0000");
+                            // Word color belongs to the math run's sibling
+                            // w:rPr, not inside m:rPr where Word can ignore it.
+                            run.word("w:rPr").word("w:color").set("w:val", "FF0000");
                         }
                     });
                 }
@@ -223,7 +219,7 @@ fn autofit(table: &mut Element, mode: &str) -> Result<()> {
     let properties = table.word("w:tblPr");
     properties.word("w:tblLayout").set("w:type", layout);
     if let Some((kind, amount)) = width {
-        let width = properties.ensure("w:tblW");
+        let width = properties.word("w:tblW");
         width.set("w:type", kind);
         width.set("w:w", amount);
     }
@@ -350,7 +346,7 @@ fn table_metadata_in(body: &mut Element) -> Result<()> {
                         } else {
                             "center".into()
                         };
-                        table.word("w:tblPr").ensure("w:jc").set("w:val", alignment);
+                        table.word("w:tblPr").word("w:jc").set("w:val", alignment);
                     }
                     "autofit" => {
                         autofit(table, &value)?;
@@ -415,7 +411,9 @@ fn table_metadata_in(body: &mut Element) -> Result<()> {
 
 /// Hide table and cell borders with complete explicit Word border attributes.
 fn hidden_borders(properties: &mut Element, tag: &str, sides: &[&str]) {
-    let borders = properties.ensure(tag);
+    // Append-only insertion can place borders after layout/margins, violating
+    // the property order expected by Word when it reads equation tables.
+    let borders = properties.word(tag);
     for side in sides {
         let border = borders.ensure(&format!("w:{side}"));
         border.set("w:val", "nil");
@@ -525,13 +523,13 @@ fn format_equation(table: &mut Element) {
         .find(|row| row.name == "w:tr")
         .and_then(|row| row.elements_mut().filter(|cell| cell.name == "w:tc").last())
     {
-        let right = number.word("w:tcPr").ensure("w:tcMar").ensure("w:right");
+        let right = number.word("w:tcPr").word("w:tcMar").ensure("w:right");
         right.set("w:w", "0");
         right.set("w:type", "dxa");
     }
     table
         .word("w:tblPr")
-        .ensure("w:tblLayout")
+        .word("w:tblLayout")
         .set("w:type", "fixed");
     let grid = table.word("w:tblGrid");
     grid.children.clear();
@@ -548,7 +546,7 @@ fn format_equation(table: &mut Element) {
             .enumerate()
         {
             if let Some(width) = new_widths.get(index) {
-                let cell_width = cell.word("w:tcPr").ensure("w:tcW");
+                let cell_width = cell.word("w:tcPr").word("w:tcW");
                 cell_width.set("w:w", width);
                 cell_width.set("w:type", "dxa");
             }
@@ -586,7 +584,7 @@ fn format_equation(table: &mut Element) {
     {
         number
             .word("w:tcPr")
-            .ensure("w:vAlign")
+            .word("w:vAlign")
             .set("w:val", "center");
         for paragraph in number
             .elements_mut()

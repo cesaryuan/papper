@@ -209,7 +209,7 @@ fn bind(document: &mut Element, number_id: i64, styles: &BTreeMap<String, usize>
                     .word("w:numPr")
                     .word("w:ilvl")
                     .set("w:val", level - 1);
-                properties.ensure("w:outlineLvl").set("w:val", level - 1);
+                properties.word("w:outlineLvl").set("w:val", level - 1);
             }
         }
     });

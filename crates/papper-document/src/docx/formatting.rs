@@ -57,38 +57,6 @@ pub(crate) fn configured_length_twips(value: &LengthInput) -> Result<i64> {
     Ok((length_emu_text(&raw)? as f64 / 635.0).round_ties_even() as i64)
 }
 
-/// Derive MathType template tabs only when explicit page margins are configured.
-pub(crate) fn equation_tabs(settings: &PmtSettings) -> Result<(i64, i64)> {
-    let Some(margins) = &settings.fields().docx_page_margins else {
-        return Ok((4156, 8312));
-    };
-    let width = settings
-        .fields()
-        .docx_page_width
-        .as_ref()
-        .map(configured_length_twips)
-        .transpose()?
-        .unwrap_or(11906);
-    let left = margins
-        .get("left")
-        .map(configured_length_twips)
-        .transpose()?
-        .unwrap_or(1080);
-    let right = margins
-        .get("right")
-        .map(configured_length_twips)
-        .transpose()?
-        .unwrap_or(1080);
-    let text_width = width - left - right;
-    if text_width <= 0 {
-        bail!("docxPageMargins left/right values leave no positive DOCX text width");
-    }
-    Ok((
-        (text_width as f64 / 2.0).round_ties_even() as i64,
-        text_width,
-    ))
-}
-
 /// Resolve a style by exact/localized display name before considering its ID.
 pub(crate) fn style_index(styles: &Element, name: &str) -> Option<usize> {
     let compact: String = name.split_whitespace().collect();

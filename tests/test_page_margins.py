@@ -17,7 +17,7 @@ from native_support import ROOT, papper_command
 def test_docx_page_margins_and_equation_tabs_follow_text_width(tmp_path: Path, mathtype: bool) -> None:
     """Apply page margins while keeping numbered equations inside the resulting text area."""
     source = tmp_path / "paper.md"
-    source.write_text("---\ntitle: Geometry\n---\n\n$$ x+y $$ {#eq:sum}\n", encoding="utf-8")
+    source.write_text("---\ntitle: Geometry\n---\n\n$$ x+y $$ {#eq:sum}\n\nwhere $x$ is a value.\n", encoding="utf-8")
     (tmp_path / "style.yml").write_text(
         "docxPageMargins:\n  top: 2.54cm\n  bottom: 2.54cm\n  left: 3.17cm\n  right: 3.17cm\n",
         encoding="utf-8")
@@ -43,13 +43,20 @@ def test_docx_page_margins_and_equation_tabs_follow_text_width(tmp_path: Path, m
         text_width = section.page_width.twips - section.left_margin.twips - section.right_margin.twips
         with ZipFile(output) as archive:
             xml = etree.fromstring(archive.read("word/document.xml"))
-        paragraphs = xml.xpath(".//w:p[.//o:OLEObject]", namespaces={
+        paragraphs = xml.xpath(".//w:p[w:r/w:tab][.//o:OLEObject]", namespaces={
             "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
             "o": "urn:schemas-microsoft-com:office:office"})
         assert len(paragraphs) == 1
-        tabs = paragraphs[0].find(f".//{qn('w:tabs')}")
+        equation = next(paragraph for paragraph in document.paragraphs if paragraph.style.name == "Para Equation")
+        assert equation.style.name == "Para Equation"
+        # Multiple pPr blocks can discard the style when Word opens the file.
+        assert len(paragraphs[0].findall(qn("w:pPr"))) == 1
+        assert paragraphs[0].find(f"{qn('w:pPr')}/{qn('w:tabs')}") is None
+        assert len(paragraphs[0].findall(f"{qn('w:r')}/{qn('w:tab')}")) == 2
+        tabs = equation.style.element.find(f"{qn('w:pPr')}/{qn('w:tabs')}")
         assert tabs is not None
         positions = {tab.get(qn("w:val")): int(tab.get(qn("w:pos"))) for tab in tabs}
         assert positions["center"] == round(text_width / 2)
         assert positions["right"] == text_width
+        assert next(paragraph for paragraph in document.paragraphs if paragraph.text.startswith("where")).style.name == "Para Where"
     assert reference.read_bytes() == original

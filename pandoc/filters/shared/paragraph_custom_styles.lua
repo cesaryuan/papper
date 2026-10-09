@@ -33,7 +33,7 @@ local function inlines_contain_display_math(inlines)
   return false
 end
 
--- Collect MathType formula and tab-stop markers across nested inline nodes.
+-- Collect formula and tab-character markers, e.g. <w:r><w:tab /></w:r>.
 local function mathtype_tab_equation_markers(inlines)
   local has_inline_math = false
   local has_openxml_tabs = false
@@ -43,7 +43,7 @@ local function mathtype_tab_equation_markers(inlines)
     elseif inline.t == "RawInline"
       and inline.format == "openxml"
       and inline.text
-      and inline.text:find("<w:tabs>", 1, true)
+      and inline.text:match("<w:tab[%s/>]")
     then
       has_openxml_tabs = true
     end
@@ -56,7 +56,7 @@ local function mathtype_tab_equation_markers(inlines)
   return has_inline_math, has_openxml_tabs
 end
 
--- Return true for MathType's inline formula marker surrounded by Word tab stops.
+-- Return true for an inline formula laid out with Word tab characters.
 local function inlines_contain_mathtype_tab_equation(inlines)
   local has_inline_math, has_openxml_tabs = mathtype_tab_equation_markers(inlines)
   return has_inline_math and has_openxml_tabs

@@ -99,7 +99,7 @@ def test_html_where_filter_recognizes_mathtype_tab_layout_equations() -> None:
     """Style explanations after MathType equations without treating tabs as tables."""
     markdown = """\
 ::: {#eq:mathtype}
-`<w:pPr><w:tabs><w:tab w:val="center" w:leader="none" w:pos="4156" /></w:tabs></w:pPr><w:r><w:tab /></w:r>`{=openxml} $x = 1$ `<w:r><w:tab /></w:r>`{=openxml} (1)
+`<w:r><w:tab /></w:r>`{=openxml} $x = 1$ `<w:r><w:tab /></w:r>`{=openxml} (1)
 :::
 
 where $x$ is a value.

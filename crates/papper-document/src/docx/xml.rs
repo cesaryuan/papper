@@ -336,6 +336,7 @@ fn property_rank(parent: &str, name: &str) -> usize {
     let order = match parent {
         "w:p" => "w:pPr",
         "w:r" => "w:rPr",
+        "m:r" => "m:rPr w:rPr",
         "w:tbl" => "w:tblPr w:tblGrid",
         "w:tc" => "w:tcPr",
         "w:tr" => "w:trPr",

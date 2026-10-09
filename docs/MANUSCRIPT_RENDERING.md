@@ -107,6 +107,23 @@ centered while native numbering fields remain right-aligned. Copied, labeled
 equations in reviewer replies use the manuscript's number with a DOCX tab-stop
 layout instead.
 
+MathType's manuscript template and the copied-equation reply resolver emit only
+tab runs around the formula and number. The native `Para Equation` style supplies
+the center/right tab stops measured from the final DOCX section, together with
+vertical character alignment and equation spacing. Raw inline XML must not emit
+`w:pPr`: Pandoc already owns that paragraph's property block, and a second block
+can prevent Word from applying the named style on open.
+Reply resolution rewrites copied display math as InlineMath for this tab layout.
+The MathType converter recovers display context from the paragraph's selected
+`Para Equation` style before generating the object, so it does not apply the
+baseline shift used for formulas embedded in prose. Reapplying the paragraph
+style in Word otherwise clears that direct shift and changes the visible layout.
+
+Word properties are inserted in schema order rather than appended after existing
+layout properties. Each author footnote reference keeps the single `w:rPr`
+created for its run. Native math revision color is stored in `m:r/w:rPr`, beside
+the math-specific `m:rPr`; nesting Word properties inside `m:rPr` is invalid.
+
 [`paragraph_custom_styles.lua`](../pandoc/filters/shared/paragraph_custom_styles.lua)
 recognizes `where` paragraphs after display equations or equation-layout tables
 and marks them with `Para Where`. HTML uses this marker to remove the usual

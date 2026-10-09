@@ -149,19 +149,18 @@ pub fn derive_docx_pandoc_metadata(
     let mut metadata = effective.pandoc_metadata.clone();
     metadata.insert("tableEqns".into(), json!(true));
     if use_mathtype {
-        let (center, right) = formatting::equation_tabs(&effective.pmt_settings)?;
-        metadata.insert("eqnBlockTemplate".into(), json!(format!("`<w:pPr><w:tabs><w:tab w:val=\"center\" w:leader=\"none\" w:pos=\"{center}\" /><w:tab w:val=\"right\" w:leader=\"none\" w:pos=\"{right}\" /></w:tabs></w:pPr><w:r><w:tab /></w:r>`{{=openxml}}$$t$$`<w:r><w:tab /></w:r>`{{=openxml}}$$nmi$$")));
+        // Inline XML supplies tab characters only. Para Equation derives the
+        // stops from the final section width without injecting a second pPr.
+        metadata.insert(
+            "eqnBlockTemplate".into(),
+            json!("`<w:r><w:tab /></w:r>`{=openxml}$$t$$`<w:r><w:tab /></w:r>`{=openxml}$$nmi$$"),
+        );
         metadata.insert("eqnBlockInlineMath".into(), json!(true));
     } else {
         metadata.insert("eqnBlockTemplate".into(), json!("+:------+:--------------------------------------------------:+--------:+\n|       | $$t$$                                              | $$nmi$$ |\n+-------+----------------------------------------------------+---------+\n"));
         metadata.remove("eqnBlockInlineMath");
     }
     Ok(metadata)
-}
-
-/// Expose the existing page-aware MathType tab positions for reviewer-reply equations.
-pub fn equation_tab_stops(settings: &papper_core::metadata::PmtSettings) -> Result<(i64, i64)> {
-    formatting::equation_tabs(settings)
 }
 
 /// Reproduce the ordered document pipeline and atomically preserve complete OPC data.

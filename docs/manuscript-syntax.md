@@ -374,6 +374,11 @@ $$ {#eq:linear-model}
 See @eq:linear-model for the prediction model.
 ```
 
+In DOCX, numbered MathType equations and copied numbered equations in reviewer
+replies use the `Para Equation` paragraph style. The formula is centered and the
+number is aligned to the right edge of the text area. This style also centers
+the formula and number vertically on their line.
+
 A paragraph beginning with the standalone word `where` immediately after a
 display equation uses the `Para Where` style in DOCX and HTML. In HTML, it
 also omits the normal body first-line indent:

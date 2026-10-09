@@ -86,7 +86,7 @@ def test_native_reply_docx_styles_equations_and_no_author_footnote(reply_project
     with ZipFile(project.directory / "native.docx") as archive:
         document = archive.read("word/document.xml")
         assert b"footnoteReference" not in document
-        assert b"oMath" in document and b"center" in document and b"right" in document
+        assert b"oMath" in document
         assert b"Equation 2" in document and b"(2)" in document
     from docx import Document
     output = Document(project.directory / "native.docx")
@@ -99,7 +99,11 @@ def test_native_reply_docx_styles_equations_and_no_author_footnote(reply_project
     text_width = section.page_width.twips - section.left_margin.twips - section.right_margin.twips
     equations = [paragraph for paragraph in output.paragraphs if "(2)" in paragraph.text]
     assert equations
-    tabs = equations[0]._p.findall(f".//{qn('w:tab')}")
+    assert equations[0].style.name == "Para Equation"
+    assert len(equations[0]._p.findall(qn("w:pPr"))) == 1
+    assert equations[0]._p.pPr.find(qn("w:tabs")) is None
+    assert len(equations[0]._p.findall(f"{qn('w:r')}/{qn('w:tab')}")) == 2
+    tabs = equations[0].style.element.findall(f"{qn('w:pPr')}/{qn('w:tabs')}/{qn('w:tab')}")
     positions = {tab.get(qn("w:val")): int(tab.get(qn("w:pos")))
                  for tab in tabs if tab.get(qn("w:pos")) is not None}
     assert positions["center"] == round(text_width / 2)
@@ -335,6 +339,16 @@ def test_native_reply_mathtype_retains_original_manuscript_number(reply_project:
         embedded = [name for name in archive.namelist() if name.startswith("word/embeddings/")]
         assert len(embedded) == 1
         assert archive.read(embedded[0]).startswith(bytes.fromhex("d0cf11e0a1b11ae1"))
+    from docx import Document
+    from docx.oxml.ns import qn
+    equation = next(paragraph for paragraph in Document(project.directory / "native.docx").paragraphs if "(2)" in paragraph.text)
+    assert equation.style.name == "Para Equation"
+    assert len(equation._p.findall(qn("w:pPr"))) == 1
+    assert equation._p.pPr.find(qn("w:tabs")) is None
+    # Tab-layout reply math is displayed on its own line; an inline baseline
+    # shift lowers it relative to its number until Word reapplies the style.
+    object_runs = equation._p.xpath("w:r[w:object]")
+    assert object_runs and all(not run.xpath("w:rPr/w:position") for run in object_runs)
 
 
 def test_native_reply_literal_attribute_example_without_manuscript(reply_project: ReplyProject) -> None:

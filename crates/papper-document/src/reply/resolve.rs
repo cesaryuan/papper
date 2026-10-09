@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use fancy_regex::Regex as FancyRegex;
-use papper_core::metadata::{EffectiveMetadata, PmtSettings};
+use papper_core::metadata::EffectiveMetadata;
 use papper_core::paths::pandoc_path;
 use papper_engine::PandocCli;
 use regex::{Captures, Regex};
@@ -331,22 +331,16 @@ fn equation_pattern() -> FancyRegex {
     .expect("equation regex")
 }
 
-/// Format numbered reply equations with the retained Word-tab layout.
+/// Insert equation tab characters while Para Equation supplies their positions.
 fn replace_equations(
     text: &str,
     references: &BTreeMap<String, String>,
-    settings: &PmtSettings,
     format: ReplyFormat,
-) -> Result<String> {
-    let (center, right) = if settings.fields().docx_page_margins.is_some() {
-        crate::docx::equation_tab_stops(settings)?
-    } else {
-        (4888, 9746)
-    };
-    let prefix = format!(
-        "<w:pPr><w:tabs><w:tab w:val=\"center\" w:leader=\"none\" w:pos=\"{center}\" /><w:tab w:val=\"right\" w:leader=\"none\" w:pos=\"{right}\" /></w:tabs></w:pPr><w:r><w:tab /></w:r>"
-    );
-    Ok(equation_pattern()
+) -> String {
+    // Paragraph properties belong to the writer/style, not raw inline XML;
+    // injecting another pPr here breaks Word's equation-style inheritance.
+    let tab = "`<w:r><w:tab /></w:r>`{=openxml}";
+    equation_pattern()
         .replace_all(text, |capture: &fancy_regex::Captures<'_>| {
             let Some(display) = references.get(&capture[2]) else {
                 return capture[0].into();
@@ -363,9 +357,9 @@ fn replace_equations(
                 // manuscript label inside the displayed formula instead.
                 return format!("$$ {math} \\tag{{{}}} $$", number.trim_matches(['(', ')']));
             }
-            format!("`{prefix}`{{=openxml}}${math}$`<w:r><w:tab /></w:r>`{{=openxml}}{number}")
+            format!("{tab}${math}${tab}{number}")
         })
-        .into_owned())
+        .into_owned()
 }
 
 /// Replace complete resolved clusters first and protect every unresolved cluster.
@@ -453,7 +447,7 @@ pub fn resolve_reply_markdown(
         })
         .collect();
     let resolved = if format != ReplyFormat::Text {
-        replace_equations(text, &references, &resolver.effective.pmt_settings, format)?
+        replace_equations(text, &references, format)
     } else {
         text.into()
     };

@@ -78,6 +78,7 @@ pub fn convert_marked_docx_with_work_dir(
     let mut document = package.xml("word/document.xml")?;
     let styles = package.xml("word/styles.xml")?;
     let mut bindings = bindings(&document)?;
+    resolve_display_context(&document, &styles, &mut bindings);
     fonts::resolve_sizes(&document, &styles, &mut bindings);
     let mut report = MathTypeConversionResult {
         total: bindings.len(),
@@ -172,6 +173,36 @@ pub fn convert_marked_docx_with_work_dir(
         report.converted, report.failures, report.cache_hits
     );
     Ok(report)
+}
+
+/// Recover display layout after reply resolution rewrites numbered math as inline.
+fn resolve_display_context(document: &Element, styles: &Element, bindings: &mut [Binding]) {
+    let equation_style = styles
+        .elements()
+        .find(|style| {
+            style.child("w:name").and_then(|name| name.attr("w:val")) == Some("Para Equation")
+        })
+        .and_then(|style| style.attr("w:styleId"));
+    let Some(equation_style) = equation_style else {
+        return;
+    };
+    for binding in bindings {
+        let mut ancestor = document;
+        for &index in &binding.math {
+            if ancestor.name == "w:p"
+                && super::formatting::paragraph_style(ancestor) == Some(equation_style)
+            {
+                // Reply equations are inline only for tab layout. Applying
+                // an inline baseline shift makes them drop below their number.
+                binding.style = "display".into();
+                break;
+            }
+            let Some(Node::Element(child)) = ancestor.children.get(index) else {
+                break;
+            };
+            ancestor = child;
+        }
+    }
 }
 
 /// Parse a hidden run marker without accepting malformed or unknown equation kinds.

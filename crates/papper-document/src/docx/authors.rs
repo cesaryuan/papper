@@ -122,7 +122,7 @@ fn text_run(text: &str, font: bool, size: Option<i64>, superscript: bool, italic
         ));
     }
     if italic {
-        properties.push(Element::new("w:i"));
+        set_bool(&mut properties, "w:i", true);
     }
     run.push(properties);
     let mut value = Element::with_attrs("w:t", &[("xml:space", "preserve")]);
@@ -264,11 +264,8 @@ pub(crate) fn insert(
     if let Some(index) = footnote_index.filter(|_| !message.is_empty()) {
         add_footnote(package, &message)?;
         if let Node::Element(run) = &mut paragraph.children[index] {
-            let reference_properties = text_run("", true, None, true, false)
-                .child("w:rPr")
-                .unwrap()
-                .clone();
-            run.children.insert(0, Node::Element(reference_properties));
+            // text_run already supplied the superscript/font properties;
+            // inserting them again creates an invalid run with two rPr nodes.
             run.push(Element::with_attrs(
                 "w:footnoteReference",
                 &[("w:customMarkFollows", "1"), ("w:id", "1")],
