@@ -36,5 +36,5 @@ filters:
   - ${.}/filters/docx/citation_number_range_delimiter.lua
   # Resolve numeric citation links only after citeproc supplies bibliography labels.
   - ${.}/filters/docx/native_citations.lua
-  - ${.}/filters/docx/italic_to_emphasis_style.lua
+  # - ${.}/filters/docx/italic_to_emphasis_style.lua
   - ${.}/filters/docx/captionless_image_style.lua
