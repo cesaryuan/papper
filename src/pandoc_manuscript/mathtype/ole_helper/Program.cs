@@ -2059,9 +2059,11 @@ internal interface IOleClientSite
     [PreserveSig]
     int SaveObject();
     [PreserveSig]
-    int GetMoniker(uint dwAssign, uint dwWhichMoniker, out object? ppmk);
+    // These outputs are COM interface pointers, not VARIANTs. The default
+    // marshalling for out object would overwrite the native caller's memory.
+    int GetMoniker(uint dwAssign, uint dwWhichMoniker, [MarshalAs(UnmanagedType.Interface)] out object? ppmk);
     [PreserveSig]
-    int GetContainer(out object? ppContainer);
+    int GetContainer([MarshalAs(UnmanagedType.Interface)] out object? ppContainer);
     [PreserveSig]
     int ShowObject();
     [PreserveSig]
