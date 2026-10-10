@@ -1,0 +1,128 @@
+<html lang="zh-Hans" xml:lang="zh-Hans" xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <meta content="关键词一, 关键词二, 关键词三, 关键词四, 关键词五" name="keywords"> <title>论文标题：一项综合研究</title> </head> <body> <main> <header id="title-block-header"> <h1>论文标题：一项综合研究</h1> <div> <p>
+<span>第一作者</span>
+<sup>a,b</sup>, <span>第二作者</span>
+<sup>a,c</sup>
+<sup>*</sup>
+</p> <p>
+<sup>a</sup> 示例大学示例系，城市，国家</p> <p>
+<sup>b</sup> 示例大学研究所，城市，国家</p> <p>
+<sup>c</sup> 另一所研究机构，城市，国家</p> <p>
+<sup>*</sup>Correspondence to: Dr. 第二作者, 示例大学示例系，城市，国家. E-mail: second.author@university.edu.</p> </div> <div> <div>摘要</div> <p>这是一个使用 Pandoc 编写学术论文的中文模板。请将本摘要替换为你自己的研究概述。摘要应简洁说明研究问题、研究方法、主要结果和结论。根据期刊要求，建议控制在 150—250 个英文单词或相应篇幅以内。本模板演示了图、表、引文、交叉引用以及 <span class="inline math">E=mc^2</span> 等公式的 Pandoc Markdown 写法。</p> </div> <p>
+<strong>Keywords: </strong>关键词一, 关键词二, 关键词三, 关键词四, 关键词五</p> </header> <h1 id="sec:introduction">1 引言</h1> <p>本模板展示了使用 Pandoc Markdown 编写学术论文的基本结构和功能。请将这些示例内容替换为你自己的研究引言。</p> <p>引言应形成连贯的叙述，将读者从一般研究背景引导到具体研究问题。首先介绍更广泛的研究领域及其重要性，然后通过引用已有工作说明研究背景，例如引用单篇文献<span data-cites="smith2023machine">
+<sup>[<a href="#ref-smith2023machine" role="doc-biblioref">1</a>]</sup>
+</span>、同时引用多篇文献<span data-cites="johnson2022data chen2024neural williams2023dataset">
+<sup>[<a href="#ref-johnson2022data" role="doc-biblioref">2</a>–<a href="#ref-williams2023dataset" role="doc-biblioref">4</a>]</sup>
+</span>，或引用特定页码<span data-cites="garcia2022open">
+<sup>[<a href="#ref-garcia2022open" role="doc-biblioref">5</a>, p. 237]</sup>
+</span>。</p> <p>已有研究取得了一些有意义的结果<span data-cites="williams2023dataset miller2023survey">
+<sup>[<a href="#ref-williams2023dataset" role="doc-biblioref">4</a>,<a href="#ref-miller2023survey" role="doc-biblioref">6</a>]</sup>
+</span>，这构成了当前研究的动机。关于该领域的综述，可参见<span data-cites="miller2023survey">
+<sup>[<a href="#ref-miller2023survey" role="doc-biblioref">6</a>]</sup>
+</span>。尽管研究已经取得了显著进展，仍有若干问题尚未得到解决。</p> <p>本研究关注三个核心问题：（1）主要研究问题是什么？（2）哪些次级问题能够支撑主要研究？（3）研究结果可以带来哪些实际意义？</p> <p>本文的主要贡献包括三个方面。第一，提出[描述第一项贡献]。第二，给出[描述第二项贡献]。第三，证明[描述第三项贡献]。本文其余部分安排如下：节 <a href="#sec:methods">2</a> 介绍研究方法，节 <a href="#sec:results">3</a> 展示实验结果，节 <a href="#sec:discussion">4</a> 讨论研究发现及局限性，节 <a href="#sec:conclusion">5</a> 总结全文，节 <a href="#sec:subsection">2.1</a> 中给出了实验设置的详细配置。</p> <h1 id="sec:methods">2 方法</h1> <p>本节介绍研究所采用的方法。</p> <h2 id="sec:subsection">2.1 实验设置</h2> <p>表 <a href="#tbl:setup">2-1</a> 汇总了本研究使用的实验配置。</p> <table id="tbl:setup"> <caption>表 2-1 实验设置配置</caption> <colgroup> <col> <col> <col> </colgroup> <thead> <tr> <th>
+<strong>参数</strong>
+</th> <th>
+<strong>取值</strong>
+</th> <th>
+<strong>说明</strong>
+</th> </tr> </thead> <tbody> <tr> <td>数据集规模</td> <td>10,000 个样本</td> <td>观测样本总数</td> </tr> <tr> <td>训练集比例</td> <td>70%</td> <td>用于模型训练的部分</td> </tr> <tr> <td>验证集比例</td> <td>15%</td> <td>用于超参数调整的部分</td> </tr> <tr> <td>测试集比例</td> <td>
+<span class="inline math">15\%</span>
+</td> <td>用于最终评估的部分</td> </tr> <tr> <td>交叉验证</td> <td>5 折</td> <td>交叉验证的折数</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>上表演示了基本的表格格式。对于 DOCX 输出，也可以通过添加 Pandoc 表格属性或单元格合并标记使用高级格式功能（见 表 <a href="#tbl:advanced-formatting">2-2</a> 和 表 <a href="#tbl:merged-cells">2-3</a>）。</p> </div> <h2 id="sec:高级表格格式仅-docx">2.2 高级表格格式（仅 DOCX）</h2> <p>生成 DOCX 时，可以使用下列特殊功能增强表格格式。</p> <h3 id="sec:表格属性">2.2.1 表格属性</h3> <p>可以添加 Pandoc 属性来控制 DOCX 表格属性：</p> <table data-alignment="center" data-autofit="window" data-cell_margin="0.10cm" data-cell_spacing="0pt" data-revision_rows="*" id="tbl:advanced-formatting"> <caption>表 2-2 表格格式属性示例。</caption> <colgroup> <col> <col> <col> </colgroup> <thead> <tr> <th data-custom-style="Revision Char">
+<strong>属性</strong>
+</th> <th data-custom-style="Revision Char">
+<strong>取值</strong>
+</th> <th data-custom-style="Revision Char">
+<strong>说明</strong>
+</th> </tr> </thead> <tbody> <tr> <td data-custom-style="Revision Char">单元格边距</td> <td data-custom-style="Revision Char">0.10 cm</td> <td data-custom-style="Revision Char">单元格内部留白</td> </tr> <tr> <td data-custom-style="Revision Char">单元格间距</td> <td data-custom-style="Revision Char">0 pt</td> <td data-custom-style="Revision Char">单元格之间的间距</td> </tr> <tr> <td data-custom-style="Revision Char">自动调整</td> <td data-custom-style="Revision Char">窗口</td> <td data-custom-style="Revision Char">表格宽度调整方式</td> </tr> <tr> <td data-custom-style="Revision Char">对齐方式</td> <td data-custom-style="Revision Char">居中</td> <td data-custom-style="Revision Char">表格在页面上的位置</td> </tr> <tr> <td data-custom-style="Revision Char">修订标记</td> <td data-custom-style="Revision Char">第 2 行</td> <td data-custom-style="Revision Char">将修改文本标为红色</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>上面的题注属性会应用到 DOCX 表格，但不会出现在最终题注中。</p> </div> <h3 id="sec:单元格合并">2.2.2 单元格合并</h3> <p>使用特殊标记合并单元格：<code>!&lt;!</code>
+向左合并，<code>!^!</code>
+向上合并：</p> <table id="tbl:merged-cells"> <caption>表 2-3 使用标记合并单元格的示例。</caption> <colgroup> <col> <col> <col> <col> </colgroup> <thead> <tr> <th>
+<strong>类别</strong>
+</th> <th>
+<strong>子类别</strong>
+</th> <th>
+<strong>数值</strong>
+</th> <th>
+<strong>备注</strong>
+</th> </tr> </thead> <tbody> <tr> <td rowspan="2">A 组</td> <td>项目 1</td> <td>10</td> <td>第一项</td> </tr> <tr> <td>项目 2</td> <td>20</td> <td>第二项</td> </tr> <tr> <td rowspan="2">B 组</td> <td>项目 3</td> <td>30</td> <td>第三项</td> </tr> <tr> <td>项目 4</td> <td colspan="2">40</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>在 表 <a href="#tbl:merged-cells">2-3</a> 中，“A 组”和“B 组”分别跨越两行，最后一行的单元格跨越两列。</p> </div> <h2 id="sec:数学形式">2.3 数学形式</h2> <p>所提出的方法可以用数学形式表示。考虑函数 <span class="inline math">f(x)</span>：</p> <p>
+<span id="eq:linear">
+<span class="display math"> f(\boldsymbol{x}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b} \tag{2-1}</span>
+</span>
+</p> <table data-autofit="fixed" data-cell_margin="0cm" data-custom-style="TableNoBorder" data-custom_text_style="式中"> <colgroup> <col> <col> <col> <col> </colgroup> <tbody> <tr> <td>
+<div data-custom-style="式中"> <p>式中</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>
+<span class="inline math">w_i</span>
+</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>——</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>权重参数</p> </div>
+</td> </tr> <tr> <td>
+</td> <td>
+<div data-custom-style="式中"> <p>
+<span class="inline math">x_i</span>
+</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>——</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>输入特征</p> </div>
+</td> </tr> <tr> <td>
+</td> <td>
+<div data-custom-style="式中"> <p>
+<span class="inline math">b</span>
+</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>——</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>偏置项</p> </div>
+</td> </tr> <tr> <td>
+</td> <td>
+<div data-custom-style="式中"> <p>
+<span class="inline math">\mathcal{L}</span>
+</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>——</p> </div>
+</td> <td>
+<div data-custom-style="式中"> <p>损失函数</p> </div>
+</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>
+<span id="eq:loss">
+<span class="display math"> \mathcal{L}(\theta) = \frac{1}{N} \sum_{j=1}^{N} \ell(y_j, \hat{y}_j) + \lambda R(\theta) \tag{2-2}</span>
+</span>
+</p> </div> <p>其中，<span class="inline math">\ell(\cdot)</span> 是单样本损失，<span class="inline math">R(\theta)</span> 是正则化项，<span class="inline math">\lambda</span> 控制正则化强度。关于 式 <a href="#eq:loss">2-2</a> 的实证验证，见 节 <a href="#sec:results">3</a>。</p> <h2 id="sec:研究流程">2.4 研究流程</h2> <p>实验流程包括四个主要阶段。首先，根据[具体准则]清理并归一化输入数据，处理异常值和缺失值。其次，使用[方法名称]进行特征提取，从原始数据中提取[具体特征]。第三，使用[优化算法]和[具体超参数]优化 式 <a href="#eq:linear">2-1</a> 与 式 <a href="#eq:loss">2-2</a>，完成模型训练。最后，使用 节 <a href="#sec:results">3</a> 中说明的指标和协议评估训练后的模型。</p> <h2 id="sec:伪代码示例">2.5 伪代码示例</h2> <p>当需要明确的逐步过程时，也可以用伪代码概括主要流程。在本模板中，伪代码采用单列表格表示，并可像普通表格一样引用，如算法 1 所示。</p> <table data-revision_rows="*"> <colgroup> <col> </colgroup> <thead> <tr> <th data-custom-style="Revision Char">
+<strong>算法：数据准备与模型评估流程</strong>
+</th> </tr> </thead> <tbody> <tr> <td data-custom-style="Revision Char"> <strong>输入：</strong> 原始数据集 <span class="inline math">D</span>、模型族 <span class="inline math">M</span>、评估指标 <span class="inline math">s</span> </td> </tr> <tr> <td data-custom-style="Revision Char"> <strong>输出：</strong> 训练后的模型 <span class="inline math">\hat{m}</span> 和评估得分 <span class="inline math">\hat{s}</span> </td> </tr> <tr> <td data-custom-style="Revision Char">1.  清理并归一化 <span class="inline math">D</span> 中的所有记录</td> </tr> <tr> <td data-custom-style="Revision Char">2.  将 <span class="inline math">D</span> 划分为训练集、验证集和测试集</td> </tr> <tr> <td data-custom-style="Revision Char">3.  <strong>for</strong> 每一个候选模型 <span class="inline math">m \in M</span> <strong>do</strong> </td> </tr> <tr> <td data-custom-style="Revision Char">4.    在训练集上训练 <span class="inline math">m</span> </td> </tr> <tr> <td data-custom-style="Revision Char">5.    使用验证集调整超参数</td> </tr> <tr> <td data-custom-style="Revision Char">6.  <strong>end for</strong> </td> </tr> <tr> <td data-custom-style="Revision Char">7.  根据验证集表现选择最佳模型 <span class="inline math">\hat{m}</span> </td> </tr> <tr> <td data-custom-style="Revision Char">8.  在测试集上计算 <span class="inline math">\hat{m}</span> 的 <span class="inline math">\hat{s}</span> </td> </tr> <tr> <td data-custom-style="Revision Char">9.  <strong>return</strong> <span class="inline math">\hat{m}</span> 和 <span class="inline math">\hat{s}</span> </td> </tr> </tbody> </table> <h1 id="sec:results">3 结果</h1> <p>本节介绍实验结果及其分析。</p> <h2 id="sec:定量结果">3.1 定量结果</h2> <p>表 <a href="#tbl:results">3-1</a> 给出了不同方法的定量比较。</p> <p>为了说明本模板中标准图像的插入和引用方式，下面在 图 <a href="#fig:single-example">3-1</a> 中加入一个合成趋势图。该示例使用 <code>examples/images/</code>
+下的图像，适合演示可复用模板中的相对路径。</p> <p>
+<img src="examples/images/single-figure-example.png">
+</p> <figure id="fig:single-example"> <img alt="图 3-1 展示评估步骤中合成性能趋势的单图示例。" src="examples/images/single-figure-example.png"> <figcaption aria-hidden="true">图 3-1 展示评估步骤中合成性能趋势的单图示例。</figcaption> </figure> <p>对于大多数多面板布局，建议准备一个通过相对路径引用子图像的 SVG 文件。图 <a href="#fig:subfigure-svg-example">3-2</a> 中的 SVG 示例由两个合成面板组成；在 Markdown 中，它仍然是一个带有单个题注和交叉引用标签的普通图形。</p> <figure id="fig:subfigure-svg-example"> <img alt="图 3-2 基于 SVG 的多面板布局，其子面板通过 SVG 文件中的相对图像路径引用。" src="examples/images/subfigure-svg-layout-example.svg"> <figcaption aria-hidden="true">图 3-2 基于 SVG 的多面板布局，其子面板通过 SVG 文件中的相对图像路径引用。</figcaption> </figure> <p>如果需要分别引用子图，请使用 YAML 头部中启用的内置子图网格支持。图 <a href="#fig:subfigure-example">3-3</a> 给出了一个简单的双面板示例，说明子图可以共享一个主题注并分别使用标签。左侧面板（图 <a href="#fig:subfigure-a">3-3 (a)</a>）可用于展示一个条件或消融案例，右侧面板（图 <a href="#fig:subfigure-b">3-3 (b)</a>）可展示对应的比较设置。</p> <figure id="fig:subfigure-example"> <table data-custom-style="TableSubfigure"> <colgroup> <col> <col> </colgroup> <tbody> <tr> <td>
+<figure id="fig:subfigure-a"> <img alt="(a) 展示一个合成子图示例的左侧面板。" src="examples/images/subfigure-a-example.png"> <figcaption aria-hidden="true">(a) 展示一个合成子图示例的左侧面板。</figcaption> </figure>
+</td> <td>
+<figure id="fig:subfigure-b"> <img alt="(b) 展示另一个合成子图示例的右侧面板。" src="examples/images/subfigure-b-example.png"> <figcaption aria-hidden="true">(b) 展示另一个合成子图示例的右侧面板。</figcaption> </figure>
+</td> </tr> </tbody> </table> <figcaption>
+<p>图 3-3 使用两个合成面板的多子图布局示例。</p>
+</figcaption> </figure> <table id="tbl:results"> <caption>表 3-1 不同方法的性能比较。最佳结果以<strong>粗体</strong>标出。</caption> <colgroup> <col> <col> <col> <col> <col> </colgroup> <thead> <tr> <th>
+<strong>方法</strong>
+</th> <th>
+<strong>准确率（%）</strong>
+</th> <th>
+<strong>精确率（%）</strong>
+</th> <th>
+<strong>召回率（%）</strong>
+</th> <th>
+<strong>F1 值（%）</strong>
+</th> </tr> </thead> <tbody> <tr> <td>基线</td> <td>78.3</td> <td>76.5</td> <td>79.2</td> <td>77.8</td> </tr> <tr> <td>方法 A</td> <td>85.7</td> <td>84.2</td> <td>86.5</td> <td>85.3</td> </tr> <tr> <td>方法 B</td> <td>89.1</td> <td>88.3</td> <td>89.8</td> <td>89.0</td> </tr> <tr> <td>
+<strong>本文方法</strong>
+</td> <td>
+<strong>92.4</strong>
+</td> <td>
+<strong>91.7</strong>
+</td> <td>
+<strong>93.1</strong>
+</td> <td>
+<strong>92.4</strong>
+</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>如 表 <a href="#tbl:results">3-1</a> 所示，本文方法在所有指标上都取得了更好的结果，相比基线准确率提高了 14.1 个百分点。</p> </div> <h2 id="sec:统计显著性">3.2 统计显著性</h2> <p>我们使用配对 <span class="inline math">t</span> 检验（<span class="inline math">\alpha = 0.05</span>）进行统计显著性检验。与所有基线方法相比，表 <a href="#tbl:results">3-1</a> 中的改进均具有统计显著性（<span class="inline math">p &lt; 0.001</span>）。</p> <h1 id="sec:discussion">4 讨论</h1> <h2 id="sec:结果解释">4.1 结果解释</h2> <p>节 <a href="#sec:results">3</a> 中的结果说明了所提出方法的有效性。性能提升可以归因于三个主要因素。第一，节 <a href="#sec:methods">2</a> 中介绍的改进特征表示使模型能够提取更具判别性的有效信息。第二，采用 式 <a href="#eq:loss">2-2</a> 的优化训练流程在预测精度与泛化能力之间实现了更好的平衡。第三，表 <a href="#tbl:setup">2-1</a> 中概述的稳健评估方法保证了性能估计在不同实验条件下具有可靠性和可复现性。</p> <h2 id="sec:与相关工作的比较">4.2 与相关工作的比较</h2> <p>已有工作<span data-cites="anderson2021deep">
+<sup>[<a href="#ref-anderson2021deep" role="doc-biblioref">7</a>]</sup>
+</span> 在相似任务上取得了 87.2% 的准确率，低于本文方法的 92.4%（表 <a href="#tbl:results">3-1</a>）。<span data-cites="chen2024neural">
+<sup>[<a href="#ref-chen2024neural" role="doc-biblioref">3</a>]</sup>
+</span> 所采用的方法取得了相近的精确率，但召回率较低。</p> <p>近期理论工作<span data-cites="lee2023chapter">
+<sup>[<a href="#ref-lee2023chapter" role="doc-biblioref">8</a>]</sup>
+</span> 提供了一个有助于解释本文实证结果的框架。</p> <h2 id="sec:局限性">4.3 局限性</h2> <p>本研究仍存在若干需要说明的局限性。结果基于特定数据集，将其推广到其他领域或应用场景仍需要进一步实证验证。此外，本文方法比简单基线方法需要更多计算资源，这可能限制其在资源受限环境中的应用。不同超参数配置也可能导致性能变化，因此在新的问题场景中需要谨慎调参。</p> <h2 id="sec:未来工作">4.4 未来工作</h2> <p>未来可以从几个方向开展研究。扩大数据集规模有助于验证方法的可扩展性和稳健性。结合[相关领域]的最新进展可能进一步提升性能。研究真实应用中的部署问题，包括计算效率和系统集成，有助于推动实际应用。最后，系统分析失败案例和边界条件可以更深入地认识方法局限并指导后续改进。</p> <h1 id="sec:conclusion">5 结论</h1> <p>本文提出了[主要贡献的简要总结]。如 表 <a href="#tbl:results">3-1</a> 所示，所提出方法取得了[关键结果]，相对于现有基线在[具体指标]上有所提升。节 <a href="#sec:methods">2</a> 中介绍的方法为[应用领域]提供了系统框架，节 <a href="#sec:results">3</a> 中的实验验证了其在多个评价指标上的有效性。</p> <p>本 Pandoc Markdown 模板支持自动 DOCX 格式化、表格、章节和公式的交叉引用、基于 CSL 的灵活引文样式、数学符号以及可选的 LaTeX 源码生成。请根据目标期刊的要求修改 YAML 头部，以调整格式和引文样式。</p> <h1 id="sec:数据和代码可用性">数据和代码可用性</h1> <p>[可根据目标期刊要求补充数据和代码可用性信息]</p> <h1 id="sec:致谢">致谢</h1> <p>本研究得到[资助来源]支持。感谢[个人或机构]提供的[具体贡献]。</p> <h1 id="sec:作者贡献">作者贡献</h1> <p>
+<strong>第一作者</strong>：概念设计、方法学、论文撰写——初稿 <strong>第二作者</strong>：调查、形式分析、论文撰写——审阅与编辑 <strong>第三作者</strong>：资源、指导、经费获取</p> <h1 id="sec:利益冲突">利益冲突</h1> <p>作者声明不存在利益冲突。</p> <h1 id="bibliography">参考文献</h1> <div data-entry-spacing="0" id="refs" role="list"> <div id="ref-smith2023machine" role="listitem"> <div>[1] </div> <div>Smith J，Doe J. <a href="https://doi.org/10.1234/jcs.2023.001">Machine Learning Applications in Modern Research</a>[J]. Journal of Computer Science，2023，45（3）：123-145.</div> </div> <div id="ref-johnson2022data" role="listitem"> <div>[2] </div> <div>Johnson M. Data Analysis: A Comprehensive Guide[M]. 2nd 版. New York：Academic Press，2022.</div> </div> <div id="ref-chen2024neural" role="listitem"> <div>[3] </div> <div>Chen W，Zhang L. Neural Network Optimization Techniques[C]//Proceedings of the International Conference on Artificial Intelligence. San Francisco, CA：IEEE，2024：45-52.</div> </div> <div id="ref-williams2023dataset" role="listitem"> <div>[4] </div> <div>Williams S. OpenData: A Large-Scale Public Dataset[Z]. <a href="https://example.com/opendata">https://example.com/opendata</a>，2023.</div> </div> <div id="ref-garcia2022open" role="listitem"> <div>[5] </div> <div>Garcia M，Brown J. <a href="https://doi.org/10.1038/s41592-022-01234-5">Open Science Practices in Academic Publishing</a>[J]. Nature Methods，2022，19：234-241.</div> </div> <div id="ref-miller2023survey" role="listitem"> <div>[6] </div> <div>Miller D，Taylor E. Survey of Modern Computing Paradigms：NSF-TR-2023-42[R]. Washington, DC：National Science Foundation，2023.</div> </div> <div id="ref-anderson2021deep" role="listitem"> <div>[7] </div> <div>Anderson R. Deep Learning Architectures for Computer Vision[D]. Cambridge, MA：Massachusetts Institute of Technology，2021.</div> </div> <div id="ref-lee2023chapter" role="listitem"> <div>[8] </div> <div>Lee K. Statistical Methods for Data Analysis[M]//Wilson P. Handbook of Research Methods. Berlin：Springer，2023：78-102.</div> </div> </div> </main> </body> </html>

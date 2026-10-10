@@ -50,7 +50,8 @@ The DOCX renderer rasterizes PDF pages with PyMuPDF at 144 DPI in RGB. Each page
 must have the same physical geometry and exact pixels as its reviewed
 `page-001.png`, `page-002.png`, ... baseline. Word exports every case twice before
 comparison; a non-deterministic export fails without updating a baseline. The
-current suite covers the 15 manuscript fixtures plus the reviewer reply fixture.
+current suite covers the 16 manuscript fixtures plus the reviewer reply fixture,
+including both `template/manuscript.md` and `template/manuscript-cn.md`.
 The generated DOCX build uses `--no-mathtype` unless a fixture style explicitly
 selects another mode, so these visual cases cover native Word/OMML output rather
 than MathType OLE rendering.

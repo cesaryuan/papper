@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CASE_ROOT = Path(__file__).with_name("snapshot_cases")
 CASES = {
     "template": (ROOT / "template", "manuscript.md"),
+    "template_cn": (ROOT / "template", "manuscript-cn.md"),
     "references": (ROOT / "tests" / "snapshot_cases" / "references", "references.md"),
     "crossrefs": (ROOT / "tests" / "snapshot_cases" / "crossrefs", "crossrefs.md"),
     "native_crossrefs": (
@@ -138,7 +139,7 @@ def test_build_output_matches_snapshot(
         )
     )
     # Resolve from the checked-in case, even when inputs were copied to tmp_path.
-    # The template case tests the real template but keeps baselines outside it.
+    # Template cases test the real templates but keep baselines outside them.
     snapshot_path = CASE_ROOT / case_name / "snapshots-content" / f"{target}.snap"
     assert_snapshot(actual, snapshot_path, update=snapshot_update)
 
