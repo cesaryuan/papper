@@ -187,6 +187,22 @@ contains text or potentially text-bearing nested images. Both explicit PNG
 conversion and Pandoc's fallback cache include font identity for text images;
 vector-only rendering skips loading the system font database.
 
+Office-exported diagrams can contain hundreds of Gaussian-blur shadows whose
+`userSpaceOnUse` filter regions cover the whole SVG viewport. Rasterization cost
+then follows those intermediate regions, not the SVG file size or the image's
+display width in Word. Development builds optimize `resvg`, `usvg`, and
+`tiny-skia` to keep these pixel loops and filter accessors out of unoptimized
+code. For direct helper diagnostics, `PAPPER_SVG_TRACE=1` reports font loading,
+SVG parsing, rasterization, and PNG encoding boundaries on stderr.
+
+On Windows, each Pandoc conversion or persistent worker belongs to an unnamed
+kill-on-close Job Object whose non-inherited handle stays in the Rust owner.
+The child starts suspended, joins the job, and resumes before conversion begins;
+its SVG descendants inherit membership. Owner termination (including Ctrl+C)
+closes the job handle even without Rust stack unwinding, and worker cleanup
+closes its job before joining the protocol reader. Independent background
+services do not belong to a conversion job.
+
 ## Import Media and Package Publication
 
 The equation-table filter flattens confirmed layout rows to InlineMath, retaining

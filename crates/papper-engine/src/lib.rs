@@ -1,5 +1,7 @@
 //! Run the retained Pandoc CLI and persistent Haskell worker without Python.
 
+mod process_tree;
+
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -174,13 +176,17 @@ impl PandocCli {
         let mut command = Command::new(&self.location.executable);
         command.args(arguments).current_dir(working_dir);
         configure_environment(&mut command, environment)?;
-        hide_console(&mut command);
-        let output = command.output().with_context(|| {
+        command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let (child, _tree) = process_tree::ProcessTree::spawn(&mut command).with_context(|| {
             format!(
                 "Cannot launch Pandoc: {}",
                 self.location.executable.display()
             )
         })?;
+        let output = child.wait_with_output()?;
         if !output.status.success() {
             bail!(
                 "Pandoc failed ({}): {}",
@@ -254,6 +260,7 @@ pub struct PersistentWorker {
     config_path: PathBuf,
     log_path: PathBuf,
     process: Option<Child>,
+    process_tree: Option<process_tree::ProcessTree>,
     input: Option<ChildStdin>,
     responses: Option<Receiver<std::result::Result<String, String>>>,
     reader: Option<JoinHandle<()>>,
@@ -298,6 +305,7 @@ impl PersistentWorker {
             config_path,
             log_path,
             process: None,
+            process_tree: None,
             input: None,
             responses: None,
             reader: None,
@@ -394,6 +402,8 @@ impl PersistentWorker {
         self.input.take();
         // Drop the receiver first so a protocol-reader send cannot deadlock cleanup.
         self.responses.take();
+        // Closing the job also stops SVG grandchildren that can hold worker pipes open.
+        self.process_tree.take();
         if let Some(mut child) = self.process.take() {
             let _ = child.kill();
             let _ = child.wait();
@@ -432,13 +442,13 @@ impl PersistentWorker {
             .open(&self.log_path)?;
         command.stderr(Stdio::from(log));
         configure_environment(&mut command, &BTreeMap::new())?;
-        hide_console(&mut command);
-        let mut child = command.spawn().with_context(|| {
-            format!(
-                "Cannot launch Papper worker: {}",
-                words[0].to_string_lossy()
-            )
-        })?;
+        let (mut child, process_tree) = process_tree::ProcessTree::spawn(&mut command)
+            .with_context(|| {
+                format!(
+                    "Cannot launch Papper worker: {}",
+                    words[0].to_string_lossy()
+                )
+            })?;
         let input = child.stdin.take().context("Could not open worker stdin")?;
         let output = child
             .stdout
@@ -447,6 +457,7 @@ impl PersistentWorker {
         let (sender, receiver) = mpsc::sync_channel(1);
         let reader = thread::spawn(move || read_responses(BufReader::new(output), sender));
         self.process = Some(child);
+        self.process_tree = Some(process_tree);
         self.input = Some(input);
         self.responses = Some(receiver);
         self.reader = Some(reader);
@@ -527,17 +538,6 @@ fn configure_environment(
         }
     }
     Ok(())
-}
-
-/// Avoid allocating a visible console for a detached Windows HTML server.
-fn hide_console(command: &mut Command) {
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW keeps editor builds unobtrusive.
-    }
-    #[cfg(not(windows))]
-    let _ = command;
 }
 
 /// Resolve paths before the worker switches its cwd to the manuscript project.
