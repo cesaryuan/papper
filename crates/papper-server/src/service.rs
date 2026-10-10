@@ -620,15 +620,7 @@ pub fn build_html(
         let config_path = work.join("server-config.json");
         // Serialize config publication, upgrade/restart and the initial build.
         // Two editor clients must not stop each other's replacement service.
-        let lifecycle = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(work.join("server-start.lock"))?;
-        lifecycle
-            .lock()
-            .context("Could not lock project service startup")?;
+        let _lifecycle = lock_service_startup(&config_path)?;
         write_if_changed(&config_path, &serde_json::to_vec_pretty(&config)?)?;
         ensure_server(&config, &config_path, host, port, server_command)?;
         let agent = local_agent(Duration::from_secs(120));
@@ -824,6 +816,20 @@ fn save_server_state(
         )?,
     )?;
     Ok(())
+}
+
+/// Hold the project startup lock until config publication and service handoff finish.
+fn lock_service_startup(config_path: &Path) -> Result<File> {
+    let lifecycle = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(config_path.with_file_name("server-start.lock"))?;
+    lifecycle
+        .lock()
+        .context("Could not lock project service startup")?;
+    Ok(lifecycle)
 }
 
 /// Reuse a matching service or start a console-free child with independent output handles.
@@ -1148,7 +1154,9 @@ fn refresh_runtime_config(config: &mut ServerConfig, config_path: &Path) -> Resu
             && let Some(defaults) = config.pandoc_args.get_mut(index + 1)
             && let Ok(relative) = Path::new(defaults).strip_prefix(&previous_root)
         {
-            *defaults = resources.root.join(relative).to_string_lossy().into_owned();
+            // Keep the CLI's path spelling on Windows; backslashes would change
+            // the config digest and make an otherwise ready upgrade time out.
+            *defaults = pandoc_path(&resources.root.join(relative));
         }
     }
     config.resource_root = Some(resources.root.clone());
@@ -1166,7 +1174,28 @@ fn restart_with_runtime(
     port: u16,
     source: &Path,
 ) -> Result<()> {
+    // The watcher competes with CLI upgrades too. Lock only after releasing
+    // the old listener, so a CLI holding this lock can finish its shutdown.
+    let _lifecycle = lock_service_startup(config_path)?;
     let config: ServerConfig = serde_json::from_reader(File::open(config_path)?)?;
+    let version_url = format!("{}/version", base_url(host, port));
+    if let Ok(response) = local_agent(Duration::from_millis(500))
+        .get(&version_url)
+        .call()
+    {
+        let version: Value = response.into_json()?;
+        anyhow::ensure!(
+            version["protocol"] == "pmt-html-v1"
+                && version["runtime"] == "rust"
+                && version["project_dir"].as_str()
+                    == Some(display_path(&config.project_dir).as_str())
+                && version["runtime_id"].as_str() == Some(identity),
+            "Port {port} changed ownership before the runtime restart"
+        );
+        // A CLI completed the same upgrade while this watcher waited for the lock.
+        eprintln!("[Pandoc server] Updated project service is already running; reusing it");
+        return Ok(());
+    }
     let log_path = config_path.with_file_name("server.log");
     let log = OpenOptions::new()
         .create(true)
@@ -1194,7 +1223,6 @@ fn restart_with_runtime(
     }
     let mut child = crate::process::spawn_background(&mut command)
         .context("Could not start the upgraded Papper server")?;
-    let version_url = format!("{}/version", base_url(host, port));
     let deadline = Instant::now() + Duration::from_secs(10);
     while Instant::now() < deadline {
         if let Ok(response) = local_agent(Duration::from_millis(500))
