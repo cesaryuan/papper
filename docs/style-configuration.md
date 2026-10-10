@@ -423,7 +423,8 @@ reference DOCX styles; HTML uses the supported text style settings too.
 
 Set style names under the top-level `docxStyle` key. Styles must exist in the
 reference DOCX; missing styles produce warnings. Omitted properties retain
-their existing values. The default body style has a two-character first-line
+their existing values. The bundled reference DOCX explicitly sets `Normal`
+to `12pt` (小四). The default body style has a two-character first-line
 indent and no spacing before or after paragraphs.
 
 HTML uses the same supported text style settings for its corresponding
