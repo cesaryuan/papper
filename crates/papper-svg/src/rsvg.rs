@@ -1,4 +1,4 @@
-//! Adapt Pandoc's rsvg-convert PNG requests to the existing resvg renderer.
+//! Adapt Pandoc's rsvg-convert PNG requests to the Skia CPU renderer.
 
 use anyhow::{Context, Result, ensure};
 use clap::Args;

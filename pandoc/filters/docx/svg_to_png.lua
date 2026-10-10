@@ -98,8 +98,9 @@ function Image(element)
   end
   local normalized = svg.normalize(source, false)
   local font_id = font_identity(normalized.text)
+  -- Also invalidate pre-Skia pixels for standalone callers whose version or renderer ID is fixed.
   local fingerprint = svg.fingerprint(source, normalized,
-    {'lua-svg-png-v2', implementation(), version, dpi, scale, width or 'intrinsic', font_id or ''})
+    {'lua-svg-png-skia-v3', implementation(), version, dpi, scale, width or 'intrinsic', font_id or ''})
   if font_id == false or not resource.cache_matches(target, fingerprint) then
     local arguments = {'render', '--source', source, '--dpi', tostring(dpi), '--scale', tostring(scale)}
     if width then arguments[#arguments + 1], arguments[#arguments + 2] = '--width', tostring(width) end
@@ -107,7 +108,7 @@ function Image(element)
     resource.atomic_write(target, pixels)
     resource.publish_metadata(target, fingerprint, {version = 1, source = resource.fingerprint(source, normalized.original),
       resources = normalized.resources, dpi = dpi, scale = scale, width = width or pandoc.json.null,
-      pmt_version = version, converter = 'lua-svg-png-v2', renderer = renderer_identity})
+      pmt_version = version, converter = 'lua-svg-png-skia-v3', renderer = renderer_identity})
   end
   element.src = resource.pandoc_path(target)
   return element

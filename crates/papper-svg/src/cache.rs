@@ -4,11 +4,11 @@
 //! atomically. Cache failures are diagnostic-only; normal SVG rendering continues.
 
 use anyhow::{Context, Result};
-use resvg::usvg::fontdb::{Family, Source};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use usvg::fontdb::{Family, Source};
 
 /// Keep optional cache I/O outside the renderer's success/failure contract.
 pub(super) struct Cache {
@@ -62,7 +62,8 @@ impl Cache {
             }
         }
         let mut digest = Sha256::new();
-        digest.update(b"papper-svg-fallback-v1\0");
+        // Backend identity is explicit even when an embedding caller overrides the exe hash.
+        digest.update(b"papper-svg-fallback-skia-v2\0");
         digest.update(input.as_bytes());
         digest.update(dpi.to_bits().to_le_bytes());
         let identity = match std::env::var("PAPPER_SVG_RENDERER_ID") {

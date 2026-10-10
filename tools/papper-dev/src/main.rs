@@ -492,13 +492,8 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         build
             .args(["build", "--locked", "--release", "-p", "papper-svg"])
             .current_dir(&root);
-        if cfg!(windows) {
-            let flags = std::env::var("RUSTFLAGS").unwrap_or_default();
-            build.env(
-                "RUSTFLAGS",
-                format!("{flags} -C target-feature=+crt-static"),
-            );
-        }
+        // Skia's official Windows SVG binaries use the dynamic CRT. The native
+        // portability stage below bundles their transitive release CRT DLLs.
         execute(&mut build, "build small native image helper")?;
     }
     let worker = if let Some(path) = &args.worker {
@@ -557,6 +552,13 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
         svg_converter,
     );
     pdf_notices::stage(&mut files, &root, &prefix)?;
+    // The Skia archive statically links native libraries whose notices must
+    // travel with the helper, alongside the dynamically staged CRT notices.
+    add_tree(
+        &mut files,
+        &root.join("tools/papper-dev/assets/skia-notices"),
+        &format!("{prefix}/bin/skia-notices"),
+    )?;
     files.insert(
         format!("{prefix}/mathtype/Times+Symbol 12.eqp"),
         root.join("src/pandoc_manuscript/mathtype/Times+Symbol 12.eqp"),
@@ -650,6 +652,7 @@ fn build_wheel(args: &WheelArgs) -> Result<()> {
             name.contains("/licenses/")
                 || name.contains("/pandoc-worker-source/")
                 || name.contains("/pdf-notices/")
+                || name.contains("/skia-notices/")
                 || name.contains("/native-notices/")
                 || name.ends_with("-NOTICE.txt")
                 || name.ends_with("-OFL.txt")

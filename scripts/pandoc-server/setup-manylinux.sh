@@ -16,7 +16,7 @@ UV_TOOL_DIR=/opt/papper-tools UV_TOOL_BIN_DIR=/usr/local/bin \
 hash -r
 patchelf --version
 
-dnf install -y gcc gcc-c++ make perl clang clang-devel llvm-devel pkgconf-pkg-config gmp-devel libffi-devel ncurses-devel numactl-devel zlib-devel
+dnf install -y gcc gcc-c++ make perl clang clang-devel llvm-devel pkgconf-pkg-config gmp-devel libffi-devel ncurses-devel numactl-devel zlib-devel fontconfig-devel freetype-devel mesa-libGL-devel
 # A restored Rust installation already contains rustup and its Cargo proxy binaries.
 if ! command -v rustup >/dev/null 2>&1; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- \

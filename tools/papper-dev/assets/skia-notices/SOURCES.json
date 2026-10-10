@@ -1,0 +1,75 @@
+{
+  "skia_safe": "0.153.3",
+  "skia_revision": "m153-0.101.2",
+  "deps": "https://github.com/rust-skia/skia/blob/m153-0.101.2/DEPS",
+  "documents": [
+    {
+      "component": "harfbuzz",
+      "file": "COPYING",
+      "revision": "9cb1fee51069b206effb4736e443b038d230789d",
+      "url": "https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git/+/9cb1fee51069b206effb4736e443b038d230789d/COPYING?format=TEXT"
+    },
+    {
+      "component": "icu",
+      "file": "LICENSE",
+      "revision": "d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738",
+      "url": "https://chromium.googlesource.com/chromium/deps/icu.git/+/d578f2e8b7bd5938e21cfb6bf15c079e0aa5b738/LICENSE?format=TEXT"
+    },
+    {
+      "component": "libjpeg-turbo",
+      "file": "LICENSE.md",
+      "revision": "e14cbfaa85529d47f9f55b0f104a579c1061f9ad",
+      "url": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git/+/e14cbfaa85529d47f9f55b0f104a579c1061f9ad/LICENSE.md?format=TEXT"
+    },
+    {
+      "component": "libjpeg-turbo",
+      "file": "README.ijg",
+      "revision": "e14cbfaa85529d47f9f55b0f104a579c1061f9ad",
+      "url": "https://chromium.googlesource.com/chromium/deps/libjpeg_turbo.git/+/e14cbfaa85529d47f9f55b0f104a579c1061f9ad/README.ijg?format=TEXT"
+    },
+    {
+      "component": "libpng",
+      "file": "LICENSE",
+      "revision": "d5515b5b8be3901aac04e5bd8bd5c89f287bcd33",
+      "url": "https://skia.googlesource.com/third_party/libpng.git/+/d5515b5b8be3901aac04e5bd8bd5c89f287bcd33/LICENSE?format=TEXT"
+    },
+    {
+      "component": "zlib",
+      "file": "LICENSE",
+      "revision": "646b7f569718921d7d4b5b8e22572ff6c76f2596",
+      "url": "https://chromium.googlesource.com/chromium/src/third_party/zlib/+/646b7f569718921d7d4b5b8e22572ff6c76f2596/LICENSE?format=TEXT"
+    },
+    {
+      "component": "wuffs",
+      "file": "LICENSE",
+      "revision": "e3f919ccfe3ef542cfc983a82146070258fb57f8",
+      "url": "https://skia.googlesource.com/external/github.com/google/wuffs-mirror-release-c.git/+/e3f919ccfe3ef542cfc983a82146070258fb57f8/LICENSE?format=TEXT"
+    },
+    {
+      "component": "expat",
+      "file": "expat/COPYING",
+      "revision": "6154446fccefbf3ca644894f598969113b0c7bcd",
+      "url": "https://chromium.googlesource.com/external/github.com/libexpat/libexpat.git/+/6154446fccefbf3ca644894f598969113b0c7bcd/expat/COPYING?format=TEXT"
+    },
+    {
+      "component": "brotli",
+      "file": "LICENSE",
+      "revision": "6d03dfbedda1615c4cba1211f8d81735575209c8",
+      "url": "https://skia.googlesource.com/external/github.com/google/brotli.git/+/6d03dfbedda1615c4cba1211f8d81735575209c8/LICENSE?format=TEXT"
+    },
+    {
+      "component": "freetype",
+      "file": "docs/FTL.TXT",
+      "revision": "264b5fbf5b912b39f98d038bf75d39be0a73f21b",
+      "url": "https://chromium.googlesource.com/chromium/src/third_party/freetype2.git/+/264b5fbf5b912b39f98d038bf75d39be0a73f21b/docs/FTL.TXT?format=TEXT"
+    },
+    {
+      "component": "freetype",
+      "file": "docs/GPLv2.TXT",
+      "revision": "264b5fbf5b912b39f98d038bf75d39be0a73f21b",
+      "url": "https://chromium.googlesource.com/chromium/src/third_party/freetype2.git/+/264b5fbf5b912b39f98d038bf75d39be0a73f21b/docs/GPLv2.TXT?format=TEXT"
+    }
+  ],
+  "rust_skia_license": "https://raw.githubusercontent.com/rust-skia/rust-skia/0.153.3/LICENSE",
+  "skia_license": "https://github.com/rust-skia/skia/blob/m153-0.101.2/LICENSE"
+}

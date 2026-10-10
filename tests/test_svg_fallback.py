@@ -6,6 +6,7 @@ preservation, and failed conversions that must not overwrite an existing image.
 
 from __future__ import annotations
 
+import base64
 import os
 import shutil
 import subprocess
@@ -261,3 +262,40 @@ def test_text_fallback_cache_tracks_actual_installed_font_bytes(svg_tools, tmp_p
     assert text != blank
     assert cached_conversion(svg_tools, tmp_path, svg, controls=controls).stdout == text
     assert len(list((tmp_path / "cache").rglob("*.cache"))) == 2
+
+
+def test_embedded_webp_retains_color_and_transparency(svg_tools, tmp_path) -> None:
+    """A lossless WebP panel must remain visible even without Skia's WebP codec."""
+    # Four-by-four translucent blue fixture, independent of installed image encoders.
+    webp = "UklGRh4AAABXRUJQVlA4TBEAAAAvA8AAEAdQs0pUtYCBiOh/AAA="
+    child = tmp_path / "panel.webp"
+    child.write_bytes(base64.b64decode(webp))
+    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40">'
+           f'<image href="{child.name}" width="40" height="40"/></svg>').encode()
+    result = cached_conversion(svg_tools, tmp_path, svg)
+    image = pymupdf.Pixmap(result.stdout)
+    assert image.alpha
+    # MuPDF exposes premultiplied RGB, so translucent channels are halved.
+    assert image.pixel(20, 20) == (9, 51, 85, 128)
+
+
+def test_wide_blur_regions_render_visible_shadows_promptly(svg_tools, tmp_path) -> None:
+    """Viewport-sized Office blur regions must finish and retain soft shadow pixels."""
+    rectangles = ''.join(
+        f'<rect x="{20 + column * 45}" y="{20 + row * 45}" width="20" height="20" '
+        'fill="#1266aa" filter="url(#blur)"/>'
+        for row in range(10) for column in range(20)
+    )
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="500">'
+           '<defs><filter id="blur" filterUnits="userSpaceOnUse" x="0" y="0" '
+           'width="1000" height="500"><feGaussianBlur stdDeviation="3"/></filter></defs>'
+           f'{rectangles}</svg>').encode()
+    environment = {**os.environ, "PAPPER_SVG_CACHE": "0"}
+    result = subprocess.run([str(converter(svg_tools)), "-f", "png"], input=svg,
+                            capture_output=True, env=environment, timeout=15)
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
+    image = pymupdf.Pixmap(result.stdout)
+    assert (image.width, image.height) == (1000, 500)
+    assert image.pixel(30, 30)[3] > 240
+    assert 0 < image.pixel(17, 30)[3] < 100
+    assert image.pixel(0, 0)[3] == 0

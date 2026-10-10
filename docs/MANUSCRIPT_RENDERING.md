@@ -179,7 +179,12 @@ The filters are
 [`svg_embed_images.lua`](../pandoc/filters/docx/svg_embed_images.lua) and
 [`svg_to_png.lua`](../pandoc/filters/docx/svg_to_png.lua). Rasterization is
 provided by the native
-[`papper-svg`](../crates/papper-svg/src/main.rs) renderer using Rust `resvg`.
+[`papper-svg`](../crates/papper-svg/src/main.rs) renderer using `skia-safe` CPU
+surfaces. `usvg` resolves CSS, DPI-relative units, font outlines and adjacent
+resources before serializing a canonical SVG for Skia. Nested SVG images are
+rendered recursively with a 16-level limit; WebP images are decoded separately
+because the official Windows Skia SVG binary omits the WebP codec. There is no
+resvg raster backend or fallback backend.
 
 Image filters receive the same ordered resource roots as Pandoc, including an
 explicit `--resource-path`. Font fingerprints are requested only when an SVG
@@ -190,10 +195,18 @@ vector-only rendering skips loading the system font database.
 Office-exported diagrams can contain hundreds of Gaussian-blur shadows whose
 `userSpaceOnUse` filter regions cover the whole SVG viewport. Rasterization cost
 then follows those intermediate regions, not the SVG file size or the image's
-display width in Word. Development builds optimize `resvg`, `usvg`, and
-`tiny-skia` to keep these pixel loops and filter accessors out of unoptimized
-code. For direct helper diagnostics, `PAPPER_SVG_TRACE=1` reports font loading,
+display width in Word. Skia handles these regions on CPU without the former
+resvg pixel-loop bottleneck. Its native precompiled libraries are optimized
+even in Rust development builds. A new fallback-cache namespace prevents reuse
+of pixels produced by the previous backend. For direct helper diagnostics,
+`PAPPER_SVG_TRACE=1` reports font loading,
 SVG parsing, rasterization, and PNG encoding boundaries on stderr.
+
+Skia 0.153.3 uses the official SVG+textlayout archive with GL enabled; no GPU
+context is created. Linux adds X11 and macOS adds Metal to match published
+archives. Linux build images provide fontconfig, FreeType and GL development
+libraries. Windows helper builds use the dynamic CRT required by that archive;
+the existing wheel dependency stage bundles its transitive release CRT DLLs.
 
 On Windows, each Pandoc conversion or persistent worker belongs to an unnamed
 kill-on-close Job Object whose non-inherited handle stays in the Rust owner.

@@ -398,6 +398,8 @@ def test_native_concurrent_requests_keep_complete_documents(native_service_facto
 
 def test_native_worker_crash_recovers_on_next_conversion(native_service_factory) -> None:
     """Restart the real killed conversion process without losing fresh manuscript edits."""
+    from lxml import html
+
     service = native_service_factory()
     service.convert()
     children = _child_pids(service.process.pid)
@@ -407,7 +409,10 @@ def test_native_worker_crash_recovers_on_next_conversion(native_service_factory)
     source = service.project.source
     source.write_text(source.read_text(encoding="utf-8") + "\nRecovered native worker.\n", encoding="utf-8")
     recovered = service.convert()
-    assert not recovered["cache_hit"] and "Recovered native worker." in recovered["output"]
+    # Pandoc may wrap HTML text across lines; verify the visible prose after
+    # recovery rather than coupling this lifecycle test to writer whitespace.
+    visible = " ".join(html.fromstring(recovered["output"]).text_content().split())
+    assert not recovered["cache_hit"] and "Recovered native worker." in visible
     service.project.assert_cli_parity(recovered["output"])
 
 

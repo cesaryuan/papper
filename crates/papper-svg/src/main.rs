@@ -3,7 +3,8 @@
 //! `papper-svg render --source <svg-path> [--width <pixels>]` reads normalized
 //! SVG bytes from stdin and writes PNG bytes to stdout. Lua owns document ASTs,
 //! resource selection and explicit rasterization caches; this command supplies
-//! resvg rendering without a document AST.
+//! Skia CPU rendering without a document AST. usvg normalizes CSS, physical units,
+//! font outlines and local resources before the Skia SVG DOM draws pixels.
 //! `papper-svg gunzip` decodes one SVGZ stream. This small executable depends on
 //! neither Papper's CLI nor its embedded Haskell/MathType/template runtime.
 //! `papper-svg rsvg-convert` accepts Pandoc's PNG fallback arguments; the bundled
@@ -12,13 +13,45 @@
 //! system fonts on demand for text images, leaving other builds free of font scans.
 
 mod cache;
+mod renderer;
 mod rsvg;
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Result, ensure};
 use clap::{Parser, Subcommand};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
+use std::time::Instant;
+
+/// Report opt-in stage timings on stderr without contaminating PNG byte streams.
+struct RenderTrace {
+    enabled: bool,
+    started: Instant,
+}
+
+impl RenderTrace {
+    /// Identify the source when diagnosing slow parsing, fonts, or rasterization.
+    fn new(source: &Path) -> Self {
+        let trace = Self {
+            enabled: std::env::var("PAPPER_SVG_TRACE").is_ok_and(|value| value == "1"),
+            started: Instant::now(),
+        };
+        if trace.enabled {
+            eprintln!("[papper-svg] Rendering {}", source.display());
+        }
+        trace
+    }
+
+    /// Print cumulative elapsed time at meaningful rendering boundaries.
+    fn stage(&self, stage: &str) {
+        if self.enabled {
+            eprintln!(
+                "[papper-svg] {stage}: {:.3}s",
+                self.started.elapsed().as_secs_f64()
+            );
+        }
+    }
+}
 
 /// Keep this resource helper separate from Papper's product command tree.
 #[derive(Parser)]
@@ -95,11 +128,11 @@ fn run() -> Result<()> {
 }
 
 /// Match the existing renderer's platform font defaults rather than fontdb defaults.
-fn font_database() -> Arc<resvg::usvg::fontdb::Database> {
-    static FONTS: OnceLock<Arc<resvg::usvg::fontdb::Database>> = OnceLock::new();
+fn font_database() -> Arc<usvg::fontdb::Database> {
+    static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
     FONTS
         .get_or_init(|| {
-            let mut fonts = resvg::usvg::fontdb::Database::new();
+            let mut fonts = usvg::fontdb::Database::new();
             fonts.load_system_fonts();
             if cfg!(any(target_os = "windows", target_os = "macos")) {
                 fonts.set_serif_family("Times New Roman");
@@ -136,44 +169,5 @@ fn render(
     scale: f64,
     width: Option<u32>,
 ) -> Result<Vec<u8>> {
-    let options = resvg::usvg::Options {
-        resources_dir: source.parent().map(Path::to_path_buf),
-        dpi: dpi as f32,
-        font_size: 16.0,
-        font_family: if cfg!(target_os = "linux") {
-            "Liberation Serif".into()
-        } else {
-            "Times New Roman".into()
-        },
-        default_size: resvg::usvg::Size::from_wh(width.unwrap_or(100) as f32, 100.0)
-            .context("SVG default viewport is invalid")?,
-        fontdb: if requires_fonts(normalized) {
-            font_database()
-        } else {
-            Arc::new(resvg::usvg::fontdb::Database::new())
-        },
-        ..resvg::usvg::Options::default()
-    };
-    let tree = resvg::usvg::Tree::from_str(normalized, &options)
-        .with_context(|| format!("Cannot render SVG: {}", source.display()))?;
-    // Round the intrinsic size before the transform, as the original binding did;
-    // millimeter dimensions otherwise shift pixels while keeping the same viewport.
-    let original = tree.size().to_int_size();
-    let size = if let Some(width) = width {
-        original.scale_to_width(width)
-    } else {
-        original.scale_by(scale as f32)
-    }
-    .context("SVG render size is invalid")?;
-    if u64::from(size.width()) * u64::from(size.height()) > 200_000_000 {
-        bail!("SVG rasterization exceeds 200 million pixels")
-    }
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(size.width(), size.height())
-        .context("Could not allocate SVG image buffer")?;
-    let transform = resvg::tiny_skia::Transform::from_scale(
-        size.width() as f32 / original.width() as f32,
-        size.height() as f32 / original.height() as f32,
-    );
-    resvg::render(&tree, transform, &mut pixmap.as_mut());
-    Ok(pixmap.encode_png()?)
+    renderer::render(source, normalized, dpi, scale, width)
 }

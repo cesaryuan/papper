@@ -15,9 +15,11 @@ fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut renderer = Sha256::new();
     for relative in [
+        "Cargo.toml",
         "Cargo.lock",
         "crates/papper-svg/Cargo.toml",
         "crates/papper-svg/src/main.rs",
+        "crates/papper-svg/src/renderer.rs",
         "crates/papper-svg/src/rsvg.rs",
         "crates/papper-svg/src/cache.rs",
     ] {
