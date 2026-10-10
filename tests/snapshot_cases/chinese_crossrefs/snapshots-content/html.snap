@@ -1,6 +1,6 @@
 <html lang="zh-Hans" xml:lang="zh-Hans" xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <title>中文章节引用</title> </head> <body> <main> <header id="title-block-header"> <h1>中文章节引用</h1> </header> <h1 id="sec:第一章">1 第一章</h1> <h1 id="sec:第二章">2 第二章</h1> <h1 id="sec:第三章">3 第三章</h1> <h2 id="sec:section">3.1 第一节</h2> <p>参见节 <a href="#sec:section">3.1</a>、图 <a href="#fig:sample">3-1</a>、表 <a href="#tbl:sample">3-1</a>和式 <a href="#eq:sample">3-1</a>。</p> <p>已有研究讨论了桥梁健康监测中的数字孪生方法<span data-cites="zhang2024 li2023">
 <sup>[<a href="#ref-zhang2024" role="doc-biblioref">1</a>,<a href="#ref-li2023" role="doc-biblioref">2</a>]</sup>
-</span>。</p> <figure id="fig:sample"> <img alt="图 3-1 测试图" src="figure.svg"> <figcaption aria-hidden="true">图 3-1 测试图</figcaption> </figure> <table data-autofit="window" id="tbl:sample"> <caption>表 3-1 测试表</caption> <thead> <tr> <th>项目</th> <th>值</th> </tr> </thead> <tbody> <tr> <td>甲</td> <td>1</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>
+</span>。</p> <figure id="fig:sample"> <img alt="图 3-1 测试图" src="figure.svg"> <figcaption aria-hidden="true">图 3-1 测试图</figcaption> </figure> <table id="tbl:sample"> <caption>表 3-1 测试表</caption> <colgroup> <col> <col> </colgroup> <thead> <tr> <th>项目</th> <th>值</th> </tr> </thead> <tbody> <tr> <td>甲</td> <td>1</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>
 <span id="eq:sample">
 <span class="display math"> E = mc^2 \tag{3-1}</span>
 </span>
