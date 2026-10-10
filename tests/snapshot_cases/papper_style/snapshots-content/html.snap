@@ -1,0 +1,5 @@
+<html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <title>Manuscript style override</title> </head> <body> <main> <header id="title-block-header"> <h1>Manuscript style override</h1> </header> <h1 id="sec:local-formatting">1 Local formatting</h1> <p>This paragraph inherits the style file’s spacing before and overrides its spacing after, font size, and color.</p> <table data-autofit="content" id="tbl:local"> <caption>Local Table 1 A table using the manuscript style.</caption> <colgroup> <col> <col> </colgroup> <thead> <tr> <th>Item</th> <th>Value</th> </tr> </thead> <tbody> <tr> <td>Sample</td> <td>1</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>See Table <a href="#tbl:local">1</a>.</p> </div> <p>
+<span id="eq:local">
+<span class="display math"> x = 1 \tag{1}</span>
+</span>
+</p> </main> </body> </html>

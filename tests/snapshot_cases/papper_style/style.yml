@@ -1,0 +1,17 @@
+mathtype: true
+tableAutofit: window
+docxShowPageNumbers: true
+docxPageMargins:
+  top: 2cm
+  bottom: 2cm
+  left: 3cm
+  right: 2.5cm
+docxStyle:
+  Normal:
+    fontSize: 14pt
+    color: '990000'
+    paragraphSpacing:
+      before: 6pt
+      after: 12pt
+pandocMetadata:
+  tableTitle: File Table

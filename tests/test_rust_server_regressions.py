@@ -140,6 +140,34 @@ def test_native_service_restores_cached_header_after_another_header_build(native
     assert raw == output.read_bytes()
 
 
+def test_native_service_refreshes_manuscript_style_overrides(native_service_factory) -> None:
+    """Apply buffer-local styles across edits and cache reuse, then restore file styles on removal."""
+    service = native_service_factory()
+    (service.project.directory / "style.yml").write_text(
+        "tableAutofit: window\ndocxStyle:\n  Table Text:\n"
+        "    paragraphSpacing: {before: 7pt, after: 8pt}\n",
+        encoding="utf-8",
+    )
+    body = "| Item | Value |\n|---|---|\n| Sample | 1 |\n\n: Results\n"
+    for mode, after in [("content", 0), ("fixed", 3), ("content", 0)]:
+        header = yaml.safe_dump({
+            "papper-style": {
+                "tableAutofit": mode,
+                "docxStyle": {"Table Text": {"paragraphSpacing": {"after": f"{after}pt"}}},
+            },
+        })
+        result = service.convert(text=f"---\n{header}---\n\n{body}")
+        document = html_parser.fromstring(result["output"])
+        assert document.xpath("//table/@data-autofit") == [mode]
+        assert "--pmt-table-text-before: 7pt;" in result["output"]
+        assert f"--pmt-table-text-after: {after}pt;" in result["output"]
+    assert result["cache_hit"]
+    restored = service.convert(text=body)
+    document = html_parser.fromstring(restored["output"])
+    assert document.xpath("//table/@data-autofit") == ["window"]
+    assert "--pmt-table-text-after: 8pt;" in restored["output"]
+
+
 def test_native_service_detects_reply_buffers_and_refreshes_manuscript_numbers(native_service_factory) -> None:
     """Unsaved reply headers and changes to their manuscript must affect warm HTML output."""
     service = native_service_factory()
