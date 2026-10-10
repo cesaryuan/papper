@@ -96,6 +96,95 @@ def test_build_rejects_invalid_explicit_style(
     assert not output.exists()
 
 
+@pytest.mark.parametrize("postprocess", ["true", "false"])
+@pytest.mark.parametrize("margins", ["null", "{left: 2cm, right: 2cm}"])
+def test_docx_styles_are_inherited_from_exported_reference(
+    tmp_path: Path, postprocess: str, margins: str,
+) -> None:
+    """Export styles without building, then inherit them without changing the source reference."""
+    from docx import Document
+    from docx.enum.style import WD_STYLE_TYPE
+    from docx.oxml.ns import qn
+    from docx.shared import Cm, Pt, RGBColor
+
+    reference = tmp_path / "journal.docx"
+    template = Document(ROOT / "pandoc/manuscript-template/reference-doc.docx")
+    template.sections[0].left_margin = Cm(1.23)
+    body = template.styles.add_style("Journal Body", WD_STYLE_TYPE.PARAGRAPH)
+    body.base_style = template.styles["Body Text"]
+    body.font.size = Pt(9)
+    body.font.italic = True
+    emphasis = template.styles.add_style("Journal Emphasis", WD_STYLE_TYPE.CHARACTER)
+    emphasis.font.color.rgb = RGBColor.from_string("112233")
+    template.add_paragraph("Reference content only")
+    template.save(reference)
+    original = reference.read_bytes()
+
+    source = tmp_path / "paper.md"
+    source.write_text(
+        '::: {custom-style="Journal Body"}\n'
+        'Journal text with [styled text]{custom-style="Journal Emphasis"}.\n:::\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "style.yml").write_text(
+        f"docxPageMargins: {margins}\n"
+        "docxStyle:\n"
+        "  Journal Body:\n"
+        "    fontFamily: Times New Roman\n"
+        "    fontSize: 17pt\n"
+        "    firstLineIndentChars: 2\n"
+        "    paragraphSpacing: {before: 7pt, after: 9pt}\n"
+        "  Journal Emphasis:\n"
+        "    fontSize: 14pt\n"
+        "    fontColor: '#0055AA'\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "paper.docx"
+    output.write_bytes(b"Previous manuscript output")
+    exported = tmp_path / "exported-reference.docx"
+    result = subprocess.run(
+        [*papper_command(), "build", "docx", str(source), "--no-mathtype",
+         "--reference-doc", str(reference), "--export-reference-doc", str(exported),
+         "-o", str(output)],
+        cwd=tmp_path,
+        env={**os.environ, "PAPPER_HOME": str(tmp_path / "state"),
+             "PAPPER_RESOURCE_ROOT": str(ROOT), "PMT_ENABLE_DOCX_POSTPROCESS": postprocess},
+        capture_output=True, text=True, encoding="utf-8", timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert output.read_bytes() == b"Previous manuscript output"
+    assert reference.read_bytes() == original
+    result = subprocess.run(
+        [*papper_command(), "build", "docx", str(source), "--no-mathtype",
+         "--reference-doc", str(exported), "-o", str(output)],
+        cwd=tmp_path,
+        env={**os.environ, "PAPPER_HOME": str(tmp_path / "state"),
+             "PAPPER_RESOURCE_ROOT": str(ROOT), "PMT_ENABLE_DOCX_POSTPROCESS": postprocess},
+        capture_output=True, text=True, encoding="utf-8", timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    for path in [exported, output]:
+        document = Document(path)
+        style = document.styles["Journal Body"]
+        assert style.font.name == "Times New Roman"
+        assert style.font.size.pt == 17
+        assert style.font.italic is True
+        assert style.base_style.name == "Body Text"
+        assert style.paragraph_format.space_before.pt == 7
+        assert style.paragraph_format.space_after.pt == 9
+        assert style.element.find(f"{qn('w:pPr')}/{qn('w:ind')}").get(qn("w:firstLineChars")) == "200"
+        assert document.styles["Journal Emphasis"].font.size.pt == 14
+        assert str(document.styles["Journal Emphasis"].font.color.rgb) == "0055AA"
+        assert document.sections[0].left_margin.twips == (
+            template.sections[0].left_margin.twips if margins == "null" else Cm(2).twips
+        )
+    manuscript = Document(output)
+    paragraph = next(p for p in manuscript.paragraphs if p.text.startswith("Journal text"))
+    assert paragraph.style.name == "Journal Body"
+    assert next(run for run in paragraph.runs if run.text == "styled text").style.name == "Journal Emphasis"
+    assert not any(p.text == "Reference content only" for p in manuscript.paragraphs)
+
+
 @pytest.mark.parametrize("mode", [pytest.param(None, id="default"), "window", "content", "fixed", "none"])
 def test_table_autofit_defaults_are_shared_by_html_and_docx(
     tmp_path: Path, rust_executable: Path, mode: str | None,

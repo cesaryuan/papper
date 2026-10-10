@@ -412,6 +412,8 @@ Lengths accept `pt`, `cm`, `mm`, and `in`; numbers without a unit mean points.
 The bundled margins are 2.54 cm at the top/bottom and 3.17 cm at the left/right.
 Project settings merge with these defaults. To preserve all margins from a
 custom reference DOCX, use `docxPageMargins: null`.
+An explicit `null` in the selected project style or manuscript `papper-style`
+overrides inherited margins, including the bundled defaults.
 
 To control automatic page numbers in DOCX footers, set `docxShowPageNumbers`.
 `true` shows automatic page numbers using the reference DOCX's `page number`
@@ -429,8 +431,8 @@ Leave `tableEqns`, `eqnBlockTemplate`, and `eqnBlockInlineMath` out of
 
 ## One-Off DOCX Builds
 
-Use DOCX command-line flags to override MathType conversion or select Chinese
-language defaults for one build without editing `style.yml`.
+Use DOCX command-line flags to override MathType conversion, select Chinese
+language defaults, or use and export a Word reference document for one build.
 
 ```powershell
 papper build docx --mathtype
@@ -440,6 +442,44 @@ papper build docx --lang zh-cn
 
 The command-line value has higher priority than `style.yml`. These flags apply
 only to `papper build docx`.
+
+Use `--reference-doc PATH` to select a custom Word reference DOCX, for example
+one containing a journal's paragraph styles. Without this option, Papper uses
+`PMT_REFERENCE_DOC` when set, otherwise its bundled reference. Relative paths
+are resolved from the current project directory; missing files are errors.
+Papper applies effective `docxStyle` settings and page margins to a temporary
+reference copy before generating the DOCX; the selected source file is left
+unchanged. To keep the custom reference's margins, set `docxPageMargins: null`
+in `style.yml`. To keep all its text styles too, set `docxStyle: null`.
+
+Use `--export-reference-doc [PATH]` to save the effective reference DOCX and
+skip the actual manuscript build. Omitting `PATH` writes `reference-doc.docx`
+in the current project directory. The exported reference includes the page
+margins and `docxStyle` settings selected for the build. Line numbers and footer
+page numbers apply to the generated document; the export does not capture
+those output formatting changes or the manuscript content.
+Export does not run Pandoc, resolve manuscript references, process images or
+convert MathType equations. Existing manuscript outputs are left unchanged.
+If no Markdown file is selected and `manuscript.md` is absent, export uses the
+project style and bundled defaults. An existing or explicitly selected Markdown
+file supplies YAML overrides and language/reply settings; its body is not rendered.
+Explicitly selected missing Markdown files are errors. `--output-file` does not
+select the export destination; use the optional `PATH` argument instead.
+Export creates missing destination directories and replaces an existing export
+file only after reference preparation succeeds. Its path must differ from the manuscript,
+selected reference input and final DOCX output. Both options also work when
+`papper build docx` detects a reviewer reply, and neither applies to other targets.
+
+```powershell
+# Export the effective reference for editing in Word, without building the manuscript
+papper build docx --export-reference-doc
+
+# Build with the edited reference
+papper build docx manuscript.md --reference-doc journal-reference.docx
+
+# Export the custom reference with this build's configured margins and text styles
+papper build docx manuscript.md --reference-doc journal-reference.docx --export-reference-doc exports/active-reference.docx
+```
 
 `--lang zh-cn` marks this DOCX build as Chinese-primary. It enables chapter
 numbering for cross-referenced items (`图 3-1`, `表 3-1`) and sets the `标题`,
@@ -475,7 +515,12 @@ reference DOCX styles; HTML uses the supported text style settings too.
 
 Set style names under the top-level `docxStyle` key. Styles must exist in the
 reference DOCX; missing styles produce warnings. Omitted properties retain
-their existing values. The bundled reference DOCX explicitly sets `Normal`
+their existing values. DOCX builds apply these settings to a temporary
+reference copy before generating the document, and `--export-reference-doc`
+includes the configured styles. The source reference is left unchanged, and
+text style settings still apply when page margins are retained with
+`docxPageMargins: null`. Set `docxStyle: null` to retain all reference text styles.
+The bundled reference DOCX explicitly sets `Normal`
 to `12pt` (小四). The default body style has a two-character first-line
 indent and no spacing before or after paragraphs.
 

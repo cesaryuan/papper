@@ -93,17 +93,26 @@ pub fn prepare_docx_metadata(effective: &EffectiveMetadata) -> Result<EffectiveM
     Ok(prepared)
 }
 
-/// Prepare reference margins before Pandoc uses the reference's text width for images.
+/// Prepare reference styles and margins before Pandoc derives document formatting and image widths.
 pub fn prepare_reference(
     resources: &ResourcePaths,
     effective: &EffectiveMetadata,
     override_path: Option<&Path>,
     work_dir: &Path,
 ) -> Result<Option<PathBuf>> {
-    let Some(margins) = &effective.pmt_settings.fields().docx_page_margins else {
-        return Ok(override_path.map(Path::to_path_buf));
-    };
-    if margins.is_empty() {
+    let settings = &effective.pmt_settings;
+    let margins = settings
+        .fields()
+        .docx_page_margins
+        .as_ref()
+        .filter(|margins| !margins.is_empty());
+    let has_styles = settings
+        .fields()
+        .docx_style
+        .as_ref()
+        .is_some_and(|styles| styles.iter().next().is_some());
+    // Retaining reference margins with null must not skip configured text styles.
+    if margins.is_none() && !has_styles {
         return Ok(override_path.map(Path::to_path_buf));
     }
     let bundled = resources
@@ -111,31 +120,38 @@ pub fn prepare_reference(
         .join("pandoc/manuscript-template/reference-doc.docx");
     let source = override_path.unwrap_or(&bundled);
     let mut package = Package::open(source)?;
-    let mut document = package.xml("word/document.xml")?;
-    let mut parsed = Vec::new();
-    for (side, aliases) in [
-        ("top", vec!["top"]),
-        ("bottom", vec!["bottom"]),
-        ("left", vec!["left", "inside"]),
-        ("right", vec!["right", "outside"]),
-    ] {
-        if let Some(value) = aliases.iter().find_map(|alias| margins.get(*alias)) {
-            let amount = formatting::configured_length_twips(value)?;
-            if amount < 0 {
-                bail!("docxPageMargins.{side} must be greater than or equal to 0");
-            }
-            parsed.push((format!("w:{side}"), amount));
-        }
+    if has_styles {
+        let mut styles = package.xml("word/styles.xml")?;
+        formatting::apply_styles(&mut styles, settings)?;
+        package.set_xml("word/styles.xml", &styles);
     }
-    document.visit_mut(&mut |element| {
-        if element.name == "w:sectPr" {
-            let margins = element.word("w:pgMar");
-            for (name, amount) in &parsed {
-                margins.set(name, amount);
+    if let Some(margins) = margins {
+        let mut document = package.xml("word/document.xml")?;
+        let mut parsed = Vec::new();
+        for (side, aliases) in [
+            ("top", vec!["top"]),
+            ("bottom", vec!["bottom"]),
+            ("left", vec!["left", "inside"]),
+            ("right", vec!["right", "outside"]),
+        ] {
+            if let Some(value) = aliases.iter().find_map(|alias| margins.get(*alias)) {
+                let amount = formatting::configured_length_twips(value)?;
+                if amount < 0 {
+                    bail!("docxPageMargins.{side} must be greater than or equal to 0");
+                }
+                parsed.push((format!("w:{side}"), amount));
             }
         }
-    });
-    package.set_xml("word/document.xml", &document);
+        document.visit_mut(&mut |element| {
+            if element.name == "w:sectPr" {
+                let margins = element.word("w:pgMar");
+                for (name, amount) in &parsed {
+                    margins.set(name, amount);
+                }
+            }
+        });
+        package.set_xml("word/document.xml", &document);
+    }
     let target = work_dir.join("reference.docx");
     package.save(&target)?;
     Ok(Some(target))
@@ -185,7 +201,6 @@ pub fn postprocess_docx(
             &effective.pandoc_metadata,
         )?;
     }
-    formatting::apply_styles(&mut styles, &effective.pmt_settings)?;
     formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
     formatting::apply_page_numbers(
         &mut package,

@@ -20,11 +20,29 @@ Caption typography comes from the reference DOCX styles, including
 `pandoc/manuscript-template/reference-doc/word/styles.xml`, with the matching
 `reference-doc.docx`. HTML styling also reads the reference DOCX definitions.
 
-Page margins are applied to the reference DOCX before Pandoc conversion so
-Pandoc sizes images against the writable width of the final document. Page
+`docxStyle` overrides and page margins are applied to a temporary reference
+DOCX before Pandoc conversion. Styles are edited in `word/styles.xml`, even
+when `docxPageMargins` is null; the final DOCX postprocessor does not reapply
+`docxStyle`. Pandoc inherits the prepared styles and sizes images against the
+writable width of the final document. The source reference is left unchanged. Page
 numbers use Word `PAGE` fields and the `page number` character style. Removing
 page-number fields preserves other footer content; the build does not request
 a document-wide field update when Word opens the output.
+
+`build docx --reference-doc` overrides `PMT_REFERENCE_DOC`; otherwise the
+bundled reference is selected. `docx_pipeline::prepare_reference` returns the
+actual reference path, including a temporary copy with effective text styles
+and page margins.
+`--export-reference-doc [PATH]` atomically publishes that reference and returns
+before engine discovery, reply resolution, image processing or MathType checks.
+With no selected source and no default manuscript, metadata is loaded from an
+empty input using project/bundled styles. Existing Markdown contributes only
+its YAML metadata and reply mode. It does not export the
+postprocessed manuscript or apply output-only line-number or footer
+changes to the reference. Export path aliases are resolved before conversion
+to prevent replacement of the manuscript, selected reference or final output.
+Project style merges preserve explicitly supplied nulls, so
+`docxPageMargins: null` can disable bundled margin overrides for a custom reference.
 
 ## Native Word Numbering and Bilingual Captions
 

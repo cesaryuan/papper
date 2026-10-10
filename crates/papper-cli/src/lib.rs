@@ -140,9 +140,12 @@ pub struct BuildArgs {
     /// Override document language, e.g. zh-cn for Chinese defaults (DOCX only).
     #[arg(long)]
     pub lang: Option<String>,
-    /// Override the Word reference document (DOCX only).
-    #[arg(long, hide = true)]
+    /// Use this Word reference document; overrides PMT_REFERENCE_DOC (DOCX only).
+    #[arg(long)]
     pub reference_doc: Option<PathBuf>,
+    /// Export the effective reference and skip building; omit PATH for reference-doc.docx.
+    #[arg(long, value_name = "PATH", num_args = 0..=1, default_missing_value = "reference-doc.docx")]
+    pub export_reference_doc: Option<PathBuf>,
     /// Start or reuse a background conversion server for HTML builds only.
     #[arg(long)]
     pub start_server: bool,

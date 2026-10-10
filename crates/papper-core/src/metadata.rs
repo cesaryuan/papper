@@ -934,14 +934,16 @@ impl PmtSettings {
         }
     }
 
-    /// Return canonical non-null fields, optionally limited to supplied overrides.
+    /// Return supplied overrides including explicit nulls, or all non-null fields.
     pub fn to_mapping(&self, exclude_unset: bool) -> Map<String, Value> {
         SettingField::ALL
             .into_iter()
             .filter(|field| !exclude_unset || self.provided.contains(field))
             .filter_map(|field| {
                 let value = self.fields.value(field);
-                (!value.is_null()).then(|| (field.name().into(), value))
+                // Project styles use null to retain reference margins or footer
+                // settings; dropping it here would restore bundled defaults.
+                (exclude_unset || !value.is_null()).then(|| (field.name().into(), value))
             })
             .collect()
     }

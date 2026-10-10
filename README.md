@@ -354,6 +354,15 @@ papper build docx paper.md -o build/paper.docx
 # Choose a style file for this build
 papper build docx paper.md --style-file styles/journal.yml
 
+# Export the reference DOCX to reference-doc.docx without building the manuscript
+papper build docx --export-reference-doc
+
+# Build with a custom reference DOCX
+papper build docx paper.md --reference-doc journal-reference.docx
+
+# Export the active custom reference without building the manuscript
+papper build docx paper.md --reference-doc journal-reference.docx --export-reference-doc build/active-reference.docx
+
 # Build one standalone HTML file with embedded resources
 papper build html -o build/paper.html
 
@@ -364,6 +373,16 @@ papper build html --resource-path 'assets;shared-assets'
 papper build docx reply.md -o output/docx/reply.docx
 papper build html reply.md
 ```
+
+`papper doctor` can run in any directory. Missing `manuscript.md` or `style.yml`
+is informational and does not make diagnostics fail. DOCX reference options
+apply `docxStyle` and page margins to a temporary reference copy before building;
+reference exports include both settings, leaving the source reference unchanged.
+`--export-reference-doc [PATH]` exports only and skips the actual build; an absent
+default `manuscript.md` is allowed, and existing manuscript outputs are preserved.
+Line numbers and footer page numbers apply to the final manuscript. These options
+and their interaction with page margins and style overrides are described in
+[`papper guide style one-off-docx-builds`](docs/style-configuration.md#one-off-docx-builds).
 
 HTML builds use the shared Pandoc filters for Chinese nested numbering and
 `!<!`/`!^!` table-cell merge markers, plus HTML post-processing for author

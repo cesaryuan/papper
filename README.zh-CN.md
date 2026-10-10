@@ -275,6 +275,15 @@ papper build docx paper.md -o build/paper.docx
 # 为本次构建指定样式文件
 papper build docx paper.md --style-file styles/journal.yml
 
+# 仅导出 reference DOCX 为 reference-doc.docx，跳过实际稿件构建
+papper build docx --export-reference-doc
+
+# 使用自定义 reference DOCX 构建
+papper build docx paper.md --reference-doc journal-reference.docx
+
+# 仅导出本次生效的自定义 reference，跳过实际稿件构建
+papper build docx paper.md --reference-doc journal-reference.docx --export-reference-doc build/active-reference.docx
+
 # 构建一个资源内嵌的独立 HTML 文件
 papper build html -o build/paper.html
 
@@ -282,6 +291,8 @@ papper build html -o build/paper.html
 papper build docx reply.md -o output/docx/reply.docx
 papper build html reply.md
 ```
+
+`papper doctor` 可以在任意目录运行；缺少 `manuscript.md` 或 `style.yml` 只会输出信息提示，不会导致诊断失败。`--export-reference-doc [PATH]` 仅导出当前生效的 reference DOCX，跳过实际构建，省略路径时写入当前目录的 `reference-doc.docx`；已有稿件输出保持不变。未指定稿件且默认 `manuscript.md` 不存在时，仍可按项目样式和内置默认值导出；存在或显式选中的稿件只提供 YAML 配置，正文不参与构建。导出包含生效的 `docxStyle` 和页边距，源 reference 文件保持不变；行号和页码仍应用于最终稿件。`--reference-doc PATH` 优先于 `PMT_REFERENCE_DOC`，两者均未设置时使用内置 reference。若要保留自定义 reference 的页边距，在 `style.yml` 设置 `docxPageMargins: null`；若要同时保留其全部文字样式，再设置 `docxStyle: null`。详见[`papper guide style one-off-docx-builds`](docs/style-configuration.md#one-off-docx-builds)。
 
 HTML 构建使用通用 Pandoc filter 处理中文嵌套编号和
 `!<!`/`!^!` 表格单元格合并，再通过 HTML 后处理插入作者信息。DOCX

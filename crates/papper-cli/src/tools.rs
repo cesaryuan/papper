@@ -291,18 +291,23 @@ pub fn doctor(resources: &ResourcePaths, project: &Path) -> Result<i32> {
         project.is_dir(),
         display_path(project),
     ));
-    for name in ["manuscript.md", "style.yml"] {
-        let path = project.join(name);
-        checks.push((
-            format!("project {name}"),
-            path.is_file(),
-            display_path(&path),
-        ));
-    }
     let mut errors = false;
     for (label, ok, detail) in checks {
         println!("{} {label}: {detail}", if ok { "[OK]" } else { "[ERROR]" });
         errors |= !ok;
+    }
+    // Doctor also runs outside manuscript projects, and builds can select other
+    // Markdown filenames or use bundled styles without a project style.yml.
+    for name in ["manuscript.md", "style.yml"] {
+        let path = project.join(name);
+        if path.is_file() {
+            println!("[OK] project {name}: {}", display_path(&path));
+        } else {
+            println!(
+                "[INFO] project {name}: {} (not present; not required by doctor)",
+                display_path(&path)
+            );
+        }
     }
     Ok(i32::from(errors))
 }

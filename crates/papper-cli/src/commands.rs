@@ -72,6 +72,10 @@ fn validate_build(args: &BuildArgs) -> Result<()> {
             args.reference_doc.is_none(),
             "--reference-doc is only supported by the docx target."
         );
+        anyhow::ensure!(
+            args.export_reference_doc.is_none(),
+            "--export-reference-doc is only supported by the docx target."
+        );
     }
     anyhow::ensure!(
         !args.start_server || args.target == BuildTarget::Html,
@@ -94,12 +98,22 @@ fn build(mut args: BuildArgs) -> Result<()> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("manuscript.md"));
     let source = absolute(source_arg.unwrap_or(&default_source), &project);
+    // Reference export can use project/bundled styles without a default
+    // manuscript. Explicit input paths still fail when missing or not files.
+    let export_without_source = args.export_reference_doc.is_some()
+        && source_arg.is_none()
+        && std::env::var_os("PMT_MANUSCRIPT_FILE").is_none()
+        && !source.exists();
     anyhow::ensure!(
-        source.is_file(),
+        source.is_file() || export_without_source,
         "Markdown file not found: {}",
         source.display()
     );
-    let source = PathBuf::from(display_path(&source.canonicalize()?));
+    let source = if export_without_source {
+        source
+    } else {
+        PathBuf::from(display_path(&source.canonicalize()?))
+    };
     let name = if source_arg.is_some() {
         source
             .file_stem()
@@ -142,16 +156,44 @@ fn build(mut args: BuildArgs) -> Result<()> {
             style.display()
         );
     }
-    if args.reference_doc.is_none() {
+    if args.target == BuildTarget::Docx && args.reference_doc.is_none() {
         args.reference_doc = std::env::var_os("PMT_REFERENCE_DOC").map(PathBuf::from);
     }
+    if let Some(reference) = &args.reference_doc {
+        let selected = absolute(reference, &project);
+        anyhow::ensure!(
+            selected.is_file(),
+            "Reference DOCX file not found: {}",
+            selected.display()
+        );
+    }
     let resources = ResourcePaths::discover()?;
+    if let Some(export) = &args.export_reference_doc {
+        let export = crate::docx_pipeline::resolved_destination(&absolute(export, &project))?;
+        let reference = args
+            .reference_doc
+            .as_deref()
+            .map(|path| absolute(path, &project))
+            .unwrap_or_else(|| resources.resource("pandoc/manuscript-template/reference-doc.docx"));
+        // Exporting over the manuscript, selected template or final DOCX would
+        // destroy an input or replace the build result with the template itself.
+        for protected in [&source, &output, &reference] {
+            anyhow::ensure!(
+                export != crate::docx_pipeline::resolved_destination(protected)?,
+                "Reference export must not overwrite the manuscript, reference input or DOCX output: {}",
+                export.display()
+            );
+        }
+    }
     if args.logging.verbose {
         eprintln!(
             "[DEBUG] Native input: {}; output: {}",
             source.display(),
             output.display()
         );
+    }
+    if args.export_reference_doc.is_some() {
+        return build_other(&args, &project, &source, &output, &resources);
     }
     println!("[{}] Building {}...", directory.to_uppercase(), directory);
     if args.target == BuildTarget::Html {
@@ -187,7 +229,7 @@ fn build(mut args: BuildArgs) -> Result<()> {
     Ok(())
 }
 
-/// Apply source-first style/resource lookup and run non-HTML conversion from a source snapshot.
+/// Load effective styles, then export the reference or convert a non-HTML source snapshot.
 fn build_other(
     args: &BuildArgs,
     project: &Path,
@@ -212,15 +254,21 @@ fn build_other(
         project.to_path_buf(),
         resources.root.clone(),
     ];
-    let text = std::fs::read_to_string(source)?
-        .trim_start_matches('\u{feff}')
-        .replace("\r\n", "\n");
+    let text = if source.is_file() {
+        std::fs::read_to_string(source)?
+            .trim_start_matches('\u{feff}')
+            .replace("\r\n", "\n")
+    } else {
+        String::new()
+    };
     let reply = if args.target == BuildTarget::Docx {
         reply_manuscript_text(&text, source)?
     } else {
         None
     };
-    if let Some(manuscript) = &reply {
+    if let Some(manuscript) = &reply
+        && args.export_reference_doc.is_none()
+    {
         anyhow::ensure!(
             manuscript.is_file(),
             "Reply manuscript not found: {}",
@@ -238,6 +286,26 @@ fn build_other(
         ..MetadataOptions::default()
     };
     let mut effective = load_effective_metadata_text(&text, source, &options)?;
+    if let Some(export) = &args.export_reference_doc {
+        effective = papper_document::docx::prepare_docx_metadata(&effective)?;
+        let reference = args
+            .reference_doc
+            .as_deref()
+            .map(|path| absolute(path, project));
+        let reference = crate::docx_pipeline::prepare_reference(
+            resources,
+            &effective,
+            reference.as_deref(),
+            temporary.path(),
+        )?;
+        let export = absolute(export, project);
+        // Exit before reply resolution, engine discovery, image filters or
+        // MathType checks: export mode must never create a manuscript output.
+        atomic_write(&export, &std::fs::read(reference)?)
+            .with_context(|| format!("Could not export reference DOCX: {}", export.display()))?;
+        println!("[OK] Reference DOCX exported: {}", export.display());
+        return Ok(());
+    }
     let mut environment = BTreeMap::from([(
         "PMT_CITATION_NUMBER_RANGE_DELIMITER".into(),
         effective
