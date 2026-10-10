@@ -142,6 +142,17 @@ pub fn merge_metadata(
     merged
 }
 
+/// Preserve explicit nulls so manuscript overrides can clear inherited nullable settings.
+fn provided_settings_mapping(
+    fields: &SettingsValues,
+    provided: &BTreeSet<SettingField>,
+) -> Map<String, Value> {
+    provided
+        .iter()
+        .map(|field| (field.name().into(), fields.value(*field)))
+        .collect()
+}
+
 /// Identify Chinese language tags using the existing build-language policy.
 pub fn is_chinese_language(language: &Value) -> bool {
     let Some(raw) = language.as_str() else {
@@ -847,11 +858,11 @@ impl PmtSettings {
         Ok(settings)
     }
 
-    /// Split, validate, and resolve one immutable style-file snapshot.
-    pub fn from_yaml_text(text: &str, source: &Path) -> Result<Self> {
+    /// Validate either a style file or a manuscript-local style mapping with shared rules.
+    fn from_style_mapping(raw: &Map<String, Value>, source: &Path, section: &str) -> Result<Self> {
         let result: Result<Self> = (|| {
-            let raw = normalize_style_source_aliases(&parse_yaml_mapping(text, source)?);
-            let (values, pandoc_metadata, reply) = split_style_mapping(&raw, source, "style.yml")?;
+            let raw = normalize_style_source_aliases(raw);
+            let (values, pandoc_metadata, reply) = split_style_mapping(&raw, source, section)?;
             let mut settings = Self::from_mapping(&values)?;
             settings.pandoc_metadata = pandoc_metadata;
             settings.reply = reply;
@@ -861,7 +872,12 @@ impl PmtSettings {
             )?)?;
             Ok(settings)
         })();
-        result.with_context(|| format!("Invalid style settings in {}", source.display()))
+        result.with_context(|| format!("Invalid {section} settings in {}", source.display()))
+    }
+
+    /// Split, validate, and resolve one immutable style-file snapshot.
+    pub fn from_yaml_text(text: &str, source: &Path) -> Result<Self> {
+        Self::from_style_mapping(&parse_yaml_mapping(text, source)?, source, "style")
     }
 
     /// Read a style independently of implicit environment and dotenv settings.
@@ -1114,6 +1130,24 @@ pub fn load_effective_metadata_text(
             source.display()
         )
     };
+    let inline_style = manuscript.remove("papper-style");
+    // An explicit null clears the inherited reply section, just like any mapping override.
+    let clears_reply = inline_style
+        .as_ref()
+        .and_then(Value::as_object)
+        .is_some_and(|mapping| mapping.get("reply").is_some_and(Value::is_null));
+    let inline_settings = match inline_style {
+        None => None,
+        Some(Value::Object(mapping)) => Some(PmtSettings::from_style_mapping(
+            &mapping,
+            source,
+            "papper-style",
+        )?),
+        _ => bail!(
+            "`papper-style` in {} must be a YAML mapping",
+            source.display()
+        ),
+    };
     // The reply path selects build behavior and must not become a Word property
     // or Pandoc template variable; recognition reads the original header separately.
     manuscript.remove("reply");
@@ -1130,10 +1164,18 @@ pub fn load_effective_metadata_text(
         .as_ref()
         .map(|settings| settings.pandoc_metadata.clone())
         .unwrap_or_default();
-    let mut overrides = merge_metadata(&project_metadata, &manuscript);
+    let mut inline_metadata = inline_settings
+        .as_ref()
+        .map(|settings| settings.pandoc_metadata.clone())
+        .unwrap_or_default();
+    let mut overrides = merge_metadata(
+        &merge_metadata(&project_metadata, &inline_metadata),
+        &manuscript,
+    );
     if overrides.get("csl").is_none_or(is_empty) {
         overrides.remove("csl");
         project_metadata.remove("csl");
+        inline_metadata.remove("csl");
         manuscript.remove("csl");
     }
     let selected_language = options
@@ -1158,7 +1200,7 @@ pub fn load_effective_metadata_text(
         settings_mapping = merge_metadata(&settings_mapping, &project.to_mapping(true));
         pandoc_defaults = merge_metadata(&pandoc_defaults, &project_metadata);
     }
-    if options.reply {
+    if options.reply && !clears_reply {
         for settings in [Some(&defaults), project_settings.as_ref()]
             .into_iter()
             .flatten()
@@ -1168,6 +1210,27 @@ pub fn load_effective_metadata_text(
                     merge_metadata(&settings_mapping, &reply.pmt_overrides.to_mapping());
                 pandoc_defaults = merge_metadata(&pandoc_defaults, &reply.pandoc_metadata);
             }
+        }
+    }
+    if let Some(inline) = &inline_settings {
+        // Apply the manuscript layer after file-based reply styles too, so its
+        // explicit values win even when the selected style contains a reply section.
+        settings_mapping = merge_metadata(
+            &settings_mapping,
+            &provided_settings_mapping(&inline.fields, &inline.provided),
+        );
+        pandoc_defaults = merge_metadata(&pandoc_defaults, &inline_metadata);
+        if options.reply
+            && let Some(reply) = &inline.reply
+        {
+            settings_mapping = merge_metadata(
+                &settings_mapping,
+                &provided_settings_mapping(
+                    &reply.pmt_overrides.fields,
+                    &reply.pmt_overrides.provided,
+                ),
+            );
+            pandoc_defaults = merge_metadata(&pandoc_defaults, &reply.pandoc_metadata);
         }
     }
     let pmt_settings = PmtSettings::from_mapping(&settings_mapping)?;
@@ -1412,6 +1475,148 @@ mod tests {
         );
         assert_eq!(result.pandoc_metadata["custom-list"], json!(["一", "two"]));
         Ok(())
+    }
+
+    /// Catch lost nested fields, nullable resets, and file reply styles masking manuscript overrides.
+    #[test]
+    fn manuscript_style_overrides_files_and_preserves_unspecified_fields() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let style = directory.path().join("style.yml");
+        fs::write(
+            &style,
+            "mathtype: true\ndocxShowPageNumbers: true\ndocxSvgToPngWidth: 640\ndocxPageMargins: {left: 2cm, right: 3cm}\ndocxStyle:\n  Normal:\n    fontSize: 12pt\n    paragraphSpacing: {before: 6pt, after: 12pt}\npandocMetadata:\n  nested: {left: file, right: keep}\n  keywords: [file, inherited]\nreply:\n  mathtype: true\n  docxShowPageNumbers: true\n  docxStyle:\n    Normal: {alignment: right}\n  pandocMetadata:\n    nested: {left: reply, replyOnly: true}\n",
+        )?;
+        let text = "---\ntitle: Manuscript\npapper-style:\n  mathtype: false\n  docx-show-page-numbers: null\n  docxSvgToPngWidth: null\n  docxSvgToPngScale: 2\n  docxPageMargins: {left: 1cm}\n  docxStyle:\n    Normal:\n      alignment: left\n      paragraphSpacing: {after: 0pt}\n  pandocMetadata:\n    title: Inline\n    nested: {left: inline}\n    keywords: [inline]\n  reply:\n    tableAutofit: content\n    pandocMetadata:\n      replyLabel: Inline reply\n---\nBody";
+        for reply in [false, true] {
+            let result = load_effective_metadata_text(
+                text,
+                &directory.path().join("paper.md"),
+                &MetadataOptions {
+                    style_paths: vec![style.clone()],
+                    reply,
+                    ..MetadataOptions::default()
+                },
+            )?;
+            assert_eq!(result.pmt_settings.get_bool("mathtype"), Some(false));
+            assert_eq!(result.pmt_settings.get_bool("docxShowPageNumbers"), None);
+            assert_eq!(
+                result.pmt_settings.get("docxSvgToPngWidth"),
+                Some(Value::Null)
+            );
+            assert_eq!(
+                result.pmt_settings.get("docxSvgToPngScale"),
+                Some(json!(2.0))
+            );
+            let margins = result.pmt_settings.get("docxPageMargins").unwrap();
+            assert_eq!(margins["left"], json!("1cm"));
+            assert_eq!(margins["right"], json!("3cm"));
+            let styles = result.pmt_settings.get("docxStyle").unwrap();
+            assert_eq!(styles["Normal"]["fontSize"], json!("12pt"));
+            assert_eq!(styles["Normal"]["alignment"], json!("left"));
+            assert_eq!(styles["Normal"]["paragraphSpacing"]["before"], json!("6pt"));
+            assert_eq!(styles["Normal"]["paragraphSpacing"]["after"], json!("0pt"));
+            assert_eq!(result.pandoc_metadata["title"], json!("Manuscript"));
+            assert_eq!(result.pandoc_metadata["nested"]["left"], json!("inline"));
+            assert_eq!(result.pandoc_metadata["nested"]["right"], json!("keep"));
+            assert_eq!(result.pandoc_metadata["keywords"], json!(["inline"]));
+            assert!(!result.pandoc_metadata.contains_key("papper-style"));
+            assert_eq!(result.pandoc_metadata.contains_key("replyLabel"), reply);
+            if reply {
+                assert_eq!(
+                    result.pmt_settings.get("tableAutofit"),
+                    Some(json!("content"))
+                );
+                assert_eq!(result.pandoc_metadata["nested"]["replyOnly"], json!(true));
+            }
+        }
+        Ok(())
+    }
+
+    /// Clear inherited reply configuration and nullable reply fields without discarding other fields.
+    #[test]
+    fn manuscript_style_reply_nulls_clear_inherited_values() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let style = directory.path().join("style.yml");
+        fs::write(
+            &style,
+            "docxShowPageNumbers: true\npandocMetadata: {subtitle: Base}\nreply:\n  docxShowPageNumbers: false\n  pandocMetadata: {subtitle: Reply}\n",
+        )?;
+        let options = MetadataOptions {
+            style_paths: vec![style],
+            reply: true,
+            ..MetadataOptions::default()
+        };
+        for (reply_style, page_numbers, subtitle) in [
+            ("null", Some(true), "Base"),
+            ("{docxShowPageNumbers: null}", None, "Reply"),
+        ] {
+            let result = load_effective_metadata_text(
+                &format!("---\npapper-style:\n  reply: {reply_style}\n---\nBody"),
+                &directory.path().join("paper.md"),
+                &options,
+            )?;
+            assert_eq!(
+                result.pmt_settings.get_bool("docxShowPageNumbers"),
+                page_numbers
+            );
+            assert_eq!(result.pandoc_metadata["subtitle"], json!(subtitle));
+        }
+        Ok(())
+    }
+
+    /// Keep standalone inline styles functional, with manuscript-relative fonts and language defaults.
+    #[test]
+    fn manuscript_style_selects_language_and_resolves_fonts_beside_markdown() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let result = load_effective_metadata_text(
+            "---\npapper-style:\n  mathtypeTypstMathFont:\n    font: fonts/body.otf\n    calligraphicFont: fonts/script.ttf\n  pandocMetadata: {lang: zh-CN, csl: ''}\n---\nBody",
+            &directory.path().join("paper.md"),
+            &MetadataOptions {
+                style_paths: Vec::new(),
+                ..MetadataOptions::default()
+            },
+        )?;
+        assert_eq!(result.pandoc_metadata["lang"], json!("zh-Hans"));
+        assert_eq!(result.pandoc_metadata["figureTitle"], json!("图"));
+        assert!(!result.pandoc_metadata["csl"].as_str().unwrap().is_empty());
+        let fonts = &result.pmt_settings.fields().mathtype_typst_math_font;
+        assert_eq!(
+            Path::new(&fonts.font),
+            directory.path().join("fonts/body.otf")
+        );
+        assert_eq!(
+            Path::new(&fonts.calligraphic_font),
+            directory.path().join("fonts/script.ttf")
+        );
+        Ok(())
+    }
+
+    /// Reject malformed inline styles and mutually exclusive controls introduced by merging layers.
+    #[test]
+    fn manuscript_style_reports_invalid_configuration() {
+        let directory = tempfile::tempdir().unwrap();
+        let style = directory.path().join("style.yml");
+        fs::write(&style, "docxSvgToPngWidth: 640\n").unwrap();
+        let options = MetadataOptions {
+            style_paths: vec![style],
+            ..MetadataOptions::default()
+        };
+        for (value, expected) in [
+            ("false", "must be a YAML mapping"),
+            ("null", "must be a YAML mapping"),
+            ("[one, two]", "must be a YAML mapping"),
+            ("{mathtype: invalid}", "must be a valid boolean"),
+            ("{pandocMetadata: []}", "must be a YAML mapping"),
+            ("{docxSvgToPngScale: 2}", "Only one of"),
+        ] {
+            let error = load_effective_metadata_text(
+                &format!("---\npapper-style: {value}\n---\nBody"),
+                &directory.path().join("paper.md"),
+                &options,
+            )
+            .unwrap_err();
+            assert!(format!("{error:#}").contains(expected), "{error:#}");
+        }
     }
 
     /// Keep explicit false/null precedence intact when effective settings cross a JSON boundary.

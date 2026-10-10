@@ -379,8 +379,9 @@ without it, Pandoc writes only an HTML fragment.
 Chinese builds use the bundled GB/T 7714—2015 bilingual numeric CSL by default across DOCX, HTML, LaTeX, and JSON. An explicit `csl` in manuscript metadata or `style.yml` overrides it. Other builds use the bundled Elsevier Vancouver CSL unless overridden.
 
 Papper selects language-specific Pandoc defaults after reading `style.yml` and
-the manuscript YAML header. It then overlays `style.yml:pandocMetadata` and the
-manuscript YAML in that order. Explicit values for captions, cross-reference
+the manuscript YAML header. It then overlays `style.yml:pandocMetadata`,
+`papper-style.pandocMetadata` from the header, and ordinary manuscript YAML
+fields in that order. Explicit values for captions, cross-reference
 prefixes, bibliography titles, and `csl` therefore take priority over the
 language defaults. For DOCX, `--lang zh-cn` selects Chinese defaults for that
 build even when the manuscript declares another language.
@@ -435,8 +436,12 @@ complete guide. Topic names come from the current index.
 - [`docs/MANUSCRIPT_RENDERING.md`](docs/MANUSCRIPT_RENDERING.md): rendering internals for Papper maintainers
 
 In generated projects, `style.yml` keeps Papper-owned build settings at the top
-level and places metadata sent to Pandoc under `pandocMetadata`. Manuscript YAML
-overrides only the Pandoc metadata domain.
+level and places metadata sent to Pandoc under `pandocMetadata`. Ordinary
+manuscript YAML fields override Pandoc metadata. To override Papper settings
+for one manuscript, add a `papper-style` mapping to its YAML header. It accepts
+the same configuration as `style.yml` and recursively overrides the selected
+or discovered style files; unspecified fields remain inherited. See
+[`Per-Manuscript Style Overrides`](docs/style-configuration.md#per-manuscript-style-overrides).
 
 Native Word cross-references are opt-in for manuscript DOCX builds. Set the
 following at the top level of `style.yml`:

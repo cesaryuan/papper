@@ -7,7 +7,8 @@ Papper project. For manuscript Markdown and YAML syntax, see
 ## Configuration Placement and Precedence
 
 Keep Papper settings at the top level and Pandoc settings under
-`pandocMetadata`; manuscript YAML overrides only Pandoc metadata.
+`pandocMetadata`. Use `papper-style` in manuscript YAML for formatting overrides
+that apply only to that Markdown file.
 
 `style.yml` separates two configuration domains. Its top-level Papper settings control
 build behavior such as MathType conversion, SVG handling, page margins, line
@@ -15,9 +16,11 @@ numbers, and DOCX styles. Metadata consumed by Pandoc, citeproc, or
 pandoc-crossref belongs under `pandocMetadata`, including CSL, reference titles,
 cross-reference labels and prefixes, numbering, and subfigure layout.
 
-The YAML header in `manuscript.md` is manuscript/Pandoc metadata. It recursively
-overrides `style.yml:pandocMetadata`, but it does not override Papper-owned top-level
-settings. The optional `reply:` section can override both Papper settings and its own
+Ordinary fields in the YAML header in `manuscript.md` are manuscript/Pandoc
+metadata. They recursively override `style.yml:pandocMetadata`. Papper-owned
+settings in that header belong inside a `papper-style` mapping, which accepts
+the same settings, values, and aliases as `style.yml`, including
+`pandocMetadata` and `reply`. The optional style `reply:` section can override both Papper settings and its own
 `reply.pandocMetadata` when `papper build html/docx` detects a `reply` path in
 the input Markdown header. The Markdown `reply` field is a manuscript path;
 the style `reply` section contains formatting overrides.
@@ -55,8 +58,8 @@ reply:
     reference-section-title: References cited in this reply
 ```
 
-Reply overrides affect reply builds only. The reply Markdown's YAML header
-still has the highest priority for Pandoc metadata. Keep manuscript-specific
+Reply overrides affect reply builds only. Ordinary fields in the reply Markdown's
+YAML header still have the highest priority for Pandoc metadata. Keep manuscript-specific
 title, author, abstract, and bibliography values in the manuscript YAML.
 
 HTML and DOCX reply formatting sets table text and figure/table captions to
@@ -68,7 +71,56 @@ When both the project root and the reply Markdown directory contain `style.yml`,
 their `reply` sections are merged recursively too. Reply-directory values override
 project-root values, while unspecified reply settings remain inherited. Within
 the merged style, `reply.pandocMetadata` overrides top-level `pandocMetadata`;
-the reply Markdown's YAML header can override both.
+the reply Markdown's ordinary YAML fields can override both.
+
+### Per-Manuscript Style Overrides
+
+Put a `papper-style` mapping in the YAML header of the Markdown file passed to
+`papper build` to override project styles for that file, without editing
+`style.yml`. It also works when no project style file exists.
+
+```yaml
+---
+title: A manuscript with its own formatting
+papper-style:
+  mathtype: false
+  docxShowPageNumbers: false
+  docxPageMargins:
+    left: 2cm
+  docxStyle:
+    Normal:
+      fontSize: 11pt
+  pandocMetadata:
+    tableTitle: Table
+---
+```
+
+This manuscript uses native Word equations, hides DOCX page numbers, sets its
+left margin to `2cm`, and changes the `Normal` font size to `11pt`. Other
+margins and style properties remain inherited. `pandocMetadata.tableTitle`
+sets its table caption prefix in supported outputs.
+
+Mappings merge recursively; scalars and lists replace inherited values.
+Explicit `false`, zero, and `null` are preserved where the corresponding
+setting accepts them. `papper-style` must be a mapping and uses the same
+validation rules and output-specific limits as `style.yml`. Relative font
+file paths inside it resolve beside the Markdown file.
+
+For Papper settings, precedence from lower to higher is bundled language
+defaults, discovered or explicitly selected style files, file-based reply
+overrides when applicable, and `papper-style`. In a reply build,
+`papper-style.reply` overrides the other values in `papper-style` and inherits
+unspecified reply settings from the files. Explicit build command-line
+overrides still take priority.
+Set `papper-style.reply: null` to clear inherited reply configuration for
+this file; reply recognition and its automatic blue styling still apply.
+
+Pandoc metadata follows the same style layers, then ordinary manuscript YAML
+fields take highest priority. For example, a top-level `title` overrides
+`papper-style.pandocMetadata.title`. A `lang` in
+`papper-style.pandocMetadata` can select language defaults when the ordinary
+header does not supply one. The `papper-style` mapping itself is configuration
+and does not appear as document metadata.
 
 ## MathType Equations
 

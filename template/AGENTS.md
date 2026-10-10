@@ -2,7 +2,7 @@ For manuscript Markdown and YAML syntax, run `papper guide syntax`. For reusable
 
 ## Style Metadata
 
-If the user wants to change reusable style behavior, update `style.yml`. The YAML header in `manuscript.md` overrides only `pandocMetadata`; it does not override Papper-owned settings. Run `papper guide style configuration-placement-and-precedence` for details.
+If the user wants to change reusable style behavior, update `style.yml`. For settings that apply only to the Markdown being built, use a `papper-style` mapping in its YAML header; it accepts the same configuration as `style.yml` and takes priority over it. Ordinary header fields override Pandoc metadata. Run `papper guide style configuration-placement-and-precedence` for details.
 
 ## Pandoc Markdown Syntax
 

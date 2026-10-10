@@ -246,6 +246,16 @@ tree receive portable URLs under `resources/<source-path-hash>/`.
 
 ## Pandoc Metadata Transport
 
+The shared effective-metadata loader extracts `papper-style` from the input
+header and validates it through the same style-domain parser used for files.
+File-based base and reply settings are applied before this manuscript layer;
+its own `reply` mapping is applied last for replies. Explicit nullable settings
+are retained during this merge, and `reply: null` clears inherited reply
+configuration. Font paths resolve against the Markdown source. Ordinary
+header fields are merged last into the Pandoc domain, and the `papper-style`
+container is excluded from transported metadata. CLI and persistent HTML
+requests both consume this effective snapshot.
+
 Generated Pandoc-only metadata is written under `.pmt/work/`; source
 `style.yml` is preserved. Citation range formatting passes the top-level
 `citationNumberRangeDelimiter` to the filter through
