@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from snapshot_utils import assert_snapshot, canonical_html, semantic_html
+from snapshot_utils import assert_snapshot, canonical_html, html_body_text, semantic_html
 from test_build_snapshots import CASE_ROOT, CASES, DOCX_ONLY_CASES, ROOT, copy_case
 
 
@@ -279,7 +279,7 @@ def test_native_citation_cache_reuses_prose_and_invalidates_citations_and_biblio
     source.write_text(original + "\nFresh native prose.\n", encoding="utf-8")
     edited = service.convert()
     assert not edited["cache_hit"] and edited["citeproc_cache_hit"]
-    assert "Fresh native prose." in edited["output"] and edited["output"] != first["output"]
+    assert "Fresh native prose." in html_body_text(edited["output"]) and edited["output"] != first["output"]
     service.project.assert_cli_parity(edited["output"])
     source.write_text(original.replace("[@alpha2020]", "[@gamma2022, p. 42]"), encoding="utf-8")
     citations = service.convert()
@@ -289,7 +289,7 @@ def test_native_citation_cache_reuses_prose_and_invalidates_citations_and_biblio
     bibliography.write_text(bibliography.read_text(encoding="utf-8").replace("A Comparative Evaluation", "Updated Bibliography Title"), encoding="utf-8")
     updated = service.convert()
     assert not updated["cache_hit"] and not updated["citeproc_cache_hit"]
-    assert "updated bibliography title" in updated["output"].lower()
+    assert "updated bibliography title" in html_body_text(updated["output"]).lower()
     service.project.assert_cli_parity(updated["output"])
 
 
@@ -320,7 +320,7 @@ def test_native_style_and_csl_dependencies_refresh_inside_warm_service(native_se
     (service.project.directory / "style.yml").write_text("pandocMetadata:\n  csl: custom.csl\n  title: Native style override\n", encoding="utf-8")
     styled = service.convert()
     assert not styled["cache_hit"] and styled["output"] != original["output"]
-    assert "Native style override" in styled["output"]
+    assert "Native style override" in html_body_text(styled["output"])
     service.project.assert_cli_parity(styled["output"])
     csl.write_text(csl.read_text(encoding="utf-8").replace('prefix="[" suffix="]"', 'prefix="(" suffix=")"'), encoding="utf-8")
     changed = service.convert()
@@ -349,23 +349,23 @@ def test_native_unsaved_text_preserves_disk_and_accepts_external_sources(native_
     original = service.project.source.read_bytes()
     source_text = original.decode("utf-8") + "\nUnsaved native editor text.\n"
     result = service.convert(text=source_text)
-    assert "Unsaved native editor text." in result["output"]
+    assert "Unsaved native editor text." in html_body_text(result["output"])
     assert service.project.source.read_bytes() == original
     repeated = service.convert(text=source_text)
     assert repeated["cache_hit"] and repeated["output"] == result["output"]
     disk = service.convert()
-    assert "Unsaved native editor text." not in disk["output"]
+    assert "Unsaved native editor text." not in html_body_text(disk["output"])
     outside = service.project.directory.parent / "outside.md"
     outside.write_text("External saved manuscript", encoding="utf-8")
-    assert "External saved manuscript" in service.convert(path="../outside.md")["output"]
+    assert "External saved manuscript" in html_body_text(service.convert(path="../outside.md")["output"])
     external = service.convert(path=str(outside), text="External unsaved manuscript")
-    assert "External unsaved manuscript" in external["output"]
-    assert "External saved manuscript" not in external["output"]
+    assert "External unsaved manuscript" in html_body_text(external["output"])
+    assert "External saved manuscript" not in html_body_text(external["output"])
     assert outside.read_text(encoding="utf-8") == "External saved manuscript"
     repeated = service.convert(path=str(outside), text="External unsaved manuscript")
     assert repeated["cache_hit"] and repeated["output"] == external["output"]
     missing = outside.with_name("not-saved-yet.md")
-    assert "External new buffer" in service.convert(path=str(missing), text="External new buffer")["output"]
+    assert "External new buffer" in html_body_text(service.convert(path=str(missing), text="External new buffer")["output"])
     assert not missing.exists()
 
 
@@ -447,7 +447,7 @@ def test_native_captured_cli_reuses_one_background_service(native_project_factor
             assert states, "A detached service must leave owned process state for cleanup"
             pids.add(json.loads(states[0].read_text(encoding="utf-8"))["pid"])
             assert len(pids) == 1
-        assert b"Captured native CLI prose." in output.read_bytes()
+        assert "Captured native CLI prose." in html_body_text(output.read_text(encoding="utf-8"))
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         try:
             connection.request("GET", "/metrics")

@@ -273,5 +273,6 @@ def test_convert_recovers_wmf_when_ole_is_unusable(
     )
     assert result.returncode == 0, result.stdout + result.stderr
     markdown = (output / "fallback.md").read_text(encoding="utf-8")
-    assert markdown.strip() == r"$$\sqrt{{b^2}-4ac}$$"
+    # WMF recovery omits redundant grouping braces while preserving the formula.
+    assert markdown.strip() == r"$$\sqrt{b^2-4ac}$$"
     assert not list(output.rglob("*.wmf")), "Recovered previews must not leak into published media"

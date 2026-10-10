@@ -118,6 +118,14 @@ def canonical_html(path: Path) -> str:
     return semantic_html(path.read_text(encoding="utf-8"))
 
 
+def html_body_text(source: str) -> str:
+    """Read body text without scripts or writer wrapping for lifecycle assertions."""
+    document = html.document_fromstring(source)
+    for element in document.xpath("//style | //script"):
+        element.drop_tree()
+    return " ".join(document.xpath("string(//body)").split())
+
+
 def semantic_html(source: str) -> str:
     """Normalize HTML serialization without erasing text, targets or document structure.
 

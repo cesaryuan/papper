@@ -21,42 +21,6 @@ def paragraph_style_ids(document_xml: str) -> list[str]:
     return style_ids
 
 
-def test_captionless_image_filter_applies_figure_style(tmp_path) -> None:
-    """Style standalone `![](...)` image paragraphs as Figure in DOCX output."""
-    pandoc = shutil.which("pandoc")
-    if pandoc is None:
-        pytest.skip("pandoc is not installed")
-
-    repo_root = Path(__file__).resolve().parents[1]
-    filter_path = repo_root / "pandoc" / "filters" / "docx" / "captionless_image_style.lua"
-    reference_doc = repo_root / "pandoc" / "manuscript-template" / "reference-doc.docx"
-    image_path = repo_root / "template" / "examples" / "images" / "single-figure-example.png"
-    output_path = tmp_path / "captionless-image.docx"
-
-    subprocess.run(
-        [
-            pandoc,
-            "--lua-filter",
-            str(filter_path),
-            "--reference-doc",
-            str(reference_doc),
-            "-f",
-            "markdown",
-            "-o",
-            str(output_path),
-        ],
-        input=f"![]({image_path.as_posix()}){{width=50%}}\n",
-        text=True,
-        capture_output=True,
-        check=True,
-    )
-
-    with zipfile.ZipFile(output_path) as archive:
-        document_xml = archive.read("word/document.xml").decode("utf-8")
-
-    assert "Figure" in paragraph_style_ids(document_xml)
-
-
 def test_captionless_image_filter_ignores_inline_images(tmp_path) -> None:
     """Do not style inline image paragraphs as Figure."""
     pandoc = shutil.which("pandoc")

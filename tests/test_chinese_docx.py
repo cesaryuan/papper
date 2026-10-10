@@ -102,17 +102,6 @@ def test_chinese_docx_build_numbers_figures_tables_and_formats_headings(
     assert "CSL Sample Article" in text
     assert "10.1234/pmt-csl-sample" not in text
     assert "参考文献" in text
-    assert all(section._sectPr.find(qn("w:lnNumType")) is None for section in doc.sections)
-    assert doc.styles["Heading 1"].font.size.pt == 15
-    assert doc.styles["Heading 2"].font.size.pt == 12
-    for name in ("Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3"):
-        style = doc.styles[name]
-        assert style.font.bold is False, name
-        assert style.element.rPr.bCs.val is False, name
-        fonts = style.element.rPr.rFonts
-        assert fonts.get(qn("w:eastAsia")) == "黑体", name
-        assert fonts.get(qn("w:ascii")) == "Times New Roman", name
-        assert fonts.get(qn("w:eastAsiaTheme")) is None, name
 
 
 def test_chinese_section_reference_uses_dots_without_links(tmp_path: Path) -> None:

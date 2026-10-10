@@ -1,8 +1,8 @@
-"""Compare actual native DOCX builds to the existing complete OPC snapshots.
+"""Verify DOCX data preservation, authored styles, and conversion/cache recovery.
 
-The fixtures cover user-visible document text, numbering, layout, author
-footnotes, revision attributes, style metadata, and image resources. The Rust
-command runs directly; Python only canonicalizes artifacts for verification.
+Ordinary manuscript output and layout belong to test_build_snapshots.py and
+the visual suites; these contracts exercise inputs and state changes that
+those fixed fixtures cannot cover.
 """
 
 from __future__ import annotations
@@ -15,8 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from snapshot_utils import assert_snapshot, canonical_docx
-from test_build_snapshots import CASE_ROOT, CASES, ROOT, copy_case
+from native_support import ROOT
 
 
 @pytest.fixture(scope="module")
@@ -35,77 +34,6 @@ def rust_mathtype_converter() -> Path:
                             cwd=ROOT, capture_output=True, text=True, encoding="utf-8", timeout=180)
     assert result.returncode == 0, result.stdout + result.stderr
     return ROOT / "target/debug/examples" / ("convert_mathtype_docx.exe" if os.name == "nt" else "convert_mathtype_docx")
-
-
-@pytest.mark.parametrize("case_name", CASES)
-def test_native_docx_matches_existing_snapshot(case_name: str, tmp_path: Path, rust_executable: Path) -> None:
-    """Require full package parity for native Word equations and retained Lua filters."""
-    case_dir, markdown = CASES[case_name]
-    if case_name == "chinese_crossrefs":
-        copied = tmp_path / case_name
-        copy_case(case_dir, copied)
-        case_dir = copied
-    output = tmp_path / f"{case_name}.docx"
-    command = [str(rust_executable), "build", "docx", "-m", str(case_dir / markdown),
-               "-o", str(output), "--no-mathtype"]
-    if case_name == "native_crossrefs":
-        command.extend(["--style-file", str(case_dir / "style.yml")])
-    result = subprocess.run(command, cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
-                            capture_output=True, text=True, encoding="utf-8", timeout=45)
-    assert result.returncode == 0, result.stdout + result.stderr
-    actual = canonical_docx(output, repository_root=ROOT, project_dir=tmp_path,
-                            normalize_native_crossrefs=case_name == "native_crossrefs")
-    assert_snapshot(actual, CASE_ROOT / case_name / "snapshots-content" / "docx.snap", update=False)
-
-
-@pytest.mark.parametrize("postprocess", ["false", "true"])
-def test_docx_subfigure_tables_use_reference_style_without_restyling_adjacent_tables(
-    tmp_path: Path, rust_executable: Path, postprocess: str,
-) -> None:
-    """Keep layout styles through DOCX builds and preserve tables beside image captions."""
-    from lxml import etree
-    from zipfile import ZipFile
-
-    image = (ROOT / "template/examples/images/subfigure-a-example.png").as_posix()
-    source = tmp_path / "subfigures.md"
-    source.write_text(f"""---
-subfigGrid: true
----
-<div id="fig:layout">
-![Left panel.]({image}){{#fig:left width=49%}}
-![Right panel.]({image}){{#fig:right width=49%}}
-
-Grouped panels.
-</div>
-
-| Regular cell | Value |
-|---|---|
-| Ordinary data | 1 |
-
-: {{custom-style="TableNoBorder"}}
-
-`<w:p><w:pPr><w:pStyle w:val="ImageCaption"/></w:pPr><w:r><w:t>Ordinary caption</w:t></w:r></w:p>`{{=openxml}}
-""", encoding="utf-8")
-    output = tmp_path / "subfigures.docx"
-    result = subprocess.run(
-        [str(rust_executable), "build", "docx", "-m", str(source), "-o", str(output), "--no-mathtype"],
-        cwd=tmp_path,
-        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PMT_ENABLE_DOCX_POSTPROCESS": postprocess},
-        capture_output=True, text=True, encoding="utf-8", timeout=45,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    with ZipFile(output) as archive:
-        document = etree.fromstring(archive.read("word/document.xml"))
-    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
-    layouts = document.xpath("//w:tbl[w:tblPr/w:tblStyle/@w:val='TableSubfigure']", namespaces=ns)
-    assert len(layouts) == 1
-    assert len(layouts[0].xpath(".//w:drawing", namespaces=ns)) == 2
-    # Direct zero margins would override future changes to the reference style.
-    assert layouts[0].find("w:tblPr/w:tblCellMar", ns) is None
-    regular = document.xpath("//w:tbl[.//w:t='Regular cell']", namespaces=ns)
-    assert len(regular) == 1
-    assert regular[0].find("w:tblPr/w:tblStyle", ns).get(f"{{{ns['w']}}}val") == "TableNoBorder"
-    assert regular[0].find("w:tblPr/w:tblCellMar", ns) is None
 
 
 @pytest.mark.parametrize("has_table_text", [True, False])

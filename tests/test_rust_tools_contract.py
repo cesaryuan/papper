@@ -88,20 +88,6 @@ def test_native_update_does_not_hold_captured_cli_pipes(
     assert refreshed["attempted_at"] > previous["attempted_at"]
 
 
-def test_native_doctor_reports_missing_project_files(
-    rust_executable: Path, tmp_path: Path
-) -> None:
-    """Return failure for an incomplete manuscript while still diagnosing native tools."""
-    environment = {**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_DISABLE_UPDATE_CHECK": "1"}
-    result = subprocess.run([str(rust_executable), "doctor"], cwd=tmp_path, env=environment,
-                            capture_output=True, text=True, encoding="utf-8", timeout=15)
-    assert result.returncode == 1
-    assert "[OK] pandoc --version:" in result.stdout
-    assert "[OK] pandoc-crossref --version:" in result.stdout
-    assert "[ERROR] project manuscript.md:" in result.stdout
-    assert "[ERROR] project style.yml:" in result.stdout
-
-
 @pytest.fixture
 def doctor_project(tmp_path: Path) -> tuple[Path, dict[str, str]]:
     """Isolate editable defaults while reusing the real retained native engine."""

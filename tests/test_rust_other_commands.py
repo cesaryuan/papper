@@ -317,7 +317,8 @@ def test_native_mathtype_explicit_work_directory_retains_reviewed_parts(
 
     project = tmp_path / "project"
     project.mkdir()
-    (project / "paper.md").write_text("---\ntitle: Formula inspection\nmathtype: true\nmathtypeConversionMethod: rust\n---\n\nAn inline $x_1$ formula.\n", encoding="utf-8")
+    # Manuscript formatting belongs under papperSettings; flat keys select no backend.
+    (project / "paper.md").write_text("---\ntitle: Formula inspection\npapperSettings:\n  mathtype: true\n  mathtypeConversionMethod: rust\n---\n\nAn inline $x_1$ formula.\n", encoding="utf-8")
     debug = tmp_path / "reviewed-equations"
     environment = {**_environment(tmp_path / "home"), "PMT_MATHTYPE_WORK_DIR": str(debug),
                    "PMT_PROJECT_NAME": "unused-environment-name"}

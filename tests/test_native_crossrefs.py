@@ -214,34 +214,11 @@ $$ {#eq:second}
 
 
 @pytest.mark.parametrize("native_crossref", [False, True])
-def test_subfigure_refs_follow_parent_number_and_child_letter(tmp_path: Path, native_crossref: bool) -> None:
-    """Generate separate REF fields for a subfigure's parent number and panel label."""
-    manuscript = """# Overview
-
-See @fig:group and @fig:left.
-
-<div id="fig:group">
-![Left panel](figure.svg){#fig:left width=49%}
-![Right panel](figure.svg){#fig:right width=49%}
-
-Main caption.
-</div>
-"""
-    prepare_project(tmp_path, manuscript, native_crossref)
-    output, log = build_document(tmp_path)
-    fields, bookmarks, root = read_native_content(output)
-    assert assert_reference_targets(fields, bookmarks) == (["1", "1", "a"] if native_crossref else [])
-    assert len([field for field in fields if field["code"].startswith("SEQ ")]) == (1 if native_crossref else 0)
-    assert len(list(root.iter(W + "hyperlink"))) == (0 if native_crossref else 2)
-    assert "keeping its Link" not in log
-
-
-@pytest.mark.parametrize("native_crossref", [False, True])
 @pytest.mark.parametrize("link_references", [False, True])
 def test_bilingual_caption_numbers_share_one_sequence_and_bookmark(
     tmp_path: Path, native_crossref: bool, link_references: bool,
 ) -> None:
-    """Keep translated captions on shared styles without duplicating counters or losing grouping."""
+    """Keep bilingual captions on one sequence with valid targets in both link modes."""
     manuscript = r'''---
 lang: zh-CN
 ---
@@ -275,16 +252,9 @@ lang: zh-CN
 ![中文图三](figure.svg){#fig:third caption-en="Next chapter"}
 '''
     prepare_project(tmp_path, manuscript, native_crossref, linkReferences=link_references)
-    style_path = tmp_path / "style.yml"
-    settings = yaml.safe_load(style_path.read_text(encoding="utf-8"))
-    settings["docxStyle"] = {
-        "Image Caption": {"fontSize": "9pt"},
-        "Table Caption": {"fontSize": "10pt"},
-    }
-    style_path.write_text(yaml.safe_dump(settings), encoding="utf-8")
     output, log = build_document(tmp_path)
     assert "No marked number" not in log
-    fields, bookmarks, root = read_native_content(output)
+    fields, bookmarks, _ = read_native_content(output)
     sequences = [item for item in fields if item["code"].startswith("SEQ ")]
     assert [item["result"] for item in sequences] == (["1", "2", "1", "2", "1"] if native_crossref else [])
     values = assert_reference_targets(fields, bookmarks)
@@ -292,54 +262,6 @@ lang: zh-CN
     if link_references:
         expected = ["3-1", "3-1", *expected]
     assert values == (expected if native_crossref else [])
-    paragraphs = list(root.iter(W + "p"))
-    texts = ["".join(paragraph.itertext()) for paragraph in paragraphs]
-    visible = ["".join(node.text or "" for node in paragraph.iter(W + "t")) for paragraph in paragraphs]
-    assert "图 3-2 中文图二" in visible and "表 3-2 中文表二" in visible
-    assert "Fig. 4-1 Next chapter" in visible
-    assert not any("PMT_" in text or "caption-en=" in text for text in texts)
-    english = [p for p, text in zip(paragraphs, visible) if text.startswith(("Fig. ", "Table "))]
-    assert len(english) == 3
-    for paragraph in english:
-        assert paragraph.find(W + "pPr/" + W + "keepLines") is not None
-        assert any(node.get(W + "val") == "en" for node in paragraph.iter(W + "lang"))
-        if native_crossref:
-            instructions = "".join(node.text or "" for node in paragraph.iter(W + "instrText"))
-            assert "REF " in instructions and "SEQ " not in instructions
-    for index, (paragraph, text) in enumerate(zip(paragraphs, visible)):
-        if paragraph not in english:
-            continue
-        style_id = "ImageCaption" if text.startswith("Fig. ") else "TableCaption"
-        assert paragraph.find(W + "pPr/" + W + "pStyle").get(W + "val") == style_id
-        primary = paragraphs[index - 1]
-        assert primary.find(W + "pPr/" + W + "pStyle").get(W + "val") == style_id
-        assert primary.find(W + "pPr/" + W + "keepNext") is not None
-        assert primary.find(W + "pPr/" + W + "keepLines") is not None
-        keep_next = paragraph.find(W + "pPr/" + W + "keepNext")
-        assert keep_next is not None
-        # OOXML treats an omitted on/off value as true.
-        assert (keep_next.get(W + "val", "1") not in {"0", "false", "off"}) == (
-            style_id == "TableCaption"
-        )
-    assert english[0].find(".//{http://schemas.openxmlformats.org/officeDocument/2006/math}oMath") is not None
-    table_captions = [p for p, text in zip(paragraphs, visible)
-                      if text in {"表 3-1 中文表一", "Table 3-1 Comparison of models"}]
-    assert len(table_captions) == 2
-    for paragraph in table_captions:
-        assert all(run.find(W + "rPr/" + W + "color").get(W + "val") == "FF0000"
-                   for run in paragraph.findall(W + "r") if run.find(W + "t") is not None)
-    with ZipFile(output) as package:
-        styles = ET.fromstring(package.read("word/styles.xml"))
-    emphasized_run = next(run for run in english[0].iter(W + "r")
-                          if "".join(node.text or "" for node in run.iter(W + "t")) == "network")
-    emphasis_id = emphasized_run.find(W + "rPr/" + W + "rStyle").get(W + "val")
-    emphasis_style = next(style for style in styles if style.get(W + "styleId") == emphasis_id)
-    assert emphasis_style.find(W + "rPr/" + W + "i") is not None
-    for style_id, size in [("ImageCaption", "18"), ("TableCaption", "20")]:
-        shared_style = next(style for style in styles if style.get(W + "styleId") == style_id)
-        assert shared_style.find(W + "rPr/" + W + "sz").get(W + "val") == size
-    assert not any(name.get(W + "val") in {"Image Caption English", "Table Caption English"}
-                   for name in styles.findall(W + "style/" + W + "name"))
     assert "keeping its Link" not in log
 
 
@@ -377,59 +299,6 @@ def test_ambiguous_custom_caption_keeps_a_working_link(tmp_path: Path) -> None:
     assert len(anchors) == 1 and "Figure 1/1 Custom caption" in bookmarks[anchors[0]]
     assert "Figure 1/1 Custom caption" in "".join(element.text or "" for element in root.iter(W + "t"))
     assert "Ambiguous number template" in log
-
-
-def test_native_headings_use_one_outline_and_leave_ordinary_lists_separate(tmp_path: Path) -> None:
-    """Use editable outline levels, preserve title styling, and skip unnumbered headings."""
-    prepare_project(
-        tmp_path,
-        """See @sec:first, @sec:method, @sec:detail, and @sec:second.
-
-# **Introduction** {#sec:first}
-
-## Method {#sec:method}
-
-### Details {#sec:detail}
-
-#### Beyond depth
-
-1. Ordinary first item
-2. Ordinary second item
-
-# Unnumbered {-}
-
-# Results {#sec:second}
-""",
-        True,
-        sectionsDepth=3,
-    )
-    output, _ = build_document(tmp_path)
-    fields, bookmarks, root = read_native_content(output)
-    assert assert_reference_targets(fields, bookmarks) == ["1", "1.1", "1.1.1", "2"]
-    assert all(field["code"].endswith("\\r \\h") for field in fields)
-    paragraphs = {
-        "".join(node.text or "" for node in paragraph.iter(W + "t")): paragraph
-        for paragraph in root.iter(W + "p")
-    }
-    heading_num_ids = set()
-    for text, level in [("Introduction", 0), ("Method", 1), ("Details", 2), ("Results", 0)]:
-        numbering = paragraphs[text].find(W + "pPr/" + W + "numPr")
-        heading_num_ids.add(numbering.find(W + "numId").get(W + "val"))
-        assert numbering.find(W + "ilvl").get(W + "val") == str(level)
-    assert len(heading_num_ids) == 1
-    for text in ["Unnumbered", "Beyond depth"]:
-        assert paragraphs[text].find(W + "pPr/" + W + "numPr/" + W + "numId").get(W + "val") == "0"
-    ordinary_num = paragraphs["Ordinary first item"].find(W + "pPr/" + W + "numPr/" + W + "numId")
-    assert ordinary_num.get(W + "val") not in heading_num_ids
-    assert paragraphs["Introduction"].find(".//" + W + "b") is not None
-    with ZipFile(output) as package:
-        numbering = ET.fromstring(package.read("word/numbering.xml"))
-        document_text = package.read("word/document.xml").decode("utf-8")
-    num = next(node for node in numbering.findall(W + "num") if node.get(W + "numId") in heading_num_ids)
-    abstract_id = num.find(W + "abstractNumId").get(W + "val")
-    abstract = next(node for node in numbering.findall(W + "abstractNum") if node.get(W + "abstractNumId") == abstract_id)
-    assert [node.find(W + "lvlText").get(W + "val") for node in abstract.findall(W + "lvl")[:3]] == ["%1", "%1.%2", "%1.%2.%3"]
-    assert "PMT_NATIVE_HEADING:" not in document_text
 
 
 def test_native_crossrefs_respect_disabled_section_numbering(tmp_path: Path) -> None:

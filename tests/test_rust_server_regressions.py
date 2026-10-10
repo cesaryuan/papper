@@ -30,6 +30,7 @@ from lxml import html as html_parser
 import pytest
 import yaml
 
+from snapshot_utils import html_body_text
 from test_build_snapshots import ROOT
 from test_rust_cli_contract import (
     NativeProject,
@@ -81,7 +82,7 @@ def test_native_cli_bootstraps_from_external_empty_markdown_and_reuses_service(
         status, raw = _http_request(port, "POST", "/convert/raw", {
             "path": str(project.source), "text": "Current unsaved editor buffer",
         })
-        assert status == 200 and b"Current unsaved editor buffer" in raw
+        assert status == 200 and "Current unsaved editor buffer" in html_body_text(raw.decode("utf-8"))
         assert project.source.read_bytes() == original
         source.write_text("---\ntitle: External manuscript\n---\n\nExternal saved body.\n", encoding="utf-8")
         output = external / "rendered.html"
@@ -91,7 +92,7 @@ def test_native_cli_bootstraps_from_external_empty_markdown_and_reuses_service(
         assert status == 200 and updated["pid"] == version["pid"]
         assert updated["worker_pid"] == version["worker_pid"]
         bootstrap.assert_cli_parity(output.read_text(encoding="utf-8"))
-        assert "External saved body." in output.read_text(encoding="utf-8")
+        assert "External saved body." in html_body_text(output.read_text(encoding="utf-8"))
     finally:
         try:
             status, raw = _http_request(port, "GET", "/version")
@@ -110,14 +111,14 @@ def test_native_cli_bootstraps_from_external_empty_markdown_and_reuses_service(
 def _assert_header(html: str, label: str) -> None:
     """Inspect actual HTML metadata and title-page elements rather than cached settings."""
     document = html_parser.fromstring(html)
-    assert document.xpath("string(//title)") == f"Header {label}"
-    assert document.xpath("string(//h1[@class='title'])") == f"Header {label}"
-    assert document.xpath("string(//p[@class='subtitle'])") == f"Subtitle {label}"
-    assert f"Author {label}" in document.xpath("string(//p[@class='author'])")
-    assert document.xpath("//meta[@name='author']/@content") == [f"Author {label}"]
+    assert document.xpath("normalize-space(//title)") == f"Header {label}"
+    assert document.xpath("normalize-space(//h1[@class='title'])") == f"Header {label}"
+    assert document.xpath("normalize-space(//p[@class='subtitle'])") == f"Subtitle {label}"
+    assert f"Author {label}" in document.xpath("normalize-space(//p[@class='author'])")
+    assert [" ".join(value.split()) for value in document.xpath("//meta[@name='author']/@content")] == [f"Author {label}"]
     assert document.xpath("//meta[@name='keywords']/@content") == [f"keyword-{label.lower()}"]
-    assert document.xpath("//meta[@name='description']/@content") == [f"Description {label}."]
-    assert f"Abstract {label}." in document.xpath("string(//div[@class='abstract'])")
+    assert [" ".join(value.split()) for value in document.xpath("//meta[@name='description']/@content")] == [f"Description {label}."]
+    assert f"Abstract {label}." in document.xpath("normalize-space(//div[@class='abstract'])")
 
 
 def test_native_service_restores_cached_header_after_another_header_build(native_service_factory) -> None:
@@ -130,9 +131,9 @@ def test_native_service_restores_cached_header_after_another_header_build(native
         result = service.convert()
         assert not result["cache_hit"]
         _assert_header(result["output"], label)
-        assert body in result["output"]
-    assert "Header Beta" not in result["output"]
-    assert "Author Beta" not in result["output"]
+        assert body in html_body_text(result["output"])
+    assert "Header Beta" not in html_body_text(result["output"])
+    assert "Author Beta" not in html_body_text(result["output"])
     status, raw, _ = service.request("POST", "/convert/raw", {"path": project.source.name})
     assert status == 200
     output = project.directory / "cold-header.html"
@@ -177,14 +178,14 @@ def test_native_service_detects_reply_buffers_and_refreshes_manuscript_numbers(n
     manuscript.write_text("# First\n\n# Selected {#sec:chosen}\n", encoding="utf-8")
     reply = "---\nreply: original.md\n---\n\nWe revised @sec:chosen.\n"
     first = service.convert(text=reply)
-    assert "We revised Section 2." in first["output"]
+    assert "We revised Section 2." in html_body_text(first["output"])
     manuscript.write_text("# Leading\n\n" + manuscript.read_text(encoding="utf-8"), encoding="utf-8")
     updated = service.convert(text=reply)
-    assert "We revised Section 3." in updated["output"]
+    assert "We revised Section 3." in html_body_text(updated["output"])
     ordinary = service.convert(text="# Reply\n\nreply: missing.md\n\n# Local {#sec:chosen}\n\nSee @sec:chosen.\n")
     visible = " ".join(html_parser.fromstring(ordinary["output"]).text_content().split())
     assert "See Section 2." in visible
-    assert "reply: missing.md" in ordinary["output"]
+    assert "reply: missing.md" in html_body_text(ordinary["output"])
 
 
 @pytest.mark.parametrize("reply", [False, True])
@@ -617,7 +618,7 @@ def test_native_first_concurrent_cli_start_records_serving_pid_and_clean_stops_w
                 assert result.returncode == 0, result.stdout + result.stderr
             first = directory / "output/client-0.html"
             assert first.read_bytes() == (directory / "output/client-1.html").read_bytes()
-            assert f"Concurrent project {round_number}" in first.read_text(encoding="utf-8")
+            assert f"Concurrent project {round_number}" in html_body_text(first.read_text(encoding="utf-8"))
             states = list(home.glob("projects/*/work/rust-v1/server-state.json"))
             assert len(states) == 1
             saved = json.loads(states[0].read_text(encoding="utf-8"))
@@ -896,6 +897,6 @@ def test_native_upgrade_preserves_another_projects_service_and_rejects_stale_shu
     result = other.build(output, server_port=service.port, check=False)
     assert result.returncode != 0 and "another Papper project" in result.stderr
     assert output.read_bytes() == b"Existing output"
-    assert "Original service remains available" in service.convert(text="Original service remains available")["output"]
+    assert "Original service remains available" in html_body_text(service.convert(text="Original service remains available")["output"])
     _, raw, _ = service.request("GET", "/version")
     assert json.loads(raw)["pid"] == version["pid"]
