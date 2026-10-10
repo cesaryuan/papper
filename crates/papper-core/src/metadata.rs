@@ -1132,7 +1132,10 @@ pub fn load_effective_metadata_text(
             source.display()
         )
     };
-    let inline_style = manuscript.remove("papper-style");
+    let canonical_settings = manuscript.remove("papperSettings");
+    let alias_settings = manuscript.remove("papper-settings");
+    // Remove both spellings from Pandoc metadata; the canonical key wins when both are supplied.
+    let inline_style = canonical_settings.or(alias_settings);
     // An explicit null clears the inherited reply section, just like any mapping override.
     let clears_reply = inline_style
         .as_ref()
@@ -1143,10 +1146,10 @@ pub fn load_effective_metadata_text(
         Some(Value::Object(mapping)) => Some(PmtSettings::from_style_mapping(
             &mapping,
             source,
-            "papper-style",
+            "papperSettings",
         )?),
         _ => bail!(
-            "`papper-style` in {} must be a YAML mapping",
+            "`papperSettings` in {} must be a YAML mapping",
             source.display()
         ),
     };
@@ -1481,17 +1484,23 @@ mod tests {
 
     /// Catch lost nested fields, nullable resets, and file reply styles masking manuscript overrides.
     #[test]
-    fn manuscript_style_overrides_files_and_preserves_unspecified_fields() -> Result<()> {
+    fn manuscript_settings_overrides_files_and_preserves_unspecified_fields() -> Result<()> {
         let directory = tempfile::tempdir()?;
         let style = directory.path().join("style.yml");
         fs::write(
             &style,
             "mathtype: true\ndocxShowPageNumbers: true\ndocxSvgToPngWidth: 640\ndocxPageMargins: {left: 2cm, right: 3cm}\ndocxStyle:\n  Normal:\n    fontSize: 12pt\n    paragraphSpacing: {before: 6pt, after: 12pt}\npandocMetadata:\n  nested: {left: file, right: keep}\n  keywords: [file, inherited]\nreply:\n  mathtype: true\n  docxShowPageNumbers: true\n  docxStyle:\n    Normal: {alignment: right}\n  pandocMetadata:\n    nested: {left: reply, replyOnly: true}\n",
         )?;
-        let text = "---\ntitle: Manuscript\npapper-style:\n  mathtype: false\n  docx-show-page-numbers: null\n  docxSvgToPngWidth: null\n  docxSvgToPngScale: 2\n  docxPageMargins: {left: 1cm}\n  docxStyle:\n    Normal:\n      alignment: left\n      paragraphSpacing: {after: 0pt}\n  pandocMetadata:\n    title: Inline\n    nested: {left: inline}\n    keywords: [inline]\n  reply:\n    tableAutofit: content\n    pandocMetadata:\n      replyLabel: Inline reply\n---\nBody";
-        for reply in [false, true] {
+        let text = "---\ntitle: Manuscript\npapperSettings:\n  mathtype: false\n  docx-show-page-numbers: null\n  docxSvgToPngWidth: null\n  docxSvgToPngScale: 2\n  docxPageMargins: {left: 1cm}\n  docxStyle:\n    Normal:\n      alignment: left\n      paragraphSpacing: {after: 0pt}\n  pandocMetadata:\n    title: Inline\n    nested: {left: inline}\n    keywords: [inline]\n  reply:\n    tableAutofit: content\n    pandocMetadata:\n      replyLabel: Inline reply\n---\nBody";
+        for (settings_key, reply) in [
+            ("papperSettings", false),
+            ("papperSettings", true),
+            ("papper-settings", false),
+            ("papper-settings", true),
+        ] {
+            let text = text.replace("papperSettings", settings_key);
             let result = load_effective_metadata_text(
-                text,
+                &text,
                 &directory.path().join("paper.md"),
                 &MetadataOptions {
                     style_paths: vec![style.clone()],
@@ -1521,7 +1530,8 @@ mod tests {
             assert_eq!(result.pandoc_metadata["nested"]["left"], json!("inline"));
             assert_eq!(result.pandoc_metadata["nested"]["right"], json!("keep"));
             assert_eq!(result.pandoc_metadata["keywords"], json!(["inline"]));
-            assert!(!result.pandoc_metadata.contains_key("papper-style"));
+            assert!(!result.pandoc_metadata.contains_key("papperSettings"));
+            assert!(!result.pandoc_metadata.contains_key("papper-settings"));
             assert_eq!(result.pandoc_metadata.contains_key("replyLabel"), reply);
             if reply {
                 assert_eq!(
@@ -1530,6 +1540,32 @@ mod tests {
                 );
                 assert_eq!(result.pandoc_metadata["nested"]["replyOnly"], json!(true));
             }
+        }
+        Ok(())
+    }
+
+    /// Keep canonical header precedence independent of key order and exclude both spellings from output.
+    #[test]
+    fn manuscript_settings_canonical_key_wins_over_alias() -> Result<()> {
+        let options = MetadataOptions {
+            style_paths: Vec::new(),
+            ..MetadataOptions::default()
+        };
+        let canonical = "papperSettings: {mathtype: false, pandocMetadata: {title: Canonical}}";
+        let alias = "papper-settings: {mathtype: true, pandocMetadata: {title: Alias}}";
+        for header in [
+            format!("{canonical}\n{alias}"),
+            format!("{alias}\n{canonical}"),
+        ] {
+            let result = load_effective_metadata_text(
+                &format!("---\n{header}\n---\nBody"),
+                Path::new("paper.md"),
+                &options,
+            )?;
+            assert_eq!(result.pmt_settings.get_bool("mathtype"), Some(false));
+            assert_eq!(result.pandoc_metadata["title"], json!("Canonical"));
+            assert!(!result.pandoc_metadata.contains_key("papperSettings"));
+            assert!(!result.pandoc_metadata.contains_key("papper-settings"));
         }
         Ok(())
     }
@@ -1553,7 +1589,7 @@ mod tests {
             ("{docxShowPageNumbers: null}", None, "Reply"),
         ] {
             let result = load_effective_metadata_text(
-                &format!("---\npapper-style:\n  reply: {reply_style}\n---\nBody"),
+                &format!("---\npapperSettings:\n  reply: {reply_style}\n---\nBody"),
                 &directory.path().join("paper.md"),
                 &options,
             )?;
@@ -1571,7 +1607,7 @@ mod tests {
     fn manuscript_style_selects_language_and_resolves_fonts_beside_markdown() -> Result<()> {
         let directory = tempfile::tempdir()?;
         let result = load_effective_metadata_text(
-            "---\npapper-style:\n  mathtypeTypstMathFont:\n    font: fonts/body.otf\n    calligraphicFont: fonts/script.ttf\n  pandocMetadata: {lang: zh-CN, csl: ''}\n---\nBody",
+            "---\npapperSettings:\n  mathtypeTypstMathFont:\n    font: fonts/body.otf\n    calligraphicFont: fonts/script.ttf\n  pandocMetadata: {lang: zh-CN, csl: ''}\n---\nBody",
             &directory.path().join("paper.md"),
             &MetadataOptions {
                 style_paths: Vec::new(),
@@ -1612,7 +1648,7 @@ mod tests {
             ("{docxSvgToPngScale: 2}", "Only one of"),
         ] {
             let error = load_effective_metadata_text(
-                &format!("---\npapper-style: {value}\n---\nBody"),
+                &format!("---\npapperSettings: {value}\n---\nBody"),
                 &directory.path().join("paper.md"),
                 &options,
             )

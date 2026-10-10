@@ -7,7 +7,7 @@ Papper project. For manuscript Markdown and YAML syntax, see
 ## Configuration Placement and Precedence
 
 Keep Papper settings at the top level and Pandoc settings under
-`pandocMetadata`. Use `papper-style` in manuscript YAML for formatting overrides
+`pandocMetadata`. Use `papperSettings` in manuscript YAML for formatting overrides
 that apply only to that Markdown file.
 
 `style.yml` separates two configuration domains. Its top-level Papper settings control
@@ -18,7 +18,7 @@ cross-reference labels and prefixes, numbering, and subfigure layout.
 
 Ordinary fields in the YAML header in `manuscript.md` are manuscript/Pandoc
 metadata. They recursively override `style.yml:pandocMetadata`. Papper-owned
-settings in that header belong inside a `papper-style` mapping, which accepts
+settings in that header belong inside a `papperSettings` mapping, which accepts
 the same settings, values, and aliases as `style.yml`, including
 `pandocMetadata` and `reply`. The optional style `reply:` section can override both Papper settings and its own
 `reply.pandocMetadata` when `papper build html/docx` detects a `reply` path in
@@ -75,14 +75,18 @@ the reply Markdown's ordinary YAML fields can override both.
 
 ### Per-Manuscript Style Overrides
 
-Put a `papper-style` mapping in the YAML header of the Markdown file passed to
+Put a `papperSettings` mapping in the YAML header of the Markdown file passed to
 `papper build` to override project styles for that file, without editing
 `style.yml`. It also works when no project style file exists.
+
+`papper-settings` is an alias for `papperSettings`. If both appear in the same
+header, the entire `papperSettings` mapping takes priority; the two mappings
+are not merged.
 
 ```yaml
 ---
 title: A manuscript with its own formatting
-papper-style:
+papperSettings:
   mathtype: false
   docxShowPageNumbers: false
   docxPageMargins:
@@ -102,24 +106,24 @@ sets its table caption prefix in supported outputs.
 
 Mappings merge recursively; scalars and lists replace inherited values.
 Explicit `false`, zero, and `null` are preserved where the corresponding
-setting accepts them. `papper-style` must be a mapping and uses the same
+setting accepts them. `papperSettings` must be a mapping and uses the same
 validation rules and output-specific limits as `style.yml`. Relative font
 file paths inside it resolve beside the Markdown file.
 
 For Papper settings, precedence from lower to higher is bundled language
 defaults, discovered or explicitly selected style files, file-based reply
-overrides when applicable, and `papper-style`. In a reply build,
-`papper-style.reply` overrides the other values in `papper-style` and inherits
+overrides when applicable, and `papperSettings`. In a reply build,
+`papperSettings.reply` overrides the other values in `papperSettings` and inherits
 unspecified reply settings from the files. Explicit build command-line
 overrides still take priority.
-Set `papper-style.reply: null` to clear inherited reply configuration for
+Set `papperSettings.reply: null` to clear inherited reply configuration for
 this file; reply recognition and its automatic blue styling still apply.
 
 Pandoc metadata follows the same style layers, then ordinary manuscript YAML
 fields take highest priority. For example, a top-level `title` overrides
-`papper-style.pandocMetadata.title`. A `lang` in
-`papper-style.pandocMetadata` can select language defaults when the ordinary
-header does not supply one. The `papper-style` mapping itself is configuration
+`papperSettings.pandocMetadata.title`. A `lang` in
+`papperSettings.pandocMetadata` can select language defaults when the ordinary
+header does not supply one. The `papperSettings` mapping itself is configuration
 and does not appear as document metadata.
 
 ## MathType Equations
@@ -412,7 +416,7 @@ Lengths accept `pt`, `cm`, `mm`, and `in`; numbers without a unit mean points.
 The bundled margins are 2.54 cm at the top/bottom and 3.17 cm at the left/right.
 Project settings merge with these defaults. To preserve all margins from a
 custom reference DOCX, use `docxPageMargins: null`.
-An explicit `null` in the selected project style or manuscript `papper-style`
+An explicit `null` in the selected project style or manuscript `papperSettings`
 overrides inherited margins, including the bundled defaults.
 
 To control automatic page numbers in DOCX footers, set `docxShowPageNumbers`.

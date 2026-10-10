@@ -9,7 +9,7 @@ For manuscript syntax and writing patterns, run `papper guide syntax`. For reusa
 
 ## Style Metadata
 
-If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxShowPageNumbers` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papper-style` mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.
+If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxShowPageNumbers` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papperSettings` (alias `papper-settings`) mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.
 
 ## Pandoc Markdown Syntax
 

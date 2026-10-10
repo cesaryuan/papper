@@ -32,8 +32,8 @@ CASES = {
     ),
     "metadata": (ROOT / "tests" / "snapshot_cases" / "metadata", "metadata.md"),
     "style": (ROOT / "tests" / "snapshot_cases" / "style", "style.md"),
-    "papper_style": (
-        ROOT / "tests" / "snapshot_cases" / "papper_style", "papper_style.md",
+    "papper_settings": (
+        ROOT / "tests" / "snapshot_cases" / "papper_settings", "papper_settings.md",
     ),
     "table_attributes": (
         ROOT / "tests" / "snapshot_cases" / "table_attributes", "table_attributes.md",
@@ -129,7 +129,7 @@ def test_build_output_matches_snapshot(
         case_dir, markdown, target, output,
         style_file=(
             case_dir / "style.yml"
-            if native_crossrefs or case_name in {"equation_attributes_no_mathtype", "papper_style"}
+            if native_crossrefs or case_name in {"equation_attributes_no_mathtype", "papper_settings"}
             else None
         ),
     )

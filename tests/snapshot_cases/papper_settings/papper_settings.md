@@ -1,6 +1,6 @@
 ---
 title: Manuscript style override
-papper-style:
+papperSettings:
   mathtype: false
   tableAutofit: content
   docxShowPageNumbers: false

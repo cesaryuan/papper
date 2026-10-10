@@ -140,7 +140,8 @@ def test_native_service_restores_cached_header_after_another_header_build(native
     assert raw == output.read_bytes()
 
 
-def test_native_service_refreshes_manuscript_style_overrides(native_service_factory) -> None:
+@pytest.mark.parametrize("settings_key", ["papperSettings", "papper-settings"])
+def test_native_service_refreshes_manuscript_style_overrides(native_service_factory, settings_key: str) -> None:
     """Apply buffer-local styles across edits and cache reuse, then restore file styles on removal."""
     service = native_service_factory()
     (service.project.directory / "style.yml").write_text(
@@ -151,7 +152,7 @@ def test_native_service_refreshes_manuscript_style_overrides(native_service_fact
     body = "| Item | Value |\n|---|---|\n| Sample | 1 |\n\n: Results\n"
     for mode, after in [("content", 0), ("fixed", 3), ("content", 0)]:
         header = yaml.safe_dump({
-            "papper-style": {
+            settings_key: {
                 "tableAutofit": mode,
                 "docxStyle": {"Table Text": {"paragraphSpacing": {"after": f"{after}pt"}}},
             },

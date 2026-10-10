@@ -87,7 +87,7 @@ fn reference_export_skips_build_and_does_not_require_manuscript() -> Result<()> 
     // only the YAML settings are needed to export the configured reference.
     fs::write(
         project.path().join("reply.md"),
-        "---\nreply: missing-manuscript.md\npapper-style:\n  docxPageMargins: {left: 2in}\n---\n\n@fig:unresolved\n",
+        "---\nreply: missing-manuscript.md\npapperSettings:\n  docxPageMargins: {left: 2in}\n---\n\n@fig:unresolved\n",
     )?;
     successful(cli_with_resources(
         project.path(),

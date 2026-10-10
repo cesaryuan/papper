@@ -264,13 +264,15 @@ tree receive portable URLs under `resources/<source-path-hash>/`.
 
 ## Pandoc Metadata Transport
 
-The shared effective-metadata loader extracts `papper-style` from the input
-header and validates it through the same style-domain parser used for files.
+The shared effective-metadata loader extracts `papperSettings` (or its
+`papper-settings` alias) from the input header and validates it through the
+same style-domain parser used for files. Both keys are removed from transported
+metadata; if both are supplied, the canonical mapping wins as a whole.
 File-based base and reply settings are applied before this manuscript layer;
 its own `reply` mapping is applied last for replies. Explicit nullable settings
 are retained during this merge, and `reply: null` clears inherited reply
 configuration. Font paths resolve against the Markdown source. Ordinary
-header fields are merged last into the Pandoc domain, and the `papper-style`
+header fields are merged last into the Pandoc domain, and the `papperSettings`
 container is excluded from transported metadata. CLI and persistent HTML
 requests both consume this effective snapshot.
 

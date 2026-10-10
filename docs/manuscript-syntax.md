@@ -52,14 +52,17 @@ affiliations and correspondence details. Reusable formatting belongs in
 
 ### Per-Manuscript Style Overrides
 
-Use a `papper-style` mapping in the YAML header to override formatting and
+Use a `papperSettings` mapping in the YAML header to override formatting and
 build settings for the Markdown file being built. It accepts every setting
 and value supported by `style.yml`, including `pandocMetadata` and `reply`.
+
+`papper-settings` is also accepted. If both spellings are present,
+`papperSettings` takes priority as a whole, regardless of their order.
 
 ```yaml
 ---
 title: A manuscript with local formatting
-papper-style:
+papperSettings:
   mathtype: false
   tableAutofit: content
   docxPageMargins:
@@ -76,16 +79,16 @@ This example selects native Word equations, makes ordinary tables fit their
 content, and overrides the DOCX left margin and `Normal` font size. Settings
 retain their usual output scope: DOCX-only settings do not affect HTML.
 
-`papper-style` has higher priority than `style.yml`, including a file selected
+`papperSettings` has higher priority than `style.yml`, including a file selected
 with `--style-file`. Nested mappings merge recursively, so other margins and
 style properties remain inherited; scalars and lists replace existing values.
 Allowed `false`, zero, and `null` values are preserved. It also works without
 a project style file. Relative font file paths resolve beside this Markdown.
 
 Ordinary YAML fields such as `title`, `authors`, and `lang` retain higher
-priority than values inside `papper-style.pandocMetadata`. Papper settings
-such as `mathtype` must be inside `papper-style` to affect build behavior.
-For reply builds, local `papper-style.reply` settings override the other local
+priority than values inside `papperSettings.pandocMetadata`. Papper settings
+such as `mathtype` must be inside `papperSettings` to affect build behavior.
+For reply builds, local `papperSettings.reply` settings override the other local
 style values. Explicit build command-line overrides retain their priority.
 See [`style-configuration.md`](style-configuration.md) for setting values,
 validation rules, and reply precedence.
