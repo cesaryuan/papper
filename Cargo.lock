@@ -2524,6 +2524,7 @@ dependencies = [
  "pep440_rs",
  "pulldown-cmark",
  "regex",
+ "roxmltree 0.21.1",
  "serde",
  "serde_json",
  "serde_yaml",

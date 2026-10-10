@@ -214,7 +214,7 @@ fn color_hex(value: &Value) -> Result<String> {
     bail!("Font color must be #RRGGBB, rgb(r,g,b), or three RGB channels")
 }
 
-/// Apply immutable typography settings to paragraph styles without rewriting content.
+/// Apply typography to named styles and paragraph layout only to compatible style types.
 pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Result<()> {
     let Some(configured) = &settings.fields().docx_style else {
         return Ok(());
@@ -329,7 +329,11 @@ pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Resu
                 .word("w:color")
                 .set("w:val", color_hex(value)?);
         }
-        apply_paragraph_properties(style.word("w:pPr"), raw)?;
+        // Character styles accept run typography only. Creating pPr here used
+        // to write invalid paragraph formatting into inline custom styles.
+        if style.attr("w:type") != Some("character") {
+            apply_paragraph_properties(style.word("w:pPr"), raw)?;
+        }
     }
     Ok(())
 }

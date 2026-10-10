@@ -557,6 +557,19 @@ Common style fields under `docxStyle` include:
 - `indentation`: length-based `left`, `right`, `firstLine`, or `hanging` indent values such as `0.5cm`
 - `paragraphSpacing`: `before` and `after` spacing values such as `6pt`
 
+Character styles accept only the text properties `fontFamily`, `fontSize`,
+`fontColor`, and `bold` (including their supported aliases). Paragraph styles
+accept these text properties as well as paragraph formatting. Paragraph
+spacing, line spacing, alignment, indentation, and tab stops do not apply to
+character styles; paragraph settings under a character style are ignored in
+DOCX and HTML. `docxStyle` does not provide a tab-stop configuration field;
+set paragraph tab stops in the reference DOCX when needed.
+
+Give paragraph and character styles different names. Reusing one name for
+both can prevent the intended `custom-style` formatting from taking effect.
+For example, pair the bundled `Revision Para` paragraph style with the
+`Revision Char` character style.
+
 Do not combine `firstLineIndentChars` with length-based `firstLine` or
 `hanging` in the same style. Length-based `firstLine` and `hanging` are also
 mutually exclusive. Left and right indents may be used with either approach.
@@ -580,6 +593,11 @@ docxStyle:
 ```
 
 Apply named paragraph or character styles in Markdown using `custom-style`.
+Mark a phrase with `[revised text]{custom-style="Revision Char"}`, or wrap one
+or more paragraphs in `::: {custom-style="Revision Para"}` and a closing `:::`.
+Configure the corresponding names under `docxStyle` to change all text that
+uses them. See [Custom Text Styles](manuscript-syntax.md#custom-text-styles)
+for complete inline, paragraph, and configuration examples.
 To change a table's cell paragraph style, use `custom-text-style`; table
 appearance is a separate `custom-style`. See the syntax guide for examples.
 

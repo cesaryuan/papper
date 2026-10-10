@@ -131,6 +131,91 @@ fn part(path: &Path, name: &str) -> Result<String> {
     Ok(text)
 }
 
+/// Prevent paragraph layout leaking into character styles while retaining text formatting.
+#[test]
+fn reference_export_keeps_character_and_paragraph_formatting_separate() -> Result<()> {
+    let project = tempfile::tempdir()?;
+    let source = resources().join("pandoc/manuscript-template/reference-doc.docx");
+    let original = fs::read(&source)?;
+    fs::write(
+        project.path().join("style.yml"),
+        r##"docxPageMargins: null
+docxStyle:
+  Revision Char:
+    font: {family: {western: Times New Roman, chinese: 宋体}, size: 11pt, color: "#123ABC", bold: false}
+    paragraph-spacing: {before: 6pt, after: 12pt}
+    line-spacing: 1.5
+    paragraph-alignment: center
+    paragraph-indent: {left: 0.5cm, right: 0.25cm, hanging: 0.2cm}
+    tabs: [{position: 1cm, alignment: left}]
+  Revision Para:
+    fontSize: 11pt
+    fontColor: "#123ABC"
+    bold: false
+    paragraphSpacing: {before: 6pt, after: 12pt}
+    lineSpacing: 1.5
+    alignment: center
+    indentation: {left: 0.5cm, right: 0.25cm, hanging: 0.2cm}
+"##,
+    )?;
+    successful(cli(
+        project.path(),
+        &["build", "docx", "--export-reference-doc"],
+        Some(&source),
+    ));
+    let xml = part(
+        &project.path().join("reference-doc.docx"),
+        "word/styles.xml",
+    )?;
+    let document = roxmltree::Document::parse(&xml)?;
+    let ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    for (id, kind) in [("RevisionChar", "character"), ("RevisionPara", "paragraph")] {
+        let style = document
+            .descendants()
+            .find(|node| {
+                node.has_tag_name((ns, "style")) && node.attribute((ns, "styleId")) == Some(id)
+            })
+            .expect("Export must retain the configured style");
+        assert_eq!(style.attribute((ns, "type")), Some(kind));
+        for (property, value) in [("sz", "22"), ("color", "123ABC"), ("b", "0"), ("bCs", "0")] {
+            assert!(style.descendants().any(|node| {
+                node.has_tag_name((ns, property)) && node.attribute((ns, "val")) == Some(value)
+            }));
+        }
+        if kind == "character" {
+            assert!(!style.children().any(|node| node.has_tag_name((ns, "pPr"))));
+            let fonts = style
+                .descendants()
+                .find(|node| node.has_tag_name((ns, "rFonts")))
+                .unwrap();
+            assert_eq!(fonts.attribute((ns, "ascii")), Some("Times New Roman"));
+            assert_eq!(fonts.attribute((ns, "hAnsi")), Some("Times New Roman"));
+            assert_eq!(fonts.attribute((ns, "eastAsia")), Some("宋体"));
+        } else {
+            let spacing = style
+                .descendants()
+                .find(|node| node.has_tag_name((ns, "spacing")))
+                .unwrap();
+            assert_eq!(spacing.attribute((ns, "before")), Some("120"));
+            assert_eq!(spacing.attribute((ns, "after")), Some("240"));
+            assert_eq!(spacing.attribute((ns, "line")), Some("360"));
+            assert_eq!(spacing.attribute((ns, "lineRule")), Some("auto"));
+            assert!(style.descendants().any(|node| {
+                node.has_tag_name((ns, "jc")) && node.attribute((ns, "val")) == Some("center")
+            }));
+            let indent = style
+                .descendants()
+                .find(|node| node.has_tag_name((ns, "ind")))
+                .unwrap();
+            assert_eq!(indent.attribute((ns, "left")), Some("283"));
+            assert_eq!(indent.attribute((ns, "right")), Some("142"));
+            assert_eq!(indent.attribute((ns, "hanging")), Some("113"));
+        }
+    }
+    assert_eq!(fs::read(&source)?, original);
+    Ok(())
+}
+
 /// Create a journal reference with a distinctive custom paragraph style.
 fn journal_reference(source: &Path, destination: &Path) -> Result<()> {
     let mut archive = zip::ZipArchive::new(fs::File::open(source)?)?;

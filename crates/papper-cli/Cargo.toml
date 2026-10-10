@@ -40,3 +40,6 @@ pulldown-cmark.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
+
+[dev-dependencies]
+roxmltree.workspace = true

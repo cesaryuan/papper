@@ -29,6 +29,11 @@ numbers use Word `PAGE` fields and the `page number` character style. Removing
 page-number fields preserves other footer content; the build does not request
 a document-wide field update when Word opens the output.
 
+Named character styles receive only run typography from `docxStyle`; reference
+preparation must not create `w:pPr` on them. Paragraph styles also receive
+paragraph formatting. HTML character-style targets likewise exclude paragraph
+layout, including line height and alignment.
+
 `build docx --reference-doc` overrides `PMT_REFERENCE_DOC`; otherwise the
 bundled reference is selected. `docx_pipeline::prepare_reference` returns the
 actual reference path, including a temporary copy with effective text styles

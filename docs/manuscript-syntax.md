@@ -115,23 +115,97 @@ format rather than the DOCX/HTML square-bracket styling.
 
 ### Custom Text Styles
 
-For DOCX and HTML, apply a character style to a bracketed span, or a paragraph
-style to a fenced block:
+For DOCX and HTML, mark selected inline text or whole paragraphs with
+`custom-style`, then configure the matching name under `docxStyle` in
+`style.yml`. Reuse the same name wherever that formatting should apply;
+changing its configuration updates all text that uses it.
+
+Use character styles for inline text and paragraph styles for whole paragraphs.
+Character and paragraph styles must have different names: using one name for
+both can prevent the intended style from taking effect. For example, use
+`Revision Char` for a phrase and `Revision Para` for paragraphs. Both styles
+are available in the bundled reference DOCX.
+
+#### Selected Inline Text
+
+Put only the text to be styled inside brackets, followed immediately by the
+character style attribute. The surrounding text keeps its normal formatting.
 
 ```markdown
 Text with [revised wording]{custom-style="Revision Char"}.
+
+The same style can mark [another revised phrase]{custom-style="Revision Char"}.
+```
+
+#### One or More Paragraphs
+
+Wrap one paragraph or several paragraphs in a fenced block. Separate paragraphs
+with blank lines; each paragraph inside the block uses the selected paragraph
+style.
+
+```markdown
+::: {custom-style="Revision Para"}
+A single revised paragraph.
+:::
+
+::: {custom-style="Revision Para"}
+The first paragraph in a longer revision.
+
+The second paragraph uses the same style.
+:::
 
 ::: {custom-style="Quote"}
 A paragraph using the Quote style.
 :::
 ```
 
-Use a style defined in the reference document. `custom-style` selects a style;
-it does not define a new one. Configure its supported properties through
-`docxStyle` in `style.yml`. Explicit paragraph styles take priority over the
-automatic equation-explanation and post-table paragraph styles. For table
-appearance and cell text, use the separate attributes described under
-Advanced Table Formatting.
+An inline character style can also be used inside a styled paragraph:
+
+```markdown
+::: {custom-style="Quote"}
+A quoted paragraph with [a revised phrase]{custom-style="Revision Char"}.
+:::
+```
+
+#### Configure the Selected Styles
+
+Set the same style names under `docxStyle` to control their appearance. This
+example makes revised phrases red and bold, revised paragraphs red with
+paragraph spacing, and quoted paragraphs smaller with a left indent.
+
+```yaml
+docxStyle:
+  Revision Char:
+    fontFamily: Times New Roman
+    fontSize: 11pt
+    fontColor: "#FF0000"
+    bold: true
+  Revision Para:
+    fontColor: "#FF0000"
+    paragraphSpacing: {before: 6pt, after: 6pt}
+    firstLineIndentChars: 0
+  Quote:
+    fontSize: 10pt
+    indentation: {left: 0.5cm}
+```
+
+Character styles support text properties such as `fontFamily`, `fontSize`,
+`fontColor`, and `bold`. They do not support paragraph spacing, line spacing,
+alignment, indentation, or tab stops. Paragraph settings placed under a
+character style are ignored; use a paragraph style for those adjustments.
+Paragraph styles can configure both text properties and paragraph formatting.
+
+Use styles defined in the selected reference DOCX with the appropriate type.
+`custom-style` selects a style; it does not define its formatting, and
+`docxStyle` only configures styles already present in that reference. Add other
+named styles to your reference DOCX before configuring them. See
+[`style-configuration.md`](style-configuration.md#docx-text-styles) for supported
+fields and reference DOCX selection.
+
+Explicit paragraph styles take priority over the automatic
+equation-explanation and post-table paragraph styles. These text styles do not
+change LaTeX typography. For table appearance and cell text, use the separate
+attributes described under Advanced Table Formatting.
 
 ### Ordinary Tables
 
