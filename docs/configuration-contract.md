@@ -11,9 +11,10 @@ The export contains:
 | --- | --- |
 | `contractVersion` | Wire-format version, currently 1; independent of the Papper release version |
 | `papperVersion` | Version of the executable that supplied the definitions |
-| `capabilities` | Available configuration queries; currently `config.describe` |
+| `capabilities` | Available queries/extensions: `config.describe`, `elementAttributes` |
 | `schemas` | Inline JSON Schema structures for style files, Pandoc metadata, manuscript frontmatter and DOCX text-style properties |
 | `rules` | Editor constraints expressed as paths relative to a configuration domain |
+| `elementAttributes` | Markdown element attribute help, choices, aliases and discriminator-specific properties |
 | `templates.styleProject` | Exact commented project template, suitable for a user-requested merge |
 | `defaults.standard`, `defaults.chinese` | Parsed bundled YAML layers, not effective manuscript settings |
 
@@ -62,3 +63,36 @@ a user's configuration as a side effect of refreshing the contract.
 This command does not resolve project/manuscript precedence, report runtime
 MathType availability, or extract reference-DOCX styles. Effective reference
 export remains available through `papper build docx --export-reference-doc`.
+
+## Manuscript element attributes
+
+The additive `elementAttributes` member uses syntax contexts as mapping keys:
+`table` for table-caption attribute blocks, and `emptySpan` for `[]{...}`.
+Each context provides a description, output `targets` and a `properties` mapping.
+Properties contain `description`, `valueType` (`string`, `boolean`, `integer` or
+`length`), optional exhaustive `values`, free-form `suggestions`, accepted key
+`aliases`, and optional output `targets` overriding the context targets. All
+inserted attribute values are strings; editors must quote and escape them for
+Pandoc Markdown rather than reuse YAML insertion strings.
+
+An element may declare a `discriminator` key and a `variants` mapping. For
+`emptySpan`, the discriminator is `t`; each variant describes its own accepted
+properties and optional aliases (`currentDate` is an alias of `date`). Editors
+must resolve exact discriminator values regardless of attribute order. Unknown
+types must not receive another type's options. Prefer canonical keys in new
+completions, recognize authored aliases for help and duplicate suppression, and
+retain legitimate underscore/hyphen attribute names. The camelCase restriction
+on Papper configuration fields does not apply to these Markdown attributes.
+
+The authored `pandoc/filters/shared/element-attributes.json` catalog is embedded
+through typed Rust structures for export and loaded by shipped Lua filters for
+native directive property validation and DOCX table metadata transport.
+`docxMetadata` is an internal transport flag; it does not itself promise that a
+property changes rendering. Value parsers and native rendering remain explicit
+domain code. When changing supported attributes, update the catalog, runtime
+implementation and manuscript guide together, then refresh editor snapshots.
+
+Older version-one exports can omit this member. Consumers should retain their
+working/offline attribute catalog in that case, validate a supplied catalog
+before installing it, and refresh attribute help using the same executable cache
+as configuration help. No separate build or engine query is needed.

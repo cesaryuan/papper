@@ -10,30 +10,10 @@ local table_marker_prefix = "PMT_TABLE_METADATA:"
 local equation_marker_prefix = "PMT_EQUATION_METADATA:"
 local captioned_table_index = 0
 
-local supported_table_keys = {
-  ["cell_margin"] = true,
-  ["cell-margin"] = true,
-  ["cell_margin_top"] = true,
-  ["cell-margin-top"] = true,
-  ["cell_margin_bottom"] = true,
-  ["cell-margin-bottom"] = true,
-  ["cell_margin_left"] = true,
-  ["cell-margin-left"] = true,
-  ["cell_margin_right"] = true,
-  ["cell-margin-right"] = true,
-  ["cell_spacing"] = true,
-  ["cell-spacing"] = true,
-  ["row_height"] = true,
-  ["row-height"] = true,
-  ["revision_columns"] = true,
-  ["revision-columns"] = true,
-  ["revision_rows"] = true,
-  ["revision-rows"] = true,
-  ["custom_text_style"] = true,
-  ["custom-text-style"] = true,
-  ["alignment"] = true,
-  ["autofit"] = true,
-}
+local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
+local attributes = dofile(pandoc.path.join {directory, '../shared/element_attributes.lua'})
+local catalog = attributes.load(pandoc.path.join {directory, '../shared/element-attributes.json'})
+local supported_table_keys = attributes.table_metadata_keys(catalog.table)
 
 local function xml_escape(text)
   return text

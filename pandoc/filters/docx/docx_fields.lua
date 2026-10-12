@@ -3,6 +3,9 @@
 -- []{t="date" format="yyyy-MM-dd"} inserts the current date as a DATE field.
 
 local fields = {}
+local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
+local attributes = dofile(pandoc.path.join {directory, '../shared/element_attributes.lua'})
+local catalog = attributes.load(pandoc.path.join {directory, '../shared/element-attributes.json'})
 local formats = {
   decimal = 'Arabic', upperRoman = 'ROMAN', lowerRoman = 'roman',
   upperLetter = 'ALPHABETIC', lowerLetter = 'alphabetic',
@@ -19,10 +22,12 @@ local first_values = {
 }
 
 --- Validate empty directives and reject misspelled attributes instead of silently ignoring them
-function fields.validate(span, allowed, setting)
+function fields.validate(span, setting)
   if #span.content ~= 0 then error('DOCX ' .. span.attributes.t .. ' spans must be empty') end
+  local variant = attributes.variant(catalog.emptySpan, span.attributes.t)
+  if not variant then error('Unsupported DOCX directive t="' .. span.attributes.t .. '"') end
   for key, _ in pairs(span.attributes) do
-    if key ~= 't' and not allowed[key] then
+    if key ~= catalog.emptySpan.discriminator and not variant.properties[key] then
       error('Unknown ' .. (setting or 'DOCX') .. ' ' .. span.attributes.t .. ' attribute: ' .. key)
     end
   end
@@ -62,7 +67,7 @@ end
 function fields.span(span, setting)
   local kind = span.attributes.t
   if kind ~= 'pageNum' and kind ~= 'date' and kind ~= 'currentDate' then return nil end
-  fields.validate(span, {format = true}, setting)
+  fields.validate(span, setting)
   if kind == 'pageNum' then
     local name = span.attributes.format
     local switch = name and formats[name] or ''

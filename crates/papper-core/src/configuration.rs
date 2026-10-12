@@ -281,7 +281,8 @@ pub fn describe_configuration(version: &str) -> Result<Value> {
     let standard: Value = serde_yaml::from_str(include_str!("../../../defaults/style.yml"))?;
     let chinese: Value = serde_yaml::from_str(include_str!("../../../defaults/style-cn.yml"))?;
     Ok(json!({
-        "contractVersion": 1, "papperVersion": version, "capabilities": ["config.describe"],
+        "contractVersion": 1, "papperVersion": version, "capabilities": ["config.describe", "elementAttributes"],
+        "elementAttributes": crate::element_attributes::describe_attributes()?,
         "schemas": {"style": style, "pandocMetadata": metadata_schema, "docxTextStyle": text_style,
             "manuscriptFrontmatter": object(manuscript, json!(true))},
         "rules": [

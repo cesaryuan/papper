@@ -28,8 +28,7 @@ end
 --- Emit a title outside heading outlines, followed by an updateable TOC field
 local function contents(span)
   local kind, attrs = span.attributes.t, span.attributes
-  fields.validate(span, kind == 'toc' and {title = true, depth = true}
-    or kind == 'listofFigures' and {title = true, includeSubfigures = true} or {title = true})
+  fields.validate(span)
   local instruction, default_title
   if kind == 'toc' then
     local depth = attrs.depth or '3'
@@ -58,8 +57,7 @@ end
 
 --- Save options for the following section and render its independent page stories
 local function section(span)
-  fields.validate(span, {kind = true, pageStart = true, headerLink = true, footerLink = true,
-    header = true, footer = true, headerAlignment = true, footerAlignment = true})
+  fields.validate(span)
   local attrs = span.attributes
   local kind = attrs.kind or 'nextPage'
   if not ({nextPage = true, continuous = true, oddPage = true, evenPage = true})[kind] then
@@ -107,7 +105,7 @@ local function inline(span)
   if kind == nil then return nil end
   if block_types[kind] then error('DOCX ' .. kind .. ' must occupy its own paragraph') end
   if kind == 'pageBreak' then
-    fields.validate(span, {})
+    fields.validate(span)
     return pandoc.RawInline('openxml', '<w:r><w:br w:type="page"/></w:r>')
   end
   local result = fields.span(span)

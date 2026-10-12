@@ -7,6 +7,7 @@ optional postprocessing/native numbering and invalid source recovery separately.
 from __future__ import annotations
 
 from datetime import date
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -18,6 +19,42 @@ from lxml import html
 import pytest
 
 from native_support import ROOT
+
+
+def test_exported_directive_choices_render_through_the_public_cli(tmp_path: Path, rust_executable: Path) -> None:
+    """Prevent editor choices drifting from accepted directives and their real Word fields."""
+    exported = subprocess.run(
+        [str(rust_executable), "config", "describe", "--format", "json"],
+        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", check=True, timeout=15,
+    )
+    element = json.loads(exported.stdout)["elementAttributes"]["emptySpan"]
+    directives = []
+    page_fields = 0
+    for kind, variant in element["variants"].items():
+        for spelling in [kind, *variant.get("aliases", [])]:
+            directives.append(f'[]{{t="{spelling}"}}')
+            page_fields += kind == "pageNum"
+        for key, field in variant["properties"].items():
+            for value in [*field.get("values", []), *field.get("suggestions", [])]:
+                attributes = {element["discriminator"]: kind, key: value}
+                # Alignment is meaningful only alongside an independent story.
+                if kind == "sectionBreak" and key in {"headerAlignment", "footerAlignment"}:
+                    attributes[key.removesuffix("Alignment")] = "Story"
+                authored = " ".join(f'{name}={json.dumps(value, ensure_ascii=False)}' for name, value in attributes.items())
+                directives.append(f"[]{{{authored}}}")
+                page_fields += kind == "pageNum"
+    source = tmp_path / "choices.md"
+    source.write_text("---\npapperSettings:\n  mathtype: false\n---\n\n" + "\n\n".join(directives), encoding="utf-8")
+    output = tmp_path / "choices.docx"
+    result = build_insertions(rust_executable, source, output)
+    assert result.returncode == 0, result.stdout + result.stderr
+    document = Document(output)
+    instructions = [node.text or "" for node in document.element.iter(qn("w:instrText"))]
+    assert sum(" PAGE " in instruction for instruction in instructions) >= page_fields
+    assert any(" TOC " in instruction for instruction in instructions)
+    assert any(' DATE \\@ "yyyy年M月d日" ' in instruction for instruction in instructions)
+    today = date.today()
+    assert f"{today.year}年{today.month}月{today.day}日" in "".join(document.element.itertext())
 
 
 def build_insertions(executable: Path, source: Path, output: Path, *, postprocess: bool = True, target: str = "docx") -> subprocess.CompletedProcess:

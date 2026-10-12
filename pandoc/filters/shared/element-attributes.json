@@ -1,0 +1,81 @@
+{
+  "table": {
+    "description": "表格题注末尾的属性；例如 : Results {#tbl:results cell_margin=\"0.1cm\"}",
+    "targets": ["docx", "html", "latex"],
+    "properties": {
+      "cell_margin": {"description": "所有单元格的内边距；各方向的单独设置可覆盖它，支持 cm、mm、in、pt", "valueType": "length", "suggestions": ["0.1cm", "2pt"], "aliases": ["cell-margin"], "targets": ["docx", "html"], "docxMetadata": true},
+      "cell_margin_top": {"description": "单元格上内边距，覆盖 cell_margin 的上侧", "valueType": "length", "suggestions": ["0.1cm"], "aliases": ["cell-margin-top"], "targets": ["docx", "html"], "docxMetadata": true},
+      "cell_margin_bottom": {"description": "单元格下内边距，覆盖 cell_margin 的下侧", "valueType": "length", "suggestions": ["0.1cm"], "aliases": ["cell-margin-bottom"], "targets": ["docx", "html"], "docxMetadata": true},
+      "cell_margin_left": {"description": "单元格左内边距，覆盖 cell_margin 的左侧", "valueType": "length", "suggestions": ["0.1cm"], "aliases": ["cell-margin-left"], "targets": ["docx", "html"], "docxMetadata": true},
+      "cell_margin_right": {"description": "单元格右内边距，覆盖 cell_margin 的右侧", "valueType": "length", "suggestions": ["0.1cm"], "aliases": ["cell-margin-right"], "targets": ["docx", "html"], "docxMetadata": true},
+      "cell_spacing": {"description": "历史保留的单元格间距属性；当前仅传递该值，不会据此调整 DOCX / HTML 单元格间距", "valueType": "length", "aliases": ["cell-spacing"], "targets": ["docx"], "docxMetadata": true},
+      "row_height": {"description": "DOCX 表格行高，支持 cm、mm、in、pt", "valueType": "length", "suggestions": ["0.8cm"], "aliases": ["row-height"], "targets": ["docx"], "docxMetadata": true},
+      "revision_rows": {"description": "标红指定行；从 1 开始计数并包含表头，用逗号分隔；* 表示全部行并标红题注", "valueType": "string", "suggestions": ["1,3", "*"], "aliases": ["revision-rows"], "targets": ["docx", "html"], "docxMetadata": true},
+      "revision_columns": {"description": "标红指定列；从 1 开始计数，用逗号分隔；* 表示全部列并标红题注", "valueType": "string", "suggestions": ["2,3", "*"], "aliases": ["revision-columns"], "targets": ["docx", "html"], "docxMetadata": true},
+      "alignment": {"description": "DOCX 表格在页面中的水平对齐", "valueType": "string", "values": ["left", "center", "right"], "targets": ["docx"], "docxMetadata": true},
+      "autofit": {"description": "DOCX 表格列宽模式：fixed 固定列宽，content 按内容调整，window 按页面宽度调整", "valueType": "string", "values": ["fixed", "content", "window"], "targets": ["docx"], "docxMetadata": true},
+      "custom-style": {"description": "应用 reference.docx 中的 Word 表格样式；样式名须与参考文档一致，HTML 应用其中支持的表格外观", "valueType": "string", "targets": ["docx", "html"]},
+      "custom-text-style": {"description": "应用到所有表格单元格段落的 Word 文本样式", "valueType": "string", "aliases": ["custom_text_style"], "targets": ["docx", "html"], "docxMetadata": true},
+      "caption-en": {"description": "英文副题注；与中文题注组成双语题注", "valueType": "string", "targets": ["docx", "html", "latex"]},
+      "twocol": {"description": "双栏 LaTeX 文档中让表格跨两栏", "valueType": "boolean", "values": ["true", "false"], "targets": ["latex"]}
+    }
+  },
+  "emptySpan": {
+    "description": "DOCX 原生插入指令；使用空 Span []{t=\"类型\"}，类型与属性名区分大小写，其他输出格式移除此指令",
+    "targets": ["docx"],
+    "properties": {},
+    "discriminator": "t",
+    "variants": {
+      "toc": {
+        "description": "插入可在 Word 中更新的目录；须单独占据一个段落",
+        "properties": {
+          "title": {"description": "目录标题，默认 Contents；空字符串隐藏标题", "valueType": "string", "suggestions": ["Contents", "目录", ""]},
+          "depth": {"description": "收录的标题级数，1 到 9，默认 3", "valueType": "integer", "values": ["1", "2", "3", "4", "5", "6", "7", "8", "9"]}
+        }
+      },
+      "listofFigures": {
+        "description": "插入可在 Word 中更新的图目录；须单独占据一个段落",
+        "properties": {
+          "title": {"description": "图目录标题，默认 List of Figures；空字符串隐藏标题", "valueType": "string", "suggestions": ["List of Figures", "图目录", ""]},
+          "includeSubfigures": {"description": "是否同时收录子图题注，默认 false", "valueType": "boolean", "values": ["true", "false"]}
+        }
+      },
+      "listofTables": {
+        "description": "插入可在 Word 中更新的表目录；须单独占据一个段落",
+        "properties": {
+          "title": {"description": "表目录标题，默认 List of Tables；空字符串隐藏标题", "valueType": "string", "suggestions": ["List of Tables", "表目录", ""]}
+        }
+      },
+      "pageNum": {
+        "description": "插入 Word PAGE 页码域；可用于正文、页眉或页脚，支持外层 Markdown 字体格式",
+        "properties": {
+          "format": {"description": "页码格式，默认跟随当前节；decimal 为阿拉伯数字，upper/lowerRoman 为罗马数字，upper/lowerLetter 为字母；也接受对应的 Word 域格式名称", "valueType": "string", "values": ["decimal", "upperRoman", "lowerRoman", "upperLetter", "lowerLetter", "decimalEnclosedDash", "ordinal", "cardinalText", "ordinalText", "hex", "Arabic", "ROMAN", "roman", "ALPHABETIC", "alphabetic", "ArabicDash", "Ordinal", "CardText", "OrdText", "Hex"]}
+        }
+      },
+      "date": {
+        "description": "插入 Word DATE 日期域；可用于正文、页眉或页脚",
+        "aliases": ["currentDate"],
+        "properties": {
+          "format": {"description": "日期格式，默认 yyyy-MM-dd；支持 yyyy、yy、MMMM、MMM、MM、M、dddd、ddd、dd、d 和标点、空格、非拉丁文本；不支持其他 ASCII 字母、引号、反斜杠或换行", "valueType": "string", "suggestions": ["yyyy-MM-dd", "yyyy年M月d日", "MMMM d, yyyy"]}
+        }
+      },
+      "pageBreak": {
+        "description": "插入分页符，可嵌入段落；没有额外属性",
+        "properties": {}
+      },
+      "sectionBreak": {
+        "description": "插入分节符并配置后续节；须单独位于正文顶层段落，不能放在表格、列表、引用或脚注中",
+        "properties": {
+          "kind": {"description": "分节方式，默认 nextPage；continuous 连续，oddPage 奇数页，evenPage 偶数页", "valueType": "string", "values": ["nextPage", "continuous", "oddPage", "evenPage"]},
+          "pageStart": {"description": "后续节页码起始值，整数 0 到 2147483647；省略时延续页码", "valueType": "integer", "suggestions": ["1"]},
+          "headerLink": {"description": "是否链接前一节页眉；无 header 时默认 true，有 header 时默认 false；true 与 header 冲突", "valueType": "boolean", "values": ["true", "false"]},
+          "footerLink": {"description": "是否链接前一节页脚；无 footer 时默认 true，有 footer 时默认 false；true 与 footer 冲突", "valueType": "boolean", "values": ["true", "false"]},
+          "header": {"description": "后续节的独立页眉 Markdown；空字符串清空页眉，可包含 []{t=\"pageNum\"} 或日期域", "valueType": "string", "suggestions": ["", "Section title"]},
+          "footer": {"description": "后续节的独立页脚 Markdown；空字符串清空页脚，可包含 []{t=\"pageNum\"} 或日期域", "valueType": "string", "suggestions": ["", "[]{t=\"pageNum\"}"]},
+          "headerAlignment": {"description": "独立页眉的水平对齐，默认 center；必须同时提供 header", "valueType": "string", "values": ["left", "center", "right"]},
+          "footerAlignment": {"description": "独立页脚的水平对齐，默认 center；必须同时提供 footer", "valueType": "string", "values": ["left", "center", "right"]}
+        }
+      }
+    }
+  }
+}

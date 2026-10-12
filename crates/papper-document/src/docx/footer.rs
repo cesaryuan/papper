@@ -182,7 +182,8 @@ pub(super) fn finalize_page_fields(node: &mut Node, styles: &Element) -> Result<
         return Ok(());
     };
     let mut children = Vec::new();
-    for mut child in std::mem::take(&mut element.children) {
+    let mut remaining = std::mem::take(&mut element.children).into_iter().peekable();
+    while let Some(mut child) = remaining.next() {
         let record = if let Node::Element(run) = &child {
             (run.name == "w:r").then(|| run.text()).and_then(|text| {
                 text.strip_prefix("PMT_FOOTER_PAGE:")
@@ -195,9 +196,27 @@ pub(super) fn finalize_page_fields(node: &mut Node, styles: &Element) -> Result<
         } else {
             None
         };
-        if let Some((page, record)) = record {
-            let record: Value =
-                serde_json::from_str(&record).context("Invalid rendered footer page marker")?;
+        if let Some((page, mut record)) = record {
+            // Pandoc splits CJK date pictures/results into adjacent font runs.
+            // Reassemble only an incomplete JSON marker before creating the field.
+            let record: Value = loop {
+                match serde_json::from_str(&record) {
+                    Ok(value) => break value,
+                    Err(error) if error.is_eof() => {
+                        let Some(Node::Element(run)) = remaining.peek() else {
+                            return Err(error).context("Invalid rendered footer page marker");
+                        };
+                        if run.name != "w:r" {
+                            return Err(error).context("Invalid rendered footer page marker");
+                        }
+                        record.push_str(&run.text());
+                        remaining.next();
+                    }
+                    Err(error) => {
+                        return Err(error).context("Invalid rendered footer page marker");
+                    }
+                }
+            };
             let result = record["result"]
                 .as_str()
                 .context("Missing footer page result")?;

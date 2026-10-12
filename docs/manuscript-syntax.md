@@ -4,6 +4,13 @@ This guide describes the Markdown and YAML syntax available when writing a
 Papper manuscript. For reusable project formatting and build settings, see
 [`style-configuration.md`](style-configuration.md).
 
+Papper Tools provides attribute-name/value completion and hover help in table
+captions and empty native insertion spans such as `[]{t="toc" depth="3"}`.
+Help follows the selected `t` type and indicates supported output formats.
+Editor integrations can obtain these definitions with
+`papper config describe --format json`; its `elementAttributes` member describes
+available attributes, choices and accepted aliases without requiring a build.
+
 ## Basic Markdown and Manuscript Metadata
 
 Use Pandoc Markdown for manuscript text and a YAML header for title, authors,
@@ -382,6 +389,8 @@ surrounding Markdown emphasis is retained.
 Current page: []{t="pageNum" format="upperRoman"}
 
 Prepared on **[]{t="date" format="yyyy-MM-dd"}**.
+
+Chinese date: []{t="date" format="yyyy年M月d日"}.
 ```
 
 `pageNum` has the same optional `format` values described under **DOCX Footer
@@ -1078,7 +1087,7 @@ For tables that should not have a visible caption, use an attribute-only caption
 
 - `cell_margin="0.10cm"` - Set all cell margins (supports cm, mm, in, pt)
 - `cell_margin_top="0.10cm"`, `cell_margin_bottom="0.10cm"`, `cell_margin_left="0.10cm"`, `cell_margin_right="0.10cm"` - Individual margins
-- `cell_spacing="0pt"` - Spacing between cells
+- `cell_spacing="0pt"` - Historical spacing attribute retained during DOCX conversion; currently it does not change cell spacing in DOCX or HTML
 - `row_height="0.5cm"` - Set row height for all rows
 - `revision_rows="1,2,3"` - Mark changed or added 1-based rows in red text
 - `revision_columns="6,7"` - Mark changed or added 1-based columns in red text

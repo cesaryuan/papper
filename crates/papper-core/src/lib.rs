@@ -1,6 +1,7 @@
 //! Shared Rust configuration, project state and runtime resource discovery.
 
 pub mod configuration;
+pub mod element_attributes;
 mod embedded;
 pub mod metadata;
 pub mod page_margins;
