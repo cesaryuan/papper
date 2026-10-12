@@ -3,6 +3,10 @@
 use super::xml::{Element, Node};
 use anyhow::{Result, bail};
 use papper_core::metadata::{LengthInput, LineNumberMode, PmtSettings};
+use papper_core::style_values::{
+    FirstLineIndents, LayoutLength, LineSpacingAmount, parse_alignment, parse_font_color,
+    parse_font_family, parse_font_size_points, parse_length, parse_line_spacing, parse_number,
+};
 use serde_json::{Map, Value};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
@@ -132,88 +136,17 @@ pub(crate) fn set_bool(parent: &mut Element, name: &str, value: bool) {
     }
 }
 
-/// Pick aliases in supplied order while retaining explicit false and empty values.
-fn field<'a>(mapping: &'a Map<String, Value>, names: &[&str]) -> Option<&'a Value> {
-    names
-        .iter()
-        .find_map(|name| mapping.get(*name))
-        .filter(|value| !value.is_null())
+/// Read a canonical property while treating null as an unspecified override.
+fn field<'a>(mapping: &'a Map<String, Value>, name: &str) -> Option<&'a Value> {
+    mapping.get(name).filter(|value| !value.is_null())
 }
 
-/// Parse Chinese font sizes or point values in half-point Word units.
-fn font_half_points(value: &Value) -> Result<i64> {
-    let chinese = match value.as_str().map(str::trim).unwrap_or_default() {
-        "初号" => Some(42.0),
-        "小初" | "小初号" => Some(36.0),
-        "一号" => Some(26.0),
-        "小一" | "小一号" => Some(24.0),
-        "二号" => Some(22.0),
-        "小二" | "小二号" => Some(18.0),
-        "三号" => Some(16.0),
-        "小三" | "小三号" => Some(15.0),
-        "四号" => Some(14.0),
-        "小四" | "小四号" => Some(12.0),
-        "五号" => Some(10.5),
-        "小五" | "小五号" => Some(9.0),
-        "六号" => Some(7.5),
-        "小六" | "小六号" => Some(6.5),
-        "七号" => Some(5.5),
-        "八号" => Some(5.0),
-        _ => None,
-    };
-    let half = if let Some(points) = chinese {
-        (points * 2.0) as i64
-    } else {
-        length_twips(value)? / 10
-    };
-    if half <= 0 {
-        bail!("Font size must be greater than 0");
-    }
-    Ok(half)
+/// Convert EMUs to Word twips without repeating the domain unit parser.
+fn layout_twips(length: LayoutLength) -> i64 {
+    (length.0 as f64 / 635.0).round_ties_even() as i64
 }
 
-/// Parse all supported font color forms into Word's uppercase RGB encoding.
-fn color_hex(value: &Value) -> Result<String> {
-    if let Some(channels) = value.as_array()
-        && channels.len() == 3
-        && channels
-            .iter()
-            .all(|channel| channel.as_u64().is_some_and(|number| number <= 255))
-    {
-        return Ok(channels
-            .iter()
-            .map(|channel| format!("{:02X}", channel.as_u64().unwrap()))
-            .collect());
-    }
-    if let Some(raw) = value.as_str() {
-        let cleaned = raw.trim().trim_start_matches('#');
-        if cleaned.len() == 6
-            && cleaned
-                .chars()
-                .all(|character| character.is_ascii_hexdigit())
-        {
-            return Ok(cleaned.to_uppercase());
-        }
-        if let Some(body) = cleaned
-            .strip_prefix("rgb(")
-            .and_then(|body| body.strip_suffix(')'))
-        {
-            let channels: Vec<u16> = body
-                .split(',')
-                .map(|channel| channel.trim().parse())
-                .collect::<std::result::Result<_, _>>()?;
-            if channels.len() == 3 && channels.iter().all(|channel| *channel <= 255) {
-                return Ok(channels
-                    .iter()
-                    .map(|channel| format!("{channel:02X}"))
-                    .collect());
-            }
-        }
-    }
-    bail!("Font color must be #RRGGBB, rgb(r,g,b), or three RGB channels")
-}
-
-/// Apply typography to named styles and paragraph layout only to compatible style types.
+/// Apply canonical text properties to named Word styles, retaining unspecified formatting.
 pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Result<()> {
     let Some(configured) = &settings.fields().docx_style else {
         return Ok(());
@@ -223,88 +156,31 @@ pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Resu
             eprintln!("[DOCX] Style '{name}' was not found, skipping");
             continue;
         };
-        let empty = Map::new();
-        let font = field(raw, &["font", "textStyle", "text-style", "text_style"])
-            .and_then(Value::as_object)
-            .unwrap_or(&empty);
-        if let Some(value) = field(raw, &["fontSize", "font-size", "font_size"])
-            .or_else(|| field(font, &["size", "fontSize", "font-size"]))
-        {
-            style
-                .word("w:rPr")
-                .word("w:sz")
-                .set("w:val", font_half_points(value)?);
+        let prefix = format!("docxStyle.{name}");
+        if let Some(value) = field(raw, "fontSize") {
+            let points = parse_font_size_points(value, &format!("{prefix}.fontSize"))?;
+            // Preserve Word's established twip-rounding followed by half-point truncation.
+            let half_points = layout_twips(LayoutLength::from_unit(points, "pt")) / 10;
+            if half_points <= 0 {
+                bail!("{prefix}.fontSize must be greater than 0");
+            }
+            style.word("w:rPr").word("w:sz").set("w:val", half_points);
         }
-        if let Some(value) = field(
-            raw,
-            &[
-                "fontFamily",
-                "font-family",
-                "font_family",
-                "fontName",
-                "font-name",
-                "font_name",
-            ],
-        )
-        .or_else(|| {
-            field(
-                font,
-                &[
-                    "family",
-                    "name",
-                    "fontFamily",
-                    "font-family",
-                    "fontName",
-                    "font-name",
-                ],
-            )
-        }) {
-            let western = value.as_str().or_else(|| {
-                value
-                    .as_object()
-                    .and_then(|mapping| {
-                        field(
-                            mapping,
-                            &[
-                                "western", "latin", "ascii", "en", "fontName", "name", "family",
-                            ],
-                        )
-                    })
-                    .and_then(Value::as_str)
-            });
-            let chinese = value.as_str().or_else(|| {
-                value
-                    .as_object()
-                    .and_then(|mapping| {
-                        field(
-                            mapping,
-                            &[
-                                "chinese",
-                                "eastAsia",
-                                "east-asian",
-                                "eastAsian",
-                                "cjk",
-                                "zh",
-                            ],
-                        )
-                    })
-                    .and_then(Value::as_str)
-            });
+        if let Some(value) = field(raw, "fontFamily") {
+            let families = parse_font_family(value, &format!("{prefix}.fontFamily"))?;
             let fonts = style.word("w:rPr").word("w:rFonts");
-            if let Some(family) = western {
+            if let Some(family) = families.get("western") {
                 fonts.set("w:ascii", family);
                 fonts.set("w:hAnsi", family);
                 fonts.attrs.remove("w:asciiTheme");
                 fonts.attrs.remove("w:hAnsiTheme");
             }
-            if let Some(family) = chinese {
+            if let Some(family) = families.get("chinese") {
                 fonts.set("w:eastAsia", family);
                 fonts.attrs.remove("w:eastAsiaTheme");
             }
         }
-        if let Some(value) = field(raw, &["bold", "fontBold", "font-bold", "font_bold"])
-            .or_else(|| field(font, &["bold", "fontBold", "font-bold", "font_bold"]))
-        {
+        if let Some(value) = field(raw, "bold") {
             let bold = value
                 .as_bool()
                 .or_else(|| {
@@ -316,78 +192,52 @@ pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Resu
                             _ => None,
                         })
                 })
-                .ok_or_else(|| anyhow::anyhow!("docxStyle.{name}.bold must be true or false"))?;
+                .ok_or_else(|| anyhow::anyhow!("{prefix}.bold must be true or false"))?;
             set_bool(style.word("w:rPr"), "w:b", bold);
             set_bool(style.word("w:rPr"), "w:bCs", bold);
         }
-        if let Some(value) = field(raw, &["fontColor", "font-color", "font_color", "color"])
-            .or_else(|| field(font, &["color", "fontColor", "font-color"]))
-        {
+        if let Some(value) = field(raw, "fontColor") {
+            let [red, green, blue] = parse_font_color(value, &format!("{prefix}.fontColor"))?;
             style
                 .word("w:rPr")
                 .word("w:color")
-                .set("w:val", color_hex(value)?);
+                .set("w:val", format!("{red:02X}{green:02X}{blue:02X}"));
         }
-        // Character styles accept run typography only. Creating pPr here used
-        // to write invalid paragraph formatting into inline custom styles.
+        // Inline character styles must never acquire paragraph properties.
         if style.attr("w:type") != Some("character") {
-            apply_paragraph_properties(style.word("w:pPr"), raw)?;
+            apply_paragraph_properties(style.word("w:pPr"), raw, &prefix)?;
         }
     }
     Ok(())
 }
 
-/// Apply paragraph settings in the same setter order as the existing DOCX pipeline.
-fn apply_paragraph_properties(properties: &mut Element, raw: &Map<String, Value>) -> Result<()> {
+/// Apply paragraph properties using the shared typography parsers and Word-specific setters.
+fn apply_paragraph_properties(
+    properties: &mut Element,
+    raw: &Map<String, Value>,
+    prefix: &str,
+) -> Result<()> {
     let empty = Map::new();
-    let spacing = field(
-        raw,
-        &["paragraphSpacing", "paragraph-spacing", "paragraph_spacing"],
-    )
-    .and_then(Value::as_object)
-    .unwrap_or(&empty);
-    let indent = field(
-        raw,
-        &[
-            "indentation",
-            "indent",
-            "paragraphIndent",
-            "paragraph-indent",
-        ],
-    )
-    .and_then(Value::as_object)
-    .unwrap_or(&empty);
-    let chars = field(
-        raw,
-        &[
-            "firstLineIndentChars",
-            "first-line-indent-chars",
-            "first_line_indent_chars",
-        ],
-    )
-    .or_else(|| {
-        field(
-            indent,
-            &[
-                "firstLineChars",
-                "first-line-chars",
-                "first_line_chars",
-                "firstLineIndentChars",
-                "first-line-indent-chars",
-            ],
-        )
-    });
+    let spacing = field(raw, "paragraphSpacing")
+        .and_then(Value::as_object)
+        .unwrap_or(&empty);
+    let indent = field(raw, "indentation")
+        .and_then(Value::as_object)
+        .unwrap_or(&empty);
+    let chars = field(raw, "firstLineIndentChars");
+    let first = field(indent, "firstLine");
+    let hanging = field(indent, "hanging");
+    // The core normalizer owns cross-field conflicts; do not maintain a second rule list here.
+    FirstLineIndents {
+        characters: chars,
+        length: first,
+        hanging,
+    }
+    .validate(prefix)?;
     if let Some(value) = chars {
-        let number = value
-            .as_f64()
-            .or_else(|| {
-                value
-                    .as_str()
-                    .and_then(|raw| raw.split_whitespace().next()?.parse().ok())
-            })
-            .ok_or_else(|| anyhow::anyhow!("Character indent must be numeric"))?;
+        let number = parse_number(value, &format!("{prefix}.firstLineIndentChars"))?;
         if number < 0.0 {
-            bail!("Character indent must be greater than or equal to 0");
+            bail!("{prefix}.firstLineIndentChars must be greater than or equal to 0");
         }
         let indentation = properties.word("w:ind");
         indentation.set(
@@ -398,115 +248,58 @@ fn apply_paragraph_properties(properties: &mut Element, raw: &Map<String, Value>
             indentation.attrs.remove(key);
         }
     }
-    for (attribute, aliases) in [
-        (
-            "w:before",
-            vec!["before", "spaceBefore", "space-before", "space_before"],
-        ),
-        (
-            "w:after",
-            vec!["after", "spaceAfter", "space-after", "space_after"],
-        ),
-    ] {
-        if let Some(value) = field(spacing, &aliases) {
-            properties
-                .word("w:spacing")
-                .set(attribute, length_twips(value)?);
+    for (side, attribute) in [("before", "w:before"), ("after", "w:after")] {
+        if let Some(value) = field(spacing, side) {
+            let points = papper_core::style_values::parse_points(
+                value,
+                &format!("{prefix}.paragraphSpacing.{side}"),
+            )?;
+            properties.word("w:spacing").set(
+                attribute,
+                layout_twips(LayoutLength::from_unit(points, "pt")),
+            );
         }
     }
-    if let Some(value) = field(raw, &["lineSpacing", "line-spacing", "line_spacing"]) {
-        let value = value
-            .as_object()
-            .and_then(|mapping| {
-                field(
-                    mapping,
-                    &[
-                        "value",
-                        "spacing",
-                        "lineSpacing",
-                        "line-spacing",
-                        "line_spacing",
-                    ],
-                )
-            })
-            .unwrap_or(value);
-        let text = value
-            .as_str()
-            .map(|raw| raw.trim().to_lowercase())
-            .unwrap_or_else(|| value.to_string());
-        let (line, rule) = if text.ends_with("pt") || text.ends_with('磅') {
-            (length_twips(value)?, "exact")
-        } else {
-            let multiple: f64 = match text.as_str() {
-                "single" => 1.0,
-                "one-half" | "onehalf" => 1.5,
-                "double" => 2.0,
-                _ => text.parse()?,
-            };
-            ((multiple * 240.0).round_ties_even() as i64, "auto")
+    if let Some(value) = field(raw, "lineSpacing") {
+        let parsed = parse_line_spacing(value, &format!("{prefix}.lineSpacing"))?;
+        let (line, rule) = match parsed.amount {
+            LineSpacingAmount::Points(length) => (layout_twips(length), "exact"),
+            LineSpacingAmount::Multiple(multiple) => {
+                ((multiple * 240.0).round_ties_even() as i64, "auto")
+            }
         };
         if line <= 0 {
-            bail!("Line spacing must be greater than 0");
+            bail!("{prefix}.lineSpacing must be greater than 0");
         }
         let spacing = properties.word("w:spacing");
         spacing.set("w:line", line);
         spacing.set("w:lineRule", rule);
     }
-    if let Some(value) = field(
-        raw,
-        &[
-            "alignment",
-            "align",
-            "paragraphAlignment",
-            "paragraph-alignment",
-        ],
-    ) {
-        let alignment = value.as_str().unwrap_or_default().trim().to_lowercase();
-        let alignment = match alignment.as_str() {
-            "justify" | "justified" | "both" => "both",
-            "centre" => "center",
-            "left" | "center" | "right" | "distribute" => &alignment,
-            _ => bail!("Invalid paragraph alignment: {alignment}"),
-        };
-        properties.word("w:jc").set("w:val", alignment);
+    if let Some(value) = field(raw, "alignment") {
+        let (alignment, _) = parse_alignment(value, &format!("{prefix}.alignment"))?;
+        properties.word("w:jc").set(
+            "w:val",
+            if alignment == "justify" {
+                "both"
+            } else {
+                &alignment
+            },
+        );
     }
-    for (attribute, top, nested) in [
-        (
-            "w:left",
-            vec!["leftIndent", "left-indent", "left_indent"],
-            vec!["left", "leftIndent", "left-indent"],
-        ),
-        (
-            "w:right",
-            vec!["rightIndent", "right-indent", "right_indent"],
-            vec!["right", "rightIndent", "right-indent"],
-        ),
-    ] {
-        if let Some(value) = field(raw, &top).or_else(|| field(indent, &nested)) {
-            properties
-                .word("w:ind")
-                .set(attribute, length_twips(value)?);
+    for (side, attribute) in [("left", "w:left"), ("right", "w:right")] {
+        if let Some(value) = field(indent, side) {
+            properties.word("w:ind").set(
+                attribute,
+                layout_twips(parse_length(
+                    value,
+                    &format!("{prefix}.indentation.{side}"),
+                )?),
+            );
         }
     }
-    let first = field(
-        raw,
-        &["firstLineIndent", "first-line-indent", "first_line_indent"],
-    )
-    .or_else(|| {
-        field(
-            indent,
-            &["firstLine", "first-line", "first_line", "firstLineIndent"],
-        )
-    });
-    let hanging = field(raw, &["hangingIndent", "hanging-indent", "hanging_indent"])
-        .or_else(|| field(indent, &["hanging", "hangingIndent", "hanging-indent"]));
-    if first.is_some() && hanging.is_some()
-        || chars.is_some() && (first.is_some() || hanging.is_some())
-    {
-        bail!("Conflicting character/length paragraph indentation");
-    }
     if let Some(value) = first.or(hanging) {
-        let amount = length_twips(value)? * if hanging.is_some() { -1 } else { 1 };
+        let amount = layout_twips(parse_length(value, &format!("{prefix}.indentation"))?)
+            * if hanging.is_some() { -1 } else { 1 };
         let indentation = properties.word("w:ind");
         for key in ["w:firstLineChars", "w:hangingChars"] {
             indentation.attrs.remove(key);

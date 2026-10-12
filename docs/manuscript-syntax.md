@@ -56,8 +56,6 @@ Use a `papperSettings` mapping in the YAML header to override formatting and
 build settings for the Markdown file being built. It accepts every setting
 and value supported by `style.yml`, including `pandocMetadata` and `reply`.
 
-`papper-settings` is also accepted. If both spellings are present,
-`papperSettings` takes priority as a whole, regardless of their order.
 
 ```yaml
 ---

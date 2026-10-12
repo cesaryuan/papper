@@ -353,10 +353,9 @@ tree receive portable URLs under `resources/<source-path-hash>/`.
 
 ## Pandoc Metadata Transport
 
-The shared effective-metadata loader extracts `papperSettings` (or its
-`papper-settings` alias) from the input header and validates it through the
-same style-domain parser used for files. Both keys are removed from transported
-metadata; if both are supplied, the canonical mapping wins as a whole.
+The shared effective-metadata loader extracts the exact `papperSettings` key
+from the input header and validates it through the same style-domain parser
+used for files. Alternate container spellings are rejected before transport.
 File-based base and reply settings are applied before this manuscript layer;
 its own `reply` mapping is applied last for replies. Explicit nullable settings
 are retained during this merge, and `reply: null` clears inherited reply

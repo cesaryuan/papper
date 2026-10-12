@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Number, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{PmtSettings, canonical_field_name};
+use super::PmtSettings;
 
 /// Keep effective primary and calligraphic fonts explicit, regardless of input shorthand.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -28,6 +28,9 @@ impl Default for MathFontConfig {
 }
 
 impl MathFontConfig {
+    /// Canonical object fields required by runtime validation and editor export.
+    pub const FIELD_NAMES: [&str; 2] = ["font", "calligraphicFont"];
+
     /// Normalize string shorthand and reject incomplete or misspelled object fields.
     pub fn from_value(value: &Value) -> Result<Self> {
         /// Validate each font independently so errors identify the affected configuration field.
@@ -50,7 +53,7 @@ impl MathFontConfig {
             }
             Value::Object(fields) => {
                 for field in fields.keys() {
-                    if !matches!(field.as_str(), "font" | "calligraphicFont") {
+                    if !Self::FIELD_NAMES.contains(&field.as_str()) {
                         bail!("Unknown mathtypeTypstMathFont field: {field}")
                     }
                 }
@@ -125,30 +128,9 @@ impl SettingField {
         Self::DocxStyle,
     ];
 
-    /// Resolve aliases only at compatibility boundaries.
+    /// Accept only the exact public camelCase name.
     pub fn from_name(name: &str) -> Option<Self> {
-        match canonical_field_name(name)? {
-            "mathtype" => Some(Self::Mathtype),
-            "mathtypeConversionMethod" => Some(Self::MathtypeConversionMethod),
-            "mathtypeTypstMathFont" => Some(Self::MathtypeTypstMathFont),
-            "mathtypeSvgBackend" => Some(Self::MathtypeSvgBackend),
-            "docxEmbedSvgImages" => Some(Self::DocxEmbedSvgImages),
-            "docxConvertSvgToPng" => Some(Self::DocxConvertSvgToPng),
-            "docxNativeCrossref" => Some(Self::DocxNativeCrossref),
-            "tableAutofit" => Some(Self::TableAutofit),
-            "docxSvgToPngWidth" => Some(Self::DocxSvgToPngWidth),
-            "docxSvgToPngDpi" => Some(Self::DocxSvgToPngDpi),
-            "docxSvgToPngScale" => Some(Self::DocxSvgToPngScale),
-            "citationNumberRangeDelimiter" => Some(Self::CitationNumberRangeDelimiter),
-            "docxShowLineNumbers" => Some(Self::DocxShowLineNumbers),
-            "docxShowPageNumbers" => Some(Self::DocxShowPageNumbers),
-            "docxFooter" => Some(Self::DocxFooter),
-            "docxHeader" => Some(Self::DocxHeader),
-            "docxPageMargins" => Some(Self::DocxPageMargins),
-            "docxPageWidth" => Some(Self::DocxPageWidth),
-            "docxStyle" => Some(Self::DocxStyle),
-            _ => None,
-        }
+        Self::ALL.into_iter().find(|field| field.name() == name)
     }
 
     /// Return the canonical wire spelling used by existing project files.
@@ -188,6 +170,22 @@ pub enum TableAutofit {
 }
 
 impl TableAutofit {
+    /// Enumerate modes for both runtime parsing and editor choices.
+    pub const ALL: [Self; 4] = [Self::Window, Self::Content, Self::Fixed, Self::None];
+
+    /// Parse exact table modes without accepting compatibility spellings for other fields.
+    pub fn from_value(value: &Value) -> Result<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|mode| Some(mode.as_str()) == value.as_str())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "tableAutofit must be {}",
+                    Self::ALL.map(Self::as_str).join(", ")
+                )
+            })
+    }
+
     /// Return the shared Lua filter's canonical mode spelling.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -200,18 +198,55 @@ impl TableAutofit {
 }
 
 /// Select a formula conversion strategy after historical aliases are normalized.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ConversionMethod {
     Auto,
     Rust,
     RustSdk,
-    #[serde(alias = "set-data", alias = "setdata")]
     Mathtype,
     Both,
 }
 
 impl ConversionMethod {
+    /// Keep the public authoring order alongside the runtime strategies.
+    pub const ALL: [Self; 5] = [
+        Self::Rust,
+        Self::RustSdk,
+        Self::Mathtype,
+        Self::Auto,
+        Self::Both,
+    ];
+
+    /// Historical strategy names share the same source in parsing and exported help.
+    pub fn aliases(self) -> &'static [&'static str] {
+        match self {
+            Self::Rust => &["mathtype-rust", "mtef"],
+            Self::RustSdk => &["sdk", "sdk-xform-ole"],
+            Self::Mathtype => &["set-data", "setdata"],
+            Self::Auto | Self::Both => &[],
+        }
+    }
+
+    /// Normalize established case, whitespace and underscore aliases before selecting a strategy.
+    pub fn from_value(value: &Value) -> Result<Self> {
+        let raw = value
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("mathtypeConversionMethod must be a string"))?;
+        let normalized = raw.trim().to_lowercase().replace('_', "-");
+        Self::ALL
+            .into_iter()
+            .find(|method| {
+                method.as_str() == normalized || method.aliases().contains(&normalized.as_str())
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "unsupported MathType conversion method; expected one of: {}",
+                    Self::ALL.map(Self::as_str).join(", ")
+                )
+            })
+    }
+
     /// Preserve the canonical external strategy spelling without allocating JSON.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -224,6 +259,13 @@ impl ConversionMethod {
     }
 }
 
+impl<'de> Deserialize<'de> for ConversionMethod {
+    /// Persisted settings use the same compatibility parser as authored project configuration.
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
+        Self::from_value(&Value::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Select the supported SVG equation renderer without accepting arbitrary names.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -233,6 +275,22 @@ pub enum SvgBackend {
 }
 
 impl SvgBackend {
+    /// Enumerate renderer choices shared by validation and schema export.
+    pub const ALL: [Self; 2] = [Self::Ratex, Self::Typst];
+
+    /// Preserve exact renderer matching rather than widening accepted input during refactoring.
+    pub fn from_value(value: &Value) -> Result<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|backend| Some(backend.as_str()) == value.as_str())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "mathtypeSvgBackend must be {}",
+                    Self::ALL.map(Self::as_str).join(" or ")
+                )
+            })
+    }
+
     /// Return the existing renderer spelling at environment and cache boundaries.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -268,6 +326,11 @@ pub struct DocxFooter {
     pub alignment: Option<FooterAlignment>,
 }
 
+impl DocxFooter {
+    /// Public header/footer properties, shared by diagnostics and editor export.
+    pub const FIELD_NAMES: [&str; 2] = ["content", "alignment"];
+}
+
 /// Limit header/footer alignment to the three supported user-visible placements.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -278,6 +341,8 @@ pub enum FooterAlignment {
 }
 
 impl FooterAlignment {
+    /// Publish the header/footer placements represented by the runtime type.
+    pub const ALL: [Self; 3] = [Self::Left, Self::Center, Self::Right];
     /// Return the Word paragraph alignment without allocating a configuration object.
     pub fn as_str(self) -> &'static str {
         match self {

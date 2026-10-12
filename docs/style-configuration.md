@@ -33,7 +33,7 @@ cross-reference labels and prefixes, numbering, and subfigure layout.
 Ordinary fields in the YAML header in `manuscript.md` are manuscript/Pandoc
 metadata. They recursively override `style.yml:pandocMetadata`. Papper-owned
 settings in that header belong inside a `papperSettings` mapping, which accepts
-the same settings, values, and aliases as `style.yml`, including
+the same settings and values as `style.yml`, including
 `pandocMetadata` and `reply`. The optional style `reply:` section can override both Papper settings and its own
 `reply.pandocMetadata` when `papper build html/docx` detects a `reply` path in
 the input Markdown header. The Markdown `reply` field is a manuscript path;
@@ -51,8 +51,14 @@ papper build docx manuscript.md --style-file journal-style.yml
 
 A relative `--style-file` path is resolved from the project directory.
 `PMT_STYLE_FILE` provides the same selection when the command-line option is
-absent. The examples below use the preferred camelCase Papper setting names;
-their kebab-case and snake_case aliases are also accepted.
+absent. Papper-owned configuration keys must use the exact camelCase names
+shown below, such as `docxPageWidth` and `pandocMetadata`. Kebab-case,
+snake_case, abbreviations, and case variations are errors, even if a canonical
+key is also present. This applies to `style.yml`, `reply`, manuscript
+`papperSettings`, and nested typography properties. Pandoc-owned metadata
+keeps its native names, such as `link-citations`, under `pandocMetadata`.
+Unknown top-level style fields are errors; put custom Pandoc metadata in
+`pandocMetadata`.
 
 For example:
 
@@ -93,9 +99,6 @@ Put a `papperSettings` mapping in the YAML header of the Markdown file passed to
 `papper build` to override project styles for that file, without editing
 `style.yml`. It also works when no project style file exists.
 
-`papper-settings` is an alias for `papperSettings`. If both appear in the same
-header, the entire `papperSettings` mapping takes priority; the two mappings
-are not merged.
 
 ```yaml
 ---
@@ -439,7 +442,7 @@ docxPageMargins:
 ```
 
 Lengths accept `pt`, `cm`, `mm`, and `in`; numbers without a unit mean points.
-`inside` and `outside` are aliases for the left and right margins, respectively.
+Use only `top`, `bottom`, `left`, and `right` as margin keys.
 The bundled margins are 2.54 cm at the top/bottom and 3.17 cm at the left/right.
 Project settings merge with these defaults. To preserve all margins from a
 custom reference DOCX, use `docxPageMargins: null`.
@@ -704,7 +707,7 @@ Common style fields under `docxStyle` include:
 - `paragraphSpacing`: `before` and `after` spacing values such as `6pt`
 
 Character styles accept only the text properties `fontFamily`, `fontSize`,
-`fontColor`, and `bold` (including their supported aliases). Paragraph styles
+`fontColor`, and `bold`. Paragraph styles
 accept these text properties as well as paragraph formatting. Paragraph
 spacing, line spacing, alignment, indentation, and tab stops do not apply to
 character styles; paragraph settings under a character style are ignored in
@@ -720,8 +723,10 @@ Do not combine `firstLineIndentChars` with length-based `firstLine` or
 `hanging` in the same style. Length-based `firstLine` and `hanging` are also
 mutually exclusive. Left and right indents may be used with either approach.
 Font sizes must be positive; point sizes and the Chinese Word size names are
-accepted. Use the canonical fields above for new configurations; existing
-`fontName` and nested `font.family` spellings remain accepted.
+accepted. Use the exact property names above: for example, `fontFamily`
+replaces the former `fontName` and `font.family` forms. Nested indentation
+uses `indentation.firstLine` or `indentation.hanging`; alternative spellings
+and unknown typography properties are errors.
 
 For example, configure body text and a revision character style:
 

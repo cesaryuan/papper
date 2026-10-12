@@ -28,7 +28,6 @@ Editor annotations are:
 
 - `x-papper-suggestions`: YAML insertion strings, including quotes where needed;
   these are suggestions, not a restriction on legal values.
-- `x-papper-aliases`: accepted compatibility spellings for an owned field.
 - `x-papper-value-aliases`: historical enum values mapped to canonical values.
 - `x-papper-section`: suggested navigation category; unknown categories should
   fall back to a generic section.
@@ -37,11 +36,19 @@ Editor annotations are:
 An `atMostOne` rule lists paths that must not be configured together. A `style`
 rule applies to a root style layer and its reply/per-manuscript counterparts. A
 `docxTextStyle` rule applies inside each named style. Consumers should evaluate
-paths through accepted field spellings, including nested indentation aliases.
+paths through exact canonical field names, including nested indentation fields.
 
-Owned fields are enumerated from `SettingField::ALL` with exhaustive Rust matches;
-canonical candidates serialize the production enum types. Concise localized help
-and open-form field hints live in `crates/papper-core/src/configuration_help.json`.
+Owned fields are enumerated from `SettingField::ALL`; their shared `SettingShape`
+defines preferred types and nullable behavior. Enum choices come from the runtime
+enums, numeric limits and SVG sizing constraints from metadata definitions, and
+typography names/types and indentation conflicts from the style domain. DOCX
+formatting calls the same typography parsers as the core and HTML path.
+
+`configuration_help.json` contains only descriptions and optional suggestions,
+loaded through typed Rust help structures that reject unexpected members. It
+does not determine accepted names, validation types, enums or runtime rules. Papper-owned
+objects reject unknown keys; Pandoc metadata and user-defined Word style names
+remain extensible. All owned keys require exact canonical spelling.
 Templates and language defaults are embedded directly from their authored YAML
 files. When changing public configuration, update the runtime, editor help and
 user guide together, then regenerate downstream offline snapshots. Adding a field

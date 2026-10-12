@@ -29,20 +29,18 @@ pub fn parse_margin_length(value: &Value, field_name: &str) -> Result<LayoutLeng
     Ok(length)
 }
 
-/// Normalize only configured margin sides, including inside/outside aliases.
+/// Canonical physical page sides, shared by validation and editor schemas.
+pub const PAGE_MARGIN_SIDES: [&str; 4] = ["top", "bottom", "left", "right"];
+
+/// Normalize only explicitly configured canonical margin sides.
 pub fn normalize_page_margins(settings: &PmtSettings) -> Result<Option<PageMargins>> {
     let Some(raw) = &settings.fields().docx_page_margins else {
         return Ok(None);
     };
     let mut margins = BTreeMap::new();
     let mut display_values = BTreeMap::new();
-    for (side, aliases) in [
-        ("top", &["top"][..]),
-        ("bottom", &["bottom"][..]),
-        ("left", &["left", "inside"][..]),
-        ("right", &["right", "outside"][..]),
-    ] {
-        if let Some(value) = aliases.iter().find_map(|alias| raw.get(*alias)) {
+    for side in PAGE_MARGIN_SIDES {
+        if let Some(value) = raw.get(side) {
             let value = serde_json::to_value(value)?;
             margins.insert(
                 side.to_string(),
@@ -61,9 +59,9 @@ mod tests {
 
     /// Preserve explicitly supplied margins without filling unrelated page sides.
     #[test]
-    fn physical_margin_aliases_leave_unspecified_sides_unchanged() -> Result<()> {
+    fn physical_margins_leave_unspecified_sides_unchanged() -> Result<()> {
         let settings = PmtSettings::from_mapping(
-            json!({"docxPageMargins": {"inside": "2.54cm", "outside": "1in"}})
+            json!({"docxPageMargins": {"left": "2.54cm", "right": "1in"}})
                 .as_object()
                 .unwrap(),
         )?;

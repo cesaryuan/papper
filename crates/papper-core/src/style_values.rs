@@ -8,6 +8,64 @@ use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use crate::metadata::PmtSettings;
+use crate::style_properties::{STYLE_PROPERTIES, validate_property_names};
+
+/// Identify the three mutually exclusive first-line indentation modes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FirstLineIndentKind {
+    Characters,
+    Length,
+    Hanging,
+}
+
+impl FirstLineIndentKind {
+    /// Shared mode list for runtime conflicts and editor paths.
+    pub const ALL: [Self; 3] = [Self::Characters, Self::Length, Self::Hanging];
+
+    /// Return preferred configuration paths used by both editors and the domain parser.
+    pub fn path(self) -> &'static [&'static str] {
+        match self {
+            Self::Characters => &["firstLineIndentChars"],
+            Self::Length => &["indentation", "firstLine"],
+            Self::Hanging => &["indentation", "hanging"],
+        }
+    }
+}
+
+/// Hold already-resolved indentation values, preserving explicit null handling.
+pub struct FirstLineIndents<'a> {
+    pub characters: Option<&'a Value>,
+    pub length: Option<&'a Value>,
+    pub hanging: Option<&'a Value>,
+}
+
+impl FirstLineIndents<'_> {
+    /// Select a resolved value by the mode exported to editors.
+    fn value(&self, kind: FirstLineIndentKind) -> Option<&Value> {
+        match kind {
+            FirstLineIndentKind::Characters => self.characters,
+            FirstLineIndentKind::Length => self.length,
+            FirstLineIndentKind::Hanging => self.hanging,
+        }
+    }
+
+    /// Reject multiple modes while retaining the existing, actionable diagnostics.
+    pub fn validate(&self, prefix: &str) -> Result<()> {
+        let configured: Vec<_> = FirstLineIndentKind::ALL
+            .into_iter()
+            .filter(|kind| self.value(*kind).is_some())
+            .collect();
+        if configured.len() <= 1 {
+            return Ok(());
+        }
+        if configured.contains(&FirstLineIndentKind::Characters) {
+            bail!(
+                "{prefix} cannot set character first-line indent together with length-based first-line or hanging indent"
+            )
+        }
+        bail!("{prefix} cannot set both firstLineIndent and hangingIndent")
+    }
+}
 
 /// Store layout lengths in integer EMUs, retaining Word's truncation precision.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -35,14 +93,15 @@ impl LayoutLength {
 /// Keep the unit and display form alongside a normalized line-spacing value.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LineSpacing {
-    pub kind: &'static str,
-    pub value: Value,
+    pub amount: LineSpacingAmount,
     pub display: String,
 }
 
-/// Return the first present alias, including an explicitly configured null.
-pub fn first_present<'a>(mapping: &'a Map<String, Value>, keys: &[&str]) -> Option<&'a Value> {
-    keys.iter().find_map(|key| mapping.get(*key))
+/// Keep proportional spacing distinct from exact physical spacing across output backends.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LineSpacingAmount {
+    Multiple(f64),
+    Points(LayoutLength),
 }
 
 /// Render YAML-like scalar values for user-facing formatting descriptions.
@@ -235,21 +294,6 @@ fn compact_number(number: f64) -> String {
 
 /// Distinguish proportional line spacing from exact point-based line spacing.
 pub fn parse_line_spacing(value: &Value, field_name: &str) -> Result<LineSpacing> {
-    let value = value
-        .as_object()
-        .and_then(|mapping| {
-            first_present(
-                mapping,
-                &[
-                    "value",
-                    "spacing",
-                    "lineSpacing",
-                    "line-spacing",
-                    "line_spacing",
-                ],
-            )
-        })
-        .unwrap_or(value);
     let (kind, number) = if let Some(number) = numeric_value(value) {
         ("multiple", number)
     } else if let Some(raw) = value.as_str() {
@@ -280,11 +324,10 @@ pub fn parse_line_spacing(value: &Value, field_name: &str) -> Result<LineSpacing
         bail!("{field_name} must be greater than 0")
     }
     Ok(LineSpacing {
-        kind,
-        value: if kind == "points" {
-            json!(LayoutLength::from_unit(number, "pt").0)
+        amount: if kind == "points" {
+            LineSpacingAmount::Points(LayoutLength::from_unit(number, "pt"))
         } else {
-            json!(number)
+            LineSpacingAmount::Multiple(number)
         },
         display: format!(
             "{}{}",
@@ -393,10 +436,10 @@ pub fn candidate_style_names_for(style_name: &str) -> Vec<String> {
 /// Treat empty nested style blocks like the previous YAML/Python normalizer.
 fn optional_mapping<'a>(
     mapping: &'a Map<String, Value>,
-    aliases: &[&str],
+    key: &str,
     field_name: &str,
 ) -> Result<Option<&'a Map<String, Value>>> {
-    match first_present(mapping, aliases) {
+    match mapping.get(key) {
         None | Some(Value::Null) | Some(Value::Bool(false)) => Ok(None),
         Some(Value::String(raw)) if raw.is_empty() => Ok(None),
         Some(Value::Number(number)) if number.as_f64() == Some(0.0) => Ok(None),
@@ -406,127 +449,48 @@ fn optional_mapping<'a>(
     }
 }
 
-/// Find a non-null outer alias before considering its nested fallback.
-fn outer_or_nested<'a>(
-    outer: &'a Map<String, Value>,
-    aliases: &[&str],
-    nested: Option<&'a Map<String, Value>>,
-    nested_aliases: &[&str],
-) -> Option<&'a Value> {
-    first_present(outer, aliases)
-        .filter(|value| !value.is_null())
-        .or_else(|| {
-            nested
-                .and_then(|mapping| first_present(mapping, nested_aliases))
-                .filter(|value| !value.is_null())
-        })
-}
-
-/// Normalize a paragraph without setting any formatting absent from metadata.
+/// Normalize canonical paragraph properties without inventing absent formatting.
 pub fn normalize_paragraph_style_settings(
     raw: &Map<String, Value>,
     prefix: &str,
 ) -> Result<Map<String, Value>> {
+    validate_property_names(raw, STYLE_PROPERTIES, prefix)?;
     let spacing = optional_mapping(
         raw,
-        &["paragraphSpacing", "paragraph-spacing", "paragraph_spacing"],
+        "paragraphSpacing",
         &format!("{prefix}.paragraphSpacing"),
     )?;
-    let indentation = optional_mapping(
-        raw,
-        &[
-            "indentation",
-            "indent",
-            "paragraphIndent",
-            "paragraph-indent",
-        ],
-        &format!("{prefix}.indentation"),
-    )?;
-    let font = optional_mapping(
-        raw,
-        &["font", "textStyle", "text-style", "text_style"],
-        &format!("{prefix}.font"),
-    )?;
-    let chars = outer_or_nested(
-        raw,
-        &[
-            "firstLineIndentChars",
-            "first-line-indent-chars",
-            "first_line_indent_chars",
-        ],
-        indentation,
-        &[
-            "firstLineChars",
-            "first-line-chars",
-            "first_line_chars",
-            "firstLineIndentChars",
-            "first-line-indent-chars",
-        ],
-    );
-    let first = outer_or_nested(
-        raw,
-        &["firstLineIndent", "first-line-indent", "first_line_indent"],
-        indentation,
-        &["firstLine", "first-line", "first_line", "firstLineIndent"],
-    );
-    let hanging = outer_or_nested(
-        raw,
-        &["hangingIndent", "hanging-indent", "hanging_indent"],
-        indentation,
-        &["hanging", "hangingIndent", "hanging-indent"],
-    );
-    if chars.is_some() && (first.is_some() || hanging.is_some()) {
-        bail!(
-            "{prefix} cannot set character first-line indent together with length-based first-line or hanging indent"
-        )
+    let indentation = optional_mapping(raw, "indentation", &format!("{prefix}.indentation"))?;
+    let chars = raw
+        .get("firstLineIndentChars")
+        .filter(|value| !value.is_null());
+    let first = indentation
+        .and_then(|mapping| mapping.get("firstLine"))
+        .filter(|value| !value.is_null());
+    let hanging = indentation
+        .and_then(|mapping| mapping.get("hanging"))
+        .filter(|value| !value.is_null());
+    FirstLineIndents {
+        characters: chars,
+        length: first,
+        hanging,
     }
-    if first.is_some() && hanging.is_some() {
-        bail!("{prefix} cannot set both firstLineIndent and hangingIndent")
-    }
+    .validate(prefix)?;
     let mut normalized = Map::new();
-    if let Some(size) = outer_or_nested(
-        raw,
-        &["fontSize", "font-size", "font_size"],
-        font,
-        &["size", "fontSize", "font-size"],
-    ) {
+    if let Some(size) = raw.get("fontSize").filter(|value| !value.is_null()) {
         let points = parse_font_size_points(size, &format!("{prefix}.fontSize"))?;
         if points <= 0.0 {
             bail!("{prefix}.fontSize must be greater than 0")
         }
         normalized.insert("font_size_pt".to_string(), json!(points));
     }
-    if let Some(family) = outer_or_nested(
-        raw,
-        &[
-            "fontFamily",
-            "font-family",
-            "font_family",
-            "fontName",
-            "font-name",
-            "font_name",
-        ],
-        font,
-        &[
-            "family",
-            "name",
-            "fontFamily",
-            "font-family",
-            "fontName",
-            "font-name",
-        ],
-    ) {
+    if let Some(family) = raw.get("fontFamily").filter(|value| !value.is_null()) {
         normalized.insert(
             "font_family".to_string(),
             json!(parse_font_family(family, &format!("{prefix}.fontFamily"))?),
         );
     }
-    if let Some(bold) = outer_or_nested(
-        raw,
-        &["bold", "fontBold", "font-bold", "font_bold"],
-        font,
-        &["bold", "fontBold", "font-bold", "font_bold"],
-    ) {
+    if let Some(bold) = raw.get("bold").filter(|value| !value.is_null()) {
         let flag = bold
             .as_bool()
             .or_else(|| {
@@ -540,35 +504,24 @@ pub fn normalize_paragraph_style_settings(
             .ok_or_else(|| anyhow::anyhow!("{prefix}.bold must be true or false"))?;
         normalized.insert("bold".to_string(), json!(flag));
     }
-    if let Some(color) = outer_or_nested(
-        raw,
-        &["fontColor", "font-color", "font_color", "color"],
-        font,
-        &["color", "fontColor", "font-color"],
-    ) {
+    if let Some(color) = raw.get("fontColor").filter(|value| !value.is_null()) {
         normalized.insert(
             "font_color_rgb".to_string(),
             json!(parse_font_color(color, &format!("{prefix}.fontColor"))?),
         );
     }
-    if let Some(line_spacing) = first_present(raw, &["lineSpacing", "line-spacing", "line_spacing"])
-        .filter(|value| !value.is_null())
-    {
+    if let Some(line_spacing) = raw.get("lineSpacing").filter(|value| !value.is_null()) {
         let parsed = parse_line_spacing(line_spacing, &format!("{prefix}.lineSpacing"))?;
-        normalized.insert("line_spacing".to_string(), parsed.value);
+        normalized.insert(
+            "line_spacing".to_string(),
+            match parsed.amount {
+                LineSpacingAmount::Points(length) => json!(length.0),
+                LineSpacingAmount::Multiple(multiple) => json!(multiple),
+            },
+        );
         normalized.insert("line_spacing_display".to_string(), json!(parsed.display));
     }
-    if let Some(alignment) = first_present(
-        raw,
-        &[
-            "alignment",
-            "align",
-            "paragraphAlignment",
-            "paragraph-alignment",
-        ],
-    )
-    .filter(|value| !value.is_null())
-    {
+    if let Some(alignment) = raw.get("alignment").filter(|value| !value.is_null()) {
         let (alignment, display) = parse_alignment(alignment, &format!("{prefix}.alignment"))?;
         normalized.insert("alignment".to_string(), json!(alignment));
         normalized.insert("alignment_display".to_string(), json!(display));
@@ -582,19 +535,11 @@ pub fn normalize_paragraph_style_settings(
             )?),
         );
     }
-    for (key, aliases, nested_aliases) in [
-        (
-            "left",
-            &["leftIndent", "left-indent", "left_indent"][..],
-            &["left", "leftIndent", "left-indent"][..],
-        ),
-        (
-            "right",
-            &["rightIndent", "right-indent", "right_indent"][..],
-            &["right", "rightIndent", "right-indent"][..],
-        ),
-    ] {
-        if let Some(value) = outer_or_nested(raw, aliases, indentation, nested_aliases) {
+    for key in ["left", "right"] {
+        if let Some(value) = indentation
+            .and_then(|mapping| mapping.get(key))
+            .filter(|value| !value.is_null())
+        {
             normalized.insert(
                 format!("{key}_indent"),
                 json!(parse_length(value, &format!("{prefix}.indentation.{key}"))?.0),
@@ -622,18 +567,9 @@ pub fn normalize_paragraph_style_settings(
             json!(display_value(value)),
         );
     }
-    for (side, aliases) in [
-        (
-            "before",
-            &["before", "spaceBefore", "space-before", "space_before"][..],
-        ),
-        (
-            "after",
-            &["after", "spaceAfter", "space-after", "space_after"][..],
-        ),
-    ] {
+    for side in ["before", "after"] {
         if let Some(value) = spacing
-            .and_then(|mapping| first_present(mapping, aliases))
+            .and_then(|mapping| mapping.get(side))
             .filter(|value| !value.is_null())
         {
             normalized.insert(
@@ -682,7 +618,7 @@ mod tests {
     /// Preserve localized sizing, explicit false, and physical indentation in output styles.
     #[test]
     fn normalize_localized_paragraph_and_explicit_false() -> Result<()> {
-        let raw = json!({"fontSize": "小五", "font": {"family": {"western": "Times New Roman", "chinese": "宋体"}, "bold": true}, "bold": false, "indentation": {"hanging": "0.5cm"}, "lineSpacing": "18pt", "paragraphSpacing": {"before": 0, "after": "6pt"}, "alignment": "centre"});
+        let raw = json!({"fontSize": "小五", "fontFamily": {"western": "Times New Roman", "chinese": "宋体"}, "bold": false, "indentation": {"hanging": "0.5cm"}, "lineSpacing": "18pt", "paragraphSpacing": {"before": 0, "after": "6pt"}, "alignment": "centre"});
         let result =
             normalize_paragraph_style_settings(raw.as_object().unwrap(), "docxStyle.正文文本")?;
         assert_eq!(result["font_size_pt"], json!(9.0));

@@ -2,7 +2,7 @@ For manuscript Markdown and YAML syntax, run `papper guide syntax`. For reusable
 
 ## Style Metadata
 
-If the user wants to change reusable style behavior, update `style.yml`. For settings that apply only to the Markdown being built, use a `papperSettings` (alias `papper-settings`) mapping in its YAML header; it accepts the same configuration as `style.yml` and takes priority over it. Ordinary header fields override Pandoc metadata. Run `papper guide style configuration-placement-and-precedence` for details.
+If the user wants to change reusable style behavior, update `style.yml`. For settings that apply only to the Markdown being built, use a `papperSettings` mapping in its YAML header; it accepts the same configuration as `style.yml` and takes priority over it. Ordinary header fields override Pandoc metadata. Run `papper guide style configuration-placement-and-precedence` for details.
 
 ## Pandoc Markdown Syntax
 
@@ -99,3 +99,5 @@ Write pseudocode as a one-column pipe table. Use bold control words such as `**f
 ## Reviewer Replies
 
 Add `reply: manuscript.md` to the reply Markdown YAML header, with the manuscript path relative to the reply file. Use `papper build docx reply.md` or `papper build html reply.md`; Papper detects the reply and reuses manuscript numbering. Read `papper guide syntax reviewer-replies` for line references and reply styles.
+
+Papper-owned configuration keys must use exact camelCase names, such as `docxPageWidth` and `papperSettings`; kebab-case, snake_case, case variants and shorthand aliases are errors. Pandoc metadata keeps its native key names under `pandocMetadata`.

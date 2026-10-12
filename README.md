@@ -269,7 +269,8 @@ have no Python runtime dependencies. Build and validate a release wheel with
 `cargo run -p papper-dev -- smoke --wheel <wheel-path>`.
 
 Papper-owned configuration uses typed Rust fields and controlled updates;
-historical YAML aliases and explicit false/null precedence remain supported.
+Papper configuration keys use exact camelCase names; explicit false/null
+precedence remains supported.
 Arbitrary Pandoc metadata stays separate. MathType OLE/MTEF conversion and
 LaTeX-to-WMF rendering link Rust libraries directly, with owned results and
 ordinary Rust errors. PDF geometry extraction links MuPDF 1.27.2 through
@@ -487,7 +488,7 @@ complete guide. Topic names come from the current index.
 In generated projects, `style.yml` keeps Papper-owned build settings at the top
 level and places metadata sent to Pandoc under `pandocMetadata`. Ordinary
 manuscript YAML fields override Pandoc metadata. To override Papper settings
-for one manuscript, add a `papperSettings` (alias `papper-settings`) mapping to its YAML header. It accepts
+for one manuscript, add a `papperSettings` mapping to its YAML header. It accepts
 the same configuration as `style.yml` and recursively overrides the selected
 or discovered style files; unspecified fields remain inherited. See
 [`Per-Manuscript Style Overrides`](docs/style-configuration.md#per-manuscript-style-overrides).

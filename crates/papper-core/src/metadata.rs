@@ -11,7 +11,9 @@ use std::sync::OnceLock;
 use yaml_rust::parser::{Event, Parser};
 use yaml_rust::scanner::{TScalarStyle, TokenType};
 
+mod definitions;
 mod settings;
+pub use definitions::{PositiveNumber, SVG_SIZING_FIELDS, SettingShape};
 pub use settings::{
     ConversionMethod, DocxFooter, DocxStyles, FooterAlignment, LengthInput, LineNumberMode,
     MathFontConfig, SettingField, SettingsOverrides, SettingsValues, SvgBackend, TableAutofit,
@@ -66,64 +68,9 @@ impl Default for MetadataOptions {
     }
 }
 
-/// Return the canonical Papper name for a supported historical field spelling.
+/// Recognize an exact public Papper setting name.
 pub fn canonical_field_name(name: &str) -> Option<&'static str> {
-    match name {
-        "mathtype" => Some("mathtype"),
-        "mathtypeConversionMethod"
-        | "mathtype-conversion-method"
-        | "mathtype_conversion_method" => Some("mathtypeConversionMethod"),
-        "mathtypeTypstMathFont" | "mathtype-typst-math-font" | "mathtype_typst_math_font" => {
-            Some("mathtypeTypstMathFont")
-        }
-        "mathtypeSvgBackend" | "mathtype-svg-backend" | "mathtype_svg_backend" => {
-            Some("mathtypeSvgBackend")
-        }
-        "docxEmbedSvgImages"
-        | "docx-embed-svg-images"
-        | "docx_embed_svg_images"
-        | "embedSvgImages"
-        | "embed-svg-images" => Some("docxEmbedSvgImages"),
-        "docxConvertSvgToPng"
-        | "docx-convert-svg-to-png"
-        | "docx_convert_svg_to_png"
-        | "convertSvgToPng"
-        | "convert-svg-to-png" => Some("docxConvertSvgToPng"),
-        "docxNativeCrossref" | "docx-native-crossref" | "docx_native_crossref" => {
-            Some("docxNativeCrossref")
-        }
-        "tableAutofit" | "table-autofit" | "table_autofit" => Some("tableAutofit"),
-        "docxSvgToPngWidth" | "docx-svg-to-png-width" | "docx_svg_to_png_width" => {
-            Some("docxSvgToPngWidth")
-        }
-        "docxSvgToPngDpi" | "docx-svg-to-png-dpi" | "docx_svg_to_png_dpi" => {
-            Some("docxSvgToPngDpi")
-        }
-        "docxSvgToPngScale" | "docx-svg-to-png-scale" | "docx_svg_to_png_scale" => {
-            Some("docxSvgToPngScale")
-        }
-        "citationNumberRangeDelimiter"
-        | "citation-number-range-delimiter"
-        | "citation_number_range_delimiter" => Some("citationNumberRangeDelimiter"),
-        "docxShowLineNumbers"
-        | "docx-show-line-numbers"
-        | "docx_show_line_numbers"
-        | "show-line-numbers"
-        | "showLineNumbers"
-        | "show_line_numbers" => Some("docxShowLineNumbers"),
-        "docxShowPageNumbers"
-        | "docx-show-page-numbers"
-        | "docx_show_page_numbers"
-        | "show-page-numbers"
-        | "showPageNumbers"
-        | "show_page_numbers" => Some("docxShowPageNumbers"),
-        "docxFooter" | "docx-footer" | "docx_footer" => Some("docxFooter"),
-        "docxHeader" | "docx-header" | "docx_header" => Some("docxHeader"),
-        "docxPageMargins" | "docx-page-margins" | "docx_page_margins" => Some("docxPageMargins"),
-        "docxPageWidth" | "docx-page-width" | "docx_page_width" => Some("docxPageWidth"),
-        "docxStyle" | "docx-style" | "docx_style" => Some("docxStyle"),
-        _ => None,
-    }
+    SettingField::from_name(name).map(SettingField::name)
 }
 
 /// Recursively merge mappings while replacing scalars, arrays, and explicit nulls.
@@ -530,65 +477,32 @@ fn parse_bool(value: &Value, name: &str) -> Result<Value> {
     bail!("{name} must be a valid boolean")
 }
 
-/// Normalize supported MathType method aliases without loading conversion engines.
-fn conversion_method(value: &Value) -> Result<Value> {
-    let Some(raw) = value.as_str() else {
-        bail!("mathtypeConversionMethod must be a string")
-    };
-    let normalized = raw.trim().to_lowercase().replace('_', "-");
-    let canonical = match normalized.as_str() {
-        "rust" | "mathtype-rust" | "mtef" => "rust",
-        "rust-sdk" | "sdk" | "sdk-xform-ole" => "rust-sdk",
-        "mathtype" | "set-data" | "setdata" => "mathtype",
-        "auto" => "auto",
-        "both" => "both",
-        _ => bail!(
-            "unsupported MathType conversion method; expected one of: rust, rust-sdk, mathtype, auto, both"
-        ),
-    };
-    Ok(json!(canonical))
-}
-
-/// Validate positive rasterization controls and coerce compatible numeric strings.
-fn positive_number(value: &Value, name: &str, integer: bool) -> Result<Value> {
-    if value.is_null() {
-        return Ok(Value::Null);
-    }
-    let number = value
-        .as_f64()
-        .or_else(|| value.as_bool().map(|flag| u8::from(flag) as f64))
-        .or_else(|| value.as_str().and_then(|raw| raw.trim().parse().ok()))
-        .ok_or_else(|| anyhow::anyhow!("{name} must be a number"))?;
-    if !number.is_finite() || number <= 0.0 {
-        bail!("{name} must be greater than 0")
-    }
-    if integer {
-        if number.fract() != 0.0 || number > i64::MAX as f64 {
-            bail!("{name} must be an integer")
-        }
-        Ok(json!(number as i64))
-    } else {
-        Ok(json!(number))
-    }
-}
-
 /// Validate one canonical field while preserving false, zero, and nullable values.
 fn validate_field(name: &str, value: &Value) -> Result<Value> {
+    let field = SettingField::from_name(name)
+        .ok_or_else(|| anyhow::anyhow!("Unknown Papper setting: {name}"))?;
+    let shape = field.shape();
+    if value.is_null() && shape.allows_null() {
+        return Ok(Value::Null);
+    }
+    if let SettingShape::PositiveNumber(constraint) = shape {
+        return constraint.normalize(value, name);
+    }
     match name {
         "mathtype" | "docxNativeCrossref" | "docxEmbedSvgImages" | "docxConvertSvgToPng" => {
             parse_bool(value, name)
         }
-        "docxShowPageNumbers" if value.is_null() => Ok(Value::Null),
-        "tableAutofit" => match value.as_str() {
-            Some("window" | "content" | "fixed" | "none") => Ok(value.clone()),
-            _ => bail!("tableAutofit must be window, content, fixed, or none"),
-        },
+        "tableAutofit" => Ok(json!(TableAutofit::from_value(value)?)),
         "docxShowPageNumbers" => parse_bool(value, name),
-        "docxFooter" | "docxHeader" if value.is_null() => Ok(Value::Null),
         "docxFooter" | "docxHeader" => {
             let Some(fields) = value.as_object() else {
                 bail!("{name} must be a mapping or null")
             };
+            for key in fields.keys() {
+                if !DocxFooter::FIELD_NAMES.contains(&key.as_str()) {
+                    bail!("Unknown {name} property: {key}")
+                }
+            }
             let footer: DocxFooter = serde_json::from_value(value.clone())
                 .with_context(|| format!("{name} must be a mapping with string content and alignment left, center, or right"))?;
             // Null subfields would accidentally revive inherited content during merging.
@@ -599,25 +513,22 @@ fn validate_field(name: &str, value: &Value) -> Result<Value> {
             }
             Ok(json!(footer))
         }
-        "mathtypeConversionMethod" => conversion_method(value),
+        "mathtypeConversionMethod" => Ok(json!(ConversionMethod::from_value(value)?)),
         "mathtypeTypstMathFont" => Ok(json!(MathFontConfig::from_value(value)?)),
-        "mathtypeSvgBackend" => match value.as_str() {
-            Some("ratex" | "typst") => Ok(value.clone()),
-            _ => bail!("mathtypeSvgBackend must be ratex or typst"),
-        },
-        "docxSvgToPngWidth" => positive_number(value, name, true),
-        "docxSvgToPngDpi" | "docxSvgToPngScale" => positive_number(value, name, false),
+        "mathtypeSvgBackend" => Ok(json!(SvgBackend::from_value(value)?)),
         "citationNumberRangeDelimiter" if value.is_null() || value.is_string() => Ok(value.clone()),
         "citationNumberRangeDelimiter" => bail!("citationNumberRangeDelimiter must be a string"),
         "docxShowLineNumbers" if value.is_string() => Ok(value.clone()),
         "docxShowLineNumbers" => parse_bool(value, name),
-        "docxPageMargins" if value.is_null() => Ok(Value::Null),
         "docxPageMargins" => {
             let Some(mapping) = value.as_object() else {
                 bail!("docxPageMargins must be a mapping")
             };
             let mut margins = Map::new();
             for (side, length) in mapping {
+                if !crate::page_margins::PAGE_MARGIN_SIDES.contains(&side.as_str()) {
+                    bail!("Unknown page margin `{side}`; use top, bottom, left, or right")
+                }
                 if length.is_string() || length.is_number() {
                     margins.insert(side.clone(), length.clone());
                 } else if let Some(flag) = length.as_bool() {
@@ -633,13 +544,19 @@ fn validate_field(name: &str, value: &Value) -> Result<Value> {
         }
         "docxPageWidth" if value.is_boolean() => Ok(json!(u8::from(value.as_bool().unwrap()))),
         "docxPageWidth" => bail!("docxPageWidth must be a length value"),
-        "docxStyle" if value.is_null() => Ok(Value::Null),
         "docxStyle" => {
             let Some(mapping) = value.as_object() else {
                 bail!("docxStyle must be a mapping")
             };
             if let Some((style, _)) = mapping.iter().find(|(_, value)| !value.is_object()) {
                 bail!("docxStyle.{style} must be a mapping")
+            }
+            for (style, properties) in mapping {
+                crate::style_properties::validate_property_names(
+                    properties.as_object().expect("checked mapping"),
+                    crate::style_properties::STYLE_PROPERTIES,
+                    &format!("docxStyle.{style}"),
+                )?;
             }
             Ok(value.clone())
         }
@@ -654,13 +571,13 @@ type StyleDomains = (
     Option<ReplySettings>,
 );
 
-/// Separate style domains and migrate legacy spellings without rewriting source files.
+/// Separate explicit Papper and Pandoc domains, rejecting misspelled owned settings.
 fn split_style_mapping(
     raw: &Map<String, Value>,
     source: &Path,
     section: &str,
 ) -> Result<StyleDomains> {
-    let mut explicit = match raw.get("pandocMetadata") {
+    let pandoc_metadata = match raw.get("pandocMetadata") {
         None => Map::new(),
         Some(Value::Object(mapping)) => mapping.clone(),
         _ => bail!(
@@ -668,122 +585,31 @@ fn split_style_mapping(
             source.display()
         ),
     };
-    let legacy_delimiter = explicit.remove("citation-number-range-delimiter");
     let reply = match raw.get("reply") {
         None | Some(Value::Null) => None,
-        Some(Value::Object(_)) if section == "reply" => None,
+        Some(Value::Object(_)) if section == "reply" => {
+            bail!("reply cannot contain another reply section")
+        }
         Some(Value::Object(reply)) => Some(ReplySettings::from_mapping(reply, source)?),
         _ => bail!(
             "`reply` in {} ({section}) must be a YAML mapping",
             source.display()
         ),
     };
-    let mut pmt = Map::new();
-    let mut legacy_pandoc = Map::new();
-    let mut legacy_body = None;
+    let mut settings = Map::new();
     for (name, value) in raw {
-        if name == "pandocMetadata" || name == "reply" {
+        if matches!(name.as_str(), "pandocMetadata" | "reply") {
             continue;
         }
-        if matches!(
-            name.as_str(),
-            "bodyText" | "body-text" | "body_text" | "docxBodyText" | "docx-body-text"
-        ) {
-            let Some(body) = value.as_object() else {
-                bail!(
-                    "`{name}` in {} ({section}) must be a YAML mapping",
-                    source.display()
-                )
-            };
-            legacy_body = Some(body.clone());
-        } else if let Some(canonical) = canonical_field_name(name) {
-            pmt.insert(canonical.to_string(), value.clone());
-        } else {
-            legacy_pandoc.insert(name.clone(), value.clone());
-        }
-    }
-    if let Some(body) = legacy_body {
-        let old = json!({"正文文本": body}).as_object().unwrap().clone();
-        let explicit_styles = match pmt.get("docxStyle") {
-            None => Map::new(),
-            Some(Value::Object(styles)) => styles.clone(),
-            _ => bail!("docxStyle must be a mapping when legacy bodyText is configured"),
-        };
-        pmt.insert(
-            "docxStyle".to_string(),
-            Value::Object(merge_metadata(&old, &explicit_styles)),
-        );
-    }
-    if let Some(delimiter) = legacy_delimiter.filter(|value| !value.is_null()) {
-        pmt.entry("citationNumberRangeDelimiter".to_string())
-            .or_insert(delimiter);
-        eprintln!(
-            "[WARN] Deprecated pandocMetadata.citation-number-range-delimiter in {} ({section}). Move it to top-level citationNumberRangeDelimiter.",
-            source.display()
-        );
-    }
-    if !legacy_pandoc.is_empty() {
-        let mut keys: Vec<_> = legacy_pandoc.keys().map(String::as_str).collect();
-        keys.sort_unstable();
-        let mut conflicts: Vec<_> = legacy_pandoc
-            .keys()
-            .filter(|key| explicit.contains_key(*key))
-            .map(String::as_str)
-            .collect();
-        conflicts.sort_unstable();
-        let conflict_note = if conflicts.is_empty() {
-            String::new()
-        } else {
-            format!(
-                " Conflicts use pandocMetadata values: {}.",
-                conflicts.join(", ")
+        if SettingField::from_name(name).is_none() {
+            bail!(
+                "Unknown Papper setting `{name}` in {} ({section}); use exact camelCase names and put Pandoc metadata under pandocMetadata",
+                source.display()
             )
-        };
-        eprintln!(
-            "[WARN] Deprecated flat Pandoc metadata in {} ({section}): {}. Move these keys under pandocMetadata.{conflict_note}",
-            source.display(),
-            keys.join(", ")
-        );
-    }
-    Ok((pmt, merge_metadata(&legacy_pandoc, &explicit), reply))
-}
-
-/// Match YamlConfigSettingsSource's alias-choice precedence before splitting domains.
-fn normalize_style_source_aliases(raw: &Map<String, Value>) -> Map<String, Value> {
-    let mut output = Map::new();
-    let mut priorities = BTreeMap::new();
-    for (name, value) in raw {
-        let canonical = canonical_field_name(name).or(match name.as_str() {
-            "pandocMetadata" | "pandoc_metadata" => Some("pandocMetadata"),
-            _ => None,
-        });
-        let Some(canonical) = canonical else {
-            output.insert(name.clone(), value.clone());
-            continue;
-        };
-        let priority = if name == canonical {
-            0
-        } else if matches!(name.as_str(), "embedSvgImages" | "convertSvgToPng") {
-            3
-        } else if matches!(name.as_str(), "embed-svg-images" | "convert-svg-to-png") {
-            4
-        } else if name == "show-line-numbers" || name == "show-page-numbers" {
-            3
-        } else if name == "showLineNumbers" || name == "showPageNumbers" {
-            4
-        } else if name == "show_line_numbers" || name == "show_page_numbers" {
-            5
-        } else if name.contains('-') {
-            1
-        } else {
-            2
-        };
-        if priorities.get(canonical).is_none_or(|old| priority < *old) {
-            priorities.insert(canonical, priority);
-            output.insert(canonical.to_string(), value.clone());
         }
+        settings.insert(name.clone(), value.clone());
     }
-    output
+    Ok((settings, pandoc_metadata, reply))
 }
 
 impl Default for PmtSettings {
@@ -848,7 +674,7 @@ impl PmtSettings {
     pub fn from_mapping(mapping: &Map<String, Value>) -> Result<Self> {
         let mut settings = Self::default();
         for (name, value) in mapping {
-            if name == "pandocMetadata" || name == "pandoc_metadata" {
+            if name == "pandocMetadata" {
                 settings.pandoc_metadata = value
                     .as_object()
                     .cloned()
@@ -868,22 +694,21 @@ impl PmtSettings {
             let field = SettingField::from_name(name)
                 .ok_or_else(|| anyhow::anyhow!("Unknown Papper setting: {name}"))?;
             if !settings.provided.insert(field) {
-                bail!(
-                    "Duplicate aliases supplied for Papper setting: {}",
-                    field.name()
-                )
+                bail!("Duplicate Papper setting: {}", field.name())
             }
             settings
                 .fields
                 .assign(field, validate_field(field.name(), value)?)?;
         }
-        let controls: Vec<&str> = ["docxSvgToPngWidth", "docxSvgToPngScale", "docxSvgToPngDpi"]
+        let controls: Vec<&str> = SVG_SIZING_FIELDS
             .into_iter()
+            .map(SettingField::name)
             .filter(|name| settings.get(name).is_some_and(|value| !value.is_null()))
             .collect();
         if controls.len() > 1 {
             bail!(
-                "Only one of docxSvgToPngWidth, docxSvgToPngScale, docxSvgToPngDpi can be set; got: {}",
+                "Only one of {} can be set; got: {}",
+                SVG_SIZING_FIELDS.map(SettingField::name).join(", "),
                 controls.join(", ")
             )
         }
@@ -893,8 +718,7 @@ impl PmtSettings {
     /// Validate either a style file or a manuscript-local style mapping with shared rules.
     fn from_style_mapping(raw: &Map<String, Value>, source: &Path, section: &str) -> Result<Self> {
         let result: Result<Self> = (|| {
-            let raw = normalize_style_source_aliases(raw);
-            let (values, pandoc_metadata, reply) = split_style_mapping(&raw, source, section)?;
+            let (values, pandoc_metadata, reply) = split_style_mapping(raw, source, section)?;
             let mut settings = Self::from_mapping(&merge_settings(&Map::new(), &values))?;
             settings.pandoc_metadata = pandoc_metadata;
             settings.reply = reply;
@@ -922,7 +746,7 @@ impl PmtSettings {
         )
     }
 
-    /// Look up a configuration value by its canonical name or accepted alias.
+    /// Look up a configuration value by its exact canonical name.
     pub fn get(&self, name: &str) -> Option<Value> {
         SettingField::from_name(name).map(|field| self.fields.value(field))
     }
@@ -1164,10 +988,19 @@ pub fn load_effective_metadata_text(
             source.display()
         )
     };
-    let canonical_settings = manuscript.remove("papperSettings");
-    let alias_settings = manuscript.remove("papper-settings");
-    // Remove both spellings from Pandoc metadata; the canonical key wins when both are supplied.
-    let inline_style = canonical_settings.or(alias_settings);
+    // Alternate container spellings must not silently become Pandoc metadata.
+    if manuscript.keys().any(|key| {
+        key != "papperSettings"
+            && key
+                .replace(['-', '_'], "")
+                .eq_ignore_ascii_case("papperSettings")
+    }) {
+        bail!(
+            "Use exact camelCase `papperSettings` in {}",
+            source.display()
+        )
+    }
+    let inline_style = manuscript.remove("papperSettings");
     // An explicit null clears the inherited reply section, just like any mapping override.
     let clears_reply = inline_style
         .as_ref()
@@ -1361,11 +1194,11 @@ mod tests {
         Ok(())
     }
 
-    /// Preserve explicit false and normalize historical aliases before reply merging.
+    /// Preserve explicit false and unspecified fields when applying reply overrides.
     #[test]
     fn reply_uses_only_supplied_fields_and_retains_false() -> Result<()> {
         let settings = PmtSettings::from_yaml_text(
-            "docx-show-page-numbers: true\ndocxStyle:\n  正文文本: {firstLineIndentChars: 2, alignment: left}\nreply:\n  docxShowPageNumbers: false\n  docxStyle:\n    正文文本: {firstLineIndentChars: 0}\n",
+            "docxShowPageNumbers: true\ndocxStyle:\n  正文文本: {firstLineIndentChars: 2, alignment: left}\nreply:\n  docxShowPageNumbers: false\n  docxStyle:\n    正文文本: {firstLineIndentChars: 0}\n",
             Path::new("style.yml"),
         )?;
         let reply = settings.for_reply()?;
@@ -1390,19 +1223,40 @@ mod tests {
         Ok(())
     }
 
-    /// Keep top-level alias precedence independent of YAML key insertion order.
+    /// Reject alternate spellings in every Papper scope rather than forwarding them to Pandoc.
     #[test]
-    fn canonical_style_alias_wins_before_legacy_spellings() -> Result<()> {
-        let settings = PmtSettings::from_yaml_text(
-            "docxShowPageNumbers: true\ndocx-show-page-numbers: false\npandocMetadata: {title: Explicit}\npandoc_metadata: {title: Internal}\nreply:\n  docxShowPageNumbers: true\n  docx-show-page-numbers: false\n",
+    fn rejects_noncanonical_configuration_names() -> Result<()> {
+        let canonical = PmtSettings::from_yaml_text(
+            "docxPageWidth: 21cm\npandocMetadata: {link-citations: true}\n",
             Path::new("style.yml"),
         )?;
-        assert_eq!(settings.get_bool("docxShowPageNumbers"), Some(true));
-        assert_eq!(settings.pandoc_metadata["title"], json!("Explicit"));
-        assert_eq!(
-            settings.for_reply()?.get_bool("docxShowPageNumbers"),
-            Some(false)
-        );
+        assert_eq!(canonical.get("docxPageWidth"), Some(json!("21cm")));
+        assert_eq!(canonical.pandoc_metadata["link-citations"], json!(true));
+        for name in [
+            "docx-page-width",
+            "docx_page_width",
+            "docxpagewidth",
+            "DocxPageWidth",
+            "showPageNumbers",
+            "pandoc-metadata",
+        ] {
+            for text in [
+                format!("{name}: 21cm"),
+                format!("reply:\n  {name}: 21cm"),
+                format!("docxPageWidth: 21cm\n{name}: 21cm"),
+            ] {
+                let error = PmtSettings::from_yaml_text(&text, Path::new("style.yml")).unwrap_err();
+                assert!(format!("{error:#}").contains(name));
+            }
+        }
+        for text in [
+            "docxStyle: {Normal: {font-size: 12pt}}",
+            "docxStyle: {Normal: {fontName: Arial}}",
+            "docxStyle: {Normal: {indentation: {first-line: 1cm}}}",
+            "docxPageMargins: {inside: 1cm}",
+        ] {
+            assert!(PmtSettings::from_yaml_text(text, Path::new("style.yml")).is_err());
+        }
         Ok(())
     }
 
@@ -1523,13 +1377,8 @@ mod tests {
             &style,
             "mathtype: true\ndocxShowPageNumbers: true\ndocxSvgToPngWidth: 640\ndocxPageMargins: {left: 2cm, right: 3cm}\ndocxStyle:\n  Normal:\n    fontSize: 12pt\n    paragraphSpacing: {before: 6pt, after: 12pt}\npandocMetadata:\n  nested: {left: file, right: keep}\n  keywords: [file, inherited]\nreply:\n  mathtype: true\n  docxShowPageNumbers: true\n  docxStyle:\n    Normal: {alignment: right}\n  pandocMetadata:\n    nested: {left: reply, replyOnly: true}\n",
         )?;
-        let text = "---\ntitle: Manuscript\npapperSettings:\n  mathtype: false\n  docx-show-page-numbers: null\n  docxSvgToPngWidth: null\n  docxSvgToPngScale: 2\n  docxPageMargins: {left: 1cm}\n  docxStyle:\n    Normal:\n      alignment: left\n      paragraphSpacing: {after: 0pt}\n  pandocMetadata:\n    title: Inline\n    nested: {left: inline}\n    keywords: [inline]\n  reply:\n    tableAutofit: content\n    pandocMetadata:\n      replyLabel: Inline reply\n---\nBody";
-        for (settings_key, reply) in [
-            ("papperSettings", false),
-            ("papperSettings", true),
-            ("papper-settings", false),
-            ("papper-settings", true),
-        ] {
+        let text = "---\ntitle: Manuscript\npapperSettings:\n  mathtype: false\n  docxShowPageNumbers: null\n  docxSvgToPngWidth: null\n  docxSvgToPngScale: 2\n  docxPageMargins: {left: 1cm}\n  docxStyle:\n    Normal:\n      alignment: left\n      paragraphSpacing: {after: 0pt}\n  pandocMetadata:\n    title: Inline\n    nested: {left: inline}\n    keywords: [inline]\n  reply:\n    tableAutofit: content\n    pandocMetadata:\n      replyLabel: Inline reply\n---\nBody";
+        for (settings_key, reply) in [("papperSettings", false), ("papperSettings", true)] {
             let text = text.replace("papperSettings", settings_key);
             let result = load_effective_metadata_text(
                 &text,
@@ -1576,28 +1425,32 @@ mod tests {
         Ok(())
     }
 
-    /// Keep canonical header precedence independent of key order and exclude both spellings from output.
+    /// Reject misspelled manuscript containers even when a canonical container is also present.
     #[test]
-    fn manuscript_settings_canonical_key_wins_over_alias() -> Result<()> {
+    fn manuscript_settings_rejects_noncanonical_container() -> Result<()> {
         let options = MetadataOptions {
             style_paths: Vec::new(),
             ..MetadataOptions::default()
         };
-        let canonical = "papperSettings: {mathtype: false, pandocMetadata: {title: Canonical}}";
-        let alias = "papper-settings: {mathtype: true, pandocMetadata: {title: Alias}}";
-        for header in [
-            format!("{canonical}\n{alias}"),
-            format!("{alias}\n{canonical}"),
+        for key in [
+            "papper-settings",
+            "papper_settings",
+            "PapperSettings",
+            "pappersettings",
         ] {
-            let result = load_effective_metadata_text(
-                &format!("---\n{header}\n---\nBody"),
-                Path::new("paper.md"),
-                &options,
-            )?;
-            assert_eq!(result.pmt_settings.get_bool("mathtype"), Some(false));
-            assert_eq!(result.pandoc_metadata["title"], json!("Canonical"));
-            assert!(!result.pandoc_metadata.contains_key("papperSettings"));
-            assert!(!result.pandoc_metadata.contains_key("papper-settings"));
+            for header in [
+                format!("{key}: {{mathtype: true}}"),
+                format!("papperSettings: {{mathtype: false}}\n{key}: {{mathtype: true}}"),
+                format!("{key}: {{mathtype: true}}\npapperSettings: {{mathtype: false}}"),
+            ] {
+                let error = load_effective_metadata_text(
+                    &format!("---\n{header}\n---\nBody"),
+                    Path::new("paper.md"),
+                    &options,
+                )
+                .unwrap_err();
+                assert!(error.to_string().contains("papperSettings"));
+            }
         }
         Ok(())
     }

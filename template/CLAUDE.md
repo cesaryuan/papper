@@ -9,7 +9,7 @@ For manuscript syntax and writing patterns, run `papper guide syntax`. For reusa
 
 ## Style Metadata
 
-If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxFooter` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papperSettings` (alias `papper-settings`) mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.
+If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxFooter` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papperSettings` mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.
 
 For DOCX footers, set `docxFooter: {content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. The page-number placeholder works only in footer content. Read `papper guide style docx-page-layout` before replacing authored reference footers.
 
@@ -110,3 +110,5 @@ Write pseudocode as a one-column pipe table. Use bold control words such as `**f
 ## Reviewer Replies
 
 Add `reply: manuscript.md` to the reply Markdown YAML header, with the manuscript path relative to the reply file. Use `papper build docx reply.md` or `papper build html reply.md`; Papper detects the reply and reuses manuscript numbering. Read `papper guide syntax reviewer-replies` for line references and reply styles.
+
+Papper-owned configuration keys must use exact camelCase names, such as `docxPageWidth` and `papperSettings`; kebab-case, snake_case, case variants and shorthand aliases are errors. Pandoc metadata keeps its native key names under `pandocMetadata`.

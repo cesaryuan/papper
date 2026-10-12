@@ -142,12 +142,14 @@ fn reference_export_keeps_character_and_paragraph_formatting_separate() -> Resul
         r##"docxPageMargins: null
 docxStyle:
   Revision Char:
-    font: {family: {western: Times New Roman, chinese: 宋体}, size: 11pt, color: "#123ABC", bold: false}
-    paragraph-spacing: {before: 6pt, after: 12pt}
-    line-spacing: 1.5
-    paragraph-alignment: center
-    paragraph-indent: {left: 0.5cm, right: 0.25cm, hanging: 0.2cm}
-    tabs: [{position: 1cm, alignment: left}]
+    fontFamily: {western: Times New Roman, chinese: 宋体}
+    fontSize: 11pt
+    fontColor: "#123ABC"
+    bold: false
+    paragraphSpacing: {before: 6pt, after: 12pt}
+    lineSpacing: 1.5
+    alignment: center
+    indentation: {left: 0.5cm, right: 0.25cm, hanging: 0.2cm}
   Revision Para:
     fontSize: 11pt
     fontColor: "#123ABC"
