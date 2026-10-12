@@ -50,7 +50,7 @@ docxConvertSvgToPng: false
 
 # 常规 DOCX 默认连续行号，中文 DOCX 默认不显示。中文需连续行号请显式设置为 true。
 # 也可用 '每页重编' 或 '每节重编' 指定重新编号方式。
-docxShowLineNumbers: continuous
+# docxShowLineNumbers: continuous
 
 # 自定义 DOCX 页脚；空 content 清空页脚，docxFooter: null 保留参考文档页脚。
 # content 支持 Pandoc Markdown；[]{t="pageNum" format="upperRoman"} 可指定页码格式。
