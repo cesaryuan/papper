@@ -238,6 +238,7 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
             temporary.path(),
         )?;
         crate::docx_pipeline::append_output_filters(&mut command, &resources);
+        crate::docx_pipeline::configure_footer(&mut environment, &effective, temporary.path())?;
         environment.extend(crate::images::filter_environment(
             &resources,
             &effective.pmt_settings,

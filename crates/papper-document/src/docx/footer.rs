@@ -1,10 +1,12 @@
-//! Render configured footer text and dynamic Word page fields, preserving legacy visibility behavior.
+//! Move Pandoc-rendered Markdown into footer parts and finalize dynamic page fields.
 
 use super::formatting::style_index;
 use super::package::Package;
 use super::xml::{Element, Node};
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use papper_core::metadata::{FooterAlignment, PmtSettings};
+use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Replace configured footers uniformly, or retain the old page-visibility behavior.
 pub(crate) fn apply(
@@ -21,6 +23,36 @@ pub(crate) fn apply(
     };
     let content = config.content.as_deref().unwrap_or("[]{t=\"pageNum\"}");
     let alignment = config.alignment.unwrap_or(FooterAlignment::Center).as_str();
+    let rendered = take_rendered_blocks(document)?;
+    if rendered.is_none() && !content.trim().is_empty() {
+        bail!(
+            "DOCX footer content was not rendered; run the docx_footer Pandoc filter before postprocessing"
+        )
+    }
+    let mut blocks = rendered.unwrap_or_default();
+    // Localized references may use an ID such as af2 rather than the display name Footer.
+    let footer_style = style_index(styles, "Footer")
+        .and_then(|index| match &styles.children[index] {
+            Node::Element(style) => style.attr("w:styleId"),
+            _ => None,
+        })
+        .unwrap_or("Footer");
+    for block in &mut blocks {
+        finalize_page_fields(block, styles)?;
+        format_paragraphs(block, alignment, footer_style, false);
+    }
+    if blocks.is_empty()
+        || !matches!(blocks.last(), Some(Node::Element(element)) if element.name == "w:p")
+    {
+        // Word requires a final paragraph, including after a Markdown table or an empty footer.
+        let mut paragraph = Element::new("w:p");
+        paragraph
+            .word("w:pPr")
+            .word("w:pStyle")
+            .set("w:val", footer_style);
+        paragraph.word("w:pPr").word("w:jc").set("w:val", alignment);
+        blocks.push(Node::Element(paragraph));
+    }
     let mut names: Vec<String> = package
         .entries
         .keys()
@@ -44,63 +76,263 @@ pub(crate) fn apply(
     }
     for name in names {
         let mut footer = package.xml(&name)?;
-        footer.children.clear();
-        let mut paragraph = Element::new("w:p");
-        paragraph
-            .word("w:pPr")
-            .word("w:pStyle")
-            .set("w:val", "Footer");
-        paragraph.word("w:pPr").word("w:jc").set("w:val", alignment);
-        append_content(&mut paragraph, content, styles)?;
-        footer.push(paragraph);
+        // Relocated nodes inherit document namespaces, which may be absent from a custom footer root.
+        for (key, value) in &document.attrs {
+            if key.starts_with("xmlns:") || key == "mc:Ignorable" {
+                footer.set(key, value);
+            }
+        }
+        footer.children = blocks.clone();
+        relocate_relationships(package, &name, &mut footer)?;
+        relocate_identifiers(package, document, &mut footer)?;
         package.set_xml(&name, &footer);
     }
     Ok(())
 }
 
-/// Split plain footer text around empty page spans, e.g. `- []{t="pageNum"} -`.
-fn append_content(paragraph: &mut Element, content: &str, styles: &Element) -> Result<()> {
-    static PAGE_SPAN: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let pattern = PAGE_SPAN.get_or_init(|| {
-        regex::Regex::new(r#"\[\]\{\s*t\s*=\s*(?:"pageNum"|'pageNum'|pageNum)\s*\}"#)
-            .expect("valid footer page span grammar")
-    });
-    let mut offset = 0;
-    for marker in pattern.find_iter(content) {
-        append_text(paragraph, &content[offset..marker.start()]);
-        append_page_field(paragraph, styles)?;
-        offset = marker.end();
+/// Extract exact boundary paragraphs and their rendered blocks before body-specific formatting runs.
+fn take_rendered_blocks(document: &mut Element) -> Result<Option<Vec<Node>>> {
+    let body = document
+        .child_mut("w:body")
+        .context("DOCX is missing its document body")?;
+    let boundaries: Vec<_> = body
+        .children
+        .iter()
+        .enumerate()
+        .filter_map(|(index, node)| {
+            let Node::Element(element) = node else {
+                return None;
+            };
+            if element.name != "w:p" {
+                return None;
+            }
+            match element.text().as_str() {
+                "PMT_DOCX_FOOTER_BEGIN" => Some((index, true)),
+                "PMT_DOCX_FOOTER_END" => Some((index, false)),
+                _ => None,
+            }
+        })
+        .collect();
+    if boundaries.is_empty() {
+        return Ok(None);
     }
-    append_text(paragraph, &content[offset..]);
+    let [(start, true), (end, false)] = boundaries.as_slice() else {
+        bail!("DOCX contains incomplete or duplicate footer boundaries")
+    };
+    let mut nodes: Vec<_> = body.children.drain(*start..=*end).collect();
+    nodes.pop();
+    nodes.remove(0);
+    Ok(Some(nodes))
+}
+
+/// Set outer paragraph alignment while keeping table cells, list numbering, and custom styles intact.
+fn format_paragraphs(node: &mut Node, alignment: &str, footer_style: &str, in_table: bool) {
+    let Node::Element(element) = node else {
+        return;
+    };
+    let in_table = in_table || element.name == "w:tbl";
+    if element.name == "w:p" {
+        let properties = element.word("w:pPr");
+        let inherited = properties
+            .child("w:pStyle")
+            .and_then(|style| style.attr("w:val"));
+        if inherited.is_none_or(|style| {
+            matches!(style, "Normal" | "BodyText" | "FirstParagraph" | "Compact")
+        }) {
+            properties.word("w:pStyle").set("w:val", footer_style);
+        }
+        if !in_table {
+            properties.word("w:jc").set("w:val", alignment);
+        }
+    }
+    for child in &mut element.children {
+        format_paragraphs(child, alignment, footer_style, in_table);
+    }
+}
+
+/// Replace Pandoc's styled page runs with dynamic fields without parsing Markdown or losing emphasis.
+fn finalize_page_fields(node: &mut Node, styles: &Element) -> Result<()> {
+    let Node::Element(element) = node else {
+        return Ok(());
+    };
+    let mut children = Vec::new();
+    for mut child in std::mem::take(&mut element.children) {
+        let record = if let Node::Element(run) = &child {
+            (run.name == "w:r")
+                .then(|| run.text())
+                .and_then(|text| text.strip_prefix("PMT_FOOTER_PAGE:").map(str::to_owned))
+        } else {
+            None
+        };
+        if let Some(record) = record {
+            let record: Value =
+                serde_json::from_str(&record).context("Invalid rendered footer page marker")?;
+            let switch = record["switch"]
+                .as_str()
+                .context("Missing footer page format")?;
+            let result = record["result"]
+                .as_str()
+                .context("Missing footer page result")?;
+            let instruction = if switch.is_empty() {
+                " PAGE ".into()
+            } else {
+                format!(" PAGE \\* {switch} ")
+            };
+            let Node::Element(run) = child else {
+                unreachable!()
+            };
+            let properties = run.child("w:rPr").cloned();
+            let mut paragraph = Element::new("w:p");
+            append_formatted_page_field(
+                &mut paragraph,
+                styles,
+                &instruction,
+                result,
+                properties.as_ref(),
+            )?;
+            children.extend(paragraph.children);
+        } else {
+            finalize_page_fields(&mut child, styles)?;
+            children.push(child);
+        }
+    }
+    element.children = children;
     Ok(())
 }
 
-/// Preserve decorative spaces, XML-sensitive text, tabs, and authored line breaks.
-fn append_text(paragraph: &mut Element, text: &str) {
-    if text.is_empty() {
-        return;
-    }
-    let mut run = Element::new("w:r");
-    for (index, line) in text.replace("\r\n", "\n").split('\n').enumerate() {
-        if index > 0 {
-            run.push(Element::new("w:br"));
-        }
-        for (index, part) in line.split('\t').enumerate() {
-            if index > 0 {
-                run.push(Element::new("w:tab"));
-            }
-            if !part.is_empty() {
-                let mut value = Element::with_attrs("w:t", &[("xml:space", "preserve")]);
-                value.children.push(Node::Text(part.into()));
-                run.push(value);
+/// Recreate used body relationships in each footer part while sharing the same media bytes.
+fn relocate_relationships(package: &mut Package, name: &str, footer: &mut Element) -> Result<()> {
+    let source = package.xml("word/_rels/document.xml.rels")?;
+    let mut used = BTreeSet::new();
+    footer.visit(&mut |element| {
+        for key in ["r:id", "r:embed", "r:link"] {
+            if let Some(value) = element.attr(key) {
+                used.insert(value.to_owned());
             }
         }
+    });
+    let path = format!(
+        "word/_rels/{}.rels",
+        name.strip_prefix("word/").unwrap_or(name)
+    );
+    if used.is_empty() {
+        package.entries.remove(&path);
+        return Ok(());
     }
-    paragraph.push(run);
+    let mut relationships = Element::with_attrs(
+        "Relationships",
+        &[(
+            "xmlns",
+            "http://schemas.openxmlformats.org/package/2006/relationships",
+        )],
+    );
+    let mut identifiers = BTreeMap::new();
+    for (index, identifier) in used.iter().enumerate() {
+        let mut relation = source
+            .elements()
+            .find(|relation| relation.attr("Id") == Some(identifier.as_str()))
+            .with_context(|| format!("Missing footer resource relationship: {identifier}"))?
+            .clone();
+        let target = format!("rId{}", index + 1);
+        relation.set("Id", &target);
+        relationships.push(relation);
+        identifiers.insert(identifier.clone(), target);
+    }
+    footer.visit_mut(&mut |element| {
+        for key in ["r:id", "r:embed", "r:link"] {
+            if let Some(value) = element.attr(key).and_then(|value| identifiers.get(value)) {
+                element.set(key, value);
+            }
+        }
+    });
+    package.set_xml(&path, &relationships);
+    Ok(())
+}
+
+/// Give copied pictures/bookmarks unique identities and retain links to footer-local anchors.
+fn relocate_identifiers(package: &Package, document: &Element, footer: &mut Element) -> Result<()> {
+    let mut maximum = 0_u64;
+    let mut bookmark_maximum = 0_u64;
+    let mut bookmark_names = BTreeSet::new();
+    let mut inspect = |element: &Element| {
+        if element.name == "wp:docPr" {
+            maximum = maximum.max(
+                element
+                    .attr("id")
+                    .and_then(|id| id.parse().ok())
+                    .unwrap_or(0),
+            );
+        }
+        if element.name == "w:bookmarkStart" {
+            bookmark_maximum = bookmark_maximum.max(
+                element
+                    .attr("w:id")
+                    .and_then(|id| id.parse().ok())
+                    .unwrap_or(0),
+            );
+            if let Some(name) = element.attr("w:name") {
+                bookmark_names.insert(name.to_owned());
+            }
+        }
+    };
+    document.visit(&mut inspect);
+    for name in package.entries.keys().filter(|name| {
+        (name.starts_with("word/header") || name.starts_with("word/footer"))
+            && name.ends_with(".xml")
+    }) {
+        package.xml(name)?.visit(&mut inspect);
+    }
+    let mut names = BTreeMap::new();
+    let mut identifiers = BTreeMap::new();
+    footer.visit_mut(&mut |element| {
+        if element.name == "wp:docPr" {
+            maximum += 1;
+            element.set("id", maximum);
+        }
+        if element.name == "w:bookmarkStart" {
+            bookmark_maximum += 1;
+            if let Some(id) = element.attr("w:id") {
+                identifiers.insert(id.to_owned(), bookmark_maximum.to_string());
+            }
+            if let Some(old) = element.attr("w:name") {
+                let mut name = format!("PapperFooter{bookmark_maximum}");
+                while bookmark_names.contains(&name) {
+                    name.push('_');
+                }
+                names.insert(old.to_owned(), name.clone());
+                bookmark_names.insert(name.clone());
+                element.set("w:name", name);
+            }
+        }
+    });
+    footer.visit_mut(&mut |element| {
+        if matches!(element.name.as_str(), "w:bookmarkStart" | "w:bookmarkEnd")
+            && let Some(value) = element.attr("w:id").and_then(|id| identifiers.get(id))
+        {
+            element.set("w:id", value);
+        }
+        if element.name == "w:hyperlink"
+            && let Some(value) = element.attr("w:anchor").and_then(|name| names.get(name))
+        {
+            element.set("w:anchor", value);
+        }
+    });
+    Ok(())
 }
 
 /// Insert a dynamic PAGE field using the reference's page-number character style.
 fn append_page_field(paragraph: &mut Element, styles: &Element) -> Result<()> {
+    append_formatted_page_field(paragraph, styles, " PAGE ", "1", None)
+}
+
+/// Write the complex Word PAGE field with the selected format and preserved Pandoc run properties.
+fn append_formatted_page_field(
+    paragraph: &mut Element,
+    styles: &Element,
+    instruction: &str,
+    result: &str,
+    properties: Option<&Element>,
+) -> Result<()> {
     let index = style_index(styles, "page number").ok_or_else(|| {
         anyhow::anyhow!("DOCX reference document must define the `page number` character style")
     })?;
@@ -110,22 +342,25 @@ fn append_page_field(paragraph: &mut Element, styles: &Element) -> Result<()> {
     let identifier = style.attr("w:styleId").unwrap_or("page number");
     for (kind, text) in [
         (Some("begin"), None),
-        (None, Some(" PAGE ")),
+        (None, Some(instruction)),
         (Some("separate"), None),
-        (None, Some("1")),
+        (None, Some(result)),
         (Some("end"), None),
     ] {
         let mut run = Element::new("w:r");
+        if let Some(properties) = properties {
+            run.push(properties.clone());
+        }
         run.word("w:rPr").word("w:rStyle").set("w:val", identifier);
         if let Some(kind) = kind {
             run.push(Element::with_attrs("w:fldChar", &[("w:fldCharType", kind)]));
         } else {
-            let mut value = Element::new(if text == Some(" PAGE ") {
+            let mut value = Element::new(if text == Some(instruction) {
                 "w:instrText"
             } else {
                 "w:t"
             });
-            if text == Some(" PAGE ") {
+            if text == Some(instruction) {
                 value.set("xml:space", "preserve");
             }
             value

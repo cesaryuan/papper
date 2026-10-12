@@ -495,6 +495,7 @@ fn build_other(
             temporary.path(),
         )?;
         crate::docx_pipeline::append_output_filters(&mut command, resources);
+        crate::docx_pipeline::configure_footer(&mut environment, &effective, temporary.path())?;
         let cache = project_state_dir(project)?.join("cache");
         environment.extend(crate::images::filter_environment(
             resources,
@@ -542,7 +543,7 @@ fn build_other(
                 },
             )?;
         } else {
-            papper_document::docx::finalize_note_marks(&generated, &formatted)?;
+            papper_document::docx::finalize_output_content(&generated, &formatted, &effective)?;
         }
         if use_mathtype {
             let work = debug_parent.map(|parent| parent.join(project_name));

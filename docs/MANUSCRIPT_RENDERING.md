@@ -45,11 +45,23 @@ page-number fields through the legacy visibility setting preserves other footer
 content; the build does not request
 a document-wide field update when Word opens the output.
 
-`docxFooter` renders plain text and empty `t="pageNum"` spans in
-[`footer.rs`](../crates/papper-document/src/docx/footer.rs). It replaces each
-existing footer part with one `Footer` paragraph and an explicit alignment;
-line breaks and tabs become Word run elements, and decorative spaces are
-preserved. A missing first-section primary footer receives a unique part and
+The CLI writes exact `docxFooter.content` into a request-local Markdown file.
+[`docx_footer.lua`](../pandoc/filters/docx/docx_footer.lua) uses Pandoc's YAML
+metadata Markdown reader, preserving single-line inline parsing like `abstract`.
+It appends footer blocks after manuscript numbering/citeproc and before image
+filters. The main DOCX writer supplies typography, numbering, media and links.
+[`footer.rs`](../crates/papper-document/src/docx/footer.rs) removes boundary
+paragraphs and moves the rendered blocks into each footer before body-specific
+postprocessing. Styled page-marker runs become complex `PAGE` fields with a
+validated general-format switch and a format-appropriate initial result;
+enclosing Markdown emphasis is preserved. Footer relationships are rebuilt from
+used body relationships, with shared media bytes and unique picture/bookmark IDs.
+Document namespaces are copied to footer roots. Outer paragraphs use explicit
+alignment; table cells keep their Markdown alignment. A final paragraph is added
+after tables. Footer finalization runs even with optional postprocessing disabled,
+so internal boundaries never become published body content. Word-invalid notes
+and unsupported citations fail in the filter before publication.
+A missing first-section primary footer receives a unique part and
 relationship without changing first/even-page modes or section page numbering.
 `null` bypasses footer edits. Papper settings merge the new footer mapping
 recursively but remove the lower-priority legacy `docxShowPageNumbers` field

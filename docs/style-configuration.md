@@ -442,18 +442,65 @@ docxFooter:
   alignment: center
 ```
 
-`content` is plain text with page-number placeholders. Other Markdown formatting,
-images, links, and manuscript cross-references are not supported in footer text.
-The placeholder also accepts single quotes or no quotes (`[]{t='pageNum'}` or
-`[]{t=pageNum}`), with optional whitespace inside the braces. Multiple placeholders
-each show the current page number. Spaces are preserved; a YAML block string can
-include line breaks. This placeholder is supported only in `docxFooter.content`,
-not in the manuscript body. Page numbers remain automatic Word page numbers and
-use the reference DOCX's `page number` character style, which must exist when
-the content contains a page-number placeholder. Plain text uses the `Footer`
-paragraph style; configure its font and size with `docxStyle`.
+`content` supports Pandoc Markdown that can be rendered in DOCX, including bold,
+italic, strikethrough, superscript/subscript, inline code, links, images, native
+Word math, multiple paragraphs, lists, and tables. Image paths use the same
+resource search paths as manuscript images. A single-line string is inline
+Markdown, so `'- []{t="pageNum"} -'` keeps the decorative hyphens. Multiline
+strings support block Markdown; use a YAML block string for paragraphs or tables:
 
-`alignment` accepts `left`, `center`, or `right`. The bundled default is a centered
+```yaml
+docxFooter:
+  content: |
+    **Confidential** · [Project website](https://example.org)
+
+    Page []{t="pageNum" format="upperRoman"}
+  alignment: center
+```
+
+Ordinary newlines and spaces follow Markdown rules. For a visible line break
+inside a paragraph, end the line with a backslash or two spaces. A literal
+Markdown character can be escaped with a backslash. Raw HTML and LaTeX have the
+same DOCX output limitations as ordinary Pandoc Markdown. Footer content is
+independent of manuscript numbering and bibliography processing: citations and
+footnotes/endnotes are rejected, and manuscript cross-references are unsupported.
+Math uses native Word equations even when body equations use MathType.
+
+The placeholder also accepts single quotes or no quotes (`[]{t='pageNum'}` or
+`[]{t=pageNum}`); attributes follow Pandoc's normal span syntax, with spaces
+between attributes and no spaces around `=`. The span must be empty. Multiple
+placeholders each show the current page number. The `format` attribute selects
+the numbering format for that placeholder:
+
+| `format` | Example results | Accepted Word spelling |
+| --- | --- | --- |
+| `decimal` | 1, 2, 3 | `Arabic` |
+| `upperRoman` | I, II, III | `ROMAN` |
+| `lowerRoman` | i, ii, iii | `roman` |
+| `upperLetter` | A, B, C | `ALPHABETIC` |
+| `lowerLetter` | a, b, c | `alphabetic` |
+| `decimalEnclosedDash` | - 1 -, - 2 - | `ArabicDash` |
+| `ordinal` | 1st, 2nd, 3rd | `Ordinal` |
+| `cardinalText` | one, two, three | `CardText` |
+| `ordinalText` | first, second, third | `OrdText` |
+| `hex` | 1, 2, ..., A, B | `Hex` |
+
+Format names are case-sensitive. Omit `format` to retain the reference document's
+section page-number format; explicit formats affect only that placeholder, not
+page-number starting values or other placeholders. Word chooses the language
+of textual numbers from its document/language settings. Unknown formats or
+page-number attributes produce an error.
+
+This placeholder is supported only in `docxFooter.content`,
+not in the manuscript body. Page numbers remain automatic Word page numbers and
+use the `page number` character style from the reference DOCX; Pandoc creates
+the style when it is missing. Ordinary footer paragraphs use
+the `Footer` paragraph style; configure its font and size with `docxStyle`.
+Markdown emphasis around a page placeholder is retained.
+
+`alignment` accepts `left`, `center`, or `right` and applies to paragraphs outside
+tables. Table cells retain their Markdown column alignment; list numbering and
+explicit custom text styles are retained. The bundled default is a centered
 page number: `content: '[]{t="pageNum"}'` and `alignment: center`. Footer mappings
 merge across configuration sources, so setting only `alignment: right` retains
 the inherited content. If no source supplies content or alignment, a footer

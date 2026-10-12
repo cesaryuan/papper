@@ -189,18 +189,18 @@ pub fn postprocess_docx(
     let mut package = Package::open(input)?;
     let mut document = package.xml("word/document.xml")?;
     let mut styles = package.xml("word/styles.xml")?;
-    note_marks::apply(&mut package, &mut document)?;
-    if options.native_crossrefs {
-        native::finalize(&mut package, &mut document, &mut styles)?;
-    }
-    lists::bracketed(&mut package, &mut document, &mut styles)?;
-    formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
     footer::apply(
         &mut package,
         &mut document,
         &styles,
         &effective.pmt_settings,
     )?;
+    note_marks::apply(&mut package, &mut document)?;
+    if options.native_crossrefs {
+        native::finalize(&mut package, &mut document, &mut styles)?;
+    }
+    lists::bracketed(&mut package, &mut document, &mut styles)?;
+    formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
     tables::convert_table_text_styles(&mut document, &styles);
     tables::equation_metadata(&mut document);
     tables::table_metadata(&mut document)?;
@@ -218,11 +218,26 @@ pub fn postprocess_docx(
         .with_context(|| format!("DOCX post-processing failed: {}", output.display()))
 }
 
-/// Finalize Lua-requested correspondence marks even when optional formatting is disabled.
-pub fn finalize_note_marks(input: &Path, output: &Path) -> Result<()> {
+/// Finalize generated footer content and note marks even when optional formatting is disabled.
+pub fn finalize_output_content(
+    input: &Path,
+    output: &Path,
+    effective: &EffectiveMetadata,
+) -> Result<()> {
     let mut package = Package::open(input)?;
     let mut document = package.xml("word/document.xml")?;
-    if note_marks::apply(&mut package, &mut document)? {
+    let styles = package.xml("word/styles.xml")?;
+    if effective.pmt_settings.fields().docx_footer.is_some() {
+        footer::apply(
+            &mut package,
+            &mut document,
+            &styles,
+            &effective.pmt_settings,
+        )?;
+    }
+    if note_marks::apply(&mut package, &mut document)?
+        || effective.pmt_settings.fields().docx_footer.is_some()
+    {
         package.set_xml("word/document.xml", &document);
         package.save_preserving(output)
     } else {

@@ -111,12 +111,34 @@ papperSettings:
 
 This produces a centered footer such as `- 1 -`, with the number changing on
 each page. `alignment` also accepts `left` and `right`. The content supports
-plain text and `[]{t="pageNum"}` placeholders only; this placeholder is not
-supported in body paragraphs or HTML/LaTeX output. A configured footer replaces
+Pandoc Markdown, including emphasis, links, images, lists, tables, and native Word
+math. A single-line string is inline Markdown; a multiline YAML block string
+supports paragraphs and other blocks. Newlines and spaces follow Markdown rules.
+Footnotes/endnotes and bibliography citations are rejected; manuscript
+cross-references are unsupported. The page placeholder is not supported in body
+paragraphs or HTML/LaTeX output. A configured footer replaces
 reference footer content. Use `docxFooter: null` to preserve it or
 `docxFooter: {content: ''}` to clear it. Read
 `papper guide style docx-page-layout` for defaults, style requirements, and
 configuration priority.
+
+Add `format` to an empty page span to choose its numbering format:
+
+```yaml
+papperSettings:
+  docxFooter:
+    content: '**Draft** - []{t="pageNum" format="lowerRoman"} -'
+    alignment: right
+```
+
+This produces a bold `Draft` label followed by `- i -`, `- ii -`, and so on.
+Supported formats are `decimal`, `upperRoman`, `lowerRoman`, `upperLetter`,
+`lowerLetter`, `decimalEnclosedDash`, `ordinal`, `cardinalText`, `ordinalText`,
+and `hex`. Omit `format` to use the reference section's numbering format.
+Attributes use ordinary Pandoc span syntax, for example `t="pageNum"` followed
+by `format="lowerRoman"`. Format names are case-sensitive; invalid formats and
+unknown page-number attributes are errors. Read `papper guide style docx-page-layout`
+for the corresponding Word spellings and layout rules.
 
 ### Bracketed Numbered Lists
 

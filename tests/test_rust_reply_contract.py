@@ -148,6 +148,8 @@ def test_native_reply_and_manuscript_share_docx_defaults(reply_project: ReplyPro
     defaults_path.write_text(yaml.safe_dump(defaults, sort_keys=False), encoding="utf-8")
     markdown = project.directory / "reply.md"
     markdown.write_text("Shared prose reaches both DOCX pipelines.\n", encoding="utf-8")
+    with (project.directory / "style.yml").open("a", encoding="utf-8") as handle:
+        handle.write('docxFooter:\n  content: \'**Draft** - []{t="pageNum" format="upperRoman"} -\'\n  alignment: right\n')
     project.run("reply.md", "-o", "reply.docx")
     built = subprocess.run(
         [str(project.executable), "build", "docx", "-m", "reply.md", "-o", "manuscript.docx", "--no-mathtype"],
@@ -155,9 +157,17 @@ def test_native_reply_and_manuscript_share_docx_defaults(reply_project: ReplyPro
         text=True, encoding="utf-8", errors="replace", timeout=90,
     )
     assert built.returncode == 0, built.stdout + built.stderr
+    from docx.oxml.ns import qn
+
     for name in ["reply.docx", "manuscript.docx"]:
-        paragraphs = [paragraph.text for paragraph in Document(project.directory / name).paragraphs]
+        output = Document(project.directory / name)
+        paragraphs = [paragraph.text for paragraph in output.paragraphs]
         assert "Shared-render: Shared prose reaches both DOCX pipelines." in paragraphs
+        footer = output.sections[0].footer.paragraphs[0]
+        assert footer.text == "Draft - I -"
+        assert footer.runs[0].bold
+        assert footer._p.pPr.find(qn("w:jc")).get(qn("w:val")) == "right"
+        assert [node.text for node in footer._p.iter(qn("w:instrText"))] == [' PAGE \\* ROMAN ']
 
 
 def write_numbered_pdf(path: Path, producer: str, layout: bool) -> None:

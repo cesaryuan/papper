@@ -184,7 +184,7 @@ Install these tools first:
 1. `uv` for installing the platform wheel (the product itself runs natively)
 2. A Papper platform wheel, which includes Pandoc 3.12 and embedded crossref
 3. For line-number source workflows, Windows requires Microsoft Word; other platforms can use `soffice`.
-4. Optional: MathType on Windows only if you select `rust-sdk`, `set-data`, `auto`, or `both`; the default `rust` path is self-contained
+4. Optional: MathType on Windows only if you select `rust-sdk`, `mathtype`, `auto`, or `both`; the default `rust` path is self-contained
 
 Platform wheels use the bundled `pmt-pandoc-worker` for all Pandoc conversions,
 including DOCX/LaTeX/HTML/JSON builds, reviewer replies, and DOCX imports. Ordinary
@@ -392,7 +392,10 @@ docxFooter:
   alignment: center
 ```
 
-The placeholder inserts a dynamic page number. Alignment accepts `left`,
+Footer content supports Pandoc Markdown, including emphasis, links, images,
+lists and tables. Use `[]{t="pageNum" format="upperRoman"}` for Roman page
+numbers, or omit `format` to retain the reference section's format. The
+placeholder inserts a dynamic page number. Alignment accepts `left`,
 `center`, and `right`; the default is a centered page number. Use
 `docxFooter: null` to preserve reference footers or empty `content` to clear
 them. See [`papper guide style docx-page-layout`](docs/style-configuration.md#docx-page-layout)
@@ -840,20 +843,20 @@ contain an OpenType math font. Collections select their first math family.
 When using a custom family name, install it in every build environment.
 Changing the family or font file contents invalidates the formula preview cache.
 This controls Typst SVG/WMF previews, not editable MathType OLE font preferences.
-It has no effect on RaTeX or native MathType previews (`set-data` / `rust-sdk`).
-`auto` tries native MathType `set-data` first and falls back directly to `rust`;
+It has no effect on RaTeX or native MathType previews (`mathtype` / `rust-sdk`).
+`auto` tries native MathType `mathtype` first and falls back directly to `rust`;
 `both` compares both backends, prefers the native MathType result, and uses the Rust
 result if native conversion fails.
 
 If the linked equation library reports a formula conversion error, the build
 warns with the error and LaTeX input and continues. The affected formula retains its original
 Word equation (OMML); other formulas are converted normally. In `both` and `auto`
-modes, conversion tries `set-data` as each formula is converted when that backend
+modes, conversion tries `mathtype` as each formula is converted when that backend
 is available. These modes do not run a separate startup probe for the per-formula
 failure policy. If three consecutive formulas fail with the helper message
-`由于 Exception.ToString() 失败，因此无法打印异常字符串`, PMT treats set-data as
+`由于 Exception.ToString() 失败，因此无法打印异常字符串`, PMT treats mathtype as
 unavailable on that computer for the remainder of the current build and uses Rust
-for subsequent formulas. A successful set-data conversion or a different failure
+for subsequent formulas. A successful mathtype conversion or a different failure
 resets the consecutive counter. If all selected backends fail for a formula, its
 original Word equation is retained. Failed conversions are not cached.
 

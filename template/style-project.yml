@@ -53,7 +53,8 @@ docxConvertSvgToPng: false
 docxShowLineNumbers: continuous
 
 # 自定义 DOCX 页脚；空 content 清空页脚，docxFooter: null 保留参考文档页脚。
-# []{t="pageNum"} 插入动态页码；alignment 支持 left、center、right。
+# content 支持 Pandoc Markdown；[]{t="pageNum" format="upperRoman"} 可指定页码格式。
+# alignment 支持 left、center、right，表格单元格沿用 Markdown 列对齐。
 docxFooter:
   content: '[]{t="pageNum"}'
   alignment: center

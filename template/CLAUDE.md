@@ -13,6 +13,8 @@ If the user wants to change reusable style behavior, update `style.yml`. Papper-
 
 For DOCX footers, set `docxFooter: {content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. The page-number placeholder works only in footer content. Read `papper guide style docx-page-layout` before replacing authored reference footers.
 
+Footer content supports Pandoc Markdown: single-line content is inline Markdown; multiline content supports paragraphs, lists, and tables. `[]{t="pageNum" format="lowerRoman"}` selects a page-number format. Notes and bibliography citations are rejected; manuscript cross-references are unsupported. Read the page-layout guide for supported formats and table alignment.
+
 ## Pandoc Markdown Syntax
 
 **Cross-references:**

@@ -155,7 +155,7 @@ Pandoc Math 节点后，Markdown writer 直接生成数学分隔符，不需要�
 1. `uv`，用于安装平台 wheel
 2. Papper 平台 wheel，已内置 Pandoc 3.12 和 crossref
 3. 行号来源工作流在 Windows 上需要安装 Microsoft Word；其他平台可以使用 `soffice`
-4. 可选：Windows MathType，仅 `rust-sdk`、`set-data`、`auto` 或 `both` 方式需要；默认 `rust` 方式可独立工作
+4. 可选：Windows MathType，仅 `rust-sdk`、`mathtype`、`auto` 或 `both` 方式需要；默认 `rust` 方式可独立工作
 
 平台 wheel 的 `papper setup` 和 `papper init --setup` 在本地验证内置引擎，包含
 `--force` 时也不另外下载。源码开发环境可以使用本地编译的 worker、用户目录中的
@@ -386,6 +386,9 @@ docxFooter:
 ```
 
 `[]{t="pageNum"}` 插入动态页码，以上示例显示为 `- 1 -`、`- 2 -`。
+`content` 支持 Pandoc Markdown，包括加粗、斜体、链接、图片、列表和表格。
+使用 `[]{t="pageNum" format="upperRoman"}` 可显示大写罗马数字页码；
+省略 `format` 时沿用参考文档当前节的编号格式。
 `alignment` 支持 `left`、`center` 和 `right`，默认页脚为居中的页码。
 使用 `docxFooter: null` 保留参考文档页脚，使用空 `content` 清空页脚。
 新配置会替换参考文档的整个页脚；旧 `docxShowPageNumbers` 仍兼容。

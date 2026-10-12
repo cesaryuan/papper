@@ -38,6 +38,12 @@ CASES = {
     "docx_footer": (
         ROOT / "tests" / "snapshot_cases" / "docx_footer", "docx_footer.md",
     ),
+    "docx_footer_markdown": (
+        ROOT / "tests" / "snapshot_cases" / "docx_footer_markdown", "docx_footer_markdown.md",
+    ),
+    "docx_footer_formats": (
+        ROOT / "tests" / "snapshot_cases" / "docx_footer_formats", "docx_footer_formats.md",
+    ),
     "table_attributes": (
         ROOT / "tests" / "snapshot_cases" / "table_attributes", "table_attributes.md",
     ),
@@ -60,7 +66,10 @@ CASES = {
     ),
 }
 # Trailing equation revision attributes are supported by the DOCX pipeline only.
-DOCX_ONLY_CASES = {"native_crossrefs", "equation_attributes", "equation_attributes_no_mathtype", "docx_footer"}
+DOCX_ONLY_CASES = {
+    "native_crossrefs", "equation_attributes", "equation_attributes_no_mathtype",
+    "docx_footer", "docx_footer_markdown", "docx_footer_formats",
+}
 
 pytestmark = pytest.mark.skipif(
     native_pandoc_executable() is None and (shutil.which("pandoc") is None or shutil.which("pandoc-crossref") is None),

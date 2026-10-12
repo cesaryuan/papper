@@ -3,6 +3,7 @@
 use anyhow::Result;
 use papper_core::metadata::EffectiveMetadata;
 use papper_core::resources::ResourcePaths;
+use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -15,10 +16,40 @@ pub(crate) fn append_output_filters(command: &mut Vec<OsString>, resources: &Res
 
 /// Share final DOCX filter paths between conversion and runtime diagnostics.
 pub(crate) fn output_filters(resources: &ResourcePaths) -> Vec<PathBuf> {
-    ["docx_metadata", "svg_embed_images", "svg_to_png"]
-        .into_iter()
-        .map(|kind| resources.resource(format!("pandoc/filters/docx/{kind}.lua")))
-        .collect()
+    [
+        "docx_footer",
+        "docx_metadata",
+        "svg_embed_images",
+        "svg_to_png",
+    ]
+    .into_iter()
+    .map(|kind| resources.resource(format!("pandoc/filters/docx/{kind}.lua")))
+    .collect()
+}
+
+/// Supply exact footer Markdown through a build-local file, avoiding metadata transformations.
+pub(crate) fn configure_footer(
+    environment: &mut BTreeMap<String, Option<String>>,
+    effective: &EffectiveMetadata,
+    work: &Path,
+) -> Result<()> {
+    let path = if let Some(footer) = &effective.pmt_settings.fields().docx_footer {
+        let path = work.join("footer.md");
+        papper_core::paths::atomic_write(
+            &path,
+            footer
+                .content
+                .as_deref()
+                .unwrap_or("[]{t=\"pageNum\"}")
+                .as_bytes(),
+        )?;
+        Some(papper_core::paths::display_path(&path))
+    } else {
+        None
+    };
+    // Explicit removal keeps inherited environment variables from activating stale footer content.
+    environment.insert("PMT_DOCX_FOOTER_CONTENT_PATH".into(), path);
+    Ok(())
 }
 
 /// Prepare the same effective reference for conversion and export-only commands.
