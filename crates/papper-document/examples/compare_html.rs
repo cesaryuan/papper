@@ -29,7 +29,6 @@ fn main() -> Result<()> {
             postprocess_html_text(
                 case["input"].as_str().context("Missing HTML")?,
                 &case["metadata"],
-                case["skip"].as_bool().unwrap_or(false),
             )?
         };
         let expected = case["expected"]

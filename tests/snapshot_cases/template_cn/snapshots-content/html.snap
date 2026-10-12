@@ -1,13 +1,13 @@
-<html lang="zh-Hans" xml:lang="zh-Hans" xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <meta content="关键词一, 关键词二, 关键词三, 关键词四, 关键词五" name="keywords"> <title>论文标题：一项综合研究</title> </head> <body> <main> <header id="title-block-header"> <h1>论文标题：一项综合研究</h1> <div> <p>
+<html lang="zh-Hans" xml:lang="zh-Hans" xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <meta content="关键词一, 关键词二, 关键词三, 关键词四, 关键词五" name="keywords"> <title>论文标题：一项综合研究</title> </head> <body> <main> <header id="title-block-header"> <h1>论文标题：一项综合研究</h1> <div> <div data-custom-style="Author"> <p>
 <span>第一作者</span>
 <sup>a,b</sup>, <span>第二作者</span>
 <sup>a,c</sup>
 <sup>*</sup>
-</p> <p>
-<sup>a</sup> 示例大学示例系，城市，国家</p> <p>
-<sup>b</sup> 示例大学研究所，城市，国家</p> <p>
-<sup>c</sup> 另一所研究机构，城市，国家</p> <p>
-<sup>*</sup>Correspondence to: Dr. 第二作者, 示例大学示例系，城市，国家. E-mail: second.author@university.edu.</p> </div> <div> <div>摘要</div> <p>这是一个使用 Pandoc 编写学术论文的中文模板。请将本摘要替换为你自己的研究概述。摘要应简洁说明研究问题、研究方法、主要结果和结论。根据期刊要求，建议控制在 150—250 个英文单词或相应篇幅以内。本模板演示了图、表、引文、交叉引用以及 <span class="inline math">E=mc^2</span> 等公式的 Pandoc Markdown 写法。</p> </div> <p>
+</p> </div> <div data-custom-style="Affiliation"> <p>
+<sup>a</sup> 示例大学示例系，城市，国家</p> </div> <div data-custom-style="Affiliation"> <p>
+<sup>b</sup> 示例大学研究所，城市，国家</p> </div> <div data-custom-style="Affiliation"> <p>
+<sup>c</sup> 另一所研究机构，城市，国家</p> </div> <div data-custom-style="Correspondence"> <p>
+<sup>*</sup>Correspondence to: Dr. 第二作者, 示例大学示例系，城市，国家. E-mail: second.author@university.edu.</p> </div> </div> <div> <div>摘要</div> <p>这是一个使用 Pandoc 编写学术论文的中文模板。请将本摘要替换为你自己的研究概述。摘要应简洁说明研究问题、研究方法、主要结果和结论。根据期刊要求，建议控制在 150—250 个英文单词或相应篇幅以内。本模板演示了图、表、引文、交叉引用以及 <span class="inline math">E=mc^2</span> 等公式的 Pandoc Markdown 写法。</p> </div> <p>
 <strong>Keywords: </strong>关键词一, 关键词二, 关键词三, 关键词四, 关键词五</p> </header> <h1 id="sec:introduction">1 引言</h1> <p>本模板展示了使用 Pandoc Markdown 编写学术论文的基本结构和功能。请将这些示例内容替换为你自己的研究引言。</p> <p>引言应形成连贯的叙述，将读者从一般研究背景引导到具体研究问题。首先介绍更广泛的研究领域及其重要性，然后通过引用已有工作说明研究背景，例如引用单篇文献<span data-cites="smith2023machine">
 <sup>[<a href="#ref-smith2023machine" role="doc-biblioref">1</a>]</sup>
 </span>、同时引用多篇文献<span data-cites="johnson2022data chen2024neural williams2023dataset">

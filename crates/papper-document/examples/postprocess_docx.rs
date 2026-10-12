@@ -24,7 +24,6 @@ fn main() -> Result<()> {
         &PathBuf::from(&arguments[1]),
         &metadata,
         &DocxPostprocessOptions {
-            skip_author_info: true,
             ..Default::default()
         },
     )

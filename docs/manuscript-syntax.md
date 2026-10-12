@@ -352,9 +352,22 @@ correspondence details, or titles. A string-only list such as
 `author: [First Author, Second Author]` does not provide Papper's DOCX author
 formatting.
 
-The generated correspondence note uses the first corresponding author. For
-wording that names several contacts, use one custom `corresponding` string
-containing the complete note.
+DOCX gives each corresponding author a native Word footnote marked with `*`
+both beside the author name and at the start of the note. Correspondence notes
+do not consume the automatic numbering of body footnotes, including when an
+author has no affiliation. HTML marks corresponding authors with `*` and shows
+the first corresponding author's contact sentence below the affiliations.
+For wording that names several contacts, use one custom `corresponding` string
+containing the complete note. Author information also appears when `title` is
+omitted; HTML fragment previews omit the title and author metadata.
+
+The bundled author names use the `Author` paragraph style (12pt, centered,
+0pt spacing before). Institutions use `Affiliation` (10pt Western text, italic,
+centered, 6pt spacing
+before and after, with line spacing and East Asian font inherited from `Normal`),
+and DOCX contact text uses the `Correspondence Text` character style (10pt,
+italic). Configure these
+names under `docxStyle` to adjust their supported text and paragraph properties.
 
 ## Optional LaTeX Source Configuration
 

@@ -114,7 +114,7 @@ def _assert_header(html: str, label: str) -> None:
     assert document.xpath("normalize-space(//title)") == f"Header {label}"
     assert document.xpath("normalize-space(//h1[@class='title'])") == f"Header {label}"
     assert document.xpath("normalize-space(//p[@class='subtitle'])") == f"Subtitle {label}"
-    assert f"Author {label}" in document.xpath("normalize-space(//p[@class='author'])")
+    assert f"Author {label}" in document.xpath("normalize-space(//div[@class='papper-authors'])")
     assert [" ".join(value.split()) for value in document.xpath("//meta[@name='author']/@content")] == [f"Author {label}"]
     assert document.xpath("//meta[@name='keywords']/@content") == [f"keyword-{label.lower()}"]
     assert [" ".join(value.split()) for value in document.xpath("//meta[@name='description']/@content")] == [f"Description {label}."]

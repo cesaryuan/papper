@@ -535,7 +535,6 @@ fn build_other(
                 &formatted,
                 &effective,
                 &papper_document::docx::DocxPostprocessOptions {
-                    skip_author_info: reply.is_some(),
                     reply_style_formatting: reply.is_some(),
                     native_crossrefs: reply.is_none()
                         && effective.pmt_settings.fields().docx_native_crossref,
@@ -543,7 +542,7 @@ fn build_other(
                 },
             )?;
         } else {
-            atomic_write(&formatted, &std::fs::read(&generated)?)?;
+            papper_document::docx::finalize_note_marks(&generated, &formatted)?;
         }
         if use_mathtype {
             let work = debug_parent.map(|parent| parent.join(project_name));

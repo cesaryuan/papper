@@ -10,10 +10,25 @@ algorithms here rather than in the user guides exposed by `papper guide`.
 
 ## Author and Style Processing
 
-DOCX author formatting reads manuscript YAML mappings and inserts author names,
-affiliations, and corresponding-author footnotes after the title. The native
-implementation is in
-[`authors.rs`](../crates/papper-document/src/docx/authors.rs).
+The shared [`author_info.lua`](../pandoc/filters/shared/author_info.lua) filter
+normalizes keyed and inline author affiliations for DOCX and HTML. Templates
+place the resulting author content immediately after the title. Reply defaults
+exclude this filter; fragment previews do not render metadata.
+
+DOCX uses Pandoc's native `author` inlines for correspondence Notes and a separate
+`papper-affiliations` MetaBlocks field for institution paragraphs. Pandoc 3.12
+collects DOCX footnotes before rendering arbitrary metadata, so putting a Note
+in a custom metadata block creates a dangling reference. Native author Notes
+receive unique IDs alongside body notes. The filter places a hidden custom-mark
+request in each correspondence Note. `docx/note_marks.rs` consumes that request,
+sets `customMarkFollows` on its document reference, and replaces its note label
+with `*`. This package finalization also runs when optional DOCX postprocessing
+is disabled; author content and note allocation still come from Lua and Pandoc.
+HTML uses a `papper-authors` MetaBlocks field and an inline contact paragraph.
+The Rust DOCX/HTML postprocessors no longer insert author content or create
+author styles. `Author`, `Affiliation`, `Correspondence`, and `Correspondence Text`
+are defined in the bundled reference styles and can receive `docxStyle` overrides
+before writing.
 
 Caption typography comes from the reference DOCX styles, including
 `Image Caption` and `Table Caption`. The bundled editable definitions are in

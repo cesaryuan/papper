@@ -410,7 +410,6 @@ impl ConversionState {
                 &text,
                 &prepared,
                 self.work.path(),
-                mode == "preview",
             )?;
             return Ok(
                 json!({"path":path,"output":html,"cache_hit":false,"citeproc_cache_hit":false,"mode":mode,
@@ -481,7 +480,6 @@ impl ConversionState {
         let html = postprocess_html_text_with_style_settings(
             &raw,
             &Value::Object(prepared.effective.pandoc_metadata),
-            mode == "preview",
             &prepared.reference_styles_xml,
             &prepared.effective.pmt_settings,
         )?;
@@ -643,7 +641,6 @@ pub fn build_html(
             &text,
             &prepared,
             temporary.path(),
-            false,
         )?;
         return atomic_write(&request.output, html.as_bytes());
     }
@@ -679,7 +676,6 @@ pub fn build_html(
     let html = postprocess_html_text_with_style_settings(
         &raw,
         &Value::Object(config.pandoc_metadata),
-        false,
         &xml,
         &effective.pmt_settings,
     )?;
@@ -694,7 +690,6 @@ fn render_reply_html(
     text: &str,
     prepared: &PreparedMetadata,
     work: &Path,
-    preview: bool,
 ) -> Result<String> {
     let manuscript = reply_manuscript_text(text, source)?.context("Reply header is missing")?;
     anyhow::ensure!(
@@ -759,7 +754,6 @@ fn render_reply_html(
     postprocess_reply_html_text_with_style_settings(
         &std::fs::read_to_string(output)?,
         &Value::Object(prepared.effective.pandoc_metadata.clone()),
-        preview,
         &prepared.reference_styles_xml,
         &prepared.effective.pmt_settings,
     )

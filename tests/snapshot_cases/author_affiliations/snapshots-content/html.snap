@@ -1,11 +1,10 @@
-<html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <title>Keyed author affiliations</title> </head> <body> <main> <header id="title-block-header"> <h1>Keyed author affiliations</h1> <div> <p>
+<html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <title>Keyed author affiliations</title> </head> <body> <main> <header id="title-block-header"> <h1>Keyed author affiliations</h1> <div> <div data-custom-style="Author"> <p>
 <span>First Researcher</span>
 <sup>a,b</sup>, <span>Second Researcher</span>
 <sup>a</sup>, <span>Corresponding Researcher</span>
 <sup>b,a</sup>
 <sup>*</sup>
-</p> <p>
-<sup>a</sup> Shared University Laboratory</p> <p>
-<sup>b</sup> Collaborative Research Institute</p> <p>
-<sup>*</sup>Please contact Corresponding Researcher at custom@example.test.</p> </div>
-</header> <h1 id="sec:shared-affiliations">1 Shared affiliations</h1> <p>Authors reuse institution keys, preserve their affiliation order, and supply a complete custom correspondence sentence instead of the generated default.</p> </main> </body> </html>
+</p> </div> <div data-custom-style="Affiliation"> <p>
+<sup>a</sup> Shared University Laboratory</p> </div> <div data-custom-style="Affiliation"> <p>
+<sup>b</sup> Collaborative Research Institute</p> </div> <div data-custom-style="Correspondence"> <p>
+<sup>*</sup>Please contact Corresponding Researcher at custom@example.test.</p> </div> </div> </header> <h1 id="sec:shared-affiliations">1 Shared affiliations</h1> <p>Authors reuse institution keys, preserve their affiliation order, and supply a complete custom correspondence sentence instead of the generated default.</p> </main> </body> </html>

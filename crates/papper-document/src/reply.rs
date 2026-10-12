@@ -40,6 +40,7 @@ pub fn reply_defaults(resources: &ResourcePaths, work: &Path, target: &str) -> R
                     | "${.}/filters/shared/bilingual_captions.lua"
                     | "${.}/filters/docx/native_crossrefs.lua"
                     | "${.}/filters/docx/native_citations.lua"
+                    | "${.}/filters/shared/author_info.lua"
             )
         )
     });

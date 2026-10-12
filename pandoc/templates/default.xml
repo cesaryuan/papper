@@ -9,14 +9,6 @@ $if(title)$
       $title$
     </w:p>
 $endif$
-$if(subtitle)$
-    <w:p>
-      <w:pPr>
-        <w:pStyle w:val="$subtitle-style-id$" />
-      </w:pPr>
-      $subtitle$
-    </w:p>
-$endif$
 $for(author)$
     <w:p>
       <w:pPr>
@@ -25,6 +17,15 @@ $for(author)$
       $author$
     </w:p>
 $endfor$
+$papper-affiliations$
+$if(subtitle)$
+    <w:p>
+      <w:pPr>
+        <w:pStyle w:val="$subtitle-style-id$" />
+      </w:pPr>
+      $subtitle$
+    </w:p>
+$endif$
 $if(date)$
     <w:p>
       <w:pPr>

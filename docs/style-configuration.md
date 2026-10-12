@@ -572,6 +572,18 @@ DOCX-specific. Style settings do not change LaTeX document-class typography.
 
 Common Chinese built-in names such as `标题 1`, `正文文本`, and `正文` are automatically mapped to the corresponding Word built-in style names like `Heading 1`, `Body Text`, and `Normal`. Custom styles still need to use their exact DOCX style names.
 
+Author metadata uses the bundled `Author` paragraph style (12pt, centered,
+0pt spacing before) and `Affiliation` paragraph style (10pt Western text,
+italic, centered, 6pt spacing
+before and after). Institutions inherit the `Normal` style's line spacing and
+East Asian font, and have no default keep-with-next or keep-lines-together rule.
+DOCX correspondence notes use the `Correspondence Text` character style
+(10pt, italic); HTML contact
+paragraphs use `Correspondence`. These styles default to Times New Roman for
+Western text and accept the same `docxStyle` overrides as other named styles.
+A custom reference
+DOCX should include these styles when using structured author metadata.
+
 ```yaml
 docxStyle:
   正文文本:

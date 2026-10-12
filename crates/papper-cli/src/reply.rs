@@ -253,7 +253,6 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
             &processed,
             &effective,
             &DocxPostprocessOptions {
-                skip_author_info: true,
                 reply_style_formatting: true,
                 native_crossrefs: false,
             },

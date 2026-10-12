@@ -38,3 +38,4 @@ filters:
   - ${.}/filters/docx/native_citations.lua
   # - ${.}/filters/docx/italic_to_emphasis_style.lua
   - ${.}/filters/docx/captionless_image_style.lua
+  - ${.}/filters/shared/author_info.lua

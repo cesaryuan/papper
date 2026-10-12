@@ -1,8 +1,8 @@
-<html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <meta content="snapshot, metadata, regression" name="keywords"> <title>Metadata snapshot case</title> </head> <body> <main> <header id="title-block-header"> <h1>Metadata snapshot case</h1> <div> <p>
+<html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <meta content="snapshot, metadata, regression" name="keywords"> <title>Metadata snapshot case</title> </head> <body> <main> <header id="title-block-header"> <h1>Metadata snapshot case</h1> <div> <div data-custom-style="Author"> <p>
 <span>Snapshot Author</span>
 <sup>a</sup>
 <sup>*</sup>
-</p> <p>
-<sup>a</sup> Example Laboratory</p> <p>
-<sup>*</sup>Correspondence to: Dr. Snapshot Author (Professor), Example Laboratory. E-mail: snapshot@example.test.</p> </div> <div> <div>Abstract</div> A short abstract used to verify title, author, keyword, and abstract output. </div> <p>
+</p> </div> <div data-custom-style="Affiliation"> <p>
+<sup>a</sup> Example Laboratory</p> </div> <div data-custom-style="Correspondence"> <p>
+<sup>*</sup>Correspondence to: Dr. Snapshot Author (Professor), Example Laboratory. E-mail: snapshot@example.test.</p> </div> </div> <div> <div>Abstract</div> A short abstract used to verify title, author, keyword, and abstract output. </div> <p>
 <strong>Keywords: </strong>snapshot, metadata, regression</p> </header> <h1 id="sec:metadata-body">1 Metadata body</h1> <p>Metadata from the YAML header should be visible in the standalone HTML title block and in the corresponding DOCX properties and title page.</p> </main> </body> </html>

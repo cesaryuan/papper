@@ -1,12 +1,12 @@
 //! Prepare DOCX metadata and edit Word packages without a Python runtime.
 
-mod authors;
 mod captions;
 mod footer;
 mod formatting;
 mod lists;
 mod mathtype;
 mod native;
+mod note_marks;
 mod package;
 mod tables;
 mod xml;
@@ -26,7 +26,6 @@ pub use mathtype::{
 /// Control manuscript/reply formatting without changing shared metadata state.
 #[derive(Clone, Debug, Default)]
 pub struct DocxPostprocessOptions {
-    pub skip_author_info: bool,
     pub reply_style_formatting: bool,
     pub native_crossrefs: bool,
 }
@@ -190,18 +189,11 @@ pub fn postprocess_docx(
     let mut package = Package::open(input)?;
     let mut document = package.xml("word/document.xml")?;
     let mut styles = package.xml("word/styles.xml")?;
+    note_marks::apply(&mut package, &mut document)?;
     if options.native_crossrefs {
         native::finalize(&mut package, &mut document, &mut styles)?;
     }
     lists::bracketed(&mut package, &mut document, &mut styles)?;
-    if !options.skip_author_info {
-        authors::insert(
-            &mut package,
-            &mut document,
-            &mut styles,
-            &effective.pandoc_metadata,
-        )?;
-    }
     formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
     footer::apply(
         &mut package,
@@ -224,6 +216,18 @@ pub fn postprocess_docx(
     package
         .save(output)
         .with_context(|| format!("DOCX post-processing failed: {}", output.display()))
+}
+
+/// Finalize Lua-requested correspondence marks even when optional formatting is disabled.
+pub fn finalize_note_marks(input: &Path, output: &Path) -> Result<()> {
+    let mut package = Package::open(input)?;
+    let mut document = package.xml("word/document.xml")?;
+    if note_marks::apply(&mut package, &mut document)? {
+        package.set_xml("word/document.xml", &document);
+        package.save_preserving(output)
+    } else {
+        papper_core::paths::atomic_write(output, &std::fs::read(input)?)
+    }
 }
 
 /// Inspect visible text in every document/header/footer/note part before publication.

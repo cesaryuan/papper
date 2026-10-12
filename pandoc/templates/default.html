@@ -38,6 +38,7 @@ $endfor$
 $if(title)$
 <header id="title-block-header">
 <h1 class="title">$title$</h1>
+$papper-authors$
 $if(subtitle)$
 <p class="subtitle">$subtitle$</p>
 $endif$
@@ -57,6 +58,8 @@ $if(keywords)$
 <p class="keywords"><strong>Keywords: </strong>$for(keywords)$$keywords$$sep$, $endfor$</p>
 $endif$
 </header>
+$else$
+$papper-authors$
 $endif$
 $if(toc)$
 <nav id="$idprefix$TOC" role="doc-toc">
