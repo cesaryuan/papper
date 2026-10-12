@@ -9,7 +9,7 @@ papperSettings:
   docxStyle:
     Normal:
       fontSize: 11pt
-      color: '336699'
+      fontColor: '336699'
       paragraphSpacing:
         after: 0pt
   pandocMetadata:

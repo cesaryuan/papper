@@ -9,7 +9,7 @@ docxPageMargins:
 docxStyle:
   Normal:
     fontSize: 14pt
-    color: '990000'
+    fontColor: '990000'
     paragraphSpacing:
       before: 6pt
       after: 12pt
