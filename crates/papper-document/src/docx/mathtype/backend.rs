@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-const SET_DATA_FAILURE: &str = "由于 Exception.ToString() 失败，因此无法打印异常字符串";
+const MATHTYPE_FAILURE: &str = "由于 Exception.ToString() 失败，因此无法打印异常字符串";
 
 /// Resolve selected options before generating any document artifacts.
 struct Options {
@@ -75,7 +75,7 @@ fn helper(resources: &ResourcePaths) -> Option<PathBuf> {
     )
 }
 
-/// Check COM registration read-only before permitting automatic set-data attempts.
+/// Check COM registration read-only before permitting automatic mathtype attempts.
 fn sdk_available(resources: &ResourcePaths) -> bool {
     if !cfg!(windows) || helper(resources).is_none() {
         return false;
@@ -91,7 +91,7 @@ pub(super) fn check(resources: &ResourcePaths, effective: &EffectiveMetadata) ->
     let options = Options::read(effective)?;
     if matches!(
         options.method,
-        ConversionMethod::RustSdk | ConversionMethod::SetData | ConversionMethod::Both
+        ConversionMethod::RustSdk | ConversionMethod::Mathtype | ConversionMethod::Both
     ) {
         ensure!(
             sdk_available(resources),
@@ -164,9 +164,9 @@ impl Generator {
         let prefs = self.preferences(binding.size)?;
         let requested = self.options.method;
         let methods: &[ConversionMethod] = match requested {
-            ConversionMethod::Both => &[ConversionMethod::Rust, ConversionMethod::SetData],
+            ConversionMethod::Both => &[ConversionMethod::Rust, ConversionMethod::Mathtype],
             ConversionMethod::Auto if self.auto_sdk && !self.sdk_disabled => {
-                &[ConversionMethod::SetData, ConversionMethod::Rust]
+                &[ConversionMethod::Mathtype, ConversionMethod::Rust]
             }
             ConversionMethod::Auto => &[ConversionMethod::Rust],
             _ => std::slice::from_ref(&requested),
@@ -174,13 +174,13 @@ impl Generator {
         let mut successful_rust = None;
         let mut last_error = None;
         for &method in methods {
-            if method == ConversionMethod::SetData && self.sdk_disabled {
+            if method == ConversionMethod::Mathtype && self.sdk_disabled {
                 continue;
             }
             match self.cached(binding, index, method, prefs.as_deref()) {
                 Ok(equation) => {
                     self.write_debug_parts(index, binding, &equation, method)?;
-                    if method == ConversionMethod::SetData {
+                    if method == ConversionMethod::Mathtype {
                         self.sdk_failure_streak = 0;
                     }
                     if requested == ConversionMethod::Both && method == ConversionMethod::Rust {
@@ -196,8 +196,8 @@ impl Generator {
                     return Ok(equation);
                 }
                 Err(error) => {
-                    if method == ConversionMethod::SetData {
-                        if format!("{error:#}").contains(SET_DATA_FAILURE) {
+                    if method == ConversionMethod::Mathtype {
+                        if format!("{error:#}").contains(MATHTYPE_FAILURE) {
                             self.sdk_failure_streak += 1;
                         } else {
                             self.sdk_failure_streak = 0;
@@ -205,7 +205,7 @@ impl Generator {
                         if self.sdk_failure_streak >= 3 {
                             self.sdk_disabled = true;
                             eprintln!(
-                                "[WARN] MathType set-data failed three consecutive times; using Rust for subsequent equations"
+                                "[WARN] MathType mathtype failed three consecutive times; using Rust for subsequent equations"
                             );
                         }
                     }
@@ -249,7 +249,7 @@ impl Generator {
         ] {
             papper_core::paths::atomic_write(&self.work.join(format!("{prefix}.{suffix}")), bytes)?;
         }
-        if method != ConversionMethod::SetData {
+        if method != ConversionMethod::Mathtype {
             // Cached OLE already carries the exact MTEF; extracting it avoids
             // defeating a warm equation cache merely to write debug sidecars.
             let mtef = native::mtef_from_ole(&equation.ole)?;
@@ -301,12 +301,18 @@ impl Generator {
         prefs: Option<&Path>,
     ) -> Result<Equation> {
         let payload = tex_payload(&binding.latex)?;
-        let native = method != ConversionMethod::SetData;
+        let native = method != ConversionMethod::Mathtype;
         let portable = method == ConversionMethod::Rust;
+        // Retain the old cache identity: renaming the public option does not change MathType artifacts.
+        let cache_method = if method == ConversionMethod::Mathtype {
+            "set-data"
+        } else {
+            method.as_str()
+        };
         let key = digest(&serde_json::to_vec(&json!({
             "version": 2, "payload": payload, "font_size": binding.size,
             "prefs": prefs.map(digest_file).transpose()?.flatten(),
-            "method": method.as_str(), "engine": if native { Some(native::EQUATION_ENGINE_FINGERPRINT) } else { None },
+            "method": cache_method, "engine": if native { Some(native::EQUATION_ENGINE_FINGERPRINT) } else { None },
             "helper": if portable { &None } else { &self.helper_digest },
             "backend": if portable { Some(self.options.backend.as_str()) } else { None },
             "style": if portable { Some(&binding.style) } else { None },
@@ -320,7 +326,7 @@ impl Generator {
             equation.cache_hit = true;
             return Ok(equation);
         }
-        let equation = if method == ConversionMethod::SetData {
+        let equation = if method == ConversionMethod::Mathtype {
             self.sdk(index, &payload, None, prefs)?
         } else {
             let parts = native::encode_latex(&payload, prefs)?;
@@ -405,6 +411,7 @@ impl Generator {
                 if mtef.is_some() {
                     "sdk-xform-ole"
                 } else {
+                    // The bundled helper keeps its existing CLI protocol despite the public rename.
                     "set-data"
                 },
                 "--pre-verb",
@@ -450,18 +457,18 @@ fn conversion_warning(
     index: usize,
     latex: &str,
     rust_ole: &[u8],
-    set_data_ole: &[u8],
+    mathtype_ole: &[u8],
 ) -> Option<String> {
     let rust = native::mtef_from_ole(rust_ole).context("Cannot read Rust OLE MTEF");
-    let set_data = native::mtef_from_ole(set_data_ole).context("Cannot read set-data OLE MTEF");
-    match (rust, set_data) {
-        (Ok(rust), Ok(set_data)) if rust == set_data => None,
+    let mathtype = native::mtef_from_ole(mathtype_ole).context("Cannot read mathtype OLE MTEF");
+    match (rust, mathtype) {
+        (Ok(rust), Ok(mathtype)) if rust == mathtype => None,
         (Ok(_), Ok(_)) => Some(format!(
-            "[WARN] MathType Rust and set-data MTEF outputs differ for equation {index} (formula: {latex:?}); using set-data"
+            "[WARN] MathType Rust and mathtype MTEF outputs differ for equation {index} (formula: {latex:?}); using mathtype"
         )),
-        // An unreadable comparison must not discard a successful set-data conversion.
+        // An unreadable comparison must not discard a successful mathtype conversion.
         (Err(error), _) | (_, Err(error)) => Some(format!(
-            "[WARN] MathType MTEF comparison failed for equation {index} (formula: {latex:?}): {error:#}; using set-data"
+            "[WARN] MathType MTEF comparison failed for equation {index} (formula: {latex:?}): {error:#}; using mathtype"
         )),
     }
 }
@@ -664,16 +671,78 @@ mod tests {
     use super::*;
     use papper_core::metadata::PmtSettings;
 
+    /// Reuse pre-rename cache artifacts through both new and old configuration names without a helper.
+    #[test]
+    fn mathtype_rename_reuses_legacy_cache() -> Result<()> {
+        let project = tempfile::tempdir()?;
+        let resources = ResourcePaths {
+            root: project.path().join("resources"),
+            pandoc: project.path().join("resources/pandoc"),
+            template: project.path().join("resources/template"),
+        };
+        let mut effective = EffectiveMetadata {
+            pmt_settings: PmtSettings::from_yaml_text(
+                "mathtypeConversionMethod: rust",
+                &project.path().join("style.yml"),
+            )?,
+            pandoc_metadata: Default::default(),
+            has_yaml_header: false,
+        };
+        let binding = Binding {
+            latex: "x+y".into(),
+            style: "inline".into(),
+            marker: Vec::new(),
+            math: Vec::new(),
+            size: None,
+        };
+        let mut generator = Generator::new(&resources, &effective, project.path(), None)?;
+        let fixture = generator.generate(&binding, 0)?;
+        // Freeze the released native-v2 input schema independently of the current key builder.
+        let legacy_key = digest(br#"{"version":2,"payload":"$x+y$","font_size":null,"prefs":null,"method":"set-data","engine":null,"helper":null,"backend":null,"style":null,"font":null,"font_digest":null,"calligraphic_font_digest":null}"#);
+        let folder = generator.cache.join(&legacy_key[..2]).join(&legacy_key);
+        std::fs::create_dir_all(&folder)?;
+        let metadata = serde_json::to_vec(&fixture.metadata)?;
+        for (name, bytes) in [
+            ("equation.ole.bin", fixture.ole.as_slice()),
+            ("preview.wmf", fixture.wmf.as_slice()),
+            ("metadata.json", metadata.as_slice()),
+        ] {
+            std::fs::write(folder.join(name), bytes)?;
+        }
+        std::fs::write(
+            folder.join("manifest.json"),
+            serde_json::to_vec(&json!({
+                "ole": digest(&fixture.ole),
+                "wmf": digest(&fixture.wmf),
+                "metadata": digest(&metadata),
+            }))?,
+        )?;
+        for method in ["mathtype", "set-data", "setdata"] {
+            effective.pmt_settings = PmtSettings::from_yaml_text(
+                &format!("mathtypeConversionMethod: {method}"),
+                &project.path().join("style.yml"),
+            )?;
+            // No helper exists: a cache miss must fail rather than silently reconvert the fixture.
+            let restored = Generator::new(&resources, &effective, project.path(), None)?
+                .generate(&binding, 9)?;
+            assert!(restored.cache_hit);
+            assert_eq!(restored.ole, fixture.ole);
+            assert_eq!(restored.wmf, fixture.wmf);
+            assert_eq!(restored.metadata, fixture.metadata);
+        }
+        Ok(())
+    }
+
     /// Catch the Rust migration regression while preserving warnings for actual equation differences.
     #[test]
     fn both_mode_warns_only_for_mtef_differences() -> Result<()> {
         let rust = native::encode_latex("$x+y$", None)?.ole;
-        let mut set_data = rust.clone();
+        let mut mathtype = rust.clone();
         // Change the CFB transaction signature, leaving the equation streams intact.
-        set_data[52..56].copy_from_slice(&1_u32.to_le_bytes());
-        assert_ne!(rust, set_data);
+        mathtype[52..56].copy_from_slice(&1_u32.to_le_bytes());
+        assert_ne!(rust, mathtype);
         assert!(
-            conversion_warning(24, "$x+y$", &rust, &set_data).is_none(),
+            conversion_warning(24, "$x+y$", &rust, &mathtype).is_none(),
             "OLE container differences must not produce a formula mismatch warning"
         );
 
@@ -682,7 +751,7 @@ mod tests {
             .context("Different equations must produce a mismatch warning")?;
         assert!(warning.contains("MTEF outputs differ for equation 24"));
         assert!(warning.contains("formula: \"$x+y$\""));
-        assert!(warning.contains("using set-data"));
+        assert!(warning.contains("using mathtype"));
         Ok(())
     }
 
@@ -690,15 +759,15 @@ mod tests {
     #[test]
     fn both_mode_reports_unreadable_mtef_as_a_nonfatal_warning() -> Result<()> {
         let valid = native::encode_latex("$x$", None)?.ole;
-        for (rust, set_data, backend) in [
+        for (rust, mathtype, backend) in [
             (b"invalid OLE".as_slice(), valid.as_slice(), "Rust"),
-            (valid.as_slice(), b"invalid OLE".as_slice(), "set-data"),
+            (valid.as_slice(), b"invalid OLE".as_slice(), "mathtype"),
         ] {
-            let warning = conversion_warning(24, "$x$", rust, set_data)
+            let warning = conversion_warning(24, "$x$", rust, mathtype)
                 .context("Unreadable MTEF must produce a diagnostic")?;
             assert!(warning.contains("MTEF comparison failed for equation 24"));
             assert!(warning.contains(&format!("Cannot read {backend} OLE MTEF")));
-            assert!(warning.contains("using set-data"));
+            assert!(warning.contains("using mathtype"));
         }
         Ok(())
     }

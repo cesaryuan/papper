@@ -142,10 +142,22 @@ Choose `mathtypeConversionMethod` according to your environment:
 | Value | When to use it |
 | --- | --- |
 | `rust` | The default, available across platforms without a MathType installation. |
-| `set-data` | Use installed MathType on Windows for conversion. |
+| `mathtype` | Use installed MathType on Windows for conversion. |
 | `rust-sdk` | Use the alternative Windows conversion path that also requires MathType. |
-| `auto` | On Windows, try the installed MathType paths and then fall back to `rust`; elsewhere, use `rust`. |
-| `both` | Diagnose conversion differences on Windows with MathType installed; the document uses the `set-data` result. |
+| `auto` | On Windows with MathType available, try `mathtype` and then fall back to `rust`; elsewhere, use `rust`. |
+| `both` | Diagnose conversion differences on Windows with MathType installed; the document uses the `mathtype` result. |
+
+For installed MathType on Windows, use:
+
+```yaml
+mathtype: true
+mathtypeConversionMethod: mathtype
+```
+
+The former names `set-data` and `setdata` remain accepted as aliases for
+`mathtype`, so existing project configurations continue to work. `mathtype: true`
+enables conversion; `mathtypeConversionMethod: mathtype` selects the Windows
+MathType application as the conversion method.
 
 For the `rust` method, `mathtypeSvgBackend` selects the equation preview
 renderer: `typst` (the default) or `ratex`. With `typst`, use

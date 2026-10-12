@@ -1,11 +1,11 @@
 # 设置为 true，可在构建期间将 DOCX 公式转换为 MathType OLE 对象。
 # 新项目默认启用；本地转换环境不可用时会回退到原生 Word 公式。
 mathtype: true
-# MathType 转换后端：rust、rust-sdk、set-data、auto 或 both。
+# MathType 转换后端：rust、rust-sdk、mathtype、auto 或 both。
 # rust: 跨平台 LaTeX -> mathtype-rust OLE/MTEF + latex2wmf WMF/JSON。
-# set-data: LaTeX -> MathType OLE TeX 输入 -> OLE/WMF/JSON。
-# auto: Windows 且 MathType 可用时依次尝试 set-data、rust-sdk、rust；否则直接使用 rust。
-# both: 仅限 Windows；同时使用 rust 和 set-data，仅比较 OLE 中的 MTEF 公式数据流，不同时发出警告，并采用 set-data 的结果。
+# mathtype: LaTeX -> MathType OLE TeX 输入 -> OLE/WMF/JSON。
+# auto: Windows 且 MathType 可用时依次尝试 mathtype、rust；否则直接使用 rust。
+# both: 仅限 Windows；同时使用 rust 和 mathtype，仅比较 OLE 中的 MTEF 公式数据流，不同时发出警告，并采用 mathtype 的结果。
 mathtypeConversionMethod: both
 # 跨平台 rust 后端使用的 SVG 渲染器：ratex 或 typst。
 # ratex 直接解析 LaTeX；typst 通过 MiTeX 转换，默认使用内置的 XITS Math 字体，

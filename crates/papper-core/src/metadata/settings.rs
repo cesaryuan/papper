@@ -202,7 +202,8 @@ pub enum ConversionMethod {
     Auto,
     Rust,
     RustSdk,
-    SetData,
+    #[serde(alias = "set-data", alias = "setdata")]
+    Mathtype,
     Both,
 }
 
@@ -213,7 +214,7 @@ impl ConversionMethod {
             Self::Auto => "auto",
             Self::Rust => "rust",
             Self::RustSdk => "rust-sdk",
-            Self::SetData => "set-data",
+            Self::Mathtype => "mathtype",
             Self::Both => "both",
         }
     }

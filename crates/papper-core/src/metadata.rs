@@ -538,11 +538,11 @@ fn conversion_method(value: &Value) -> Result<Value> {
     let canonical = match normalized.as_str() {
         "rust" | "mathtype-rust" | "mtef" => "rust",
         "rust-sdk" | "sdk" | "sdk-xform-ole" => "rust-sdk",
-        "set-data" | "setdata" => "set-data",
+        "mathtype" | "set-data" | "setdata" => "mathtype",
         "auto" => "auto",
         "both" => "both",
         _ => bail!(
-            "unsupported MathType conversion method; expected one of: rust, rust-sdk, set-data, auto, both"
+            "unsupported MathType conversion method; expected one of: rust, rust-sdk, mathtype, auto, both"
         ),
     };
     Ok(json!(canonical))
@@ -1743,6 +1743,29 @@ mod tests {
         let reply = restored.for_reply()?;
         assert!(reply.was_provided("docxFooter"));
         assert!(reply.fields().docx_footer.is_none());
+        Ok(())
+    }
+
+    /// Keep old project settings readable while publishing the renamed method in persisted metadata.
+    #[test]
+    fn mathtype_method_aliases_survive_settings_roundtrip() -> Result<()> {
+        let source = Path::new("style.yml");
+        for method in ["mathtype", "set-data", "setdata", "set_data"] {
+            let settings = PmtSettings::from_yaml_text(
+                &format!("mathtypeConversionMethod: {method}\n"),
+                source,
+            )?;
+            let mut wire = serde_json::to_value(&settings)?;
+            assert_eq!(wire["values"]["mathtypeConversionMethod"], "mathtype");
+            // Previously saved effective metadata can still contain the old method spelling.
+            wire["values"]["mathtypeConversionMethod"] = json!(method);
+            let restored: PmtSettings = serde_json::from_value(wire)?;
+            assert_eq!(
+                restored.fields().mathtype_conversion_method,
+                ConversionMethod::Mathtype
+            );
+            assert!(restored.was_provided("mathtypeConversionMethod"));
+        }
         Ok(())
     }
 
