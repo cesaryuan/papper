@@ -1,0 +1,536 @@
+{
+  "settings": {
+    "mathtype": {
+      "description": "是否将 DOCX 公式转换为可编辑 MathType 公式",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "mathtypeConversionMethod": {
+      "description": "MathType 转换后端"
+    },
+    "mathtypeSvgBackend": {
+      "description": "MathType 公式 SVG 渲染器"
+    },
+    "mathtypeTypstMathFont": {
+      "description": "Typst 数学字体名称或字体文件路径",
+      "values": [
+        "XITS Math",
+        "STIX Two Math",
+        "New Computer Modern Math"
+      ],
+      "children": {
+        "font": {
+          "description": "普通数学符号字体，与 calligraphicFont 一起填写；也可输入字体文件路径",
+          "values": [
+            "XITS Math",
+            "STIX Two Math",
+            "New Computer Modern Math"
+          ]
+        },
+        "calligraphicFont": {
+          "description": "花体数学符号字体，与 font 一起填写；也可输入字体文件路径",
+          "values": [
+            "XITS Math",
+            "STIX Two Math",
+            "New Computer Modern Math"
+          ]
+        }
+      }
+    },
+    "docxNativeCrossref": {
+      "description": "是否使用 Word 原生 REF/SEQ 域和章节编号",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "docxEmbedSvgImages": {
+      "description": "是否内嵌 SVG 引用的本地子图像",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "docxConvertSvgToPng": {
+      "description": "是否将 DOCX 中的 SVG 栅格化为 PNG",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "docxSvgToPngWidth": {
+      "description": "SVG 转 PNG 的像素宽度"
+    },
+    "docxSvgToPngDpi": {
+      "description": "SVG 转 PNG 的 DPI"
+    },
+    "docxSvgToPngScale": {
+      "description": "SVG 转 PNG 的缩放比例"
+    },
+    "citationNumberRangeDelimiter": {
+      "description": "数字引文范围分隔符，例如 - 生成 [1-3]"
+    },
+    "docxShowLineNumbers": {
+      "description": "DOCX 行号模式",
+      "values": [
+        "true",
+        "false",
+        "continuous",
+        "restart-page",
+        "restart-section",
+        "连续",
+        "每页",
+        "每节",
+        "关闭"
+      ]
+    },
+    "docxShowPageNumbers": {
+      "description": "是否显示 DOCX 页脚页码",
+      "values": [
+        "true",
+        "false",
+        "null"
+      ]
+    },
+    "tableAutofit": {
+      "description": "手写表格默认布局"
+    },
+    "docxPageMargins": {
+      "description": "DOCX 页面边距",
+      "values": [
+        "null"
+      ],
+      "children": {
+        "top": {
+          "description": "上边距，例如 2.54cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "bottom": {
+          "description": "下边距，例如 2.54cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "left": {
+          "description": "左边距，例如 3.17cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "right": {
+          "description": "右边距，例如 3.17cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "inside": {
+          "description": "左侧边距别名",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "outside": {
+          "description": "右侧边距别名",
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      }
+    },
+    "docxFooter": {
+      "description": "DOCX 页脚；null 保留参考文档页脚，空 content 清空页脚",
+      "children": {
+        "content": {
+          "description": "页脚 Markdown 内容；例如 []{t=\"pageNum\"} 插入页码"
+        },
+        "alignment": {
+          "description": "页脚对齐方式"
+        }
+      }
+    },
+    "docxPageWidth": {
+      "description": "DOCX 页面宽度，例如 21cm；null 保留参考文档宽度"
+    },
+    "docxStyle": {
+      "description": "按精确 DOCX 样式名称设置段落或字符样式"
+    }
+  },
+  "pandocMetadata": {
+    "figureTitle": {
+      "description": "图题前缀"
+    },
+    "tableTitle": {
+      "description": "表题前缀"
+    },
+    "titleDelim": {
+      "description": "编号和题注之间的分隔符"
+    },
+    "figPrefix": {
+      "description": "图引用前缀"
+    },
+    "tblPrefix": {
+      "description": "表引用前缀"
+    },
+    "secPrefix": {
+      "description": "章节引用前缀"
+    },
+    "eqnPrefix": {
+      "description": "公式引用前缀"
+    },
+    "linkReferences": {
+      "description": "是否将交叉引用转换为超链接",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "autoSectionLabels": {
+      "description": "是否自动为章节添加 sec: 标签",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "autoEqnLabels": {
+      "description": "是否自动为行间公式编号",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "numberSections": {
+      "description": "是否为章节编号",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "sectionsDepth": {
+      "description": "章节编号深度"
+    },
+    "chapters": {
+      "description": "是否启用章节编号",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "chaptersDepth": {
+      "description": "章节编号深度"
+    },
+    "chapDelim": {
+      "description": "章节编号分隔符"
+    },
+    "subfigGrid": {
+      "description": "是否支持子图网格布局",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "subfigureChildTemplate": {
+      "description": "子图题注模板，$$i$$ 为编号，$$t$$ 为文字"
+    },
+    "subfigureTemplate": {
+      "description": "父图题注模板，$$i$$ 为编号，$$t$$ 为文字"
+    },
+    "reference-section-title": {
+      "description": "参考文献章节标题"
+    },
+    "link-citations": {
+      "description": "是否将引文链接到参考文献",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "csl": {
+      "description": "参考文献样式文件路径（CSL）"
+    },
+    "lang": {
+      "description": "文档语言，例如 zh-CN 或 en-US"
+    }
+  },
+  "docxTextStyle": {
+    "fontFamily": {
+      "description": "字体名称，或分别指定西文和中文字体",
+      "children": {
+        "western": {
+          "description": "西文字体名称，例如 Times New Roman"
+        },
+        "chinese": {
+          "description": "中文字体名称，例如 宋体"
+        }
+      }
+    },
+    "fontName": {
+      "description": "兼容旧配置的字体名称"
+    },
+    "fontSize": {
+      "description": "字体大小，例如 10.5pt、小五或四号；也可输入其他正磅值",
+      "values": [
+        "10.5pt",
+        "12pt",
+        "小五",
+        "五号",
+        "小四",
+        "四号",
+        "小三",
+        "三号"
+      ]
+    },
+    "fontColor": {
+      "description": "字体颜色，例如 #000000、rgb(0, 0, 0) 或 [0, 0, 0]；十六进制颜色必须加引号",
+      "values": [
+        "\"#000000\"",
+        "\"#FF0000\"",
+        "\"#0000FF\""
+      ]
+    },
+    "bold": {
+      "description": "是否使用粗体",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "lineSpacing": {
+      "description": "行距倍数、single、one-half、double 或精确磅值",
+      "values": [
+        "single",
+        "one-half",
+        "double",
+        "1.5",
+        "18pt"
+      ]
+    },
+    "alignment": {
+      "description": "段落对齐方式",
+      "values": [
+        "left",
+        "center",
+        "right",
+        "justify",
+        "distribute",
+        "centre"
+      ]
+    },
+    "firstLineIndentChars": {
+      "description": "Word 字符数形式的首行缩进"
+    },
+    "indentation": {
+      "description": "长度形式的段落缩进",
+      "children": {
+        "left": {
+          "description": "左缩进，例如 0.5cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "right": {
+          "description": "右缩进，例如 0.5cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "firstLine": {
+          "description": "首行缩进，例如 0.5cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "hanging": {
+          "description": "悬挂缩进，例如 0.5cm",
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      }
+    },
+    "paragraphSpacing": {
+      "description": "段前和段后间距",
+      "children": {
+        "before": {
+          "description": "段前间距，例如 6pt",
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "after": {
+          "description": "段后间距，例如 6pt",
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      }
+    },
+    "font": {
+      "description": "兼容旧配置的字体对象",
+      "children": {
+        "family": {
+          "description": "兼容旧配置的字体名称"
+        }
+      }
+    }
+  },
+  "manuscriptFrontmatter": {
+    "title": {
+      "description": "稿件标题"
+    },
+    "subtitle": {
+      "description": "稿件副标题"
+    },
+    "authors": {
+      "description": "作者列表，每位作者使用包含 name 的对象，可填写机构、邮箱和通讯作者信息",
+      "children": {
+        "name": {
+          "description": "作者姓名，每位作者必须填写"
+        },
+        "affiliation": {
+          "description": "作者所属机构名称或共享机构标识，可填写一个或多个",
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "affiliations": {
+          "description": "作者所属机构名称或共享机构标识列表",
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "email": {
+          "description": "作者邮箱，用于生成通讯作者脚注"
+        },
+        "title": {
+          "description": "作者职称，显示在通讯作者脚注中"
+        },
+        "corresponding": {
+          "description": "设为 true 生成默认通讯作者脚注，也可填写自定义脚注文本",
+          "values": [
+            "true",
+            "false"
+          ],
+          "type": [
+            "string",
+            "boolean"
+          ]
+        }
+      },
+      "sequenceItems": true
+    },
+    "author": {
+      "description": "作者列表，authors 的兼容别名",
+      "children": {
+        "name": {
+          "description": "作者姓名，每位作者必须填写"
+        },
+        "affiliation": {
+          "description": "作者所属机构名称或共享机构标识，可填写一个或多个",
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "affiliations": {
+          "description": "作者所属机构名称或共享机构标识列表",
+          "type": [
+            "string",
+            "array"
+          ]
+        },
+        "email": {
+          "description": "作者邮箱，用于生成通讯作者脚注"
+        },
+        "title": {
+          "description": "作者职称，显示在通讯作者脚注中"
+        },
+        "corresponding": {
+          "description": "设为 true 生成默认通讯作者脚注，也可填写自定义脚注文本",
+          "values": [
+            "true",
+            "false"
+          ],
+          "type": [
+            "string",
+            "boolean"
+          ]
+        }
+      },
+      "sequenceItems": true
+    },
+    "affiliations": {
+      "description": "共享机构映射，由作者的 affiliation 或 affiliations 通过标识引用",
+      "dynamicValueDescription": "共享机构名称，可在作者 affiliation 或 affiliations 中引用此标识"
+    },
+    "affiliation": {
+      "description": "共享机构映射，affiliations 的兼容别名",
+      "dynamicValueDescription": "共享机构名称，可在作者 affiliation 或 affiliations 中引用此标识"
+    },
+    "abstract": {
+      "description": "稿件摘要，可使用 | 编写多行文本"
+    },
+    "keywords": {
+      "description": "稿件关键词列表，例如 [sampling, evaluation]"
+    },
+    "bibliography": {
+      "description": "参考文献数据库路径，例如 references.bib；支持多个文件路径"
+    },
+    "nocite": {
+      "description": "额外列入参考文献的条目；填写 '@*' 可列入所有未引用条目"
+    },
+    "date": {
+      "description": "稿件日期"
+    },
+    "reply": {
+      "description": "审稿回复对应的稿件 Markdown 路径，例如 manuscript.md；用于行号和交叉引用"
+    },
+    "toc": {
+      "description": "是否生成目录",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "lof": {
+      "description": "是否生成图目录",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "lot": {
+      "description": "是否生成表目录",
+      "values": [
+        "true",
+        "false"
+      ]
+    },
+    "documentclass": {
+      "description": "LaTeX 文档类，例如 elsarticle、svjour3、WileyNJDv5 或 IEEEtran"
+    },
+    "classoption": {
+      "description": "LaTeX 文档类选项列表，例如 [preprint, 3p, authoryear]"
+    },
+    "header-includes": {
+      "description": "追加到输出文档头部的内容，例如 LaTeX 包或期刊信息"
+    }
+  }
+}

@@ -4,6 +4,20 @@ Use `style.yml` to configure reusable formatting and build behavior for a
 Papper project. For manuscript Markdown and YAML syntax, see
 [`manuscript-syntax.md`](manuscript-syntax.md).
 
+## Exporting Configuration Information
+
+Use `papper config describe --format json` to export configuration information for
+an editor or another tool. It works from any directory without a manuscript or a
+build engine. The result includes field descriptions, suggested values, supported
+configuration shapes, the commented project `style.yml` template, and the bundled
+ordinary and Chinese default configurations.
+
+The template is a starting configuration; language defaults fill unspecified
+settings during a build. This command does not resolve a particular manuscript's
+overrides or report its final Word styles. Use the precedence rules below when
+reading project overrides, and `papper build docx manuscript.md --export-reference-doc
+reference.docx` when you need the effective reference document.
+
 ## Configuration Placement and Precedence
 
 Keep Papper settings at the top level and Pandoc settings under

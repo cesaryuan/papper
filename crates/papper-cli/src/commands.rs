@@ -20,6 +20,14 @@ use crate::{BuildArgs, BuildTarget, CleanArgs, CliCommand, InitArgs};
 /// Dispatch to native implementations, loading resources only when a command needs them.
 pub fn dispatch(command: CliCommand) -> Result<()> {
     match command {
+        CliCommand::Config(args) => match args.command {
+            crate::ConfigCommand::Describe { .. } => {
+                let contract =
+                    papper_core::configuration::describe_configuration(env!("CARGO_PKG_VERSION"))?;
+                serde_json::to_writer_pretty(std::io::stdout().lock(), &contract)?;
+                Ok(())
+            }
+        },
         CliCommand::Guide(args) => crate::guide::print(args),
         CliCommand::NativeServer(args) => papper_server::run_server_with_options(
             &args.config,

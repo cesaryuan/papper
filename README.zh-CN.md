@@ -49,6 +49,7 @@ Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投�
 
 - 用 `papper init` 初始化论文工程
 - 用 `papper doctor` 检查环境
+- 用 `papper config describe --format json` 导出供编辑器使用的配置定义、模板和语言默认配置
 - 用 `papper setup` 准备项目本地工具
 - 用 `papper build` 构建 DOCX、LaTeX、JSON
 - 用 `papper convert` 将已有 DOCX 论文导入 Markdown

@@ -51,6 +51,7 @@ Papper is not just a generic Pandoc wrapper. It is a manuscript workflow with op
 
 - Manuscript scaffolding with `papper init`
 - Environment checks with `papper doctor`
+- Machine-readable editor configuration with `papper config describe --format json`
 - Project-local tool setup with `papper setup`
 - DOCX, LaTeX, and JSON builds with `papper build`
 - DOCX-to-Markdown manuscript import with `papper convert`

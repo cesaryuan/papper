@@ -28,6 +28,8 @@ pub struct Cli {
 /// Keep product command names stable while hiding internal service entry points.
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
+    /// Export configuration definitions for editors and other tools.
+    Config(ConfigArgs),
     /// Browse manuscript syntax and style configuration topics.
     Guide(GuideArgs),
     /// Initialize a manuscript project from the packaged template.
@@ -53,6 +55,30 @@ pub enum CliCommand {
     NativePdf(PdfArgs),
     #[command(name = "__update", hide = true)]
     NativeUpdate,
+}
+
+/// Select a machine-readable configuration operation.
+#[derive(Debug, Args)]
+pub struct ConfigArgs {
+    #[command(subcommand)]
+    pub command: ConfigCommand,
+}
+
+/// Public configuration queries that do not build a document.
+#[derive(Debug, Subcommand)]
+pub enum ConfigCommand {
+    /// Export schemas, editor help, the project template, and language defaults.
+    Describe {
+        /// Output format; JSON is the versioned editor contract.
+        #[arg(long, value_enum, default_value = "json")]
+        format: ConfigFormat,
+    },
+}
+
+/// Restrict the export format to machine-readable JSON.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ConfigFormat {
+    Json,
 }
 
 /// Select the authoring guide content written to standard output.
@@ -297,6 +323,7 @@ pub fn run() -> i32 {
     let public_command = !matches!(
         &command,
         CliCommand::NativeServer(_)
+            | CliCommand::Config(_)
             | CliCommand::NativePdf(_)
             | CliCommand::NativeDecode(_)
             | CliCommand::NativeUpdate
