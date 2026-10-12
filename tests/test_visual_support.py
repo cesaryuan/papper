@@ -96,7 +96,7 @@ def test_docx_update_preserves_deleted_page_diff(snapshot_repository: Path, monk
     session = object.__new__(docx_visual_support.WordVisualSession)
     session.update = True
 
-    def capture(source: Path, directory: Path) -> tuple[list[bytes], list[dict]]:
+    def capture(source: Path, directory: Path, *, update_fields: bool = False) -> tuple[list[bytes], list[dict]]:
         """Supply deterministic output at the external Word renderer boundary."""
         return [png("red")], [{"width_px": 3, "height_px": 2}]
 

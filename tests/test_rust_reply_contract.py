@@ -30,7 +30,13 @@ class ReplyProject:
         self.directory = directory
         self.executable = executable
         self.environment = {**os.environ, "PAPPER_HOME": str(directory / "state"), "PAPPER_RESOURCE_ROOT": str(ROOT)}
-        (directory / "style.yml").write_text("mathtype: false\nlang: en-US\ncsl: numeric.csl\nbibliography: references.bib\nnumberSections: true\nsecPrefix: Section\nfigPrefix: Figure\ntblPrefix: Table\neqnPrefix: Equation\n", encoding="utf-8")
+        # Pandoc metadata belongs in its own mapping under the strict style contract.
+        (directory / "style.yml").write_text(
+            "mathtype: false\npandocMetadata:\n  lang: en-US\n  csl: numeric.csl\n"
+            "  bibliography: references.bib\n  numberSections: true\n  secPrefix: Section\n"
+            "  figPrefix: Figure\n  tblPrefix: Table\n  eqnPrefix: Equation\n",
+            encoding="utf-8",
+        )
         shutil.copy2(ROOT / "pandoc/csl/elsevier-vancouver.csl", directory / "numeric.csl")
         (directory / "references.bib").write_text("@article{alpha, author={Alice Smith}, title={Alpha}, journal={J}, year={2020}}\n@article{beta, author={Bob Jones}, title={Beta}, journal={J}, year={2021}}\n", encoding="utf-8")
         (directory / "diagram.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="blue"/></svg>', encoding="utf-8")

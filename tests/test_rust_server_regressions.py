@@ -151,6 +151,15 @@ def test_native_service_refreshes_manuscript_style_overrides(native_service_fact
         encoding="utf-8",
     )
     body = "| Item | Value |\n|---|---|\n| Sample | 1 |\n\n: Results\n"
+    if settings_key != "papperSettings":
+        # Noncanonical containers are errors; a rejected buffer must not poison later edits.
+        status, raw, _ = service.request("POST", "/convert", {
+            "path": service.project.source.name,
+            "text": f"---\n{settings_key}: {{tableAutofit: content}}\n---\n\n{body}",
+        })
+        assert status == 400
+        assert "Use exact camelCase `papperSettings`" in json.loads(raw)["error"]
+        settings_key = "papperSettings"
     for mode, after in [("content", 0), ("fixed", 3), ("content", 0)]:
         header = yaml.safe_dump({
             settings_key: {
