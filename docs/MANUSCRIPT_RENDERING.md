@@ -42,8 +42,7 @@ when `docxPageMargins` is null; the final DOCX postprocessor does not reapply
 writable width of the final document. The source reference is left unchanged. Page
 numbers use Word `PAGE` fields and the `page number` character style. Removing
 page-number fields through the legacy visibility setting preserves other footer
-content; the build does not request
-a document-wide field update when Word opens the output.
+content; builds without directory fields do not request a document-wide field update.
 
 The CLI writes exact `docxHeader.content` and `docxFooter.content` into separate request-local Markdown files.
 [`docx_footer.lua`](../pandoc/filters/docx/docx_footer.lua) uses Pandoc's YAML
@@ -68,6 +67,28 @@ recursively but remove the lower-priority legacy `docxShowPageNumbers` field
 when a new footer layer is supplied, or remove the lower-priority footer when
 a legacy layer is supplied. A same-source `docxFooter`, including null, wins.
 Explicit header/footer nulls survive reply override serialization and merging.
+
+`docx_directives.lua` runs before global story rendering, after manuscript
+numbering, and before final image handling. `docx_fields.lua` shares PAGE/DATE
+validation and cached field markers with `docx_footer.lua`. Native field
+finalization preserves the writer's enclosing run properties. Section story
+blocks have separately numbered boundaries; `docx/directives.rs` consumes them
+after global stories have been applied, creates unique OPC story parts and
+relationships, and closes preceding sections with paragraph-level `sectPr`.
+Options belong to the following section; page starts are removed when carrying
+layout forward. Linked stories omit references; unlinked copies duplicate parts
+and media relationships, including default/first/even variants. Explicit content
+sets all variants. This mandatory finalization runs even with optional body
+postprocessing disabled.
+
+Figure/table lists use TOC style switches rather than SEQ labels, supporting
+both static and native caption numbering. Primary-caption markers become
+inherited paragraph styles after body/caption formatting; translated captions
+retain their original styles, and panels use a separate style. This keeps list
+entries live when captions are edited, without copying cached caption text into
+TC fields. Directory fields are dirty and set `updateFields`; layout and final
+directory results are computed by Word. DATE results are normalized only in
+test snapshots because the actual published cache uses the build date.
 
 Named character styles receive only run typography from `docxStyle`; reference
 preparation must not create `w:pPr` on them. Paragraph styles also receive

@@ -5,6 +5,10 @@
 # Rendering opens a unique read-only invisible document, exports PDF document content
 # without review markup, and closes only that owned document in finally. User documents
 # and global Word options remain intact; Application.Quit is never called.
+# An opt-in update_fields request updates directories until pagination stabilizes;
+# fixed DATE fields are locked by the Python visual-copy preparation before Open.
+# All test-owned copies disable automatic field updates before Word opens them,
+# preventing the "fields may refer to other files" confirmation during testing.
 param([string]$RequestPath = "$PSScriptRoot/results/word-request.json")
 
 $ErrorActionPreference = 'Stop'
@@ -57,6 +61,76 @@ function Get-WordEnvironment {
     }
 }
 
+function Update-VisualFields {
+    # Update only this test-owned document. Directory expansion changes pagination,
+    # so repeat until page count and directory text (including page numbers) agree.
+    param($Document)
+    $previous = $null
+    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+        [void]$Document.Fields.Update()
+        foreach ($section in $Document.Sections) {
+            foreach ($story in @($section.Headers, $section.Footers)) {
+                foreach ($variant in $story) {
+                    if ($variant.Exists) { [void]$variant.Range.Fields.Update() }
+                }
+            }
+        }
+        $Document.Repaginate()
+        $directoryText = @($Document.Fields | Where-Object { $_.Code.Text.Trim().StartsWith('TOC ') } |
+            ForEach-Object { [string]$_.Result.Text })
+        $state = ([string]$Document.ComputeStatistics(2)) + '|' + ($directoryText -join '|')
+        if ($state -eq $previous) { return }
+        $previous = $state
+    }
+    throw 'Word directory pagination did not stabilize after six field updates'
+}
+
+function New-WordVisualCopy {
+    # Word may prompt on updateFields or dirty fields even for a read-only invisible
+    # document. Disable both only in the owned ZIP; explicit updates run after Open.
+    param([string]$Source, [string]$Destination)
+    Copy-Item -LiteralPath $Source -Destination $Destination
+    # Windows PowerShell 5.1 does not load ZipArchiveMode through FileSystem alone.
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::Open($Destination, [IO.Compression.ZipArchiveMode]::Update)
+    try {
+        foreach ($entry in @($archive.Entries)) {
+            if ($entry.FullName -notmatch '^word/.*\.xml$') { continue }
+            $stream = $entry.Open()
+            try {
+                $xml = New-Object Xml.XmlDocument
+                $xml.PreserveWhitespace = $true
+                $xml.Load($stream)
+            } finally { $stream.Dispose() }
+            $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+            $namespaces = New-Object Xml.XmlNamespaceManager($xml.NameTable)
+            $namespaces.AddNamespace('w', $namespace)
+            $changed = $false
+            if ($entry.FullName -eq 'word/settings.xml') {
+                $setting = $xml.SelectSingleNode('/w:settings/w:updateFields', $namespaces)
+                if ($null -eq $setting) {
+                    $setting = $xml.CreateElement('w', 'updateFields', $namespace)
+                    [void]$xml.DocumentElement.AppendChild($setting)
+                }
+                [void]$setting.SetAttribute('val', $namespace, 'false')
+                $changed = $true
+            }
+            foreach ($field in $xml.SelectNodes('//w:fldChar[@w:dirty] | //w:fldSimple[@w:dirty]', $namespaces)) {
+                [void]$field.SetAttribute('dirty', $namespace, 'false')
+                $changed = $true
+            }
+            if ($changed) {
+                $stream = $entry.Open()
+                try {
+                    $stream.SetLength(0)
+                    $xml.Save($stream)
+                } finally { $stream.Dispose() }
+            }
+        }
+    } finally { $archive.Dispose() }
+}
+
 try {
     $application = Get-WordApplication
     $before = @($application.Documents | ForEach-Object { [string]$_.FullName })
@@ -66,7 +140,7 @@ try {
         $output = [IO.Path]::GetFullPath([string]$request.output)
         # A unique copy prevents Documents.Open from returning a user-owned document.
         [string]$ownedSource = Join-Path (Split-Path $output) ('word-owned-' + [Guid]::NewGuid().ToString('N') + '.docx')
-        Copy-Item -LiteralPath $source -Destination $ownedSource
+        New-WordVisualCopy $source $ownedSource
         $documents = $application.Documents
         # Open(FileName, ConfirmConversions, ReadOnly, AddToRecentFiles, ...,
         # Visible=false); never change global application visibility/options.
@@ -74,6 +148,7 @@ try {
         # reject Type.Missing for Word's optional ref-object arguments.
         $document = $documents.Open($ownedSource, $false, $true, $false,
             '', '', $false, '', '', 0, 50001, $false)
+        if ($request.update_fields) { Update-VisualFields $document }
         $document.Repaginate()
         # wdExportFormatPDF=17, wdExportOptimizeForPrint=0, wdExportAllDocument=0,
         # wdExportDocumentContent=0 excludes review balloons/markup from pagination.

@@ -112,7 +112,10 @@ fn apply_content(
 }
 
 /// Extract exact boundary paragraphs and their rendered blocks before body-specific formatting runs.
-fn take_rendered_blocks(document: &mut Element, kind: &str) -> Result<Option<Vec<Node>>> {
+pub(super) fn take_rendered_blocks(
+    document: &mut Element,
+    kind: &str,
+) -> Result<Option<Vec<Node>>> {
     let body = document
         .child_mut("w:body")
         .context("DOCX is missing its document body")?;
@@ -174,44 +177,55 @@ fn format_paragraphs(node: &mut Node, alignment: &str, footer_style: &str, in_ta
 }
 
 /// Replace Pandoc's styled page runs with dynamic fields without parsing Markdown or losing emphasis.
-fn finalize_page_fields(node: &mut Node, styles: &Element) -> Result<()> {
+pub(super) fn finalize_page_fields(node: &mut Node, styles: &Element) -> Result<()> {
     let Node::Element(element) = node else {
         return Ok(());
     };
     let mut children = Vec::new();
     for mut child in std::mem::take(&mut element.children) {
         let record = if let Node::Element(run) = &child {
-            (run.name == "w:r")
-                .then(|| run.text())
-                .and_then(|text| text.strip_prefix("PMT_FOOTER_PAGE:").map(str::to_owned))
+            (run.name == "w:r").then(|| run.text()).and_then(|text| {
+                text.strip_prefix("PMT_FOOTER_PAGE:")
+                    .map(|record| (true, record.to_owned()))
+                    .or_else(|| {
+                        text.strip_prefix("PMT_DOCX_FIELD:")
+                            .map(|record| (false, record.to_owned()))
+                    })
+            })
         } else {
             None
         };
-        if let Some(record) = record {
+        if let Some((page, record)) = record {
             let record: Value =
                 serde_json::from_str(&record).context("Invalid rendered footer page marker")?;
-            let switch = record["switch"]
-                .as_str()
-                .context("Missing footer page format")?;
             let result = record["result"]
                 .as_str()
                 .context("Missing footer page result")?;
-            let instruction = if switch.is_empty() {
-                " PAGE ".into()
+            let instruction = if page {
+                let switch = record["switch"].as_str().context("Missing page format")?;
+                if switch.is_empty() {
+                    " PAGE ".into()
+                } else {
+                    format!(" PAGE \\* {switch} ")
+                }
             } else {
-                format!(" PAGE \\* {switch} ")
+                record["instruction"]
+                    .as_str()
+                    .context("Missing Word field instruction")?
+                    .to_owned()
             };
             let Node::Element(run) = child else {
                 unreachable!()
             };
             let properties = run.child("w:rPr").cloned();
             let mut paragraph = Element::new("w:p");
-            append_formatted_page_field(
+            append_formatted_field(
                 &mut paragraph,
                 styles,
                 &instruction,
                 result,
                 properties.as_ref(),
+                page,
             )?;
             children.extend(paragraph.children);
         } else {
@@ -356,13 +370,29 @@ fn append_formatted_page_field(
     result: &str,
     properties: Option<&Element>,
 ) -> Result<()> {
-    let index = style_index(styles, "page number").ok_or_else(|| {
-        anyhow::anyhow!("DOCX reference document must define the `page number` character style")
-    })?;
-    let Node::Element(style) = &styles.children[index] else {
-        unreachable!()
+    append_formatted_field(paragraph, styles, instruction, result, properties, true)
+}
+
+/// Write a PAGE or DATE field while retaining the authored inline typography.
+fn append_formatted_field(
+    paragraph: &mut Element,
+    styles: &Element,
+    instruction: &str,
+    result: &str,
+    properties: Option<&Element>,
+    page: bool,
+) -> Result<()> {
+    let identifier = if page {
+        let index = style_index(styles, "page number").ok_or_else(|| {
+            anyhow::anyhow!("DOCX reference document must define the `page number` character style")
+        })?;
+        let Node::Element(style) = &styles.children[index] else {
+            unreachable!()
+        };
+        Some(style.attr("w:styleId").unwrap_or("page number"))
+    } else {
+        None
     };
-    let identifier = style.attr("w:styleId").unwrap_or("page number");
     for (kind, text) in [
         (Some("begin"), None),
         (None, Some(instruction)),
@@ -374,7 +404,9 @@ fn append_formatted_page_field(
         if let Some(properties) = properties {
             run.push(properties.clone());
         }
-        run.word("w:rPr").word("w:rStyle").set("w:val", identifier);
+        if let Some(identifier) = identifier {
+            run.word("w:rPr").word("w:rStyle").set("w:val", identifier);
+        }
         if let Some(kind) = kind {
             run.push(Element::with_attrs("w:fldChar", &[("w:fldCharType", kind)]));
         } else {
@@ -394,6 +426,109 @@ fn append_formatted_page_field(
         paragraph.push(run);
     }
     Ok(())
+}
+
+/// Render an independent section story and return references for all page variants.
+pub(super) fn section_story(
+    package: &mut Package,
+    document: &Element,
+    styles: &Element,
+    mut blocks: Vec<Node>,
+    kind: &str,
+    alignment: &str,
+) -> Result<Vec<Element>> {
+    let mut placeholder = Element::new("w:document");
+    placeholder.push(Element::new("w:sectPr"));
+    let name = create_primary_part(package, &mut placeholder, kind)?;
+    let mut root = default_part(kind);
+    for (key, value) in &document.attrs {
+        if key.starts_with("xmlns:") || key == "mc:Ignorable" {
+            root.set(key, value);
+        }
+    }
+    let style_name = if kind == "footer" { "Footer" } else { "Header" };
+    let identifier = style_index(styles, style_name)
+        .and_then(|index| match &styles.children[index] {
+            Node::Element(style) => style.attr("w:styleId"),
+            _ => None,
+        })
+        .unwrap_or(style_name);
+    for block in &mut blocks {
+        finalize_page_fields(block, styles)?;
+        format_paragraphs(block, alignment, identifier, false);
+    }
+    if !matches!(blocks.last(), Some(Node::Element(element)) if element.name == "w:p") {
+        let mut paragraph = Element::new("w:p");
+        paragraph
+            .word("w:pPr")
+            .word("w:pStyle")
+            .set("w:val", identifier);
+        paragraph.word("w:pPr").word("w:jc").set("w:val", alignment);
+        blocks.push(Node::Element(paragraph));
+    }
+    root.children = blocks;
+    relocate_relationships(package, &name, &mut root)?;
+    relocate_identifiers(package, document, &mut root)?;
+    package.set_xml(&name, &root);
+    let reference = placeholder
+        .child("w:sectPr")
+        .and_then(|section| section.child(&format!("w:{kind}Reference")))
+        .context("Missing generated section story reference")?;
+    Ok(["default", "first", "even"]
+        .into_iter()
+        .map(|variant| {
+            let mut reference = reference.clone();
+            reference.set("w:type", variant);
+            reference
+        })
+        .collect())
+}
+
+/// Clone a previous story part for unlinking while retaining its media relationships.
+pub(super) fn unlink_story(
+    package: &mut Package,
+    document: &Element,
+    kind: &str,
+    reference: Option<&Element>,
+    variant: &str,
+) -> Result<Element> {
+    let source = if let Some(reference) = reference {
+        let relationships = package.xml("word/_rels/document.xml.rels")?;
+        let relation = relationships
+            .elements()
+            .find(|relation| relation.attr("Id") == reference.attr("r:id"))
+            .context("Missing inherited header/footer relationship")?;
+        let target = relation
+            .attr("Target")
+            .context("Missing inherited header/footer target")?;
+        Some(if target.starts_with('/') {
+            target.trim_start_matches('/').to_owned()
+        } else {
+            format!("word/{target}")
+        })
+    } else {
+        None
+    };
+    let mut placeholder = Element::new("w:document");
+    placeholder.push(Element::new("w:sectPr"));
+    let name = create_primary_part(package, &mut placeholder, kind)?;
+    if let Some(source) = source {
+        let mut root = package.xml(&source)?;
+        relocate_identifiers(package, document, &mut root)?;
+        package.set_xml(&name, &root);
+        let source_rels = format!("word/_rels/{}.rels", source.trim_start_matches("word/"));
+        let target_rels = format!("word/_rels/{}.rels", name.trim_start_matches("word/"));
+        if let Some(bytes) = package.entries.get(&source_rels).cloned() {
+            package.entries.insert(target_rels, bytes);
+        }
+    }
+    let mut reference = placeholder
+        .child("w:sectPr")
+        .and_then(|section| section.child(&format!("w:{kind}Reference")))
+        .context("Missing unlinked story reference")?
+        .clone();
+    reference.set("w:type", variant);
+    Ok(reference)
 }
 
 /// Add a unique primary header/footer and connect the first section without altering section modes.

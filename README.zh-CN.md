@@ -406,6 +406,13 @@ docxFooter:
 配置优先级与支持范围见
 [`papper guide style docx-page-layout`](docs/style-configuration.md#docx-page-layout)。
 
+DOCX 支持用空 span 插入原生内容：`[]{t="toc" title="目录"}`、
+`[]{t="listofFigures" includeSubfigures="true"}`、`[]{t="listofTables"}`、
+`[]{t="sectionBreak" pageStart="1" footer='第 []{t="pageNum"} 页'}`、
+`[]{t="pageBreak"}` 和 `[]{t="date"}`。页码也可以插在正文中。
+目录与分节符独占段落，分节选项作用于后续内容；在 Word 中更新目录后取得条目和页码。
+完整选项见 [`papper guide syntax docx-native-insertions`](docs/manuscript-syntax.md#docx-native-insertions)。
+
 `papper build docx` 的原生交叉引用默认关闭。在 `style.yml` 顶层设置：
 
 ```yaml

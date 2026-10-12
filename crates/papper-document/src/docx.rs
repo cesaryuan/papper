@@ -1,6 +1,7 @@
 //! Prepare DOCX metadata and edit Word packages without a Python runtime.
 
 mod captions;
+mod directives;
 mod footer;
 mod formatting;
 mod lists;
@@ -195,6 +196,7 @@ pub fn postprocess_docx(
         &styles,
         &effective.pmt_settings,
     )?;
+    directives::apply(&mut package, &mut document, &mut styles)?;
     note_marks::apply(&mut package, &mut document)?;
     if options.native_crossrefs {
         native::finalize(&mut package, &mut document, &mut styles)?;
@@ -210,6 +212,7 @@ pub fn postprocess_docx(
     if options.reply_style_formatting {
         formatting::apply_reply_style(&mut document, &mut styles);
     }
+    directives::index_captions(&mut document, &mut styles)?;
     validate_syntax(&package, &document)?;
     package.set_xml("word/document.xml", &document);
     package.set_xml("word/styles.xml", &styles);
@@ -226,7 +229,7 @@ pub fn finalize_output_content(
 ) -> Result<()> {
     let mut package = Package::open(input)?;
     let mut document = package.xml("word/document.xml")?;
-    let styles = package.xml("word/styles.xml")?;
+    let mut styles = package.xml("word/styles.xml")?;
     if effective.pmt_settings.fields().docx_footer.is_some()
         || effective.pmt_settings.fields().docx_header.is_some()
     {
@@ -237,11 +240,16 @@ pub fn finalize_output_content(
             &effective.pmt_settings,
         )?;
     }
+    let directives_changed = directives::apply(&mut package, &mut document, &mut styles)?;
+    let captions_changed = directives::index_captions(&mut document, &mut styles)?;
     if note_marks::apply(&mut package, &mut document)?
+        || directives_changed
+        || captions_changed
         || effective.pmt_settings.fields().docx_footer.is_some()
         || effective.pmt_settings.fields().docx_header.is_some()
     {
         package.set_xml("word/document.xml", &document);
+        package.set_xml("word/styles.xml", &styles);
         package.save_preserving(output)
     } else {
         papper_core::paths::atomic_write(output, &std::fs::read(input)?)

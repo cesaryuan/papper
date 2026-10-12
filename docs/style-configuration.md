@@ -531,12 +531,24 @@ page-number starting values or other placeholders. Word chooses the language
 of textual numbers from its document/language settings. Unknown formats or
 page-number attributes produce an error.
 
-This placeholder is supported only in `docxFooter.content` and `docxHeader.content`,
-not in the manuscript body. Page numbers remain automatic Word page numbers and
+This placeholder is supported in `docxFooter.content`, `docxHeader.content`,
+section-specific headers/footers, and manuscript body paragraphs. It affects DOCX only.
+Page numbers remain automatic Word page numbers and
 use the `page number` character style from the reference DOCX; Pandoc creates
 the style when it is missing. Ordinary footer paragraphs use
 the `Footer` paragraph style; configure its font and size with `docxStyle`.
 Markdown emphasis around a page placeholder is retained.
+
+Use `[]{t="date" format="yyyy-MM-dd"}` in body or page-story content for a
+dynamic current date. The default format is `yyyy-MM-dd`; supported pictures
+and update behavior are described in
+[`DOCX Native Insertions`](manuscript-syntax.md#docx-native-insertions).
+Global `docxHeader`/`docxFooter` content applies before section-specific
+`[]{t="sectionBreak" ...}` options. A supplied section story overrides that
+global story and is inherited by subsequent sections unless overridden again.
+Section options can restart page numbers and independently link, copy, replace,
+or clear the header and footer. They do not modify `style.yml` or global defaults.
+Read `papper guide syntax docx-native-insertions/section-breaks` for syntax and defaults.
 
 `alignment` accepts `left`, `center`, or `right` and applies to paragraphs outside
 tables. Table cells retain their Markdown column alignment; list numbering and

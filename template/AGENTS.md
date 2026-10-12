@@ -6,7 +6,9 @@ If the user wants to change reusable style behavior, update `style.yml`. For set
 
 ## Pandoc Markdown Syntax
 
-For DOCX footers, configure `docxFooter` in `style.yml` or manuscript `papperSettings`, for example `{content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. The page-number placeholder works only in header/footer content. Run `papper guide style docx-page-layout` for defaults and compatibility rules.
+For DOCX footers, configure `docxFooter` in `style.yml` or manuscript `papperSettings`, for example `{content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. Page-number and date placeholders work in body paragraphs and page stories. Run `papper guide style docx-page-layout` for defaults and compatibility rules.
+
+For DOCX-only empty spans such as `[]{t="toc" title="Contents"}`, `listofFigures`, `listofTables`, `sectionBreak`, `pageBreak`, and `date`, run `papper guide syntax docx-native-insertions`. Directories and section breaks occupy standalone paragraphs; section options apply after the break and override global page stories. Update directories in Word after pagination.
 
 Header and footer content supports Pandoc Markdown: single-line content is inline Markdown; multiline content supports paragraphs, lists, and tables. `[]{t="pageNum" format="lowerRoman"}` selects a page-number format. Notes and bibliography citations are rejected; manuscript cross-references are unsupported. Read the page-layout guide for supported formats and table alignment.
 

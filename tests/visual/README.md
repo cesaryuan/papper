@@ -42,6 +42,12 @@ open. LibreOffice is not a substitute: these baselines intentionally exercise
 Word's pagination, table borders, fonts, OMML equations, revisions and image
 layout.
 
+Before opening each test-owned copy, the export helper disables its automatic
+field-update setting and clears dirty-field flags. This prevents Word's
+"fields may refer to other files" confirmation during automated tests. It
+preserves the generated source DOCX and the user's Word options. Cases requiring
+updated fields request them explicitly after the temporary copy is open.
+
 ```powershell
 uv run --no-sync pytest tests/test_docx_visual.py --visual
 ```
@@ -50,11 +56,25 @@ The DOCX renderer rasterizes PDF pages with PyMuPDF at 144 DPI in RGB. Each page
 must have the same physical geometry and exact pixels as its reviewed
 `page-001.png`, `page-002.png`, ... baseline. Word exports every case twice before
 comparison; a non-deterministic export fails without updating a baseline. The
-current suite covers the 16 manuscript fixtures plus the reviewer reply fixture,
+current suite covers the manuscript fixtures plus the reviewer reply fixture,
 including both `template/manuscript.md` and `template/manuscript-cn.md`.
 The generated DOCX build uses `--no-mathtype` unless a fixture style explicitly
 selects another mode, so these visual cases cover native Word/OMML output rather
 than MathType OLE rendering.
+
+The `docx_directives` case renders all four directories after Word updates their
+entries and page numbers. Its visual-only DOCX copy locks DATE results to
+`2000-01-02`; the generated manuscript and its dynamic fields remain intact.
+The export helper updates body and header/footer fields, repaginates, and repeats
+until both page count and directory results stabilize. Two independent exports
+must still match exactly. The case protects directory titles, panel indentation,
+page breaks, page-number restarts, section header/footer alignment, inheritance,
+and clearing. Its `pages.json` records the field-update mode; other cases retain
+their existing export behavior without explicit field updates.
+
+```powershell
+uv run --no-sync pytest tests/test_docx_visual.py -k docx_directives --visual
+```
 
 KaTeX 0.16.22 is served from the locked npm installation, including its fonts.
 Generated CDN URLs are routed locally without editing the HTML or replacing

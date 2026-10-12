@@ -114,7 +114,7 @@ math. A single-line string is inline Markdown; a multiline YAML block string
 supports paragraphs and other blocks. Newlines and spaces follow Markdown rules.
 Footnotes/endnotes and bibliography citations are rejected; manuscript
 cross-references are unsupported. The page placeholder also works in
-`docxHeader.content` and is not supported in body paragraphs or HTML/LaTeX output. A configured footer replaces
+`docxHeader.content` and body paragraphs, and is not supported in HTML/LaTeX output. A configured footer replaces
 reference footer content. Use `docxFooter: null` to preserve it or
 `docxFooter: {content: ''}` to clear it. Read
 `papper guide style docx-page-layout` for defaults, style requirements, and
@@ -289,6 +289,112 @@ literal pipe inside a cell as `\|`. A `tbl:` label enables numbered table
 references; an attribute-only caption applies formatting without visible
 caption text. For merged cells and custom appearance, see Advanced Table
 Formatting below.
+
+## DOCX Native Insertions
+
+Use empty spans `[]{t="..."}` to insert Word features that ordinary Markdown
+cannot express. These insertions take effect only in DOCX; HTML and LaTeX
+display no content for these spans and do not reproduce their fields or layout. Type and option
+names are case-sensitive. Unknown types, unknown options, nonempty spans, and
+invalid option values fail the DOCX build with an explanation.
+
+### Contents and Figure or Table Lists
+
+Put each directory on its own paragraph, with blank lines before and after it.
+Titles are ordinary text; `title=""` omits the title. A title does not become
+a numbered heading or an entry in the contents.
+
+```markdown
+[]{t="toc" title="Contents" depth="3"}
+
+[]{t="listofFigures" title="Figures" includeSubfigures="false"}
+
+[]{t="listofFigures" title="Figures and panels" includeSubfigures="true"}
+
+[]{t="listofTables" title="Tables"}
+```
+
+`toc` lists headings through `depth`, an integer from 1 to 9 (default 3).
+The default titles are `Contents`, `List of Figures`, and `List of Tables`.
+Figure lists include captioned standalone figures and grouped-figure captions;
+`includeSubfigures="true"` additionally includes panel captions one level below
+the main captions. The default is `false`. Table lists include captioned
+manuscript tables, excluding tables used to lay out subfigures. With bilingual
+captions, only the primary language appears in the list. These lists work with
+both ordinary caption numbers and `docxNativeCrossref`.
+
+Directories are dynamic Word fields. Papper requests a field update when Word
+opens a document containing a directory. Until Word updates them, they display
+`Update field in Word.`; the build does not compute directory pages. In desktop
+Word, right-click each directory and choose **Update Field**, then **Update
+entire table**. Repeat after editing headings, captions, or pagination. Other
+viewers may require a manual update or may not support Word fields.
+
+### Section Breaks
+
+Put a section break on its own top-level body paragraph, outside tables, lists,
+quotes, and notes. Its options apply to the section **after** the break and
+override global page-story content for that section.
+
+```markdown
+[]{t="sectionBreak" kind="nextPage" pageStart="1" header="**Methods**" footer='Page []{t="pageNum"}' headerAlignment="left" footerAlignment="right"}
+
+# Methods
+
+This section starts on a new page, restarts at page 1, and has its own stories.
+
+[]{t="sectionBreak" kind="continuous" headerLink="false" footerLink="true"}
+
+This section has an independent copy of the preceding header and inherits its footer.
+
+[]{t="sectionBreak" kind="oddPage" header="" footer=""}
+
+This section starts on an odd page and has empty headers and footers.
+```
+
+| Option | Default and effect |
+| --- | --- |
+| `kind` | `nextPage`; also accepts `continuous`, `oddPage`, and `evenPage`. Odd/even starts may leave a blank intervening page. |
+| `pageStart` | Omitted: continue the preceding section's page numbering. An integer from 0 to 2147483647 restarts this section only. Existing page-number format remains in use. |
+| `headerLink`, `footerLink` | Omitted: link to the preceding section unless corresponding content is supplied. `true` inherits; `false` without content creates an independent copy, including first/even page variants. |
+| `header`, `footer` | Omitted: follow the link option. Supplied content becomes an independent story; `""` clears it. Supplying content together with the corresponding `Link="true"` is an error. |
+| `headerAlignment`, `footerAlignment` | `center` for supplied content; also accepts `left` and `right`. Requires the corresponding content option. |
+
+Content supports the same Pandoc Markdown as `docxHeader.content` and
+`docxFooter.content`, including page/date fields. Supplied content is used for
+default, first, and even page variants; the document's existing first/even page
+modes remain in effect. Subsequent sections inherit the effective preceding
+stories unless their own options override them. Margins, paper size, and other
+layout settings carry forward. A page-number restart does not automatically
+repeat at the next break. Word may move a continuous break onto a new page
+when layout constraints require it.
+
+### Page Breaks and Inline Fields
+
+Use `pageBreak` to start the following content on a new page without changing
+sections. It accepts no options and works as a standalone paragraph or inline.
+Page numbers and dates work in body paragraphs and configured headers/footers;
+surrounding Markdown emphasis is retained.
+
+```markdown
+[]{t="pageBreak"}
+
+Current page: []{t="pageNum" format="upperRoman"}
+
+Prepared on **[]{t="date" format="yyyy-MM-dd"}**.
+```
+
+`pageNum` has the same optional `format` values described under **DOCX Footer
+Page Numbers**. Omit it to use the section's format. Its initial display is
+`1` (or the selected format's first value), and Word calculates the actual page.
+`date` (alias `currentDate`) inserts a dynamic current-date field, with a build-time
+cached date and default format `yyyy-MM-dd`. Word can update the date later;
+use ordinary text for a fixed date. Supported date-picture tokens are `yyyy`,
+`yy`, `MMMM`, `MMM`, `MM`, `M`, `dddd`, `ddd`, `dd`, and `d`, with punctuation,
+spaces, or non-Latin literal text between them. Month and weekday names in the
+build-time display follow the build machine's locale; Word's updated display
+follows its language settings. Other ASCII letters, quotes, backslashes, and
+newlines in a date format are rejected.
 
 ## Author Metadata
 

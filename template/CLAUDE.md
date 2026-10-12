@@ -11,7 +11,9 @@ For manuscript syntax and writing patterns, run `papper guide syntax`. For reusa
 
 If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxFooter` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papperSettings` mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.
 
-For DOCX footers, set `docxFooter: {content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. The page-number placeholder works only in footer content. Read `papper guide style docx-page-layout` before replacing authored reference footers.
+For DOCX footers, set `docxFooter: {content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. Page-number and date placeholders work in body paragraphs and page stories. Read `papper guide style docx-page-layout` before replacing authored reference footers.
+
+For DOCX-only empty spans such as `[]{t="toc" title="Contents"}`, `listofFigures`, `listofTables`, `sectionBreak`, `pageBreak`, and `date`, read `papper guide syntax docx-native-insertions`. Directories and section breaks occupy standalone paragraphs; section options apply after the break and override global page stories. Update directories in Word after pagination.
 
 Footer content supports Pandoc Markdown: single-line content is inline Markdown; multiline content supports paragraphs, lists, and tables. `[]{t="pageNum" format="lowerRoman"}` selects a page-number format. Notes and bibliography citations are rejected; manuscript cross-references are unsupported. Read the page-layout guide for supported formats and table alignment.
 

@@ -95,6 +95,24 @@ def _canonical_xml(
 ) -> str:
     """Normalize XML, timestamps, and optionally the native workflow's random bookmarks."""
     root = etree.fromstring(data)
+    # DATE results vary by build day; retain the instruction and all formatting
+    # while normalizing only its cached visible result in the output snapshot.
+    for paragraph in root.iter(_WORD_NAMESPACE + "p"):
+        in_date, result = False, False
+        for run in paragraph.iter(_WORD_NAMESPACE + "r"):
+            instruction = run.find(_WORD_NAMESPACE + "instrText")
+            if instruction is not None and (instruction.text or "").strip().startswith("DATE "):
+                in_date = True
+            field = run.find(_WORD_NAMESPACE + "fldChar")
+            if field is not None:
+                kind = field.get(_WORD_NAMESPACE + "fldCharType")
+                if kind == "separate":
+                    result = True
+                elif kind == "end":
+                    in_date, result = False, False
+            if in_date and result:
+                for value in run.iter(_WORD_NAMESPACE + "t"):
+                    value.text = "<current-date>"
     if bookmarks is not None:
         bookmarks.normalize(root, part_name)
     for element in root.iter():

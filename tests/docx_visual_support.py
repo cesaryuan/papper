@@ -78,13 +78,14 @@ class WordVisualSession:
         assert paths, "No installed Windows fonts found"
         return digest.hexdigest()
 
-    def _word_request(self, mode: str, directory: Path, source: Path | None = None) -> dict:
+    def _word_request(self, mode: str, directory: Path, source: Path | None = None, *, update_fields: bool = False) -> dict:
         """Invoke a real PowerShell file with JSON paths; never interpolate COM into a shell."""
         directory.mkdir(parents=True, exist_ok=True)
         result_path = directory / "word-result.json"
         request = {"mode": mode, "result": str(result_path.resolve())}
         if source is not None:
             request.update(source=str(source.resolve()), output=str((directory / "rendered.pdf").resolve()))
+            request["update_fields"] = update_fields
         request_path = directory / "word-request.json"
         request_path.write_text(json.dumps(request), encoding="utf-8")
         command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
@@ -113,22 +114,22 @@ class WordVisualSession:
                                  "width_px": pixmap.width, "height_px": pixmap.height})
         return images, geometry
 
-    def capture(self, source: Path, directory: Path) -> tuple[list[bytes], list[dict]]:
+    def capture(self, source: Path, directory: Path, *, update_fields: bool = False) -> tuple[list[bytes], list[dict]]:
         """Require two independent Word exports to agree before trusting any baseline."""
         source_digest = hashlib.sha256(source.read_bytes()).digest()
         renders = []
         for attempt in (1, 2):
             export_dir = directory / f"export-{attempt}"
-            environment = self._word_request("export", export_dir, source)
+            environment = self._word_request("export", export_dir, source, update_fields=update_fields)
             assert environment == self.word, "Word renderer/printer/options changed during DOCX export"
             renders.append(self.render_pdf(export_dir / "rendered.pdf"))
         assert hashlib.sha256(source.read_bytes()).digest() == source_digest, "Word export modified the generated DOCX"
         assert renders[0] == renders[1], f"Word exports did not produce stable page pixels: {directory}"
         return renders[1]
 
-    def check(self, source: Path, baseline: Path) -> None:
+    def check(self, source: Path, baseline: Path, *, update_fields: bool = False) -> None:
         """Compare page pixels/geometry and save only per-page diffs against Git HEAD."""
-        images, geometry = self.capture(source, source.parent / "word-render")
+        images, geometry = self.capture(source, source.parent / "word-render", update_fields=update_fields)
         manifest = baseline / "pages.json"
         record_visual_changes(
             {f"page-{index:03d}.png": image for index, image in enumerate(images, 1)},
@@ -145,7 +146,10 @@ class WordVisualSession:
                     continue
                 if stale.name not in {f"page-{index:03d}.png" for index in range(1, len(images) + 1)}:
                     stale.unlink()
-            manifest.write_text(json.dumps({"pages": geometry}, indent=2) + "\n", encoding="utf-8")
+            manifest_data = {"pages": geometry}
+            if update_fields:
+                manifest_data["field_update"] = "Word fields and directories updated until pagination stabilizes; DATE locked to fixture cache"
+            manifest.write_text(json.dumps(manifest_data, indent=2) + "\n", encoding="utf-8")
             self.save_environment()
             LOGGER.info("Updated DOCX visual baseline: %s (%s pages)", baseline, len(images))
             return

@@ -13,16 +13,54 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 import pymupdf
 from PIL import Image, ImageChops
 from docx import Document
 from docx.shared import RGBColor
+from lxml import etree
 
 from docx_visual_support import VISUAL_PLATFORM, WordVisualSession
 from native_support import papper_command
 from test_build_snapshots import CASE_ROOT, CASES, build_case, copy_case
+
+
+def freeze_visual_dates(source: Path, destination: Path) -> None:
+    """Lock DATE caches only in the visual copy so field updates cannot depend on today's date."""
+    namespace = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    dates = 0
+    with ZipFile(source) as original, ZipFile(destination, 'w') as frozen:
+        for member in original.infolist():
+            data = original.read(member.filename)
+            if member.filename.startswith('word/') and member.filename.endswith('.xml'):
+                root = etree.fromstring(data)
+                for paragraph in root.iter(namespace + 'p'):
+                    begin, in_date, result = None, False, False
+                    for run in paragraph.iter(namespace + 'r'):
+                        field = run.find(namespace + 'fldChar')
+                        if field is not None:
+                            kind = field.get(namespace + 'fldCharType')
+                            if kind == 'begin':
+                                begin = field
+                            elif kind == 'separate':
+                                result = True
+                            elif kind == 'end':
+                                begin, in_date, result = None, False, False
+                        instruction = run.find(namespace + 'instrText')
+                        if instruction is not None and (instruction.text or '').strip().startswith('DATE '):
+                            assert begin is not None, 'DATE field is missing its beginning'
+                            begin.set(namespace + 'fldLock', 'true')
+                            begin.set(namespace + 'dirty', 'false')
+                            in_date = True
+                            dates += 1
+                        if in_date and result:
+                            for value in run.iter(namespace + 't'):
+                                value.text = '2000-01-02'
+                data = etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone=True)
+            frozen.writestr(member, data)
+    assert dates > 0, 'Native insertion visual fixture lost its DATE field'
 
 
 @pytest.fixture(scope="module")
@@ -50,14 +88,29 @@ def test_docx_render_matches_visual_snapshot(
     else:
         case_dir, markdown = CASES[case_name]
         copy_case(case_dir, project)
-        if case_name == "bilingual_captions":
+        if case_name in {"bilingual_captions", "docx_directives"}:
             # Relative sibling image references must resolve before Word pagination.
             copy_case(CASES["crossrefs"][0], tmp_path / "crossrefs")
         output = project / "rendered.docx"
         style_file = project / "style.yml" if case_name in {"native_crossrefs", "equation_attributes_no_mathtype"} else None
         build_case(project, markdown, "docx", output, style_file=style_file)
+    update_fields = case_name == "docx_directives"
+    if update_fields:
+        visual_copy = project / "visual-fixed-date.docx"
+        freeze_visual_dates(output, visual_copy)
+        output = visual_copy
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "docx-word"
-    word_visual_session.check(output, baseline)
+    word_visual_session.check(output, baseline, update_fields=update_fields)
+    if update_fields:
+        # Check real Word output as well as pixels: a stable placeholder image
+        # must not become the baseline when directory updating silently fails.
+        with pymupdf.open(output.parent / "word-render/export-2/rendered.pdf") as rendered:
+            text = '\n'.join(page.get_text() for page in rendered)
+            assert 'Update field in Word.' not in text
+            assert '2000-01-02' in text
+            for caption in ('Figure 1 Primary figure', 'Figure 2 Combined panels',
+                            '(a) First panel', '(b) Second panel', 'Table 1 Measurements'):
+                assert text.count(caption) >= 2, f'Directory lost caption: {caption}'
 
 
 @pytest.mark.visual

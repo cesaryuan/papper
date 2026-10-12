@@ -6,47 +6,9 @@
 
 local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
 local resource = dofile(pandoc.path.join {directory, '../shared/filter_resources.lua'})
+local fields = dofile(pandoc.path.join {directory, 'docx_fields.lua'})
 
 local setting = "docxFooter"
-
-local formats = {
-  decimal = 'Arabic', upperRoman = 'ROMAN', lowerRoman = 'roman',
-  upperLetter = 'ALPHABETIC', lowerLetter = 'alphabetic',
-  decimalEnclosedDash = 'ArabicDash', ordinal = 'Ordinal',
-  cardinalText = 'CardText', ordinalText = 'OrdText', hex = 'Hex',
-  Arabic = 'Arabic', ROMAN = 'ROMAN', roman = 'roman',
-  ALPHABETIC = 'ALPHABETIC', alphabetic = 'alphabetic',
-  ArabicDash = 'ArabicDash', Ordinal = 'Ordinal', CardText = 'CardText',
-  OrdText = 'OrdText', Hex = 'Hex',
-}
-
-local first_values = {
-  Arabic = '1', ROMAN = 'I', roman = 'i', ALPHABETIC = 'A', alphabetic = 'a',
-  ArabicDash = '- 1 -', Ordinal = '1st', CardText = 'one', OrdText = 'first', Hex = '1',
-}
-
---- Keep page placeholders as styled runs so enclosing bold/italic survives the DOCX writer
-local function page_span(span)
-  if span.attributes.t ~= 'pageNum' then return nil end
-  if #span.content ~= 0 then
-    error(setting .. ' pageNum spans must be empty: []{t="pageNum"}')
-  end
-  for key, _ in pairs(span.attributes) do
-    if key ~= 't' and key ~= 'format' then
-      error('Unknown ' .. setting .. ' pageNum attribute: ' .. key .. '; use format for numbering')
-    end
-  end
-  local name = span.attributes.format
-  local switch = name and formats[name] or ''
-  if name and not formats[name] then
-    error('Unsupported ' .. setting .. ' pageNum format: ' .. name
-      .. '; expected decimal, upperRoman, lowerRoman, upperLetter, lowerLetter, '
-      .. 'decimalEnclosedDash, ordinal, cardinalText, ordinalText, hex, or a corresponding Word switch')
-  end
-  local record = pandoc.json.encode({switch = switch, result = first_values[switch] or '1'})
-  return pandoc.Span({pandoc.Str('PMT_FOOTER_PAGE:' .. record)},
-    pandoc.Attr('', {}, {['custom-style'] = 'page number'}))
-end
 
 --- Emit exact block boundaries that native processing removes before publishing
 local function boundary(kind, name)
@@ -77,7 +39,11 @@ local function append_content(doc, kind, style)
   local value = parsed.meta.footer
   local blocks = pandoc.utils.type(value) == 'Inlines' and {pandoc.Para(value)} or value
   local footer = pandoc.Pandoc(blocks):walk({
-    Span = page_span,
+    Span = function(span)
+      local result = fields.span(span, setting)
+      if span.attributes.t and not result then error('Unsupported ' .. setting .. ' directive: ' .. span.attributes.t) end
+      return result
+    end,
     Note = reject_note,
     Cite = reject_citation,
   })

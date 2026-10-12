@@ -415,6 +415,14 @@ placeholder inserts a dynamic page number. Alignment accepts `left`,
 them. See [`papper guide style docx-page-layout`](docs/style-configuration.md#docx-page-layout)
 for replacement behavior and compatibility with `docxShowPageNumbers`.
 
+DOCX supports native insertions with empty spans: `[]{t="toc" title="Contents"}`,
+`[]{t="listofFigures" includeSubfigures="true"}`, `[]{t="listofTables"}`,
+`[]{t="sectionBreak" pageStart="1" footer='Page []{t="pageNum"}'}`,
+`[]{t="pageBreak"}`, and `[]{t="date"}`. Page numbers also work in body text.
+Directories and section breaks occupy standalone paragraphs; section options
+apply to following content. Update directories in Word to obtain entries and
+page numbers. See [`papper guide syntax docx-native-insertions`](docs/manuscript-syntax.md#docx-native-insertions).
+
 HTML builds use the shared Pandoc filters for Chinese nested numbering and
 `!<!`/`!^!` table-cell merge markers, plus HTML post-processing for author
 information. DOCX also uses the shared AST filter for standalone inline-math
