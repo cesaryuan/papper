@@ -147,6 +147,17 @@
         }
       }
     },
+    "docxHeader": {
+      "description": "DOCX 页眉；null 保留参考文档页眉，空 content 清空页眉",
+      "children": {
+        "content": {
+          "description": "页眉 Markdown 内容；例如 []{t=\"pageNum\" format=\"upperRoman\"} 插入页码"
+        },
+        "alignment": {
+          "description": "页眉对齐方式"
+        }
+      }
+    },
     "docxFooter": {
       "description": "DOCX 页脚；null 保留参考文档页脚，空 content 清空页脚",
       "children": {

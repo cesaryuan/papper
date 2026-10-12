@@ -232,7 +232,7 @@ override bundled values, and DOCX `--lang` selects language for one build.
 
 The bundled English and Chinese style YAML files provide build defaults.
 `papper init` creates a project `style.yml` with explicit settings for MathType,
-SVG handling, line numbers, page numbers, and table autofit, plus an empty
+SVG handling, line numbers, headers, footers, and table autofit, plus an empty
 `pandocMetadata` mapping. These explicit project values override the bundled
 defaults for either language. Remove a setting from the project file when you
 want it to follow the selected language's bundled default.
@@ -423,7 +423,7 @@ those numbers disabled in Word when you want `false` to produce no line numbers.
 
 ## DOCX Page Layout
 
-Configure DOCX page margins and custom footers, including how to retain
+Configure DOCX page margins and custom headers and footers, including how to retain
 reference DOCX settings; margins also determine image sizing width.
 
 Set DOCX page margins under `docxPageMargins`. Image sizing uses the resulting
@@ -445,6 +445,28 @@ Project settings merge with these defaults. To preserve all margins from a
 custom reference DOCX, use `docxPageMargins: null`.
 An explicit `null` in the selected project style or manuscript `papperSettings`
 overrides inherited margins, including the bundled defaults.
+
+Use `docxHeader` to set header text and paragraph alignment. Its `content`
+supports the same Markdown and page-number formats as `docxFooter` below:
+
+```yaml
+docxHeader:
+  content: '**Review copy** · Page []{t="pageNum" format="upperRoman"}'
+  alignment: right
+```
+
+The bundled header default is `null`, preserving reference header content.
+Set `docxHeader: null` explicitly to override inherited header configuration, or
+`docxHeader: {content: ''}` to clear it. Header mappings merge content and
+alignment across sources. With a mapping, omitted alignment defaults to `center`;
+omitted content defaults to an empty string when no source supplies content.
+A configured header replaces each existing primary, first-page, and even-page
+header, and supplies a primary header when missing and content is nonempty.
+The reference's first-page and odd/even-page settings remain in effect.
+Ordinary header paragraphs use the `Header` style, configurable with `docxStyle`.
+Header and footer configuration are independent; `docxShowPageNumbers` affects
+only footer page numbers. Both options work in manuscript `papperSettings`
+and reply styles and apply to DOCX output only.
 
 Use `docxFooter` to set footer text and paragraph alignment. Insert the current
 page number with `[]{t="pageNum"}`; for example, the following footer displays
@@ -475,9 +497,10 @@ docxFooter:
 Ordinary newlines and spaces follow Markdown rules. For a visible line break
 inside a paragraph, end the line with a backslash or two spaces. A literal
 Markdown character can be escaped with a backslash. Raw HTML and LaTeX have the
-same DOCX output limitations as ordinary Pandoc Markdown. Footer content is
-independent of manuscript numbering and bibliography processing: citations and
-footnotes/endnotes are rejected, and manuscript cross-references are unsupported.
+same DOCX output limitations as ordinary Pandoc Markdown. Header and footer
+content are independent of manuscript numbering and bibliography processing.
+Citations and footnotes/endnotes are rejected; manuscript cross-references are
+unsupported.
 Math uses native Word equations even when body equations use MathType.
 
 The placeholder also accepts single quotes or no quotes (`[]{t='pageNum'}` or
@@ -505,7 +528,7 @@ page-number starting values or other placeholders. Word chooses the language
 of textual numbers from its document/language settings. Unknown formats or
 page-number attributes produce an error.
 
-This placeholder is supported only in `docxFooter.content`,
+This placeholder is supported only in `docxFooter.content` and `docxHeader.content`,
 not in the manuscript body. Page numbers remain automatic Word page numbers and
 use the `page number` character style from the reference DOCX; Pandoc creates
 the style when it is missing. Ordinary footer paragraphs use

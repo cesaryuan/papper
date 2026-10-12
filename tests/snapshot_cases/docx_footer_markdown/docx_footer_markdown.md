@@ -1,6 +1,14 @@
 ---
 title: Markdown footer
 papperSettings:
+  docxHeader:
+    content: |
+      **Review copy** · *Header* · [Project website](https://example.org/header)
+
+      | Logo | Formula | Page |
+      | :--- | :---: | ---: |
+      | ![Logo](logo.png){width=0.25in} | $y^2$ | **[]{t="pageNum" format="lowerRoman"}** |
+    alignment: left
   docxFooter:
     content: |
       **Confidential** · *Draft* · [Project website](https://example.org/footer)

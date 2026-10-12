@@ -118,6 +118,7 @@ pub fn canonical_field_name(name: &str) -> Option<&'static str> {
         | "showPageNumbers"
         | "show_page_numbers" => Some("docxShowPageNumbers"),
         "docxFooter" | "docx-footer" | "docx_footer" => Some("docxFooter"),
+        "docxHeader" | "docx-header" | "docx_header" => Some("docxHeader"),
         "docxPageMargins" | "docx-page-margins" | "docx_page_margins" => Some("docxPageMargins"),
         "docxPageWidth" | "docx-page-width" | "docx_page_width" => Some("docxPageWidth"),
         "docxStyle" | "docx-style" | "docx_style" => Some("docxStyle"),
@@ -583,17 +584,17 @@ fn validate_field(name: &str, value: &Value) -> Result<Value> {
             _ => bail!("tableAutofit must be window, content, fixed, or none"),
         },
         "docxShowPageNumbers" => parse_bool(value, name),
-        "docxFooter" if value.is_null() => Ok(Value::Null),
-        "docxFooter" => {
+        "docxFooter" | "docxHeader" if value.is_null() => Ok(Value::Null),
+        "docxFooter" | "docxHeader" => {
             let Some(fields) = value.as_object() else {
-                bail!("docxFooter must be a mapping or null")
+                bail!("{name} must be a mapping or null")
             };
             let footer: DocxFooter = serde_json::from_value(value.clone())
-                .context("docxFooter must be a mapping with string content and alignment left, center, or right")?;
+                .with_context(|| format!("{name} must be a mapping with string content and alignment left, center, or right"))?;
             // Null subfields would accidentally revive inherited content during merging.
             if fields.values().any(Value::is_null) {
                 bail!(
-                    "docxFooter fields cannot be null; use docxFooter: null to preserve the reference footer"
+                    "{name} fields cannot be null; use {name}: null to preserve the reference content"
                 )
             }
             Ok(json!(footer))
@@ -1707,14 +1708,14 @@ mod tests {
         Ok(())
     }
 
-    /// Preserve reference footers when reply settings cross the persisted metadata boundary.
+    /// Preserve reference headers/footers when reply settings cross the persisted metadata boundary.
     #[test]
     fn reply_footer_null_survives_source_merges_and_serialization() -> Result<()> {
         let directory = tempfile::tempdir()?;
         let style = directory.path().join("style.yml");
         fs::write(
             &style,
-            "docxFooter: {content: Confidential, alignment: right}\nreply:\n  docxFooter: null\n",
+            "docxFooter: {content: Confidential, alignment: right}\ndocxHeader: {content: Review, alignment: left}\nreply:\n  docxFooter: null\n  docxHeader: null\n",
         )?;
         let options = MetadataOptions {
             style_paths: vec![style.clone()],
@@ -1730,6 +1731,8 @@ mod tests {
             serde_json::from_value(serde_json::to_value(&effective)?)?;
         assert!(restored.pmt_settings.was_provided("docxFooter"));
         assert!(restored.pmt_settings.fields().docx_footer.is_none());
+        assert!(restored.pmt_settings.was_provided("docxHeader"));
+        assert!(restored.pmt_settings.fields().docx_header.is_none());
         assert!(
             restored
                 .pmt_settings
@@ -1743,6 +1746,8 @@ mod tests {
         let reply = restored.for_reply()?;
         assert!(reply.was_provided("docxFooter"));
         assert!(reply.fields().docx_footer.is_none());
+        assert!(reply.was_provided("docxHeader"));
+        assert!(reply.fields().docx_header.is_none());
         Ok(())
     }
 

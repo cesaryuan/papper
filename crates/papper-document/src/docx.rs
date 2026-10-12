@@ -218,7 +218,7 @@ pub fn postprocess_docx(
         .with_context(|| format!("DOCX post-processing failed: {}", output.display()))
 }
 
-/// Finalize generated footer content and note marks even when optional formatting is disabled.
+/// Finalize generated header/footer content and note marks even when optional formatting is disabled.
 pub fn finalize_output_content(
     input: &Path,
     output: &Path,
@@ -227,7 +227,9 @@ pub fn finalize_output_content(
     let mut package = Package::open(input)?;
     let mut document = package.xml("word/document.xml")?;
     let styles = package.xml("word/styles.xml")?;
-    if effective.pmt_settings.fields().docx_footer.is_some() {
+    if effective.pmt_settings.fields().docx_footer.is_some()
+        || effective.pmt_settings.fields().docx_header.is_some()
+    {
         footer::apply(
             &mut package,
             &mut document,
@@ -237,6 +239,7 @@ pub fn finalize_output_content(
     }
     if note_marks::apply(&mut package, &mut document)?
         || effective.pmt_settings.fields().docx_footer.is_some()
+        || effective.pmt_settings.fields().docx_header.is_some()
     {
         package.set_xml("word/document.xml", &document);
         package.save_preserving(output)

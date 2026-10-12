@@ -385,6 +385,18 @@ Line numbers and custom footers apply to the final manuscript. These options
 and their interaction with page margins and style overrides are described in
 [`papper guide style one-off-docx-builds`](docs/style-configuration.md#one-off-docx-builds).
 
+Set `docxHeader` in `style.yml` for a custom DOCX header, using the same Markdown,
+page-number formats, and alignment options as the footer. For example:
+
+```yaml
+docxHeader:
+  content: '**Review copy** · []{t="pageNum" format="upperRoman"}'
+  alignment: right
+```
+
+The header defaults to `null`, preserving the reference header; empty `content`
+clears it. Configure header typography through the `Header` style in `docxStyle`.
+
 Set `docxFooter` in `style.yml` to customize footer text and alignment:
 
 ```yaml

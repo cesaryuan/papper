@@ -1,11 +1,13 @@
 -- Render configured Markdown with Pandoc's reader and the main DOCX writer.
 -- For example, **Draft** - []{t="pageNum" format="upperRoman"} - becomes
--- formatted footer blocks with a dynamic Roman page number. Native processing
+-- formatted header/footer blocks with a dynamic Roman page number. Native processing
 -- moves the marked blocks and their relationships out of the document body.
 -- Append only after manuscript numbering/citations, but before image filters.
 
 local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
 local resource = dofile(pandoc.path.join {directory, '../shared/filter_resources.lua'})
+
+local setting = "docxFooter"
 
 local formats = {
   decimal = 'Arabic', upperRoman = 'ROMAN', lowerRoman = 'roman',
@@ -27,17 +29,17 @@ local first_values = {
 local function page_span(span)
   if span.attributes.t ~= 'pageNum' then return nil end
   if #span.content ~= 0 then
-    error('docxFooter pageNum spans must be empty: []{t="pageNum"}')
+    error(setting .. ' pageNum spans must be empty: []{t="pageNum"}')
   end
   for key, _ in pairs(span.attributes) do
     if key ~= 't' and key ~= 'format' then
-      error('Unknown docxFooter pageNum attribute: ' .. key .. '; use format for numbering')
+      error('Unknown ' .. setting .. ' pageNum attribute: ' .. key .. '; use format for numbering')
     end
   end
   local name = span.attributes.format
   local switch = name and formats[name] or ''
   if name and not formats[name] then
-    error('Unsupported docxFooter pageNum format: ' .. name
+    error('Unsupported ' .. setting .. ' pageNum format: ' .. name
       .. '; expected decimal, upperRoman, lowerRoman, upperLetter, lowerLetter, '
       .. 'decimalEnclosedDash, ordinal, cardinalText, ordinalText, hex, or a corresponding Word switch')
   end
@@ -47,27 +49,27 @@ local function page_span(span)
 end
 
 --- Emit exact block boundaries that native processing removes before publishing
-local function boundary(name)
+local function boundary(kind, name)
   return pandoc.RawBlock('openxml', '<w:p><w:pPr><w:rPr><w:vanish/></w:rPr></w:pPr>'
-    .. '<w:r><w:rPr><w:vanish/></w:rPr><w:t>PMT_DOCX_FOOTER_' .. name .. '</w:t></w:r></w:p>')
+    .. '<w:r><w:rPr><w:vanish/></w:rPr><w:t>PMT_DOCX_' .. kind .. '_' .. name .. '</w:t></w:r></w:p>')
 end
 
---- Reject note references because Word cannot display them in a footer story
+--- Reject note references because Word cannot display them in a header/footer story
 local function reject_note()
-  error('docxFooter does not support footnotes or endnotes; Word disallows notes in footers')
+  error(setting .. ' does not support footnotes or endnotes; Word disallows notes in headers/footers')
 end
 
---- Keep footer content independent of manuscript citeproc and bibliography numbering
+--- Keep page-story content independent of manuscript citeproc and bibliography numbering
 local function reject_citation()
-  error('docxFooter does not support bibliography citations; use ordinary text or links')
+  error(setting .. ' does not support bibliography citations; use ordinary text or links')
 end
 
---- Parse the unmodified configuration string independently of manuscript metadata and filters
-function Pandoc(doc)
-  if FORMAT ~= 'docx' then return nil end
-  local path = resource.getenv('PMT_DOCX_FOOTER_CONTENT_PATH')
-  if not path or path == '' then return nil end
-  local content = assert(resource.read(path), 'Cannot read docxFooter content: ' .. path)
+--- Parse each story independently and append it for the shared DOCX writer
+local function append_content(doc, kind, style)
+  setting = 'docx' .. style
+  local path = resource.getenv('PMT_DOCX_' .. kind .. '_CONTENT_PATH')
+  if not path or path == '' then return end
+  local content = assert(resource.read(path), 'Cannot read ' .. setting .. ' content: ' .. path)
   -- Parse exactly like abstract metadata: a single-line scalar is inline Markdown,
   -- so the established '- []{t="pageNum"} -' remains decoration rather than a list.
   -- Multiline strings become block Markdown and may contain real lists or tables.
@@ -79,8 +81,15 @@ function Pandoc(doc)
     Note = reject_note,
     Cite = reject_citation,
   })
-  doc.blocks:insert(boundary('BEGIN'))
-  doc.blocks:insert(pandoc.Div(footer.blocks, pandoc.Attr('', {}, {['custom-style'] = 'Footer'})))
-  doc.blocks:insert(boundary('END'))
+  doc.blocks:insert(boundary(kind, 'BEGIN'))
+  doc.blocks:insert(pandoc.Div(footer.blocks, pandoc.Attr('', {}, {['custom-style'] = style})))
+  doc.blocks:insert(boundary(kind, 'END'))
+end
+
+--- Render configured page stories after manuscript filters and before image handling
+function Pandoc(doc)
+  if FORMAT ~= 'docx' then return nil end
+  append_content(doc, 'HEADER', 'Header')
+  append_content(doc, 'FOOTER', 'Footer')
   return doc
 end

@@ -121,6 +121,7 @@ fn setting_schema(field: SettingField, help: &Value, text_style: &Value) -> Valu
         SettingField::DocxShowLineNumbers
         | SettingField::DocxShowPageNumbers
         | SettingField::DocxFooter
+        | SettingField::DocxHeader
         | SettingField::DocxPageMargins
         | SettingField::DocxPageWidth => ("layout", vec!["docx"]),
     };
@@ -179,7 +180,7 @@ fn setting_schema(field: SettingField, help: &Value, text_style: &Value) -> Valu
         SettingField::CitationNumberRangeDelimiter => schema["type"] = json!(["string", "null"]),
         SettingField::DocxShowLineNumbers => schema["type"] = json!(["boolean", "string"]),
         SettingField::DocxShowPageNumbers => schema["type"] = json!(["boolean", "null"]),
-        SettingField::DocxFooter => {
+        SettingField::DocxFooter | SettingField::DocxHeader => {
             schema["type"] = json!(["object", "null"]);
             schema["additionalProperties"] = json!(false);
             schema["properties"]["alignment"]["enum"] = json!([

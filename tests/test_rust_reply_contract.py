@@ -150,6 +150,7 @@ def test_native_reply_and_manuscript_share_docx_defaults(reply_project: ReplyPro
     markdown.write_text("Shared prose reaches both DOCX pipelines.\n", encoding="utf-8")
     with (project.directory / "style.yml").open("a", encoding="utf-8") as handle:
         handle.write('docxFooter:\n  content: \'**Draft** - []{t="pageNum" format="upperRoman"} -\'\n  alignment: right\n')
+        handle.write('docxHeader:\n  content: \'**Review** · []{t="pageNum" format="lowerRoman"}\'\n  alignment: left\n')
     project.run("reply.md", "-o", "reply.docx")
     built = subprocess.run(
         [str(project.executable), "build", "docx", "-m", "reply.md", "-o", "manuscript.docx", "--no-mathtype"],
@@ -164,6 +165,11 @@ def test_native_reply_and_manuscript_share_docx_defaults(reply_project: ReplyPro
         paragraphs = [paragraph.text for paragraph in output.paragraphs]
         assert "Shared-render: Shared prose reaches both DOCX pipelines." in paragraphs
         footer = output.sections[0].footer.paragraphs[0]
+        header = output.sections[0].header.paragraphs[0]
+        assert header.text == "Review · i"
+        assert header.runs[0].bold
+        assert header._p.pPr.find(qn("w:jc")).get(qn("w:val")) == "left"
+        assert [node.text for node in header._p.iter(qn("w:instrText"))] == [' PAGE \\* roman ']
         assert footer.text == "Draft - I -"
         assert footer.runs[0].bold
         assert footer._p.pPr.find(qn("w:jc")).get(qn("w:val")) == "right"

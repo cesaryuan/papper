@@ -1,42 +1,62 @@
-//! Move Pandoc-rendered Markdown into footer parts and finalize dynamic page fields.
+//! Move Pandoc-rendered Markdown into header/footer parts and finalize dynamic page fields.
 
 use super::formatting::style_index;
 use super::package::Package;
 use super::xml::{Element, Node};
 use anyhow::{Context, Result, bail};
-use papper_core::metadata::{FooterAlignment, PmtSettings};
+use papper_core::metadata::{DocxFooter, FooterAlignment, PmtSettings};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Replace configured footers uniformly, or retain the old page-visibility behavior.
+/// Replace configured headers/footers uniformly, retaining legacy footer page visibility.
 pub(crate) fn apply(
     package: &mut Package,
     document: &mut Element,
     styles: &Element,
     settings: &PmtSettings,
 ) -> Result<()> {
-    let Some(config) = &settings.fields().docx_footer else {
-        if settings.was_provided("docxFooter") {
-            return Ok(());
-        }
-        return apply_page_numbers(package, document, styles, settings);
+    if let Some(config) = &settings.fields().docx_header {
+        apply_content(package, document, styles, config, "header")?;
+    }
+    if let Some(config) = &settings.fields().docx_footer {
+        apply_content(package, document, styles, config, "footer")
+    } else if settings.was_provided("docxFooter") {
+        Ok(())
+    } else {
+        apply_page_numbers(package, document, styles, settings)
+    }
+}
+
+/// Share rendered content, resource relocation, and style handling between the two page stories.
+fn apply_content(
+    package: &mut Package,
+    document: &mut Element,
+    styles: &Element,
+    config: &DocxFooter,
+    kind: &str,
+) -> Result<()> {
+    let default_content = if kind == "footer" {
+        "[]{t=\"pageNum\"}"
+    } else {
+        ""
     };
-    let content = config.content.as_deref().unwrap_or("[]{t=\"pageNum\"}");
+    let content = config.content.as_deref().unwrap_or(default_content);
     let alignment = config.alignment.unwrap_or(FooterAlignment::Center).as_str();
-    let rendered = take_rendered_blocks(document)?;
+    let rendered = take_rendered_blocks(document, kind)?;
     if rendered.is_none() && !content.trim().is_empty() {
         bail!(
-            "DOCX footer content was not rendered; run the docx_footer Pandoc filter before postprocessing"
+            "DOCX {kind} content was not rendered; run the docx_footer Pandoc filter before postprocessing"
         )
     }
     let mut blocks = rendered.unwrap_or_default();
-    // Localized references may use an ID such as af2 rather than the display name Footer.
-    let footer_style = style_index(styles, "Footer")
+    // Localized references may use an ID such as af2 rather than the display name.
+    let style_name = if kind == "footer" { "Footer" } else { "Header" };
+    let footer_style = style_index(styles, style_name)
         .and_then(|index| match &styles.children[index] {
             Node::Element(style) => style.attr("w:styleId"),
             _ => None,
         })
-        .unwrap_or("Footer");
+        .unwrap_or(style_name);
     for block in &mut blocks {
         finalize_page_fields(block, styles)?;
         format_paragraphs(block, alignment, footer_style, false);
@@ -44,7 +64,7 @@ pub(crate) fn apply(
     if blocks.is_empty()
         || !matches!(blocks.last(), Some(Node::Element(element)) if element.name == "w:p")
     {
-        // Word requires a final paragraph, including after a Markdown table or an empty footer.
+        // Word requires a final paragraph, including after a Markdown table or an empty header/footer.
         let mut paragraph = Element::new("w:p");
         paragraph
             .word("w:pPr")
@@ -56,7 +76,7 @@ pub(crate) fn apply(
     let mut names: Vec<String> = package
         .entries
         .keys()
-        .filter(|name| name.starts_with("word/footer") && name.ends_with(".xml"))
+        .filter(|name| name.starts_with(&format!("word/{kind}")) && name.ends_with(".xml"))
         .cloned()
         .collect();
     let mut first_section = true;
@@ -64,19 +84,20 @@ pub(crate) fn apply(
     document.visit(&mut |element| {
         if element.name == "w:sectPr" && first_section {
             has_primary = element.elements().any(|child| {
-                child.name == "w:footerReference" && child.attr("w:type") == Some("default")
+                child.name == format!("w:{kind}Reference")
+                    && child.attr("w:type") == Some("default")
             });
             first_section = false;
         }
     });
-    // First/even-only templates still need a primary footer on ordinary pages.
+    // First/even-only templates still need a primary header/footer on ordinary pages.
     // Later sections inherit this reference unless they already define their own.
     if !has_primary && !content.is_empty() {
-        names.push(create_primary_footer(package, document)?);
+        names.push(create_primary_part(package, document, kind)?);
     }
     for name in names {
         let mut footer = package.xml(&name)?;
-        // Relocated nodes inherit document namespaces, which may be absent from a custom footer root.
+        // Relocated nodes inherit document namespaces, which may be absent from a custom header/footer root.
         for (key, value) in &document.attrs {
             if key.starts_with("xmlns:") || key == "mc:Ignorable" {
                 footer.set(key, value);
@@ -91,10 +112,12 @@ pub(crate) fn apply(
 }
 
 /// Extract exact boundary paragraphs and their rendered blocks before body-specific formatting runs.
-fn take_rendered_blocks(document: &mut Element) -> Result<Option<Vec<Node>>> {
+fn take_rendered_blocks(document: &mut Element, kind: &str) -> Result<Option<Vec<Node>>> {
     let body = document
         .child_mut("w:body")
         .context("DOCX is missing its document body")?;
+    let begin = format!("PMT_DOCX_{}_BEGIN", kind.to_uppercase());
+    let end = format!("PMT_DOCX_{}_END", kind.to_uppercase());
     let boundaries: Vec<_> = body
         .children
         .iter()
@@ -107,8 +130,8 @@ fn take_rendered_blocks(document: &mut Element) -> Result<Option<Vec<Node>>> {
                 return None;
             }
             match element.text().as_str() {
-                "PMT_DOCX_FOOTER_BEGIN" => Some((index, true)),
-                "PMT_DOCX_FOOTER_END" => Some((index, false)),
+                value if value == begin => Some((index, true)),
+                value if value == end => Some((index, false)),
                 _ => None,
             }
         })
@@ -117,7 +140,7 @@ fn take_rendered_blocks(document: &mut Element) -> Result<Option<Vec<Node>>> {
         return Ok(None);
     }
     let [(start, true), (end, false)] = boundaries.as_slice() else {
-        bail!("DOCX contains incomplete or duplicate footer boundaries")
+        bail!("DOCX contains incomplete or duplicate {kind} boundaries")
     };
     let mut nodes: Vec<_> = body.children.drain(*start..=*end).collect();
     nodes.pop();
@@ -200,7 +223,7 @@ fn finalize_page_fields(node: &mut Node, styles: &Element) -> Result<()> {
     Ok(())
 }
 
-/// Recreate used body relationships in each footer part while sharing the same media bytes.
+/// Recreate used body relationships in each header/footer part while sharing the same media bytes.
 fn relocate_relationships(package: &mut Package, name: &str, footer: &mut Element) -> Result<()> {
     let source = package.xml("word/_rels/document.xml.rels")?;
     let mut used = BTreeSet::new();
@@ -373,18 +396,22 @@ fn append_formatted_page_field(
     Ok(())
 }
 
-/// Add a unique primary footer and connect the first section without altering section modes.
-fn create_primary_footer(package: &mut Package, document: &mut Element) -> Result<String> {
+/// Add a unique primary header/footer and connect the first section without altering section modes.
+fn create_primary_part(
+    package: &mut Package,
+    document: &mut Element,
+    kind: &str,
+) -> Result<String> {
     let mut index = 1;
     while package
         .entries
-        .contains_key(&format!("word/footer{index}.xml"))
+        .contains_key(&format!("word/{kind}{index}.xml"))
     {
         index += 1;
     }
-    let name = format!("word/footer{index}.xml");
-    let target = format!("footer{index}.xml");
-    package.set_xml(&name, &default_footer());
+    let name = format!("word/{kind}{index}.xml");
+    let target = format!("{kind}{index}.xml");
+    package.set_xml(&name, &default_part(kind));
     let mut relationships = package.xml("word/_rels/document.xml.rels")?;
     let mut index = 1;
     while relationships
@@ -400,7 +427,9 @@ fn create_primary_footer(package: &mut Package, document: &mut Element) -> Resul
             ("Id", &identifier),
             (
                 "Type",
-                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer",
+                &format!(
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/{kind}"
+                ),
             ),
             ("Target", &target),
         ],
@@ -410,11 +439,18 @@ fn create_primary_footer(package: &mut Package, document: &mut Element) -> Resul
     document.visit_mut(&mut |element| {
         if element.name == "w:sectPr" && !linked {
             let reference = Element::with_attrs(
-                "w:footerReference",
+                &format!("w:{kind}Reference"),
                 &[("w:type", "default"), ("r:id", &identifier)],
             );
-            // Insert before other section properties; existing first/even references stay intact.
-            element.children.insert(0, Node::Element(reference));
+            // Word requires header references before footer references and other section properties.
+            let position = if kind == "footer" {
+                element.children.iter().take_while(|node| {
+                    matches!(node, Node::Element(child) if child.name == "w:headerReference")
+                }).count()
+            } else {
+                0
+            };
+            element.children.insert(position, Node::Element(reference));
             linked = true;
         }
     });
@@ -425,7 +461,9 @@ fn create_primary_footer(package: &mut Package, document: &mut Element) -> Resul
             ("PartName", &format!("/{name}")),
             (
                 "ContentType",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml",
+                &format!(
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.{kind}+xml"
+                ),
             ),
         ],
     ));
@@ -450,7 +488,7 @@ fn apply_page_numbers(
         .cloned()
         .collect();
     if visible && names.is_empty() {
-        names.push(create_primary_footer(package, document)?);
+        names.push(create_primary_part(package, document, "footer")?);
     }
     for name in names {
         let mut footer = package.xml(&name)?;
@@ -481,9 +519,9 @@ fn apply_page_numbers(
     Ok(())
 }
 
-/// Create the Word-compatible primary footer with the established Footer style.
-fn default_footer() -> Element {
-    let mut footer = Element::new("w:ftr");
+/// Create a Word-compatible header/footer root with its established paragraph style.
+fn default_part(kind: &str) -> Element {
+    let mut footer = Element::new(if kind == "footer" { "w:ftr" } else { "w:hdr" });
     for (prefix, namespace) in [
         (
             "m",
@@ -549,7 +587,7 @@ fn default_footer() -> Element {
     paragraph
         .word("w:pPr")
         .word("w:pStyle")
-        .set("w:val", "Footer");
+        .set("w:val", if kind == "footer" { "Footer" } else { "Header" });
     footer.push(paragraph);
     footer
 }

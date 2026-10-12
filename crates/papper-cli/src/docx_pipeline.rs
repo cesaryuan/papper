@@ -27,28 +27,37 @@ pub(crate) fn output_filters(resources: &ResourcePaths) -> Vec<PathBuf> {
     .collect()
 }
 
-/// Supply exact footer Markdown through a build-local file, avoiding metadata transformations.
+/// Supply exact header/footer Markdown through build-local files, avoiding metadata transformations.
 pub(crate) fn configure_footer(
     environment: &mut BTreeMap<String, Option<String>>,
     effective: &EffectiveMetadata,
     work: &Path,
 ) -> Result<()> {
-    let path = if let Some(footer) = &effective.pmt_settings.fields().docx_footer {
-        let path = work.join("footer.md");
-        papper_core::paths::atomic_write(
-            &path,
-            footer
-                .content
-                .as_deref()
-                .unwrap_or("[]{t=\"pageNum\"}")
-                .as_bytes(),
-        )?;
-        Some(papper_core::paths::display_path(&path))
-    } else {
-        None
-    };
-    // Explicit removal keeps inherited environment variables from activating stale footer content.
-    environment.insert("PMT_DOCX_FOOTER_CONTENT_PATH".into(), path);
+    for (kind, config, default_content) in [
+        (
+            "FOOTER",
+            &effective.pmt_settings.fields().docx_footer,
+            "[]{t=\"pageNum\"}",
+        ),
+        ("HEADER", &effective.pmt_settings.fields().docx_header, ""),
+    ] {
+        let path = if let Some(config) = config {
+            let path = work.join(format!("{}.md", kind.to_lowercase()));
+            papper_core::paths::atomic_write(
+                &path,
+                config
+                    .content
+                    .as_deref()
+                    .unwrap_or(default_content)
+                    .as_bytes(),
+            )?;
+            Some(papper_core::paths::display_path(&path))
+        } else {
+            None
+        };
+        // Explicit removal keeps inherited environment variables from activating stale content.
+        environment.insert(format!("PMT_DOCX_{kind}_CONTENT_PATH"), path);
+    }
     Ok(())
 }
 

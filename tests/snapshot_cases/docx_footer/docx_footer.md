@@ -1,6 +1,9 @@
 ---
 title: Custom footer
 papperSettings:
+  docxHeader:
+    content: '**Review copy** - []{t="pageNum"} -'
+    alignment: left
   docxFooter:
     content: 'Confidential - []{t="pageNum"} -'
     alignment: right

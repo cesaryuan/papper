@@ -115,8 +115,8 @@ Pandoc Markdown, including emphasis, links, images, lists, tables, and native Wo
 math. A single-line string is inline Markdown; a multiline YAML block string
 supports paragraphs and other blocks. Newlines and spaces follow Markdown rules.
 Footnotes/endnotes and bibliography citations are rejected; manuscript
-cross-references are unsupported. The page placeholder is not supported in body
-paragraphs or HTML/LaTeX output. A configured footer replaces
+cross-references are unsupported. The page placeholder also works in
+`docxHeader.content` and is not supported in body paragraphs or HTML/LaTeX output. A configured footer replaces
 reference footer content. Use `docxFooter: null` to preserve it or
 `docxFooter: {content: ''}` to clear it. Read
 `papper guide style docx-page-layout` for defaults, style requirements, and
@@ -139,6 +139,24 @@ Attributes use ordinary Pandoc span syntax, for example `t="pageNum"` followed
 by `format="lowerRoman"`. Format names are case-sensitive; invalid formats and
 unknown page-number attributes are errors. Read `papper guide style docx-page-layout`
 for the corresponding Word spellings and layout rules.
+
+Define `papperSettings.docxHeader` in the same way to customize the DOCX header:
+
+```yaml
+papperSettings:
+  docxHeader:
+    content: '**Review copy** · []{t="pageNum" format="upperRoman"}'
+    alignment: right
+```
+
+The header supports the same Markdown, alignment, page-number formats, and
+content restrictions as the footer. It uses the `Header` paragraph style.
+Omitting header configuration or setting `docxHeader: null` preserves reference
+headers by default; an empty `content` clears them. Header mappings merge across
+sources, with empty content and centered alignment when no source supplies them.
+Configured headers replace all existing header variants and add a primary header
+when needed, while reference first-page and odd/even-page settings stay in effect.
+Read `papper guide style docx-page-layout` for configuration priority and defaults.
 
 ### Bracketed Numbered Lists
 

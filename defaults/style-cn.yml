@@ -47,6 +47,10 @@ docxConvertSvgToPng: false
 # 也可用 '每页重编' 或 '每节重编' 指定重新编号方式。
 docxShowLineNumbers: false
 
+# 自定义 DOCX 页眉；默认保留参考文档页眉，可配置 content 和 alignment，与页脚语法相同。
+# 示例：{content: '**Review copy** · []{t="pageNum" format="upperRoman"}', alignment: right}。
+docxHeader: null
+
 # 自定义 DOCX 页脚；空 content 清空页脚，docxFooter: null 保留参考文档页脚。
 # content 支持 Pandoc Markdown；[]{t="pageNum" format="upperRoman"} 可指定页码格式。
 # alignment 支持 left、center、right，表格单元格沿用 Markdown 列对齐。

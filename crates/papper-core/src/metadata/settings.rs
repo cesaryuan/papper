@@ -95,6 +95,7 @@ pub enum SettingField {
     DocxShowLineNumbers,
     DocxShowPageNumbers,
     DocxFooter,
+    DocxHeader,
     DocxPageMargins,
     DocxPageWidth,
     DocxStyle,
@@ -102,7 +103,7 @@ pub enum SettingField {
 
 impl SettingField {
     /// Enumerate owned settings without treating arbitrary Pandoc metadata as fields.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Mathtype,
         Self::MathtypeConversionMethod,
         Self::MathtypeSvgBackend,
@@ -118,6 +119,7 @@ impl SettingField {
         Self::DocxShowLineNumbers,
         Self::DocxShowPageNumbers,
         Self::DocxFooter,
+        Self::DocxHeader,
         Self::DocxPageMargins,
         Self::DocxPageWidth,
         Self::DocxStyle,
@@ -141,6 +143,7 @@ impl SettingField {
             "docxShowLineNumbers" => Some(Self::DocxShowLineNumbers),
             "docxShowPageNumbers" => Some(Self::DocxShowPageNumbers),
             "docxFooter" => Some(Self::DocxFooter),
+            "docxHeader" => Some(Self::DocxHeader),
             "docxPageMargins" => Some(Self::DocxPageMargins),
             "docxPageWidth" => Some(Self::DocxPageWidth),
             "docxStyle" => Some(Self::DocxStyle),
@@ -166,6 +169,7 @@ impl SettingField {
             Self::DocxShowLineNumbers => "docxShowLineNumbers",
             Self::DocxShowPageNumbers => "docxShowPageNumbers",
             Self::DocxFooter => "docxFooter",
+            Self::DocxHeader => "docxHeader",
             Self::DocxPageMargins => "docxPageMargins",
             Self::DocxPageWidth => "docxPageWidth",
             Self::DocxStyle => "docxStyle",
@@ -254,7 +258,7 @@ pub enum LengthInput {
     Number(Number),
 }
 
-/// Configure a uniform DOCX footer while retaining omitted properties for layer merging.
+/// Configure uniform DOCX header/footer content while retaining omitted properties for layer merging.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DocxFooter {
@@ -264,7 +268,7 @@ pub struct DocxFooter {
     pub alignment: Option<FooterAlignment>,
 }
 
-/// Limit footer alignment to the three supported user-visible placements.
+/// Limit header/footer alignment to the three supported user-visible placements.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FooterAlignment {
@@ -353,6 +357,7 @@ pub struct SettingsValues {
     pub docx_show_line_numbers: LineNumberMode,
     pub docx_show_page_numbers: Option<bool>,
     pub docx_footer: Option<DocxFooter>,
+    pub docx_header: Option<DocxFooter>,
     pub docx_page_margins: Option<BTreeMap<String, LengthInput>>,
     pub docx_page_width: Option<LengthInput>,
     pub docx_style: Option<DocxStyles>,
@@ -377,6 +382,7 @@ impl Default for SettingsValues {
             docx_show_line_numbers: LineNumberMode::Named("continuous".into()),
             docx_show_page_numbers: None,
             docx_footer: None,
+            docx_header: None,
             docx_page_margins: None,
             docx_page_width: None,
             docx_style: None,
@@ -408,6 +414,7 @@ impl SettingsValues {
             SettingField::DocxShowLineNumbers => assign!(docx_show_line_numbers),
             SettingField::DocxShowPageNumbers => assign!(docx_show_page_numbers),
             SettingField::DocxFooter => assign!(docx_footer),
+            SettingField::DocxHeader => assign!(docx_header),
             SettingField::DocxPageMargins => assign!(docx_page_margins),
             SettingField::DocxPageWidth => assign!(docx_page_width),
             SettingField::DocxStyle => assign!(docx_style),
@@ -435,6 +442,7 @@ impl SettingsValues {
             SettingField::DocxShowLineNumbers => json!(self.docx_show_line_numbers),
             SettingField::DocxShowPageNumbers => json!(self.docx_show_page_numbers),
             SettingField::DocxFooter => json!(self.docx_footer),
+            SettingField::DocxHeader => json!(self.docx_header),
             SettingField::DocxPageMargins => json!(self.docx_page_margins),
             SettingField::DocxPageWidth => json!(self.docx_page_width),
             SettingField::DocxStyle => json!(self.docx_style),
@@ -466,15 +474,16 @@ impl SettingsOverrides {
             .then(|| self.fields.value(field))
     }
 
-    /// Retain explicit footer preservation alongside historical non-null reply fields.
+    /// Retain explicit header/footer preservation alongside historical non-null reply fields.
     pub fn to_mapping(&self) -> Map<String, Value> {
         SettingField::ALL
             .into_iter()
             .filter(|field| self.provided.contains(field))
             .filter_map(|field| {
                 let value = self.fields.value(field);
-                (!value.is_null() || field == SettingField::DocxFooter)
-                    .then(|| (field.name().into(), value))
+                (!value.is_null()
+                    || matches!(field, SettingField::DocxFooter | SettingField::DocxHeader))
+                .then(|| (field.name().into(), value))
             })
             .collect()
     }

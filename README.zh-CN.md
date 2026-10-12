@@ -378,6 +378,16 @@ papper clean
 
 完整 CLI 请查看 `papper --help`。
 
+在 `style.yml` 中使用 `docxHeader` 自定义 DOCX 页眉，Markdown、页码格式和对齐方式与页脚相同：
+
+```yaml
+docxHeader:
+  content: '**Review copy** · []{t="pageNum" format="upperRoman"}'
+  alignment: right
+```
+
+页眉默认 `null`，保留参考文档页眉；空 `content` 清空页眉。字体和字号通过 `docxStyle` 的 `Header` 样式配置。
+
 在 `style.yml` 中使用 `docxFooter` 自定义 DOCX 页脚文字和对齐方式：
 
 ```yaml

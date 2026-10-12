@@ -45,29 +45,29 @@ page-number fields through the legacy visibility setting preserves other footer
 content; the build does not request
 a document-wide field update when Word opens the output.
 
-The CLI writes exact `docxFooter.content` into a request-local Markdown file.
+The CLI writes exact `docxHeader.content` and `docxFooter.content` into separate request-local Markdown files.
 [`docx_footer.lua`](../pandoc/filters/docx/docx_footer.lua) uses Pandoc's YAML
 metadata Markdown reader, preserving single-line inline parsing like `abstract`.
-It appends footer blocks after manuscript numbering/citeproc and before image
+It appends separately bounded header/footer blocks after manuscript numbering/citeproc and before image
 filters. The main DOCX writer supplies typography, numbering, media and links.
 [`footer.rs`](../crates/papper-document/src/docx/footer.rs) removes boundary
-paragraphs and moves the rendered blocks into each footer before body-specific
+paragraphs and moves the rendered blocks into each header/footer before body-specific
 postprocessing. Styled page-marker runs become complex `PAGE` fields with a
 validated general-format switch and a format-appropriate initial result;
-enclosing Markdown emphasis is preserved. Footer relationships are rebuilt from
+enclosing Markdown emphasis is preserved. Header/footer relationships are rebuilt from
 used body relationships, with shared media bytes and unique picture/bookmark IDs.
-Document namespaces are copied to footer roots. Outer paragraphs use explicit
+Document namespaces are copied to header/footer roots. Outer paragraphs use explicit
 alignment; table cells keep their Markdown alignment. A final paragraph is added
-after tables. Footer finalization runs even with optional postprocessing disabled,
+after tables. Header/footer finalization runs even with optional postprocessing disabled,
 so internal boundaries never become published body content. Word-invalid notes
 and unsupported citations fail in the filter before publication.
-A missing first-section primary footer receives a unique part and
+A missing first-section primary header/footer receives a unique part and
 relationship without changing first/even-page modes or section page numbering.
-`null` bypasses footer edits. Papper settings merge the new footer mapping
+`null` bypasses edits to the corresponding story; bundled headers default to null. Header mappings default to empty content and centered alignment, independently of legacy footer visibility. Header references are inserted before footer references, as required by Word. Papper settings merge the new footer mapping
 recursively but remove the lower-priority legacy `docxShowPageNumbers` field
 when a new footer layer is supplied, or remove the lower-priority footer when
 a legacy layer is supplied. A same-source `docxFooter`, including null, wins.
-Explicit footer nulls survive reply override serialization and merging.
+Explicit header/footer nulls survive reply override serialization and merging.
 
 Named character styles receive only run typography from `docxStyle`; reference
 preparation must not create `w:pPr` on them. Paragraph styles also receive
