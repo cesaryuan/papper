@@ -26,8 +26,21 @@ when `docxPageMargins` is null; the final DOCX postprocessor does not reapply
 `docxStyle`. Pandoc inherits the prepared styles and sizes images against the
 writable width of the final document. The source reference is left unchanged. Page
 numbers use Word `PAGE` fields and the `page number` character style. Removing
-page-number fields preserves other footer content; the build does not request
+page-number fields through the legacy visibility setting preserves other footer
+content; the build does not request
 a document-wide field update when Word opens the output.
+
+`docxFooter` renders plain text and empty `t="pageNum"` spans in
+[`footer.rs`](../crates/papper-document/src/docx/footer.rs). It replaces each
+existing footer part with one `Footer` paragraph and an explicit alignment;
+line breaks and tabs become Word run elements, and decorative spaces are
+preserved. A missing first-section primary footer receives a unique part and
+relationship without changing first/even-page modes or section page numbering.
+`null` bypasses footer edits. Papper settings merge the new footer mapping
+recursively but remove the lower-priority legacy `docxShowPageNumbers` field
+when a new footer layer is supplied, or remove the lower-priority footer when
+a legacy layer is supplied. A same-source `docxFooter`, including null, wins.
+Explicit footer nulls survive reply override serialization and merging.
 
 Named character styles receive only run typography from `docxStyle`; reference
 preparation must not create `w:pPr` on them. Paragraph styles also receive

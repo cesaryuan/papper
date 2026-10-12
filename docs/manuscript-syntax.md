@@ -93,6 +93,31 @@ style values. Explicit build command-line overrides retain their priority.
 See [`style-configuration.md`](style-configuration.md) for setting values,
 validation rules, and reply precedence.
 
+### DOCX Footer Page Numbers
+
+Define footer text and dynamic page numbers in `papperSettings.docxFooter` when
+the formatting belongs to one manuscript, or in `style.yml` for reusable output
+settings. For example:
+
+```yaml
+---
+title: My manuscript
+papperSettings:
+  docxFooter:
+    content: '- []{t="pageNum"} -'
+    alignment: center
+---
+```
+
+This produces a centered footer such as `- 1 -`, with the number changing on
+each page. `alignment` also accepts `left` and `right`. The content supports
+plain text and `[]{t="pageNum"}` placeholders only; this placeholder is not
+supported in body paragraphs or HTML/LaTeX output. A configured footer replaces
+reference footer content. Use `docxFooter: null` to preserve it or
+`docxFooter: {content: ''}` to clear it. Read
+`papper guide style docx-page-layout` for defaults, style requirements, and
+configuration priority.
+
 ### Bracketed Numbered Lists
 
 Write consecutive `[1]`, `[2]` items for square-bracket numbered lists in DOCX

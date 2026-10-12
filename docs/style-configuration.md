@@ -88,7 +88,8 @@ are not merged.
 title: A manuscript with its own formatting
 papperSettings:
   mathtype: false
-  docxShowPageNumbers: false
+  docxFooter:
+    content: ''
   docxPageMargins:
     left: 2cm
   docxStyle:
@@ -396,7 +397,7 @@ those numbers disabled in Word when you want `false` to produce no line numbers.
 
 ## DOCX Page Layout
 
-Configure DOCX page margins and footer page numbers, including how to retain
+Configure DOCX page margins and custom footers, including how to retain
 reference DOCX settings; margins also determine image sizing width.
 
 Set DOCX page margins under `docxPageMargins`. Image sizing uses the resulting
@@ -419,15 +420,52 @@ custom reference DOCX, use `docxPageMargins: null`.
 An explicit `null` in the selected project style or manuscript `papperSettings`
 overrides inherited margins, including the bundled defaults.
 
-To control automatic page numbers in DOCX footers, set `docxShowPageNumbers`.
-`true` shows automatic page numbers using the reference DOCX's `page number`
-character style; `false` hides automatic page numbers and retains other footer
-text. The bundled default is `true`. Set `null` to retain the reference DOCX's
-footer settings:
+Use `docxFooter` to set footer text and paragraph alignment. Insert the current
+page number with `[]{t="pageNum"}`; for example, the following footer displays
+`- 1 -` on the first page and `- 2 -` on the second:
 
 ```yaml
-docxShowPageNumbers: true
+docxFooter:
+  content: '- []{t="pageNum"} -'
+  alignment: center
 ```
+
+`content` is plain text with page-number placeholders. Other Markdown formatting,
+images, links, and manuscript cross-references are not supported in footer text.
+The placeholder also accepts single quotes or no quotes (`[]{t='pageNum'}` or
+`[]{t=pageNum}`), with optional whitespace inside the braces. Multiple placeholders
+each show the current page number. Spaces are preserved; a YAML block string can
+include line breaks. This placeholder is supported only in `docxFooter.content`,
+not in the manuscript body. Page numbers remain automatic Word page numbers and
+use the reference DOCX's `page number` character style, which must exist when
+the content contains a page-number placeholder. Plain text uses the `Footer`
+paragraph style; configure its font and size with `docxStyle`.
+
+`alignment` accepts `left`, `center`, or `right`. The bundled default is a centered
+page number: `content: '[]{t="pageNum"}'` and `alignment: center`. Footer mappings
+merge across configuration sources, so setting only `alignment: right` retains
+the inherited content. If no source supplies content or alignment, a footer
+mapping uses the same centered-page-number defaults.
+
+A configured footer replaces the entire reference footer, including any text,
+tables, or images, in each existing primary, first-page, and even-page footer.
+It also supplies a primary footer when missing. Reference settings for different
+first pages, odd/even pages, and page-number starting values are retained; these
+cannot be configured separately through `docxFooter`.
+
+Set `docxFooter: null` to preserve all reference footer content and layout. Set
+`docxFooter: {content: ''}` to clear the footer, or provide plain text without a
+placeholder to show a footer without page numbers. Omitting `docxFooter` follows
+inherited configuration, including the bundled centered-page-number default.
+An explicit `null` overrides that default. These settings affect DOCX output
+only, and can also be placed inside manuscript `papperSettings` or reply styles.
+
+The legacy `docxShowPageNumbers` setting is still accepted: `true` inserts a page
+number when missing, `false` removes automatic page numbers while preserving
+other footer text, and `null` preserves the reference footer. Prefer `docxFooter`
+for new projects. Between these two settings, the higher-priority source wins;
+within the same source, `docxFooter` wins, including `null`. Thus an old project's
+explicit `docxShowPageNumbers` still overrides the new bundled footer default.
 
 Papper centers display equations and right-aligns their numbers automatically.
 Leave `tableEqns`, `eqnBlockTemplate`, and `eqnBlockInlineMath` out of
@@ -459,8 +497,8 @@ in `style.yml`. To keep all its text styles too, set `docxStyle: null`.
 Use `--export-reference-doc [PATH]` to save the effective reference DOCX and
 skip the actual manuscript build. Omitting `PATH` writes `reference-doc.docx`
 in the current project directory. The exported reference includes the page
-margins and `docxStyle` settings selected for the build. Line numbers and footer
-page numbers apply to the generated document; the export does not capture
+margins and `docxStyle` settings selected for the build. Line numbers and custom
+footers apply to the generated document; the export does not capture
 those output formatting changes or the manuscript content.
 Export does not run Pandoc, resolve manuscript references, process images or
 convert MathType equations. Existing manuscript outputs are left unchanged.

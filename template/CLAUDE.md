@@ -9,7 +9,9 @@ For manuscript syntax and writing patterns, run `papper guide syntax`. For reusa
 
 ## Style Metadata
 
-If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxShowPageNumbers` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papperSettings` (alias `papper-settings`) mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.
+If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxFooter` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papperSettings` (alias `papper-settings`) mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.
+
+For DOCX footers, set `docxFooter: {content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. The page-number placeholder works only in footer content. Read `papper guide style docx-page-layout` before replacing authored reference footers.
 
 ## Pandoc Markdown Syntax
 

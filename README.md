@@ -380,9 +380,23 @@ apply `docxStyle` and page margins to a temporary reference copy before building
 reference exports include both settings, leaving the source reference unchanged.
 `--export-reference-doc [PATH]` exports only and skips the actual build; an absent
 default `manuscript.md` is allowed, and existing manuscript outputs are preserved.
-Line numbers and footer page numbers apply to the final manuscript. These options
+Line numbers and custom footers apply to the final manuscript. These options
 and their interaction with page margins and style overrides are described in
 [`papper guide style one-off-docx-builds`](docs/style-configuration.md#one-off-docx-builds).
+
+Set `docxFooter` in `style.yml` to customize footer text and alignment:
+
+```yaml
+docxFooter:
+  content: '- []{t="pageNum"} -'
+  alignment: center
+```
+
+The placeholder inserts a dynamic page number. Alignment accepts `left`,
+`center`, and `right`; the default is a centered page number. Use
+`docxFooter: null` to preserve reference footers or empty `content` to clear
+them. See [`papper guide style docx-page-layout`](docs/style-configuration.md#docx-page-layout)
+for replacement behavior and compatibility with `docxShowPageNumbers`.
 
 HTML builds use the shared Pandoc filters for Chinese nested numbering and
 `!<!`/`!^!` table-cell merge markers, plus HTML post-processing for author

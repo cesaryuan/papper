@@ -47,9 +47,11 @@ docxConvertSvgToPng: false
 # 也可用 '每页重编' 或 '每节重编' 指定重新编号方式。
 docxShowLineNumbers: false
 
-# 控制 DOCX 页脚中的自动页码。true 会使用 page number 字符样式插入页码，false 会移除页码。
-# 不设置时保留 reference DOCX 中原有的页脚内容。
-docxShowPageNumbers: true
+# 自定义 DOCX 页脚；空 content 清空页脚，docxFooter: null 保留参考文档页脚。
+# []{t="pageNum"} 插入动态页码；alignment 支持 left、center、right。
+docxFooter:
+  content: '[]{t="pageNum"}'
+  alignment: center
 
 # 手写表格默认 autofit：window、content、fixed；none 不补默认属性，自动生成的布局表格始终跳过。
 tableAutofit: none

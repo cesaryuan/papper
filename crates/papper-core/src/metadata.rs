@@ -13,8 +13,8 @@ use yaml_rust::scanner::{TScalarStyle, TokenType};
 
 mod settings;
 pub use settings::{
-    ConversionMethod, DocxStyles, LengthInput, LineNumberMode, MathFontConfig, SettingField,
-    SettingsOverrides, SettingsValues, SvgBackend, TableAutofit,
+    ConversionMethod, DocxFooter, DocxStyles, FooterAlignment, LengthInput, LineNumberMode,
+    MathFontConfig, SettingField, SettingsOverrides, SettingsValues, SvgBackend, TableAutofit,
 };
 
 /// Store canonical configuration while tracking explicitly supplied fields.
@@ -117,6 +117,7 @@ pub fn canonical_field_name(name: &str) -> Option<&'static str> {
         | "show-page-numbers"
         | "showPageNumbers"
         | "show_page_numbers" => Some("docxShowPageNumbers"),
+        "docxFooter" | "docx-footer" | "docx_footer" => Some("docxFooter"),
         "docxPageMargins" | "docx-page-margins" | "docx_page_margins" => Some("docxPageMargins"),
         "docxPageWidth" | "docx-page-width" | "docx_page_width" => Some("docxPageWidth"),
         "docxStyle" | "docx-style" | "docx_style" => Some("docxStyle"),
@@ -582,6 +583,21 @@ fn validate_field(name: &str, value: &Value) -> Result<Value> {
             _ => bail!("tableAutofit must be window, content, fixed, or none"),
         },
         "docxShowPageNumbers" => parse_bool(value, name),
+        "docxFooter" if value.is_null() => Ok(Value::Null),
+        "docxFooter" => {
+            let Some(fields) = value.as_object() else {
+                bail!("docxFooter must be a mapping or null")
+            };
+            let footer: DocxFooter = serde_json::from_value(value.clone())
+                .context("docxFooter must be a mapping with string content and alignment left, center, or right")?;
+            // Null subfields would accidentally revive inherited content during merging.
+            if fields.values().any(Value::is_null) {
+                bail!(
+                    "docxFooter fields cannot be null; use docxFooter: null to preserve the reference footer"
+                )
+            }
+            Ok(json!(footer))
+        }
         "mathtypeConversionMethod" => conversion_method(value),
         "mathtypeTypstMathFont" => Ok(json!(MathFontConfig::from_value(value)?)),
         "mathtypeSvgBackend" => match value.as_str() {
@@ -781,6 +797,21 @@ impl Default for PmtSettings {
     }
 }
 
+/// Merge footer configuration by source priority, including the legacy visibility switch.
+fn merge_settings(base: &Map<String, Value>, overrides: &Map<String, Value>) -> Map<String, Value> {
+    let mut base = base.clone();
+    let mut overrides = overrides.clone();
+    // A higher-priority legacy switch must still override a bundled custom footer.
+    // Within one layer, the new footer configuration wins, including explicit null.
+    if overrides.contains_key("docxFooter") {
+        base.remove("docxShowPageNumbers");
+        overrides.remove("docxShowPageNumbers");
+    } else if overrides.contains_key("docxShowPageNumbers") {
+        base.remove("docxFooter");
+    }
+    merge_metadata(&base, &overrides)
+}
+
 /// Resolve both font paths against their owning style without treating family names as paths.
 fn resolve_math_font_paths(fonts: &MathFontConfig, source: &Path) -> Result<MathFontConfig> {
     /// Preserve family names and resolve font files independently for body and calligraphy.
@@ -863,7 +894,7 @@ impl PmtSettings {
         let result: Result<Self> = (|| {
             let raw = normalize_style_source_aliases(raw);
             let (values, pandoc_metadata, reply) = split_style_mapping(&raw, source, section)?;
-            let mut settings = Self::from_mapping(&values)?;
+            let mut settings = Self::from_mapping(&merge_settings(&Map::new(), &values))?;
             settings.pandoc_metadata = pandoc_metadata;
             settings.reply = reply;
             settings.set_math_font(resolve_math_font_paths(
@@ -953,7 +984,7 @@ impl PmtSettings {
         let Some(reply) = &self.reply else {
             return Ok(self.clone());
         };
-        let mut result = Self::from_mapping(&merge_metadata(
+        let mut result = Self::from_mapping(&merge_settings(
             &self.to_mapping(false),
             &reply.pmt_overrides.to_mapping(),
         ))?;
@@ -980,7 +1011,7 @@ impl ReplySettings {
     /// Validate reply fields as an override layer rather than installing fresh defaults.
     pub fn from_mapping(raw: &Map<String, Value>, source: &Path) -> Result<Self> {
         let (pmt, pandoc_metadata, _) = split_style_mapping(raw, source, "reply")?;
-        let mut settings = PmtSettings::from_mapping(&pmt)?;
+        let mut settings = PmtSettings::from_mapping(&merge_settings(&Map::new(), &pmt))?;
         settings.set_math_font(resolve_math_font_paths(
             &settings.fields.mathtype_typst_math_font,
             source,
@@ -1096,7 +1127,7 @@ pub fn load_effective_metadata_text(
         project_settings = Some(match project_settings {
             None => current,
             Some(previous) => {
-                let mut merged = PmtSettings::from_mapping(&merge_metadata(
+                let mut merged = PmtSettings::from_mapping(&merge_settings(
                     &previous.to_mapping(true),
                     &current.to_mapping(true),
                 ))?;
@@ -1105,7 +1136,7 @@ pub fn load_effective_metadata_text(
                 // Reply overrides are a separate domain and must survive source-local overlays.
                 merged.reply = match (&previous.reply, &current.reply) {
                     (Some(base), Some(overrides)) => Some(ReplySettings {
-                        pmt_overrides: serde_json::from_value(Value::Object(merge_metadata(
+                        pmt_overrides: serde_json::from_value(Value::Object(merge_settings(
                             &base.pmt_overrides.to_mapping(),
                             &overrides.pmt_overrides.to_mapping(),
                         )))?,
@@ -1202,7 +1233,7 @@ pub fn load_effective_metadata_text(
     let mut pandoc_defaults = defaults.pandoc_metadata.clone();
     let bundled_csl = pandoc_defaults.get("csl").cloned();
     if let Some(project) = &project_settings {
-        settings_mapping = merge_metadata(&settings_mapping, &project.to_mapping(true));
+        settings_mapping = merge_settings(&settings_mapping, &project.to_mapping(true));
         pandoc_defaults = merge_metadata(&pandoc_defaults, &project_metadata);
     }
     if options.reply && !clears_reply {
@@ -1212,7 +1243,7 @@ pub fn load_effective_metadata_text(
         {
             if let Some(reply) = &settings.reply {
                 settings_mapping =
-                    merge_metadata(&settings_mapping, &reply.pmt_overrides.to_mapping());
+                    merge_settings(&settings_mapping, &reply.pmt_overrides.to_mapping());
                 pandoc_defaults = merge_metadata(&pandoc_defaults, &reply.pandoc_metadata);
             }
         }
@@ -1220,7 +1251,7 @@ pub fn load_effective_metadata_text(
     if let Some(inline) = &inline_settings {
         // Apply the manuscript layer after file-based reply styles too, so its
         // explicit values win even when the selected style contains a reply section.
-        settings_mapping = merge_metadata(
+        settings_mapping = merge_settings(
             &settings_mapping,
             &provided_settings_mapping(&inline.fields, &inline.provided),
         );
@@ -1228,7 +1259,7 @@ pub fn load_effective_metadata_text(
         if options.reply
             && let Some(reply) = &inline.reply
         {
-            settings_mapping = merge_metadata(
+            settings_mapping = merge_settings(
                 &settings_mapping,
                 &provided_settings_mapping(
                     &reply.pmt_overrides.fields,
@@ -1676,6 +1707,45 @@ mod tests {
         Ok(())
     }
 
+    /// Preserve reference footers when reply settings cross the persisted metadata boundary.
+    #[test]
+    fn reply_footer_null_survives_source_merges_and_serialization() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let style = directory.path().join("style.yml");
+        fs::write(
+            &style,
+            "docxFooter: {content: Confidential, alignment: right}\nreply:\n  docxFooter: null\n",
+        )?;
+        let options = MetadataOptions {
+            style_paths: vec![style.clone()],
+            reply: true,
+            ..MetadataOptions::default()
+        };
+        let effective = load_effective_metadata_text(
+            "---\ntitle: Reply\n---\nBody",
+            &directory.path().join("reply.md"),
+            &options,
+        )?;
+        let restored: EffectiveMetadata =
+            serde_json::from_value(serde_json::to_value(&effective)?)?;
+        assert!(restored.pmt_settings.was_provided("docxFooter"));
+        assert!(restored.pmt_settings.fields().docx_footer.is_none());
+        assert!(
+            restored
+                .pmt_settings
+                .fields()
+                .docx_show_page_numbers
+                .is_none()
+        );
+        // The standalone reply API must retain the same explicit null after serialization too.
+        let settings = PmtSettings::load(&style)?;
+        let restored: PmtSettings = serde_json::from_value(serde_json::to_value(&settings)?)?;
+        let reply = restored.for_reply()?;
+        assert!(reply.was_provided("docxFooter"));
+        assert!(reply.fields().docx_footer.is_none());
+        Ok(())
+    }
+
     /// Reject invalid persisted configuration that previously bypassed project-file validation.
     #[test]
     fn persisted_settings_reject_invalid_configuration() -> Result<()> {
@@ -1685,6 +1755,11 @@ mod tests {
             json!({"mathtype": []}),
             json!({"mathtypeConversionMethod": "unknown"}),
             json!({"docxSvgToPngDpi": 300, "docxSvgToPngWidth": 600}),
+            json!({"docxFooter": {"alignment": "justify"}}),
+            json!({"docxFooter": {"content": 42}}),
+            json!({"docxFooter": {"content": null}}),
+            json!({"docxFooter": {"contents": "Misspelled"}}),
+            json!({"docxFooter": ["Footer text", "left"]}),
         ] {
             let mut wire = serde_json::to_value(&settings)?;
             wire["values"]

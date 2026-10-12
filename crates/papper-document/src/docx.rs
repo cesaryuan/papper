@@ -2,6 +2,7 @@
 
 mod authors;
 mod captions;
+mod footer;
 mod formatting;
 mod lists;
 mod mathtype;
@@ -202,7 +203,7 @@ pub fn postprocess_docx(
         )?;
     }
     formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
-    formatting::apply_page_numbers(
+    footer::apply(
         &mut package,
         &mut document,
         &styles,

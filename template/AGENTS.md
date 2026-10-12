@@ -6,6 +6,8 @@ If the user wants to change reusable style behavior, update `style.yml`. For set
 
 ## Pandoc Markdown Syntax
 
+For DOCX footers, configure `docxFooter` in `style.yml` or manuscript `papperSettings`, for example `{content: '- []{t="pageNum"} -', alignment: center}`. Alignment accepts `left`, `center`, and `right`. Use `null` to retain reference footers or empty content to clear them. The page-number placeholder works only in footer content. Run `papper guide style docx-page-layout` for defaults and compatibility rules.
+
 **Cross-references:**
 
 - Figures: `![caption](path){#fig:label}` → `[@fig:label]`

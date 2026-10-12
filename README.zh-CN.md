@@ -377,6 +377,21 @@ papper clean
 
 完整 CLI 请查看 `papper --help`。
 
+在 `style.yml` 中使用 `docxFooter` 自定义 DOCX 页脚文字和对齐方式：
+
+```yaml
+docxFooter:
+  content: '- []{t="pageNum"} -'
+  alignment: center
+```
+
+`[]{t="pageNum"}` 插入动态页码，以上示例显示为 `- 1 -`、`- 2 -`。
+`alignment` 支持 `left`、`center` 和 `right`，默认页脚为居中的页码。
+使用 `docxFooter: null` 保留参考文档页脚，使用空 `content` 清空页脚。
+新配置会替换参考文档的整个页脚；旧 `docxShowPageNumbers` 仍兼容。
+配置优先级与支持范围见
+[`papper guide style docx-page-layout`](docs/style-configuration.md#docx-page-layout)。
+
 `papper build docx` 的原生交叉引用默认关闭。在 `style.yml` 顶层设置：
 
 ```yaml
