@@ -8,6 +8,38 @@ configuration lives in
 Keep pipeline order, source locations, intermediate artifacts, and rendering
 algorithms here rather than in the user guides exposed by `papper guide`.
 
+## DOCX Package Finalization
+
+Manuscript and reviewer-reply builds use `docx::finalize_docx` to read the
+Pandoc-generated package once. Formatting or mandatory content finalization
+edits that package in memory, then MathType injection adds its OLE and WMF parts
+to the same package. Ordinary OPC normalization still runs before equation
+injection, preserving the former intermediate document's XML and declarations.
+The final complete archive is published atomically once; failed conversion
+retains the native equation, and failed publication preserves the previous output.
+This avoids recompressing unchanged figures into an intermediate formatted DOCX.
+
+When `PMT_MATHTYPE_WORK_DIR` explicitly requests manuscript inspection artifacts,
+the build also publishes `<project-name>.marked.docx` before equation injection
+and retains formula sidecars. That diagnostic mode intentionally writes an
+additional archive. Standalone postprocessing and marked-DOCX conversion APIs
+remain available for callers that already have separate input files.
+
+## DOCX Custom Property Compatibility
+
+Word treats custom property names case-insensitively. Pandoc may export distinct
+metadata keys such as crossref's `numberSections` and the manuscript's
+`numbersections` as conflicting entries in `docProps/custom.xml`, causing Word
+to reject the document as unreadable even though its ZIP and XML are valid.
+The package publisher retains the first name and appends a unique numeric suffix
+to later collisions. Existing names are reserved before assigning suffixes;
+values, property IDs and value types remain intact. This changes only exported
+document properties, after Pandoc has consumed the original metadata keys.
+Mandatory content finalization also performs this repair before the unchanged
+file-copy shortcut, so disabling optional DOCX postprocessing cannot bypass it.
+Equation-free MathType conversion applies the same check before its early return.
+Packages without conflicting names keep their custom property part bytes unchanged.
+
 ## Author and Style Processing
 
 The shared [`author_info.lua`](../pandoc/filters/shared/author_info.lua) filter

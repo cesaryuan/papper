@@ -2,8 +2,7 @@
 
 use super::xml::{Element, parse};
 use anyhow::{Context, Result};
-use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
 use std::path::Path;
 use zip::write::SimpleFileOptions;
@@ -44,14 +43,29 @@ impl Package {
         self.entries.insert(name.into(), element.bytes());
     }
 
+    /// Repair custom names before callers decide whether an unchanged package can be copied.
+    pub fn normalize_custom_properties(&mut self) -> Result<bool> {
+        let Some(bytes) = self.entries.get("docProps/custom.xml") else {
+            return Ok(false);
+        };
+        let Some(normalized) = normalize_custom_property_names(bytes)? else {
+            return Ok(false);
+        };
+        self.entries
+            .insert("docProps/custom.xml".into(), normalized);
+        Ok(true)
+    }
+
     /// Publish a complete valid archive atomically, preserving the previous output on failure.
-    pub fn save(&self, path: &Path) -> Result<()> {
-        // Borrow unchanged binary parts: large figures must not be duplicated during saving.
-        let mut entries: BTreeMap<String, Cow<'_, [u8]>> = self
-            .entries
-            .iter()
-            .map(|(name, bytes)| (name.clone(), Cow::Borrowed(bytes.as_slice())))
-            .collect();
+    pub fn save(&mut self, path: &Path) -> Result<()> {
+        self.normalize()?;
+        self.save_preserving(path)
+    }
+
+    /// Apply ordinary OPC normalization before MathType injection without an intermediate ZIP.
+    pub fn normalize(&mut self) -> Result<()> {
+        // Edit only XML parts in place; large unchanged figures stay in the same allocation.
+        let entries = &mut self.entries;
         // Pandoc emits an empty note relationship part even without note links.
         // The existing OPC writer omits that harmless, unused relationship part.
         for name in [
@@ -80,13 +94,10 @@ impl Package {
             .cloned()
             .collect();
         for name in names {
-            entries.insert(name.clone(), Cow::Owned(parse(&entries[&name])?.bytes()));
+            entries.insert(name.clone(), parse(&entries[&name])?.bytes());
         }
-        entries.insert(
-            "[Content_Types].xml".into(),
-            Cow::Owned(content_types(&entries)?),
-        );
-        publish(&entries, path)
+        entries.insert("[Content_Types].xml".into(), content_types(entries)?);
+        Ok(())
     }
 
     /// Publish injected MathType parts without rewriting other package XML or declarations.
@@ -97,6 +108,13 @@ impl Package {
 
 /// Build and atomically publish the archive only after every member has been written.
 fn publish<T: AsRef<[u8]>>(entries: &BTreeMap<String, T>, path: &Path) -> Result<()> {
+    // Word rejects case-colliding custom names even when ZIP/XML are valid.
+    // Check every publication path, including reference export and MathType output.
+    let custom_properties = entries
+        .get("docProps/custom.xml")
+        .map(|bytes| normalize_custom_property_names(bytes.as_ref()))
+        .transpose()?
+        .flatten();
     // ZIP members and the central directory stream to disk, retaining atomic replacement.
     papper_core::paths::atomic_write_with(path, |file| {
         let mut writer = zip::ZipWriter::new(file);
@@ -104,11 +122,48 @@ fn publish<T: AsRef<[u8]>>(entries: &BTreeMap<String, T>, path: &Path) -> Result
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         for (name, data) in entries {
             writer.start_file(name, options)?;
-            writer.write_all(data.as_ref())?;
+            let bytes = if name == "docProps/custom.xml" {
+                custom_properties.as_deref().unwrap_or(data.as_ref())
+            } else {
+                data.as_ref()
+            };
+            writer.write_all(bytes)?;
         }
         writer.finish()?;
         Ok(())
     })
+}
+
+/// Rename case-insensitive custom property collisions without dropping values or changing IDs.
+fn normalize_custom_property_names(bytes: &[u8]) -> Result<Option<Vec<u8>>> {
+    let mut root = parse(bytes).context("Cannot parse DOCX part docProps/custom.xml")?;
+    // Reserve authored suffixes first so fixing `code`/`Code` cannot steal `Code_2`.
+    let mut reserved: BTreeSet<_> = root
+        .elements()
+        .filter_map(|property| property.attr("name").map(str::to_lowercase))
+        .collect();
+    let mut seen = BTreeSet::new();
+    let mut changed = false;
+    for property in root.elements_mut() {
+        let Some(name) = property.attr("name").map(str::to_owned) else {
+            continue;
+        };
+        if seen.insert(name.to_lowercase()) {
+            continue;
+        }
+        let mut suffix = 2_u64;
+        let replacement = loop {
+            let candidate = format!("{name}_{suffix}");
+            if reserved.insert(candidate.to_lowercase()) {
+                break candidate;
+            }
+            suffix += 1;
+        };
+        property.set("name", &replacement);
+        eprintln!("[DOCX] Renamed conflicting custom property '{name}' to '{replacement}'");
+        changed = true;
+    }
+    Ok(changed.then(|| root.bytes()))
 }
 
 /// Canonicalize OPC declarations using actual package parts while retaining unknown data.

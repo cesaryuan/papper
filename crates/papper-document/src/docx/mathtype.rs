@@ -75,6 +75,31 @@ pub fn convert_marked_docx_with_work_dir(
     work_dir: Option<&Path>,
 ) -> Result<MathTypeConversionResult> {
     let mut package = Package::open(input)?;
+    let custom_properties_changed = package.normalize_custom_properties()?;
+    let report = convert_package(&mut package, resources, effective, project_dir, work_dir)?;
+    if report.total == 0 {
+        // Equation-free inputs need no converter, but invalid custom names still
+        // need repair before this early return bypasses normal package publication.
+        if custom_properties_changed {
+            package.save_preserving(output)?;
+        } else if input != output {
+            papper_core::paths::atomic_write(output, &std::fs::read(input)?)?;
+        }
+    } else {
+        package.save_preserving(output)?;
+        log_conversion(&report);
+    }
+    Ok(report)
+}
+
+/// Inject cached or generated equations into the caller's already formatted package.
+pub(super) fn convert_package(
+    package: &mut Package,
+    resources: &ResourcePaths,
+    effective: &EffectiveMetadata,
+    project_dir: &Path,
+    work_dir: Option<&Path>,
+) -> Result<MathTypeConversionResult> {
     let mut document = package.xml("word/document.xml")?;
     let styles = package.xml("word/styles.xml")?;
     let mut bindings = bindings(&document)?;
@@ -85,10 +110,7 @@ pub fn convert_marked_docx_with_work_dir(
         ..Default::default()
     };
     if bindings.is_empty() {
-        // An equation-free document needs no converter and remains byte-identical.
-        if input != output {
-            papper_core::paths::atomic_write(output, &std::fs::read(input)?)?;
-        }
+        // An equation-free document needs no converter or new equation parts.
         return Ok(report);
     }
     let mut generator = backend::Generator::new(resources, effective, project_dir, work_dir)?;
@@ -167,12 +189,18 @@ pub fn convert_marked_docx_with_work_dir(
     package.set_xml("word/document.xml", &document);
     package.set_xml("word/_rels/document.xml.rels", &rels);
     package.set_xml("[Content_Types].xml", &content_types);
-    package.save_preserving(output)?;
+    Ok(report)
+}
+
+/// Report equation results only after the complete output has been published successfully.
+pub(super) fn log_conversion(report: &MathTypeConversionResult) {
+    if report.total == 0 {
+        return;
+    }
     eprintln!(
         "[mathtype] converted={}, retained={}, cache hits={}",
         report.converted, report.failures, report.cache_hits
     );
-    Ok(report)
 }
 
 /// Recover display layout after reply resolution rewrites numbered math as inline.

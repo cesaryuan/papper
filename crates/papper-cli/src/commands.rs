@@ -527,44 +527,33 @@ fn build_other(
         } else {
             std::env::var("PMT_PROJECT_NAME").unwrap_or_else(|_| "manuscript".into())
         };
-        let formatted = if use_mathtype {
-            debug_parent
-                .as_ref()
-                .map(|parent| parent.join(format!("{project_name}.marked.docx")))
-                .unwrap_or_else(|| temporary.path().join("formatted.docx"))
-        } else {
-            output.to_path_buf()
-        };
         let postprocess = std::env::var("PMT_ENABLE_DOCX_POSTPROCESS")
             .map(|raw| !matches!(raw.to_lowercase().as_str(), "false" | "no" | "0" | "off"))
             .unwrap_or(true);
-        if postprocess {
-            papper_document::docx::postprocess_docx(
-                &generated,
-                &formatted,
-                &effective,
-                &papper_document::docx::DocxPostprocessOptions {
-                    reply_style_formatting: reply.is_some(),
-                    native_crossrefs: reply.is_none()
-                        && effective.pmt_settings.fields().docx_native_crossref,
-                    ..Default::default()
-                },
-            )?;
-        } else {
-            papper_document::docx::finalize_output_content(&generated, &formatted, &effective)?;
-        }
-        if use_mathtype {
-            let work = debug_parent.map(|parent| parent.join(project_name));
-            papper_document::docx::convert_marked_docx_with_work_dir(
-                &formatted,
-                output,
-                resources,
-                &effective,
-                project,
-                work.as_deref(),
-            )?;
-        }
-        Ok(())
+        let formatting = papper_document::docx::DocxPostprocessOptions {
+            reply_style_formatting: reply.is_some(),
+            native_crossrefs: reply.is_none()
+                && effective.pmt_settings.fields().docx_native_crossref,
+        };
+        let work = debug_parent
+            .as_ref()
+            .map(|parent| parent.join(&project_name));
+        let marked = debug_parent
+            .as_ref()
+            .map(|parent| parent.join(format!("{project_name}.marked.docx")));
+        let equations = use_mathtype.then_some(papper_document::docx::DocxMathTypeOptions {
+            resources,
+            project_dir: project,
+            work_dir: work.as_deref(),
+            marked_output: marked.as_deref(),
+        });
+        papper_document::docx::finalize_docx(
+            &generated,
+            output,
+            &effective,
+            postprocess.then_some(&formatting),
+            equations.as_ref(),
+        )
     } else {
         atomic_write(output, &std::fs::read(generated)?)
     }

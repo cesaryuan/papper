@@ -308,8 +308,9 @@ def test_native_build_uses_environment_defaults_and_explicit_cli_overrides(
     assert not (project / "output").exists()
 
 
+@pytest.mark.parametrize("postprocess", [True, False])
 def test_native_mathtype_explicit_work_directory_retains_reviewed_parts(
-    tmp_path: Path, rust_executable: Path,
+    tmp_path: Path, rust_executable: Path, postprocess: bool,
 ) -> None:
     """Keep requested intermediate formulas inspectable while custom output names preserve source identity."""
     from io import BytesIO
@@ -321,7 +322,8 @@ def test_native_mathtype_explicit_work_directory_retains_reviewed_parts(
     (project / "paper.md").write_text("---\ntitle: Formula inspection\npapperSettings:\n  mathtype: true\n  mathtypeConversionMethod: rust\n---\n\nAn inline $x_1$ formula.\n", encoding="utf-8")
     debug = tmp_path / "reviewed-equations"
     environment = {**_environment(tmp_path / "home"), "PMT_MATHTYPE_WORK_DIR": str(debug),
-                   "PMT_PROJECT_NAME": "unused-environment-name"}
+                   "PMT_PROJECT_NAME": "unused-environment-name",
+                   "PMT_ENABLE_DOCX_POSTPROCESS": str(postprocess).lower()}
     output = project / "renamed-output.docx"
     result = subprocess.run([str(rust_executable), "build", "docx", "-m", "paper.md", "-o", str(output)],
                             cwd=project, env=environment, capture_output=True, text=True, encoding="utf-8", timeout=45)
@@ -341,3 +343,13 @@ def test_native_mathtype_explicit_work_directory_retains_reviewed_parts(
     with ZipFile(debug / "paper.marked.docx") as archive:
         assert b"MTLATEX:inline:x_1" in archive.read("word/document.xml")
     assert not (debug / "renamed-output").exists()
+    # The ordinary build shares one package, while inspection exports a marked
+    # archive. Both must retain the same final formatting and editable equations.
+    from snapshot_utils import canonical_docx
+
+    expected = canonical_docx(output, repository_root=ROOT, normalize_native_crossrefs=True)
+    environment.pop("PMT_MATHTYPE_WORK_DIR")
+    normal = subprocess.run([str(rust_executable), "build", "docx", "-m", "paper.md", "-o", str(output)],
+                            cwd=project, env=environment, capture_output=True, text=True, encoding="utf-8", timeout=45)
+    assert normal.returncode == 0, normal.stdout + normal.stderr
+    assert canonical_docx(output, repository_root=ROOT, normalize_native_crossrefs=True) == expected

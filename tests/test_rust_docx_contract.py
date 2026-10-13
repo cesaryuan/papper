@@ -36,6 +36,56 @@ def rust_mathtype_converter() -> Path:
     return ROOT / "target/debug/examples" / ("convert_mathtype_docx.exe" if os.name == "nt" else "convert_mathtype_docx")
 
 
+@pytest.mark.parametrize("postprocess", [True, False])
+def test_docx_custom_properties_avoid_case_collisions_without_losing_values(
+    tmp_path: Path, rust_executable: Path, postprocess: bool,
+) -> None:
+    """Keep Word-readable metadata when manuscript and style keys differ only in case."""
+    from docx import Document
+    from lxml import etree
+    from zipfile import ZipFile
+
+    # The real report failed in Word with both numberSections and numbersections.
+    # Differing custom values and an occupied suffix also catch lossy deduplication
+    # and a rename that creates a second collision; fixed snapshots miss this input.
+    source = tmp_path / "manuscript.md"
+    source.write_text("""---
+numbersections: true
+projectcode: manuscript-code
+projectcode_2: reserved-code
+---
+
+# Report
+
+Preserved manuscript content.
+""", encoding="utf-8")
+    (tmp_path / "style.yml").write_text("""pandocMetadata:
+  numberSections: true
+  projectCode: style-code
+""", encoding="utf-8")
+    output = tmp_path / "report.docx"
+    result = subprocess.run(
+        [str(rust_executable), "build", "docx", "-m", str(source), "-o", str(output), "--no-mathtype"],
+        cwd=tmp_path,
+        env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT),
+             "PMT_ENABLE_DOCX_POSTPROCESS": str(postprocess).lower()},
+        capture_output=True, text=True, encoding="utf-8", timeout=45,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    with ZipFile(output) as archive:
+        properties = etree.fromstring(archive.read("docProps/custom.xml"))
+    names = [prop.get("name") for prop in properties]
+    assert len(names) == len({name.casefold() for name in names}), names
+    project_properties = {
+        prop.get("name"): "".join(prop.itertext())
+        for prop in properties if prop.get("name").casefold().startswith("projectcode")
+    }
+    assert sorted(project_properties.values()) == ["manuscript-code", "reserved-code", "style-code"]
+    assert project_properties["projectcode_2"] == "reserved-code"
+    assert sum(name.casefold().startswith("numbersections") for name in names) == 2
+    assert "Preserved manuscript content." in [paragraph.text for paragraph in Document(output).paragraphs]
+
+
 @pytest.mark.parametrize("has_table_text", [True, False])
 @pytest.mark.parametrize("source_style", ["Compact", "First Paragraph", "Body Text"])
 def test_native_table_text_preserves_authored_style_or_keeps_source_style(

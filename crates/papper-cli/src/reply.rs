@@ -10,7 +10,7 @@ use papper_core::paths::{
 };
 use papper_core::resources::ResourcePaths;
 use papper_document::docx::{
-    DocxPostprocessOptions, derive_docx_pandoc_metadata, postprocess_docx,
+    DocxMathTypeOptions, DocxPostprocessOptions, derive_docx_pandoc_metadata, finalize_docx,
 };
 use papper_document::reply::{
     ReplyFormat, ReplyResolver, render_reply_txt_markdown, resolve_line_regexes,
@@ -248,26 +248,22 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
             &project_state_dir(&project)?.join("cache/svg-rsvg"),
         )?);
         engine.run(&command, &project, &environment)?;
-        let processed = temporary.path().join("processed.docx");
-        postprocess_docx(
+        let equations = use_mathtype.then_some(DocxMathTypeOptions {
+            resources: &resources,
+            project_dir: &project,
+            work_dir: None,
+            marked_output: None,
+        });
+        finalize_docx(
             &generated,
-            &processed,
+            &output,
             &effective,
-            &DocxPostprocessOptions {
+            Some(&DocxPostprocessOptions {
                 reply_style_formatting: true,
                 native_crossrefs: false,
-            },
+            }),
+            equations.as_ref(),
         )?;
-        let final_docx = if use_mathtype {
-            let converted = temporary.path().join("converted.docx");
-            papper_document::docx::convert_marked_docx(
-                &processed, &converted, &resources, &effective, &project,
-            )?;
-            converted
-        } else {
-            processed
-        };
-        atomic_write(&output, &std::fs::read(final_docx)?)?;
     }
     println!(
         "[OK] Reply {} created: {}",

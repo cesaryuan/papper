@@ -31,6 +31,64 @@ pub struct DocxPostprocessOptions {
     pub native_crossrefs: bool,
 }
 
+/// Supply optional equation conversion and explicitly requested inspection artifacts.
+pub struct DocxMathTypeOptions<'a> {
+    pub resources: &'a ResourcePaths,
+    pub project_dir: &'a Path,
+    pub work_dir: Option<&'a Path>,
+    pub marked_output: Option<&'a Path>,
+}
+
+/// Format and inject equations in one package, then publish the complete DOCX atomically.
+pub fn finalize_docx(
+    input: &Path,
+    output: &Path,
+    effective: &EffectiveMetadata,
+    postprocess: Option<&DocxPostprocessOptions>,
+    equations: Option<&DocxMathTypeOptions<'_>>,
+) -> Result<()> {
+    let mut package = Package::open(input)?;
+    let custom_properties_changed = package.normalize_custom_properties()?;
+    let changed = if let Some(options) = postprocess {
+        postprocess_package(&mut package, effective, options)?;
+        // Previously the intermediate save normalized these parts before
+        // MathType read them. Preserve that order without recompressing media.
+        package.normalize()?;
+        true
+    } else {
+        finalize_package_content(&mut package, effective)?
+    } || custom_properties_changed;
+    let report = if let Some(options) = equations {
+        if let Some(marked) = options.marked_output {
+            // Explicit inspection keeps the pre-conversion DOCX; ordinary
+            // builds never write this additional archive.
+            if changed {
+                package.save_preserving(marked)?;
+            } else {
+                papper_core::paths::atomic_write(marked, &std::fs::read(input)?)?;
+            }
+        }
+        Some(mathtype::convert_package(
+            &mut package,
+            options.resources,
+            effective,
+            options.project_dir,
+            options.work_dir,
+        )?)
+    } else {
+        None
+    };
+    if changed || report.as_ref().is_some_and(|report| report.total > 0) {
+        package.save_preserving(output)?;
+    } else if input != output {
+        papper_core::paths::atomic_write(output, &std::fs::read(input)?)?;
+    }
+    if let Some(report) = report {
+        mathtype::log_conversion(&report);
+    }
+    Ok(())
+}
+
 /// Measure Han characters among letters and numbers in DOCX body and note text.
 pub fn chinese_character_ratio(input: &Path) -> Result<f64> {
     use std::io::Read;
@@ -187,21 +245,25 @@ pub fn postprocess_docx(
     effective: &EffectiveMetadata,
     options: &DocxPostprocessOptions,
 ) -> Result<()> {
-    let mut package = Package::open(input)?;
+    finalize_docx(input, output, effective, Some(options), None)
+        .with_context(|| format!("DOCX post-processing failed: {}", output.display()))
+}
+
+/// Apply the ordered formatting pipeline to an open package without publishing intermediate media.
+fn postprocess_package(
+    package: &mut Package,
+    effective: &EffectiveMetadata,
+    options: &DocxPostprocessOptions,
+) -> Result<()> {
     let mut document = package.xml("word/document.xml")?;
     let mut styles = package.xml("word/styles.xml")?;
-    footer::apply(
-        &mut package,
-        &mut document,
-        &styles,
-        &effective.pmt_settings,
-    )?;
-    directives::apply(&mut package, &mut document, &mut styles)?;
-    note_marks::apply(&mut package, &mut document)?;
+    footer::apply(package, &mut document, &styles, &effective.pmt_settings)?;
+    directives::apply(package, &mut document, &mut styles)?;
+    note_marks::apply(package, &mut document)?;
     if options.native_crossrefs {
-        native::finalize(&mut package, &mut document, &mut styles)?;
+        native::finalize(package, &mut document, &mut styles)?;
     }
-    lists::bracketed(&mut package, &mut document, &mut styles)?;
+    lists::bracketed(package, &mut document, &mut styles)?;
     formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
     tables::convert_table_text_styles(&mut document, &styles);
     tables::equation_metadata(&mut document);
@@ -213,12 +275,10 @@ pub fn postprocess_docx(
         formatting::apply_reply_style(&mut document, &mut styles);
     }
     directives::index_captions(&mut document, &mut styles)?;
-    validate_syntax(&package, &document)?;
+    validate_syntax(package, &document)?;
     package.set_xml("word/document.xml", &document);
     package.set_xml("word/styles.xml", &styles);
-    package
-        .save(output)
-        .with_context(|| format!("DOCX post-processing failed: {}", output.display()))
+    Ok(())
 }
 
 /// Finalize generated header/footer content and note marks even when optional formatting is disabled.
@@ -227,22 +287,21 @@ pub fn finalize_output_content(
     output: &Path,
     effective: &EffectiveMetadata,
 ) -> Result<()> {
-    let mut package = Package::open(input)?;
+    finalize_docx(input, output, effective, None, None)
+}
+
+/// Finalize mandatory story and note content, reporting whether publication needs a new archive.
+fn finalize_package_content(package: &mut Package, effective: &EffectiveMetadata) -> Result<bool> {
     let mut document = package.xml("word/document.xml")?;
     let mut styles = package.xml("word/styles.xml")?;
     if effective.pmt_settings.fields().docx_footer.is_some()
         || effective.pmt_settings.fields().docx_header.is_some()
     {
-        footer::apply(
-            &mut package,
-            &mut document,
-            &styles,
-            &effective.pmt_settings,
-        )?;
+        footer::apply(package, &mut document, &styles, &effective.pmt_settings)?;
     }
-    let directives_changed = directives::apply(&mut package, &mut document, &mut styles)?;
+    let directives_changed = directives::apply(package, &mut document, &mut styles)?;
     let captions_changed = directives::index_captions(&mut document, &mut styles)?;
-    if note_marks::apply(&mut package, &mut document)?
+    if note_marks::apply(package, &mut document)?
         || directives_changed
         || captions_changed
         || effective.pmt_settings.fields().docx_footer.is_some()
@@ -250,9 +309,9 @@ pub fn finalize_output_content(
     {
         package.set_xml("word/document.xml", &document);
         package.set_xml("word/styles.xml", &styles);
-        package.save_preserving(output)
+        Ok(true)
     } else {
-        papper_core::paths::atomic_write(output, &std::fs::read(input)?)
+        Ok(false)
     }
 }
 
