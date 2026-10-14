@@ -149,6 +149,16 @@ try {
         $document = $documents.Open($ownedSource, $false, $true, $false,
             '', '', $false, '', '', 0, 50001, $false)
         if ($request.update_fields) { Update-VisualFields $document }
+        if ($request.inspect_numbering) {
+            # Read Word's rendered list labels separately from TOC field text:
+            # inherited TOC numbering can duplicate labels and advance headings.
+            $numbering = @($document.Paragraphs | ForEach-Object {
+                [ordered]@{
+                    text = $_.Range.Text.Trim()
+                    list_number = [string]$_.Range.ListFormat.ListString
+                }
+            })
+        }
         $document.Repaginate()
         # wdExportFormatPDF=17, wdExportOptimizeForPrint=0, wdExportAllDocument=0,
         # wdExportDocumentContent=0 excludes review balloons/markup from pagination.
@@ -170,6 +180,7 @@ try {
         throw 'A pre-existing Word document is no longer open after visual export'
     }
     $result = [ordered]@{ environment = $environment; user_documents_preserved = $true }
+    if ($request.inspect_numbering) { $result.numbering = $numbering }
     $result | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $request.result -Encoding UTF8
 } finally {
     if ($null -ne $document) {

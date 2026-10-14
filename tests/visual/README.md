@@ -35,7 +35,10 @@ npm assets. `--visual` explicitly requests verification and fails if baselines,
 assets or the recorded environment are missing; it never generates a baseline.
 
 DOCX visual tests are also opt-in and require Windows, Microsoft Word, and the
-locked Python dependencies. Word opens a unique read-only copy of every generated
+locked Python dependencies. The native TOC numbering regression checks actual
+Word field updates and list labels without image baselines; run it with
+`uv run pytest tests/test_native_crossrefs.py --visual -k native_toc`.
+Word opens a unique read-only copy of every generated
 DOCX, exports print-quality PDF pages, and closes only that copy. The test never
 calls `Application.Quit()` and checks that documents which were already open stay
 open. LibreOffice is not a substitute: these baselines intentionally exercise

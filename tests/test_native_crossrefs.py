@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from collections import Counter
 from pathlib import Path
 import shutil
@@ -102,6 +103,52 @@ def assert_reference_targets(fields: list[dict[str, str]], bookmarks: dict[str, 
                 assert bookmarks[name] == field["result"]
             values.append(field["result"])
     return values
+
+
+@pytest.mark.visual
+@pytest.mark.skipif(os.name != "nt", reason="requires desktop Microsoft Word on Windows")
+def test_native_toc_does_not_duplicate_or_advance_heading_numbers(tmp_path: Path) -> None:
+    """Update a real Word TOC and protect both entry labels and subsequent heading numbers."""
+    prepare_project(tmp_path, """[]{t="toc" depth="3"}
+
+# Overview
+
+## Background
+
+### Details
+
+# Results
+
+## Discussion
+""", True)
+    output, _ = build_document(tmp_path)
+    result_path = tmp_path / "word-result.json"
+    request_path = tmp_path / "word-request.json"
+    request_path.write_text(json.dumps({
+        "mode": "export", "source": str(output),
+        "output": str(tmp_path / "rendered.pdf"), "result": str(result_path),
+        "update_fields": True, "inspect_numbering": True,
+    }), encoding="utf-8")
+    completed = subprocess.run([
+        "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+        str(ROOT / "tests/visual/export_word_pdf.ps1"), "-RequestPath", str(request_path),
+    ], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    result = json.loads(result_path.read_text(encoding="utf-8-sig"))
+    assert result["user_documents_preserved"]
+    expected = [
+        ("1", "Overview"), ("1.1", "Background"), ("1.1.1", "Details"),
+        ("2", "Results"), ("2.1", "Discussion"),
+    ]
+    paragraphs = result["numbering"]
+    # TOC numbers are part of the field text; an additional list label is the bug.
+    entries = [paragraph for paragraph in paragraphs if "\t" in paragraph["text"]]
+    assert [(entry["text"].rsplit("\t", 1)[0], entry["list_number"]) for entry in entries] == [
+        (f"{number} {title}", "") for number, title in expected
+    ]
+    titles = {title for _, title in expected}
+    headings = [paragraph for paragraph in paragraphs if paragraph["text"] in titles]
+    assert [(heading["list_number"], heading["text"]) for heading in headings] == expected
 
 
 @pytest.mark.parametrize("native_crossref", [False, True])
