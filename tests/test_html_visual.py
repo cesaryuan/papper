@@ -188,7 +188,9 @@ def test_html_render_matches_visual_snapshot(
     output = copied_case_dir / "rendered.html"
     build_case(copied_case_dir, markdown, "html", output)
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "html.png"
-    actual = visual_session.capture(output)
+    actual = visual_session.capture(
+        output, verify_local_paragraph_formats if case_name == "paragraph_format" else None,
+    )
     record_visual_changes({baseline.name: actual}, baseline.parent)
     if visual_session.update:
         baseline.parent.mkdir(parents=True, exist_ok=True)
@@ -199,6 +201,26 @@ def test_html_render_matches_visual_snapshot(
         if not baseline.exists():
             raise AssertionError(f"Visual baseline is missing: {baseline}; use --visual-update explicitly")
         _assert_visual(actual, baseline)
+
+
+def verify_local_paragraph_formats(page: Page) -> None:
+    """Check browser-computed layout, inline precedence and unspecified paragraph defaults."""
+    outer = page.locator("#local-format > p").first
+    assert outer.evaluate("element => getComputedStyle(element).fontWeight") == "400"
+    assert outer.evaluate("element => getComputedStyle(element).lineHeight") == "24px"
+    assert outer.evaluate("element => getComputedStyle(element).marginBottom") == "8px"
+    assert outer.locator("strong").evaluate("element => getComputedStyle(element).fontWeight") == "700"
+    assert outer.locator('[data-custom-style="Revision Char"]').evaluate(
+        "element => getComputedStyle(element).color",
+    ) == "rgb(255, 0, 0)"
+    inner = page.locator("#local-format > div > p")
+    assert inner.evaluate("element => getComputedStyle(element).textAlign") == "right"
+    assert inner.evaluate("element => getComputedStyle(element).textIndent") == "-8px"
+    assert inner.evaluate("element => getComputedStyle(element).marginTop") == "4px"
+    assert inner.evaluate("element => getComputedStyle(element).marginBottom") == "0px"
+    unchanged = page.get_by_text("Only the font size changes; ordinary paragraph spacing and indentation remain.", exact=True)
+    assert unchanged.evaluate("element => getComputedStyle(element).marginBottom") == "0px"
+    assert unchanged.evaluate("element => getComputedStyle(element).textIndent") == "24px"
 
 
 @pytest.mark.visual

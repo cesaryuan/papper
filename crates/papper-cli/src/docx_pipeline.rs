@@ -17,14 +17,16 @@ pub(crate) fn append_output_filters(command: &mut Vec<OsString>, resources: &Res
 /// Share final DOCX filter paths between conversion and runtime diagnostics.
 pub(crate) fn output_filters(resources: &ResourcePaths) -> Vec<PathBuf> {
     [
-        "docx_directives",
-        "docx_footer",
-        "docx_metadata",
-        "svg_embed_images",
-        "svg_to_png",
+        "docx/docx_directives",
+        "docx/docx_footer",
+        // Run after page stories are parsed so local formatting works there too.
+        "shared/paragraph_format",
+        "docx/docx_metadata",
+        "docx/svg_embed_images",
+        "docx/svg_to_png",
     ]
     .into_iter()
-    .map(|kind| resources.resource(format!("pandoc/filters/docx/{kind}.lua")))
+    .map(|kind| resources.resource(format!("pandoc/filters/{kind}.lua")))
     .collect()
 }
 

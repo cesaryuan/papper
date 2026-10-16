@@ -54,6 +54,9 @@ CASES = {
         ROOT / "tests" / "snapshot_cases" / "table_attributes", "table_attributes.md",
     ),
     "text_styles": (ROOT / "tests" / "snapshot_cases" / "text_styles", "text_styles.md"),
+    "paragraph_format": (
+        ROOT / "tests" / "snapshot_cases" / "paragraph_format", "paragraph_format.md",
+    ),
     "author_affiliations": (
         ROOT / "tests" / "snapshot_cases" / "author_affiliations", "author_affiliations.md",
     ),

@@ -9,6 +9,7 @@ mod mathtype;
 mod native;
 mod note_marks;
 mod package;
+mod paragraph_format;
 mod tables;
 mod xml;
 
@@ -275,6 +276,7 @@ fn postprocess_package(
         formatting::apply_reply_style(&mut document, &mut styles);
     }
     directives::index_captions(&mut document, &mut styles)?;
+    paragraph_format::apply(package, &mut document, &styles)?;
     validate_syntax(package, &document)?;
     package.set_xml("word/document.xml", &document);
     package.set_xml("word/styles.xml", &styles);
@@ -301,9 +303,11 @@ fn finalize_package_content(package: &mut Package, effective: &EffectiveMetadata
     }
     let directives_changed = directives::apply(package, &mut document, &mut styles)?;
     let captions_changed = directives::index_captions(&mut document, &mut styles)?;
+    let paragraph_format_changed = paragraph_format::apply(package, &mut document, &styles)?;
     if note_marks::apply(package, &mut document)?
         || directives_changed
         || captions_changed
+        || paragraph_format_changed
         || effective.pmt_settings.fields().docx_footer.is_some()
         || effective.pmt_settings.fields().docx_header.is_some()
     {

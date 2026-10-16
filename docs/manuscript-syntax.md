@@ -277,6 +277,77 @@ equation-explanation and post-table paragraph styles. These text styles do not
 change LaTeX typography. For table appearance and cell text, use the separate
 attributes described under Advanced Table Formatting.
 
+### Local Paragraph Formatting
+
+Set formatting directly on a fenced block when only a few paragraphs need an
+exception. DOCX and HTML apply these attributes to each ordinary paragraph in
+the block; no extra named style or reference DOCX edit is needed.
+
+```markdown
+::: {alignment="center" fontSize="10pt" firstLineIndentChars="0" paragraphSpacing.after="6pt"}
+This paragraph is centered, uses 10pt text, has no first-line indent,
+and has 6pt spacing after it.
+
+The same settings apply to this paragraph.
+:::
+```
+
+Use the same field names and values as `docxStyle`. Attribute values are
+strings; write nested fields with dots:
+
+| Attribute | Example |
+| --- | --- |
+| `fontFamily` | `fontFamily="Times New Roman"` (both font slots) |
+| `fontFamily.western`, `fontFamily.chinese` | `fontFamily.chinese="SimSun"` |
+| `fontSize` | `fontSize="10.5pt"` or `fontSize="小五"` |
+| `fontColor` | `fontColor="#005588"` |
+| `bold` | `bold="true"` or `bold="false"` |
+| `lineSpacing` | `lineSpacing="1.5"`, `lineSpacing="double"`, or `lineSpacing="18pt"` |
+| `alignment` | `alignment="left"`, `"center"`, `"right"`, `"justify"`, or `"distribute"` |
+| `firstLineIndentChars` | `firstLineIndentChars="0"` |
+| `indentation.left`, `indentation.right` | `indentation.left="0.5cm"` |
+| `indentation.firstLine`, `indentation.hanging` | `indentation.hanging="6pt"` |
+| `paragraphSpacing.before`, `paragraphSpacing.after` | `paragraphSpacing.after="6pt"` |
+
+Only specified fields change. Local attributes override the selected paragraph
+style, including its `docxStyle` configuration. They can be combined with
+`custom-style`:
+
+```markdown
+::::: {custom-style="Quote" fontSize="10pt" alignment="center" paragraphSpacing.after="6pt"}
+A Quote paragraph with local formatting.
+
+::: {alignment="right" paragraphSpacing.after="0pt"}
+This paragraph retains 10pt text, but is right aligned with no spacing after it.
+:::
+
+This paragraph uses the outer block's settings again.
+:::::
+```
+
+Nested blocks inherit local fields individually; inner attributes replace only
+the corresponding inherited fields. Switching an inner block to another
+first-line indent mode replaces the inherited mode. In one block,
+`firstLineIndentChars`, `indentation.firstLine`, and `indentation.hanging` are
+mutually exclusive. Do not combine the `fontFamily` shorthand with either
+`fontFamily.western` or `fontFamily.chinese` in the same block.
+
+Paragraphs in lists and block quotes also receive local settings. Explicit
+inline emphasis, bold text, links, and character styles retain their formatting.
+Headings, code blocks, figures and captions, display equations, table cells,
+and footnotes do not inherit an enclosing body's local settings. A local block
+inside a table cell or footnote can set its own paragraph formatting. Attributes
+also work in multiline Markdown `docxHeader.content` and `docxFooter.content`,
+where a local alignment overrides the story's configured alignment for that
+paragraph. Attributes do not change LaTeX output. Invalid recognized formatting
+fields or values fail the build; unrelated attributes, IDs, and classes keep
+their normal meaning.
+
+These attributes describe paragraph typography; they do not interpret arbitrary
+CSS. `style="..."` remains HTML-specific. Use named styles for formatting that
+should be maintained consistently throughout a manuscript. See
+[DOCX Text Styles](style-configuration.md#docx-text-styles) for values and units.
+
 ### Ordinary Tables
 
 Write pipe tables with a separator row, and put a caption on a separate line

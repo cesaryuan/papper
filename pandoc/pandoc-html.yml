@@ -29,3 +29,4 @@ filters:
   - ${.}/filters/html/revision_table_styles.lua
   - citeproc
   - ${.}/filters/shared/author_info.lua
+  - ${.}/filters/shared/paragraph_format.lua

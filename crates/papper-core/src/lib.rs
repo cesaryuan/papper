@@ -5,6 +5,7 @@ pub mod element_attributes;
 mod embedded;
 pub mod metadata;
 pub mod page_margins;
+pub mod paragraph_format;
 pub mod paths;
 pub mod resources;
 pub mod style_properties;

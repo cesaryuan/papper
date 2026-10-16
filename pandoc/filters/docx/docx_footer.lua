@@ -32,6 +32,9 @@ local function append_content(doc, kind, style)
   local path = resource.getenv('PMT_DOCX_' .. kind .. '_CONTENT_PATH')
   if not path or path == '' then return end
   local content = assert(resource.read(path), 'Cannot read ' .. setting .. ' content: ' .. path)
+  -- Pandoc's metadata reader otherwise treats a closing Div fence at EOF as text.
+  -- Keep single-line stories inline, but terminate multiline block Markdown explicitly.
+  if content:find('\n', 1, true) and not content:match('\n$') then content = content .. '\n' end
   -- Parse exactly like abstract metadata: a single-line scalar is inline Markdown,
   -- so the established '- []{t="pageNum"} -' remains decoration rather than a list.
   -- Multiline strings become block Markdown and may contain real lists or tables.

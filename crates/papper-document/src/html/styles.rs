@@ -19,6 +19,45 @@ use std::path::Path;
 use table::*;
 use word::*;
 
+/// Render validated local paragraph properties without changing named-style compatibility rules.
+pub(super) fn paragraph_format_css(
+    format: &papper_core::paragraph_format::ParagraphFormat,
+) -> String {
+    use papper_core::style_values::{LineSpacingAmount, parse_alignment, parse_line_spacing};
+    let mut style = normalized_style_spec(&format.normalized);
+    if let Some(value) = format.raw.get("lineSpacing") {
+        // Local formatting preserves exact point spacing, rather than a unitless CSS multiple.
+        style.line_height = Some(
+            match parse_line_spacing(value, "paragraph format.lineSpacing")
+                .expect("local formatting was validated")
+                .amount
+            {
+                LineSpacingAmount::Points(length) => format!("{}pt", general(length.pt())),
+                LineSpacingAmount::Multiple(value) => general(value),
+            },
+        );
+    }
+    if let Some(value) = format.raw.get("alignment") {
+        style.alignment = Some(
+            parse_alignment(value, "paragraph format.alignment")
+                .expect("local formatting was validated")
+                .0,
+        );
+    }
+    if let Some(value) = format
+        .normalized
+        .get("first_line_indent")
+        .and_then(Value::as_f64)
+    {
+        style.first_line = Some(format!("{}pt", general(value / 12700.0)));
+    }
+    style_declarations(&style, true)
+        .into_iter()
+        .map(|(key, value)| format!("{key}: {value};"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 // Custom-style Divs wrap body paragraphs; keep this fallback at the same
 // specificity as direct paragraphs so dedicated custom-style rules can win.
 const BODY_PARAGRAPH_SELECTOR: &str =

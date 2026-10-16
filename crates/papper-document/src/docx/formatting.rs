@@ -157,51 +157,11 @@ pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Resu
             continue;
         };
         let prefix = format!("docxStyle.{name}");
-        if let Some(value) = field(raw, "fontSize") {
-            let points = parse_font_size_points(value, &format!("{prefix}.fontSize"))?;
-            // Preserve Word's established twip-rounding followed by half-point truncation.
-            let half_points = layout_twips(LayoutLength::from_unit(points, "pt")) / 10;
-            if half_points <= 0 {
-                bail!("{prefix}.fontSize must be greater than 0");
-            }
-            style.word("w:rPr").word("w:sz").set("w:val", half_points);
-        }
-        if let Some(value) = field(raw, "fontFamily") {
-            let families = parse_font_family(value, &format!("{prefix}.fontFamily"))?;
-            let fonts = style.word("w:rPr").word("w:rFonts");
-            if let Some(family) = families.get("western") {
-                fonts.set("w:ascii", family);
-                fonts.set("w:hAnsi", family);
-                fonts.attrs.remove("w:asciiTheme");
-                fonts.attrs.remove("w:hAnsiTheme");
-            }
-            if let Some(family) = families.get("chinese") {
-                fonts.set("w:eastAsia", family);
-                fonts.attrs.remove("w:eastAsiaTheme");
-            }
-        }
-        if let Some(value) = field(raw, "bold") {
-            let bold = value
-                .as_bool()
-                .or_else(|| {
-                    value
-                        .as_str()
-                        .and_then(|raw| match raw.trim().to_lowercase().as_str() {
-                            "true" => Some(true),
-                            "false" => Some(false),
-                            _ => None,
-                        })
-                })
-                .ok_or_else(|| anyhow::anyhow!("{prefix}.bold must be true or false"))?;
-            set_bool(style.word("w:rPr"), "w:b", bold);
-            set_bool(style.word("w:rPr"), "w:bCs", bold);
-        }
-        if let Some(value) = field(raw, "fontColor") {
-            let [red, green, blue] = parse_font_color(value, &format!("{prefix}.fontColor"))?;
-            style
-                .word("w:rPr")
-                .word("w:color")
-                .set("w:val", format!("{red:02X}{green:02X}{blue:02X}"));
+        if ["fontSize", "fontFamily", "bold", "fontColor"]
+            .iter()
+            .any(|key| field(raw, key).is_some())
+        {
+            apply_text_properties(style.word("w:rPr"), raw, &prefix)?;
         }
         // Inline character styles must never acquire paragraph properties.
         if style.attr("w:type") != Some("character") {
@@ -211,8 +171,62 @@ pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Resu
     Ok(())
 }
 
+/// Apply shared text overrides to a Word style or a directly formatted run.
+pub(super) fn apply_text_properties(
+    properties: &mut Element,
+    raw: &Map<String, Value>,
+    prefix: &str,
+) -> Result<()> {
+    if let Some(value) = field(raw, "fontSize") {
+        let points = parse_font_size_points(value, &format!("{prefix}.fontSize"))?;
+        // Preserve Word's established twip-rounding followed by half-point truncation.
+        let half_points = layout_twips(LayoutLength::from_unit(points, "pt")) / 10;
+        if half_points <= 0 {
+            bail!("{prefix}.fontSize must be greater than 0");
+        }
+        properties.word("w:sz").set("w:val", half_points);
+    }
+    if let Some(value) = field(raw, "fontFamily") {
+        let families = parse_font_family(value, &format!("{prefix}.fontFamily"))?;
+        let fonts = properties.word("w:rFonts");
+        if let Some(family) = families.get("western") {
+            fonts.set("w:ascii", family);
+            fonts.set("w:hAnsi", family);
+            fonts.attrs.remove("w:asciiTheme");
+            fonts.attrs.remove("w:hAnsiTheme");
+        }
+        if let Some(family) = families.get("chinese") {
+            fonts.set("w:eastAsia", family);
+            fonts.attrs.remove("w:eastAsiaTheme");
+        }
+    }
+    if let Some(value) = field(raw, "bold") {
+        let bold = value
+            .as_bool()
+            .or_else(|| {
+                value
+                    .as_str()
+                    .and_then(|raw| match raw.trim().to_lowercase().as_str() {
+                        "true" => Some(true),
+                        "false" => Some(false),
+                        _ => None,
+                    })
+            })
+            .ok_or_else(|| anyhow::anyhow!("{prefix}.bold must be true or false"))?;
+        set_bool(properties, "w:b", bold);
+        set_bool(properties, "w:bCs", bold);
+    }
+    if let Some(value) = field(raw, "fontColor") {
+        let [red, green, blue] = parse_font_color(value, &format!("{prefix}.fontColor"))?;
+        properties
+            .word("w:color")
+            .set("w:val", format!("{red:02X}{green:02X}{blue:02X}"));
+    }
+    Ok(())
+}
+
 /// Apply paragraph properties using the shared typography parsers and Word-specific setters.
-fn apply_paragraph_properties(
+pub(super) fn apply_paragraph_properties(
     properties: &mut Element,
     raw: &Map<String, Value>,
     prefix: &str,

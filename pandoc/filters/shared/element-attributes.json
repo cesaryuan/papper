@@ -20,6 +20,28 @@
       "twocol": {"description": "双栏 LaTeX 文档中让表格跨两栏", "valueType": "boolean", "values": ["true", "false"], "targets": ["latex"]}
     }
   },
+  "div": {
+    "description": "fenced Div 的局部段落格式，例如 ::: {fontSize=\"10pt\" paragraphSpacing.after=\"6pt\"}；支持嵌套逐字段覆盖，不新建命名样式",
+    "targets": ["docx", "html"],
+    "properties": {
+      "custom-style": {"description": "选择参考文档中的命名段落样式；局部格式覆盖其中对应的字段", "valueType": "string"},
+      "fontFamily": {"description": "同时设置西文和中文字体；同一块中不可与字体槽位属性混用", "valueType": "string", "suggestions": ["Times New Roman"]},
+      "fontFamily.western": {"description": "西文字体", "valueType": "string", "suggestions": ["Times New Roman"]},
+      "fontFamily.chinese": {"description": "中文字体", "valueType": "string", "suggestions": ["SimSun", "宋体"]},
+      "fontSize": {"description": "正数字号，支持 pt 或 Word 中文字号", "valueType": "string", "suggestions": ["10pt", "10.5pt", "小五"]},
+      "fontColor": {"description": "文字颜色，支持十六进制或 rgb 写法", "valueType": "string", "suggestions": ["#005588", "rgb(0, 0, 0)"]},
+      "bold": {"description": "段落文字默认加粗状态；保留显式段内加粗和字符样式", "valueType": "boolean", "values": ["true", "false"]},
+      "lineSpacing": {"description": "正数行距倍数、命名行距或固定 pt 行距", "valueType": "string", "suggestions": ["1.5", "single", "double", "18pt"]},
+      "alignment": {"description": "段落对齐", "valueType": "string", "values": ["left", "center", "right", "justify", "distribute"]},
+      "firstLineIndentChars": {"description": "非负的首行缩进字符数；与长度首行缩进、悬挂缩进互斥", "valueType": "string", "suggestions": ["0", "2"]},
+      "indentation.left": {"description": "左缩进，支持 cm、mm、in、pt", "valueType": "length", "suggestions": ["0.5cm"]},
+      "indentation.right": {"description": "右缩进，支持 cm、mm、in、pt", "valueType": "length", "suggestions": ["0.5cm"]},
+      "indentation.firstLine": {"description": "长度首行缩进；与字符首行缩进、悬挂缩进互斥", "valueType": "length", "suggestions": ["12pt"]},
+      "indentation.hanging": {"description": "悬挂缩进；与其他首行缩进模式互斥", "valueType": "length", "suggestions": ["6pt"]},
+      "paragraphSpacing.before": {"description": "每个段落的段前间距，使用 pt", "valueType": "length", "suggestions": ["0pt", "6pt"]},
+      "paragraphSpacing.after": {"description": "每个段落的段后间距，使用 pt", "valueType": "length", "suggestions": ["0pt", "6pt"]}
+    }
+  },
   "emptySpan": {
     "description": "DOCX 原生插入指令；使用空 Span []{t=\"类型\"}，类型与属性名区分大小写，其他输出格式移除此指令",
     "targets": ["docx"],

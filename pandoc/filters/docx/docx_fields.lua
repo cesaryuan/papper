@@ -95,6 +95,8 @@ end
 
 --- Parse single-line page stories as inlines and multiline stories as block Markdown
 function fields.story(content)
+  -- A closing fenced Div needs its final newline inside Pandoc's metadata reader.
+  if content:find('\n', 1, true) and not content:match('\n$') then content = content .. '\n' end
   local parsed = pandoc.read('---\nfooter: ' .. pandoc.json.encode(content) .. '\n---\n', 'markdown')
   local value = parsed.meta.footer
   local blocks = pandoc.utils.type(value) == 'Inlines' and {pandoc.Para(value)} or value or {}

@@ -769,6 +769,18 @@ for complete inline, paragraph, and configuration examples.
 To change a table's cell paragraph style, use `custom-text-style`; table
 appearance is a separate `custom-style`. See the syntax guide for examples.
 
+For a local exception, put supported typography fields directly on a Markdown
+fenced block, for example
+`::: {custom-style="Quote" fontSize="10pt" paragraphSpacing.after="6pt"}`.
+These attributes override the selected paragraph style and its `docxStyle`
+settings for the enclosed ordinary paragraphs in DOCX and HTML. Omitted fields
+retain their existing formatting; nested blocks inherit local fields and may
+override them individually. Explicit inline text formatting and character
+styles retain their own properties. Local attributes neither change the named
+style nor add a style to the reference DOCX. See
+[Local Paragraph Formatting](manuscript-syntax.md#local-paragraph-formatting)
+for supported attributes, nested examples, and scope restrictions.
+
 ## Changing Citation Styles
 
 Choose or download a CSL file and set `pandocMetadata.csl` to its path for

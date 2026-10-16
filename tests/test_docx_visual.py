@@ -101,6 +101,21 @@ def test_docx_render_matches_visual_snapshot(
         output = visual_copy
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "docx-word"
     word_visual_session.check(output, baseline, update_fields=update_fields)
+    if case_name == "paragraph_format":
+        # Word can let inherited character indents override direct physical
+        # indents; XML property checks alone cannot detect the wrong placement.
+        margin = Document(output).sections[0].left_margin.pt
+        with pymupdf.open(output.parent / "word-render/export-2/rendered.pdf") as rendered:
+            spans = [span for block in rendered[0].get_text("dict")["blocks"]
+                     for line in block.get("lines", []) for span in line["spans"]]
+            physical = next(span for span in spans if span["text"].startswith("Chinese Word size"))
+            inherited = next(span for span in spans if span["text"].startswith("Only the font size"))
+            character = next(span for span in spans if span["text"].startswith("One-character local"))
+            hanging = next(span for span in spans if span["text"].startswith("Local physical hanging"))
+            assert abs(physical["bbox"][0] - margin - 12) < 0.2
+            assert abs(inherited["bbox"][0] - margin - 18) < 0.2
+            assert abs(character["bbox"][0] - margin - 10) < 0.2
+            assert abs(hanging["bbox"][0] - margin - 12) < 0.2
     if case_name == "docx_directives":
         # Check real Word output as well as pixels: a stable placeholder image
         # must not become the baseline when directory updating silently fails.

@@ -636,6 +636,22 @@ fn collect_custom_styles(
     paragraph_scope: Option<&str>,
     direct_wrapper: bool,
 ) {
+    // A local-only Div interrupts the ordinary body selector. Preserve its
+    // semantic paragraph defaults before applying just the supplied overrides.
+    if paragraph_scope.is_none()
+        && node.attribute("data-custom-style").is_none()
+        && let HtmlNode::Element {
+            name,
+            attributes,
+            children,
+        } = node
+        && name == "p"
+        && let Some(base) = children
+            .iter()
+            .find_map(|child| child.attribute("data-papper-paragraph-base"))
+    {
+        attributes.push(("data-custom-style".into(), base.to_owned()));
+    }
     // Pandoc's styled Div can contain lists/quotes or another styled Div.
     // Materialize the nearest scope on nested paragraphs so CSS rule ordering
     // cannot make an outer paragraph style override a nested custom style.
@@ -741,6 +757,42 @@ fn apply_custom_styles(
     Ok(())
 }
 
+/// Consume local-format markers after named styles, applying layout to each paragraph.
+fn apply_paragraph_formats(node: &mut HtmlNode) -> Result<()> {
+    if let HtmlNode::Element {
+        name,
+        attributes,
+        children,
+    } = node
+    {
+        if is_raw(name) {
+            return Ok(());
+        }
+        if name == "p" {
+            let marker = children.iter().enumerate().find_map(|(index, child)| {
+                child
+                    .attribute("data-papper-paragraph-format")
+                    .map(|payload| (index, payload.to_owned()))
+            });
+            if let Some((index, payload)) = marker {
+                let format = papper_core::paragraph_format::resolve_scopes(&payload)?;
+                let css = super::styles::paragraph_format_css(&format);
+                children.remove(index);
+                // Append local declarations so they override earlier paragraph formatting only.
+                if let Some((_, existing)) = attributes.iter_mut().find(|(key, _)| key == "style") {
+                    existing.push_str(&format!("; {css}"));
+                } else {
+                    attributes.push(("style".into(), css));
+                }
+            }
+        }
+        for child in children {
+            apply_paragraph_formats(child)?;
+        }
+    }
+    Ok(())
+}
+
 /// Parse once, apply optional reference styling, and retain manuscript whitespace.
 fn postprocess_html(
     html: &str,
@@ -760,6 +812,7 @@ fn postprocess_html(
             apply_reply_styles(body, false, false, false);
         }
     }
+    apply_paragraph_formats(&mut document)?;
     let mut output = "<!DOCTYPE html>\n".to_owned();
     render_node(&document, false, &mut output);
     output.push('\n');

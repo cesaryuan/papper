@@ -131,6 +131,28 @@ preparation must not create `w:pPr` on them. Paragraph styles also receive
 paragraph formatting. HTML character-style targets likewise exclude paragraph
 layout, including line height and alignment.
 
+The shared `paragraph_format.lua` filter carries fenced-Div local typography
+to each eligible paragraph after the ordinary style filters. Its payload keeps
+the ordered scopes, allowing the Rust core to validate every scope, expand
+dotted fields and merge only supplied properties. Inner first-line indent modes
+replace inherited modes; conflicts within one scope remain errors. Ordinary
+list and block-quote paragraphs inherit scopes; tables, figures and notes form
+independent boundaries. The filter preserves IDs/classes and unrelated attributes.
+
+HTML consumes empty span markers into inline CSS on each paragraph after named
+style and reply processing. DOCX consumes hidden run markers after body formatting,
+including the mandatory finalization path, and merges direct paragraph/run
+properties without adding named styles. Existing run properties and properties
+declared by the run's character-style ancestry take priority over local text
+defaults. Story/note parts are finalized too when they contain markers. Local
+exact line spacing and physical indents preserve CSS units independently of the
+historical named-style compatibility conversions.
+Direct physical indents explicitly zero their inherited character-unit counterparts;
+Word otherwise lets nonzero style character indents override the authored lengths.
+Zero character first-line indents also reset inherited physical first-line/hanging
+values. The local-format Word visual contract checks PDF text positions as well
+as XML values to protect this inheritance boundary.
+
 `build docx --reference-doc` overrides `PMT_REFERENCE_DOC`; otherwise the
 bundled reference is selected. `docx_pipeline::prepare_reference` returns the
 actual reference path, including a temporary copy with effective text styles
