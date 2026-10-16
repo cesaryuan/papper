@@ -4,6 +4,7 @@ This repository is the `papper` tool, not a manuscript project.
 - Release/development tooling lives in `tools/papper-dev/`; `tests/legacy/` is a frozen historical archive that active tests must not import or execute.
 - Template content for generated paper projects lives in `template/`.
 - Bundled build defaults live in `defaults/`; project override templates remain in `template/`.
+- 用户提到的 t 片段时，指的是可用在 md 中的一种语法,形如：`[]{t="SOME_TYPE" some-attribute="SOME_VALUE" ...}`，可用于插入特殊内容或控制渲染行为。
 
 ### 用户文档职责与同步更新
 
