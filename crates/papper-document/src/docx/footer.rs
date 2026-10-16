@@ -197,7 +197,7 @@ pub(super) fn finalize_page_fields(node: &mut Node, styles: &Element) -> Result<
             None
         };
         if let Some((page, mut record)) = record {
-            // Pandoc splits CJK date pictures/results into adjacent font runs.
+            // Pandoc splits CJK field instructions/results into adjacent font runs.
             // Reassemble only an incomplete JSON marker before creating the field.
             let record: Value = loop {
                 match serde_json::from_str(&record) {
@@ -392,7 +392,7 @@ fn append_formatted_page_field(
     append_formatted_field(paragraph, styles, instruction, result, properties, true)
 }
 
-/// Write a PAGE or DATE field while retaining the authored inline typography.
+/// Write a Word field while retaining the authored inline typography.
 fn append_formatted_field(
     paragraph: &mut Element,
     styles: &Element,
@@ -412,12 +412,12 @@ fn append_formatted_field(
     } else {
         None
     };
-    for (kind, text) in [
-        (Some("begin"), None),
-        (None, Some(instruction)),
-        (Some("separate"), None),
-        (None, Some(result)),
-        (Some("end"), None),
+    for (kind, text, tag) in [
+        (Some("begin"), None, ""),
+        (None, Some(instruction), "w:instrText"),
+        (Some("separate"), None, ""),
+        (None, Some(result), "w:t"),
+        (Some("end"), None, ""),
     ] {
         let mut run = Element::new("w:r");
         if let Some(properties) = properties {
@@ -429,12 +429,14 @@ fn append_formatted_field(
         if let Some(kind) = kind {
             run.push(Element::with_attrs("w:fldChar", &[("w:fldCharType", kind)]));
         } else {
-            let mut value = Element::new(if text == Some(instruction) {
-                "w:instrText"
-            } else {
-                "w:t"
-            });
-            if text == Some(instruction) {
+            // A custom field's cached text can equal its instruction; its role,
+            // rather than string equality, must determine the XML element.
+            let mut value = Element::new(tag);
+            if tag == "w:instrText"
+                || text.is_some_and(|value| {
+                    value.starts_with(char::is_whitespace) || value.ends_with(char::is_whitespace)
+                })
+            {
                 value.set("xml:space", "preserve");
             }
             value

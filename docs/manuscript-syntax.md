@@ -368,7 +368,7 @@ This section starts on an odd page and has empty headers and footers.
 | `headerAlignment`, `footerAlignment` | `center` for supplied content; also accepts `left` and `right`. Requires the corresponding content option. |
 
 Content supports the same Pandoc Markdown as `docxHeader.content` and
-`docxFooter.content`, including page/date fields. Supplied content is used for
+`docxFooter.content`, including page, date, and custom Word fields. Supplied content is used for
 default, first, and even page variants; the document's existing first/even page
 modes remain in effect. Subsequent sections inherit the effective preceding
 stories unless their own options override them. Margins, paper size, and other
@@ -404,6 +404,48 @@ spaces, or non-Latin literal text between them. Month and weekday names in the
 build-time display follow the build machine's locale; Word's updated display
 follows its language settings. Other ASCII letters, quotes, backslashes, and
 newlines in a date format are rejected.
+
+### Custom Word Fields
+
+Use `field` to insert a Word field with an instruction you supply. It works
+inline or on its own paragraph, including in tables, configured headers/footers,
+and section-specific headers/footers. Surrounding Markdown emphasis is retained.
+
+```markdown
+Total pages: []{t="field" instruction="NUMPAGES" result="1"}.
+
+Figure []{t="field" instruction='SEQ Figure \\* ARABIC' result="1"}.
+
+Prepared on **[]{t="field" instruction='DATE \\@ "yyyy-MM-dd"' result="2000-01-02"}**.
+
+[]{t="field" instruction="FILENAME"}
+```
+
+| Option | Meaning |
+| --- | --- |
+| `instruction` | Required, nonblank, single-line Word field instruction, without the outer `{ }` shown by Word. Control characters are rejected. |
+| `result` | Optional plain text displayed before Word updates the field; defaults to an empty string. Markdown inside this value is not interpreted. |
+
+Use single quotes around an attribute containing double quotes, as in the DATE
+example. In Markdown attributes, write a literal backslash as `\\`: for example,
+`\\*` in Markdown becomes `\*` in Word. The examples above include this escaping.
+To retain leading or trailing spaces in `result`, use `&#32;`, for example
+`result="&#32;1&#32;"`. Attribute values follow Pandoc's Markdown escaping and
+character-reference rules; YAML double-quoted strings require an additional
+layer of backslash escaping. After Markdown decoding, Word field names and
+switches are passed through without Papper interpreting or calculating them. For example,
+`NUMPAGES` calculates the document's total page count, and `SEQ Figure \* ARABIC`
+advances a sequence named `Figure` when Word updates it. If `result` is omitted,
+the field initially displays no text.
+
+In desktop Word, right-click the field and choose **Update Field** to calculate
+its value. The supplied `result` is only an initial display and is replaced by
+Word's calculation. Papper does not check whether the instruction is a valid
+Word command, create referenced bookmarks or external resources, or construct
+nested fields from braces in the instruction. Supply one field instruction per
+span; nested fields require a different representation. Other viewers may keep
+the initial display or may not support updating the field. Like other native
+insertions, these spans produce no content in HTML or LaTeX.
 
 ## Author Metadata
 

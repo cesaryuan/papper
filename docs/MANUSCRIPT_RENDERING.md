@@ -102,8 +102,12 @@ Explicit header/footer nulls survive reply override serialization and merging.
 
 `docx_directives.lua` runs before global story rendering, after manuscript
 numbering, and before final image handling. `docx_fields.lua` shares PAGE/DATE
-validation and cached field markers with `docx_footer.lua`. Native field
-finalization preserves the writer's enclosing run properties. Section story
+and custom `field` validation and cached field markers with `docx_footer.lua`.
+Custom instructions are passed through as single-line text, with an optional
+plain-text cache; Word performs validation and evaluation on field update.
+Native field finalization preserves the writer's enclosing run properties,
+escapes instruction/result XML text, and preserves boundary spaces in results.
+The result uses `w:t` even when it equals the instruction. Section story
 blocks have separately numbered boundaries; `docx/directives.rs` consumes them
 after global stories have been applied, creates unique OPC story parts and
 relationships, and closes preceding sections with paragraph-level `sectPr`.

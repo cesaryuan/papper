@@ -59,6 +59,13 @@
           "format": {"description": "日期格式，默认 yyyy-MM-dd；支持 yyyy、yy、MMMM、MMM、MM、M、dddd、ddd、dd、d 和标点、空格、非拉丁文本；不支持其他 ASCII 字母、引号、反斜杠或换行", "valueType": "string", "suggestions": ["yyyy-MM-dd", "yyyy年M月d日", "MMMM d, yyyy"]}
         }
       },
+      "field": {
+        "description": "插入自定义 Word 域；正文、页眉和页脚均可使用，保留外层 Markdown 字体格式",
+        "properties": {
+          "instruction": {"description": "必填的单行 Word 域指令，不包含外层花括号；保留域开关、引号和反斜杠，由 Word 计算", "valueType": "string", "suggestions": ["PAGE", "NUMPAGES", "SEQ Example \\* ARABIC"]},
+          "result": {"description": "Word 更新域之前显示的纯文本，默认空字符串；不是域的计算结果，更新后会被替换", "valueType": "string", "suggestions": ["", "1"]}
+        }
+      },
       "pageBreak": {
         "description": "插入分页符，可嵌入段落；没有额外属性",
         "properties": {}

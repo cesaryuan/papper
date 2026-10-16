@@ -32,11 +32,14 @@ def test_exported_directive_choices_render_through_the_public_cli(tmp_path: Path
     page_fields = 0
     for kind, variant in element["variants"].items():
         for spelling in [kind, *variant.get("aliases", [])]:
-            directives.append(f'[]{{t="{spelling}"}}')
+            required = ' instruction="PAGE"' if kind == "field" else ""
+            directives.append(f'[]{{t="{spelling}"{required}}}')
             page_fields += kind == "pageNum"
         for key, field in variant["properties"].items():
             for value in [*field.get("values", []), *field.get("suggestions", [])]:
                 attributes = {element["discriminator"]: kind, key: value}
+                if kind == "field":
+                    attributes.setdefault("instruction", "PAGE")
                 # Alignment is meaningful only alongside an independent story.
                 if kind == "sectionBreak" and key in {"headerAlignment", "footerAlignment"}:
                     attributes[key.removesuffix("Alignment")] = "Story"
@@ -118,6 +121,47 @@ def test_insertions_survive_finalization_and_preserve_section_stories(
                 assert b"PMT_FOOTER_PAGE:" not in archive.read(name)
 
 
+@pytest.mark.parametrize("postprocess,native", [(True, False), (True, True), (False, False)])
+def test_custom_fields_preserve_instructions_results_and_typography(
+    tmp_path: Path, rust_executable: Path, postprocess: bool, native: bool,
+) -> None:
+    """Catch lost field switches, malformed XML, and formatting loss in body and page stories."""
+    source = tmp_path / "input.md"
+    text = (ROOT / "tests/snapshot_cases/word_fields/word_fields.md").read_text(encoding="utf-8")
+    source.write_text(text.replace("  mathtype: false", f"  mathtype: false\n  docxNativeCrossref: {str(native).lower()}"), encoding="utf-8")
+    output = tmp_path / "output.docx"
+    result = build_insertions(rust_executable, source, output, postprocess=postprocess)
+    assert result.returncode == 0, result.stdout + result.stderr
+    document = Document(output)
+    instructions = [node.text for node in document.element.iter(qn("w:instrText"))]
+    assert instructions == [
+        "NUMPAGES", "STYLEREF 1", r"SEQ Example \* ARABIC", 'DATE \\@ "yyyy-MM-dd"',
+        r"SEQ 自定义 \* ARABIC", 'IF 1 < 2 "A & B" "C > D"', "NUMPAGES", "PAGE", "NUMPAGES",
+        "STYLEREF 1",
+    ]
+    total = next(paragraph for paragraph in document.paragraphs if paragraph.text.startswith("Total pages:"))
+    assert total.text == "Total pages: 1."
+    assert next(run for run in total.runs if run.text == "1").bold
+    chinese = next(paragraph for paragraph in document.paragraphs if paragraph.text.startswith("Chinese instruction:"))
+    assert next(run for run in chinese.runs if run.text == "一").italic
+    assert "XML characters: A & B." in [paragraph.text for paragraph in document.paragraphs]
+    assert "No initial result: ." in [paragraph.text for paragraph in document.paragraphs]
+    assert "Identical instruction and result: PAGE." in [paragraph.text for paragraph in document.paragraphs]
+    assert sum(paragraph.text == "Current heading: Heading pending." for paragraph in document.paragraphs) == 2
+    spaces = next(node for node in document.element.iter(qn("w:t")) if node.text == " 1 ")
+    assert spaces.get(qn("xml:space")) == "preserve"
+    first, second = document.sections
+    for section in (first, second):
+        assert [node.text for node in section.header._element.iter(qn("w:instrText"))] == ["NUMPAGES", "STYLEREF 1"]
+        assert [node.text for node in section.footer._element.iter(qn("w:instrText"))] == (
+            ["PAGE", "NUMPAGES"] if section is first else ["PAGE"]
+        )
+    with ZipFile(output) as archive:
+        for name in archive.namelist():
+            if name.startswith("word/") and name.endswith(".xml"):
+                assert b"PMT_DOCX_FIELD:" not in archive.read(name)
+
+
 @pytest.mark.parametrize("markdown,message", [
     ('[]{t="toc" depth="10"}', "depth must be between"),
     ('[]{t="listofFigures" includeSubfigures="yes"}', "must be true or false"),
@@ -128,6 +172,10 @@ def test_insertions_survive_finalization_and_preserve_section_stories(
     ('1. []{t="sectionBreak"}', "top-level body paragraph"),
     ('[Text]{t="pageBreak"}', "spans must be empty"),
     ('[]{t="date" format="unsupported"}', "Unsupported DOCX date format"),
+    ('[]{t="field"}', "field instruction must not be empty"),
+    ('[]{t="field" instruction=""}', "field instruction must not be empty"),
+    ('[]{t="field" instruction="&#32;"}', "field instruction must not be empty"),
+    ('[]{t="field" instruction="PAGE&#10;NUMPAGES"}', "single line without control characters"),
     ('[]{t="unknown"}', "Unsupported DOCX directive"),
 ])
 def test_invalid_insertions_fail_without_replacing_existing_output(
@@ -147,11 +195,11 @@ def test_invalid_insertions_fail_without_replacing_existing_output(
 def test_native_insertions_have_no_effect_on_html(tmp_path: Path, rust_executable: Path) -> None:
     """A DOCX-only directive must not create directories or page-story content in HTML."""
     source = tmp_path / "input.md"
-    source.write_text('Before []{t="date"}.\n\n[]{t="toc" title="DOCX contents"}\n\n'
+    source.write_text('Before []{t="date"}. []{t="field" instruction="NUMPAGES" result="DOCX field"}\n\n[]{t="toc" title="DOCX contents"}\n\n'
                       '[]{t="sectionBreak" header="DOCX header"}\n\nAfter.\n', encoding="utf-8")
     output = tmp_path / "output.html"
     result = build_insertions(rust_executable, source, output, target="html")
     assert result.returncode == 0, result.stdout + result.stderr
     text = html.fromstring(output.read_text(encoding="utf-8")).text_content()
     assert "Before" in text and "After." in text
-    assert "DOCX contents" not in text and "DOCX header" not in text
+    assert "DOCX contents" not in text and "DOCX header" not in text and "DOCX field" not in text

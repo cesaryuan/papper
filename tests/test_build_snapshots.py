@@ -47,6 +47,9 @@ CASES = {
     "docx_directives": (
         ROOT / "tests" / "snapshot_cases" / "docx_directives", "docx_directives.md",
     ),
+    "word_fields": (
+        ROOT / "tests" / "snapshot_cases" / "word_fields", "word_fields.md",
+    ),
     "table_attributes": (
         ROOT / "tests" / "snapshot_cases" / "table_attributes", "table_attributes.md",
     ),
@@ -72,7 +75,7 @@ CASES = {
 DOCX_ONLY_CASES = {
     "native_crossrefs", "equation_attributes", "equation_attributes_no_mathtype",
     "docx_footer", "docx_footer_markdown", "docx_footer_formats",
-    "docx_directives",
+    "docx_directives", "word_fields",
 }
 
 pytestmark = pytest.mark.skipif(

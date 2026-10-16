@@ -1,6 +1,7 @@
 -- Share empty-span Word fields between body paragraphs and page stories.
 -- For example, **[]{t="pageNum"}** retains bold on a dynamic PAGE field;
 -- []{t="date" format="yyyy-MM-dd"} inserts the current date as a DATE field.
+-- []{t="field" instruction="NUMPAGES" result="1"} inserts an authored Word field.
 
 local fields = {}
 local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
@@ -66,8 +67,18 @@ end
 --- Preserve enclosing Markdown typography until native finalization creates complex fields
 function fields.span(span, setting)
   local kind = span.attributes.t
-  if kind ~= 'pageNum' and kind ~= 'date' and kind ~= 'currentDate' then return nil end
+  if kind ~= 'pageNum' and kind ~= 'date' and kind ~= 'currentDate' and kind ~= 'field' then return nil end
   fields.validate(span, setting)
+  if kind == 'field' then
+    local instruction = span.attributes.instruction
+    if not instruction or not instruction:match('%S') then
+      error('DOCX field instruction must not be empty')
+    end
+    if instruction:find('%c') then error('DOCX field instruction must be a single line without control characters') end
+    return pandoc.Span({pandoc.Str('PMT_DOCX_FIELD:' .. pandoc.json.encode({
+      instruction = instruction, result = span.attributes.result or '',
+    }))}, pandoc.Attr('', {}, {['custom-style'] = 'Papper Word Field'}))
+  end
   if kind == 'pageNum' then
     local name = span.attributes.format
     local switch = name and formats[name] or ''

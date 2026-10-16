@@ -94,14 +94,14 @@ def test_docx_render_matches_visual_snapshot(
         output = project / "rendered.docx"
         style_file = project / "style.yml" if case_name in {"native_crossrefs", "equation_attributes_no_mathtype"} else None
         build_case(project, markdown, "docx", output, style_file=style_file)
-    update_fields = case_name == "docx_directives"
+    update_fields = case_name in {"docx_directives", "word_fields"}
     if update_fields:
         visual_copy = project / "visual-fixed-date.docx"
         freeze_visual_dates(output, visual_copy)
         output = visual_copy
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "docx-word"
     word_visual_session.check(output, baseline, update_fields=update_fields)
-    if update_fields:
+    if case_name == "docx_directives":
         # Check real Word output as well as pixels: a stable placeholder image
         # must not become the baseline when directory updating silently fails.
         with pymupdf.open(output.parent / "word-render/export-2/rendered.pdf") as rendered:
@@ -111,6 +111,20 @@ def test_docx_render_matches_visual_snapshot(
             for caption in ('Figure 1 Primary figure', 'Figure 2 Combined panels',
                             '(a) First panel', '(b) Second panel', 'Table 1 Measurements'):
                 assert text.count(caption) >= 2, f'Directory lost caption: {caption}'
+    if case_name == "word_fields":
+        # Word must calculate the authored fields, rather than just display caches.
+        with pymupdf.open(output.parent / "word-render/export-2/rendered.pdf") as rendered:
+            text = '\n'.join(page.get_text() for page in rendered)
+            assert f'Total pages: {len(rendered)}.' in text
+            assert f'No initial result: {len(rendered)}.' in text
+            assert 'Identical instruction and result: 1.' in text
+            assert 'XML characters: A & B.' in text
+            # STYLEREF must follow each page's heading in both body and header.
+            for page, heading in zip(rendered, ('1 Authored instructions', '2 Next section'), strict=True):
+                page_text = page.get_text()
+                assert f'Chapter: {heading}' in page_text
+                assert f'Current heading: {heading}.' in page_text
+                assert 'Heading pending' not in page_text
 
 
 @pytest.mark.visual

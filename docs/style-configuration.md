@@ -543,6 +543,11 @@ Use `[]{t="date" format="yyyy-MM-dd"}` in body or page-story content for a
 dynamic current date. The default format is `yyyy-MM-dd`; supported pictures
 and update behavior are described in
 [`DOCX Native Insertions`](manuscript-syntax.md#docx-native-insertions).
+Custom fields also work in header/footer content, for example
+`content: 'Page []{t="field" instruction="PAGE" result="1"} of []{t="field" instruction="NUMPAGES" result="1"}'`.
+The optional `result` is the initial display until Word updates the field;
+see [Custom Word Fields](manuscript-syntax.md#custom-word-fields) for quoting,
+supported locations, and update behavior.
 Global `docxHeader`/`docxFooter` content applies before section-specific
 `[]{t="sectionBreak" ...}` options. A supplied section story overrides that
 global story and is inherited by subsequent sections unless overridden again.
