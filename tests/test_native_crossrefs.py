@@ -107,20 +107,34 @@ def assert_reference_targets(fields: list[dict[str, str]], bookmarks: dict[str, 
 
 @pytest.mark.visual
 @pytest.mark.skipif(os.name != "nt", reason="requires desktop Microsoft Word on Windows")
-def test_native_toc_does_not_duplicate_or_advance_heading_numbers(tmp_path: Path) -> None:
-    """Update a real Word TOC and protect both entry labels and subsequent heading numbers."""
+@pytest.mark.parametrize("chapter_headings", [False, True], ids=["numeric", "chapter-headings"])
+def test_native_toc_does_not_duplicate_or_advance_heading_numbers(
+    tmp_path: Path, chapter_headings: bool,
+) -> None:
+    """Update Word fields and protect TOC labels, heading numbers and numeric section references."""
+    metadata = {"secPrefix": "Section", "linkReferences": True}
+    if chapter_headings:
+        metadata.update({
+            "secHeaderTemplate": "$$secHeaderPrefix[n]$$$$i$$$$secHeaderDelim[n]$$$$t$$",
+            "secHeaderPrefix": ["第&#32;", ""],
+            "secHeaderDelim": ["&#32;章&#32;", "&#32;"],
+        })
     prepare_project(tmp_path, """[]{t="toc" depth="3"}
 
-# Overview
+Forward: @sec:overview; @sec:background; @sec:details; @sec:results; @sec:discussion.
 
-## Background
+# Overview {#sec:overview}
 
-### Details
+## Background {#sec:background}
 
-# Results
+### Details {#sec:details}
 
-## Discussion
-""", True)
+# Results {#sec:results}
+
+## Discussion {#sec:discussion}
+
+Backward: @sec:overview; @sec:background; @sec:details; @sec:results; @sec:discussion.
+""", True, **metadata)
     output, _ = build_document(tmp_path)
     result_path = tmp_path / "word-result.json"
     request_path = tmp_path / "word-request.json"
@@ -137,8 +151,9 @@ def test_native_toc_does_not_duplicate_or_advance_heading_numbers(tmp_path: Path
     result = json.loads(result_path.read_text(encoding="utf-8-sig"))
     assert result["user_documents_preserved"]
     expected = [
-        ("1", "Overview"), ("1.1", "Background"), ("1.1.1", "Details"),
-        ("2", "Results"), ("2.1", "Discussion"),
+        ("第 1 章" if chapter_headings else "1", "Overview"),
+        ("1.1", "Background"), ("1.1.1", "Details"),
+        ("第 2 章" if chapter_headings else "2", "Results"), ("2.1", "Discussion"),
     ]
     paragraphs = result["numbering"]
     # TOC numbers are part of the field text; an additional list label is the bug.
@@ -149,6 +164,11 @@ def test_native_toc_does_not_duplicate_or_advance_heading_numbers(tmp_path: Path
     titles = {title for _, title in expected}
     headings = [paragraph for paragraph in paragraphs if paragraph["text"] in titles]
     assert [(heading["list_number"], heading["text"]) for heading in headings] == expected
+    # REF must retain numeric results after Word updates, even when list labels contain 第/章.
+    references = [paragraph["text"].replace("\u00a0", " ") for paragraph in paragraphs
+                  if paragraph["text"].startswith(("Forward:", "Backward:"))]
+    expected_references = "Section 1; Section 1.1; Section 1.1.1; Section 2; Section 2.1."
+    assert references == [f"{direction}: {expected_references}" for direction in ("Forward", "Backward")]
 
 
 @pytest.mark.parametrize("native_crossref", [False, True])
@@ -198,7 +218,7 @@ $$ {#eq:model}
     heading_text = "".join(node.text or "" for node in heading.iter(W + "t"))
     assert heading_text == ("Overview" if native_crossref else "1 Overview")
     assert (heading.find(W + "pPr/" + W + "numPr") is not None) is native_crossref
-    section_refs = [item for item in fields if "\\r \\h" in item["code"]]
+    section_refs = [item for item in fields if "\\r" in item["code"]]
     assert len(section_refs) == (1 if native_crossref else 0)
     assert len(list(root.iter(W + "drawing"))) == 3
     assert "No marked number" not in log

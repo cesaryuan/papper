@@ -421,7 +421,7 @@ docxNativeCrossref: true
 
 默认值 `false` 完整保留原有 Pandoc 编号和超链接引用行为。开启后，图、表、公式
 使用原生 `SEQ` 编号和 `REF` 引用；章节标题使用关联标题样式的 Word 多级列表，
-章节编号引用使用 `REF ... \r \h`。章节编号仍遵循 `numberSections`、
+章节编号引用使用 `REF ... \r \t \h`。章节编号仍遵循 `numberSections`、
 `sectionsDepth` 以及不编号标题的设置。常规一级章节前缀使用 `STYLEREF`，项目
 序列通过 `SEQ \s 1` 随章节重启。图、表的 `SEQ` 序列名分别取去除首尾空白后的
 `figureTitle`、`tableTitle`；标题为空时回退到 `Figure`、`Table`，公式序列名为

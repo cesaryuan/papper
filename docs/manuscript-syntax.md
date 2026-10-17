@@ -746,6 +746,11 @@ Reference prefixes, automatic equation labels, chapter numbering, and heading
 numbering depth are project settings described in
 [`style-configuration.md`](style-configuration.md).
 
+With `docxNativeCrossref: true`, section references keep numeric values when
+Word updates fields, even if the heading format adds words around the number.
+For example, `@sec:intro` for `第 1 章 Introduction` references `1` with the
+configured section-reference prefix; it does not repeat `第` and `章`.
+
 ### Bilingual Figure and Table Captions
 
 Add `caption-en` to ordinary numbered figures or tables for an English caption

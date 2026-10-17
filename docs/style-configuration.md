@@ -216,6 +216,9 @@ may need two updates. Both lines of a bilingual caption use the same number.
 
 Heading numbering respects `numberSections`, `sectionsDepth`, and unnumbered
 `{-}` headings. Subfigure panels share the parent's number and add panel letters.
+Text added around heading numbers, such as `第 1 章`, stays in the headings;
+section references keep numeric values such as `1` and `1.1` after Word updates
+its fields. Reference prefixes still follow `pandocMetadata.secPrefix`.
 Non-Arabic numbering and unsupported custom templates keep their build-time
 numbers with a warning. Custom bilingual caption templates require exactly one
 `$$i$$` number placeholder.

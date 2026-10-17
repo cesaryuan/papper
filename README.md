@@ -511,7 +511,7 @@ docxNativeCrossref: true
 The default `false` preserves the original Pandoc numbering and hyperlink
 references. With `true`, figures, tables, and equations use `SEQ` numbering and
 `REF` references. Numbered headings use a Word multilevel list linked to heading
-styles, and section references use `REF ... \r \h`. Heading numbering still
+styles, and section references use `REF ... \r \t \h`. Heading numbering still
 respects `numberSections`, `sectionsDepth`, and unnumbered headings. Standard
 level-1 chapter prefixes use `STYLEREF`, with `SEQ \s 1` restarting item numbers.
 Figure and table sequence names follow the trimmed `figureTitle` and `tableTitle`;

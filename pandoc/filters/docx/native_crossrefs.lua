@@ -352,7 +352,8 @@ local function convert(doc)
     local marker = pandoc.RawInline('openxml',
       '<w:r><w:rPr><w:vanish/></w:rPr><w:t>' .. xml_escape(payload) .. '</w:t></w:r>')
     header.content = pandoc.Inlines { marker, pandoc.Span(title, pandoc.Attr(name)) }
-    targets[header.identifier] = { name = name, number = number, switches = '\\r \\h' }
+    -- Strip list-label decorations such as 第/章 so Word updates match crossref's numeric cache.
+    targets[header.identifier] = { name = name, number = number, switches = '\\r \\t \\h' }
     native_heading_levels[header.level] = true
     section_count = section_count + 1
     return header

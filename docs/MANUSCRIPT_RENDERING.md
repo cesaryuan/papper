@@ -173,7 +173,9 @@ Project style merges preserve explicitly supplied nulls, so
 The native cross-reference path uses Word `SEQ` fields for Arabic figure,
 table, and equation numbers, and `REF` fields for their references. Numbered
 headings use a multilevel list linked to heading styles; section references use
-`REF ... \r \h`. Subfigure references combine the parent's number bookmark
+`REF ... \r \t \h`; `\t` suppresses list-label decorations such as `第` and
+`章` so Word's updated references match crossref's cached numeric results.
+Subfigure references combine the parent's number bookmark
 with the panel-letter bookmark; panels do not increment the figure sequence.
 
 Figure and table sequence identifiers use trimmed `figureTitle` and
