@@ -335,6 +335,7 @@ fn escape(text: &str, attribute: bool, output: &mut String) {
 fn property_rank(parent: &str, name: &str) -> usize {
     let order = match parent {
         "w:p" => "w:pPr",
+        "w:pBdr" => "w:top w:left w:bottom w:right w:between w:bar",
         "w:r" => "w:rPr",
         "m:r" => "m:rPr w:rPr",
         "w:tbl" => "w:tblPr w:tblGrid",

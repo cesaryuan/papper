@@ -168,6 +168,7 @@ pub(crate) fn apply_styles(styles: &mut Element, settings: &PmtSettings) -> Resu
             apply_paragraph_properties(style.word("w:pPr"), raw, &prefix)?;
         }
     }
+    super::borders::apply_styles(styles, settings)?;
     Ok(())
 }
 

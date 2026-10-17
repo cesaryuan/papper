@@ -120,10 +120,30 @@ pub(super) fn style_declarations(
             },
         ),
     ];
-    values
+    let mut declarations: Vec<_> = values
         .into_iter()
         .filter_map(|(key, value)| value.map(|value| (key, value)))
-        .collect()
+        .collect();
+    if paragraph_metrics {
+        for (side, border, padding) in [
+            ("top", "border-top", "padding-top"),
+            ("right", "border-right", "padding-right"),
+            ("bottom", "border-bottom", "padding-bottom"),
+            ("left", "border-left", "padding-left"),
+        ] {
+            if let Some(line) = style.paragraph_borders.lines.get(side) {
+                declarations.push((border, line.css()));
+                if matches!(line.style.as_str(), "none" | "nil") {
+                    declarations.push((padding, "0pt".into()));
+                    continue;
+                }
+            }
+            if let Some(space) = style.paragraph_borders.spaces.get(side) {
+                declarations.push((padding, format!("{space}pt")));
+            }
+        }
+    }
+    declarations
 }
 
 /// One declaration group may serve several selectors without repeating its body.

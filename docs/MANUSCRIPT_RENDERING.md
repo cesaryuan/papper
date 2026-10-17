@@ -168,6 +168,24 @@ Zero character first-line indents also reset inherited physical first-line/hangi
 values. The local-format Word visual contract checks PDF text positions as well
 as XML values to protect this inheritance boundary.
 
+Paragraph border shorthand is parsed in the core as complete side declarations
+with Word eighth-point widths. `all` expands before local scopes merge; a whole
+reset includes `between`, while a side declaration replaces its line as a unit.
+Named DOCX border changes are collected before resolving `basedOn`, avoiding
+configuration-order dependencies when a child changes only text distance.
+Direct local borders resolve selected-style and existing paragraph borders first,
+so changing a line retains inherited distance and changing distance retains lines.
+Fixed-color replacements remove direct theme-color attributes that would otherwise
+override the new RGB value. Border children are written in schema order.
+
+HTML keeps paragraph borders separate from table geometry. Reference/configuration
+side sets are inherited through typed styles, then combined with local paragraph
+markers. A DOM pass joins matching adjacent paragraph sets across transparent
+Divs, emits internal separators once, and moves inter-paragraph margin gaps into
+padding to keep vertical rules continuous. Tables, cells, list items, quotes and
+figures break groups. CSS approximates compound Word line styles and pagination;
+it does not claim pixel-identical Word border geometry.
+
 `build docx --reference-doc` overrides `PMT_REFERENCE_DOC`; otherwise the
 bundled reference is selected. `docx_pipeline::prepare_reference` returns the
 actual reference path, including a temporary copy with effective text styles

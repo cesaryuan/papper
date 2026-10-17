@@ -8,6 +8,15 @@ papperSettings:
       fontSize: 16pt
       bold: true
       paragraphSpacing: {before: 12pt, after: 12pt}
+    Block Text:
+      borders:
+        all: "0.75pt solid #005588"
+        between: none
+        space: 4pt
+      firstLineIndentChars: 0
+      paragraphSpacing: {before: 3pt, after: 3pt}
+    Heading 3:
+      borders: {bottom: "0.75pt double #666666", space: 2pt}
 ---
 
 # Local paragraph formatting
@@ -62,6 +71,52 @@ One-character local first-line indent.
 ::: {indentation.left="18pt" indentation.hanging="6pt" fontSize="10pt"}
 Local physical hanging indent.
 :::
+
+# Paragraph borders
+
+Control paragraph without a border.
+
+::::: {#named-border custom-style="Block Text"}
+First paragraph of a connected named-style box.
+
+Second paragraph of the same box, with **bold** text.
+
+::: {borders.bottom="1.5pt wave #BB5500"}
+Local wave bottom overrides the named style only on this paragraph.
+:::
+
+::: {borders="none"}
+Local reset removes every inherited border.
+:::
+:::::
+
+### Heading with a double bottom border
+
+::: {#local-box borders="0.75pt solid #808080" borders.space="4pt" borders.between="0.5pt dotted #005588" firstLineIndentChars="0"}
+First local box paragraph.
+
+Second local box paragraph, separated by a dotted border.
+:::
+
+::: {#left-only borders.left="2pt solid rgb(0, 85, 136)" borders.space="6pt" firstLineIndentChars="0"}
+A left-side rule using the CSS-like shorthand.
+:::
+
+::: {#special-lines borders.top="1pt dotDash #666666" borders.bottom="1.5pt thinThickMediumGap #666666" borders.space="4pt"}
+Word retains the compound line styles; HTML approximates them.
+:::
+
+::::: {#nested borders="0.5pt solid #999999" borders.space="3pt"}
+Outer border before nesting.
+
+::: {borders.all="1pt dashed #005588" borders.left="none"}
+Inner border changes the outer edges and removes the left edge.
+:::
+
+Outer border resumes after nesting.
+:::::
+
+Control paragraph after all blocks.
 
 [^scope]: A note keeps its own formatting.
 

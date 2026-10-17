@@ -119,7 +119,7 @@ pub(super) fn override_css(
     Ok(rules)
 }
 /// Delegate metadata validation to the shared Rust configuration implementation.
-pub(super) fn normalize_docx_styles(raw: &Value) -> Result<Vec<Map<String, Value>>> {
+pub(in crate::html) fn normalize_docx_styles(raw: &Value) -> Result<Vec<Map<String, Value>>> {
     let mapping = Map::from_iter([("docxStyle".into(), raw.clone())]);
     let settings = papper_core::metadata::PmtSettings::from_mapping(&mapping)?;
     Ok(papper_core::style_values::normalize_docx_style_settings(&settings)?.unwrap_or_default())
@@ -190,6 +190,13 @@ pub(super) fn normalized_style_spec(record: &Map<String, Value>) -> StyleSpec {
             }),
         left: length("left_indent"),
         right: length("right_indent"),
+        paragraph_borders: record
+            .get("paragraph_borders")
+            .cloned()
+            .map(serde_json::from_value)
+            .transpose()
+            .expect("validated paragraph border record")
+            .unwrap_or_default(),
         ..StyleSpec::default()
     }
 }

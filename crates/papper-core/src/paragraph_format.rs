@@ -66,7 +66,38 @@ pub fn resolve_scopes(payload: &str) -> Result<ParagraphFormat> {
 /// Expand dotted attribute names, rejecting ambiguous shorthand/group combinations.
 fn expand_attributes(attributes: Map<String, Value>) -> Result<Map<String, Value>> {
     let mut result = Map::new();
+    // A border shorthand may coexist with side/distance overrides in the same Div.
+    let mut borders = attributes
+        .get("borders")
+        .map(|value| crate::paragraph_borders::expand_settings(value, "paragraph format.borders"))
+        .transpose()?
+        .unwrap_or_default();
+    if let Some(all) = attributes.get("borders.all") {
+        borders.extend(crate::paragraph_borders::expand_settings(
+            &json!({"all": all}),
+            "paragraph format.borders",
+        )?);
+    }
     for (name, value) in &attributes {
+        if let Some(side) = name.strip_prefix("borders.").filter(|side| *side != "all") {
+            borders.insert(side.into(), value.clone());
+        }
+    }
+    if attributes.contains_key("borders")
+        || attributes.keys().any(|name| name.starts_with("borders."))
+    {
+        result.insert(
+            "borders".into(),
+            Value::Object(crate::paragraph_borders::expand_settings(
+                &Value::Object(borders),
+                "paragraph format.borders",
+            )?),
+        );
+    }
+    for (name, value) in &attributes {
+        if name == "borders" || name.starts_with("borders.") {
+            continue;
+        }
         if let Some((parent, child)) = name.split_once('.') {
             if attributes.contains_key(parent) {
                 bail!("paragraph format cannot combine `{parent}` with `{name}` in the same block");

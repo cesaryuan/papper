@@ -12,6 +12,7 @@ use cascade::*;
 use css::*;
 pub(super) use model::StyleKind;
 use model::*;
+pub(super) use overrides::normalize_docx_styles;
 pub use overrides::normalized_override_css;
 use overrides::*;
 use serde_json::{Map, Value};
@@ -25,6 +26,8 @@ pub(super) fn paragraph_format_css(
 ) -> String {
     use papper_core::style_values::{LineSpacingAmount, parse_alignment, parse_line_spacing};
     let mut style = normalized_style_spec(&format.normalized);
+    // The DOM pass resolves named/local borders before joining adjacent paragraphs.
+    style.paragraph_borders = Default::default();
     if let Some(value) = format.raw.get("lineSpacing") {
         // Local formatting preserves exact point spacing, rather than a unitless CSS multiple.
         style.line_height = Some(
@@ -56,6 +59,38 @@ pub(super) fn paragraph_format_css(
         .map(|(key, value)| format!("{key}: {value};"))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Keep resolved reference/configuration borders available for semantic and custom DOM paragraphs.
+pub(super) struct ParagraphBorderStyles(ReferenceStyles);
+
+impl ParagraphBorderStyles {
+    /// Apply configured style borders before descendants inherit, as in the DOCX reference.
+    pub(super) fn new(xml: &str, records: &[Map<String, Value>]) -> Result<Self> {
+        Ok(Self(read_reference_styles_with_overrides(xml, records)?))
+    }
+
+    /// Select a paragraph style without allowing similarly named character/table styles to leak in.
+    pub(super) fn get(&self, name: &str) -> papper_core::paragraph_borders::ParagraphBorders {
+        find_style_definition(&self.0, StyleKind::Paragraph, name)
+            .map(|style| style.effective.paragraph_borders.clone())
+            .unwrap_or_default()
+    }
+
+    /// Retain paragraph indents and collapsed inter-paragraph spacing when joining border edges.
+    pub(super) fn metrics(&self, name: &str) -> [f64; 4] {
+        find_style_definition(&self.0, StyleKind::Paragraph, name)
+            .map(|style| {
+                let style = &style.effective;
+                [
+                    style.left.unwrap_or(0.0),
+                    style.right.unwrap_or(0.0),
+                    style.before.unwrap_or(0.0),
+                    style.after.unwrap_or(0.0),
+                ]
+            })
+            .unwrap_or([0.0; 4])
+    }
 }
 
 // Custom-style Divs wrap body paragraphs; keep this fallback at the same

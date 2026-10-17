@@ -189,7 +189,7 @@ def test_html_render_matches_visual_snapshot(
     build_case(copied_case_dir, markdown, "html", output)
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "html.png"
     actual = visual_session.capture(
-        output, verify_local_paragraph_formats if case_name == "paragraph_format" else None,
+        output, {"paragraph_format": verify_local_paragraph_formats}.get(case_name),
     )
     record_visual_changes({baseline.name: actual}, baseline.parent)
     if visual_session.update:
@@ -201,6 +201,22 @@ def test_html_render_matches_visual_snapshot(
         if not baseline.exists():
             raise AssertionError(f"Visual baseline is missing: {baseline}; use --visual-update explicitly")
         _assert_visual(actual, baseline)
+
+
+def verify_paragraph_borders(page: Page) -> None:
+    """Check visible named/local edges, connected groups and resets in the real browser."""
+    named = page.locator("#named-border > p")
+    assert named.nth(0).evaluate("e => getComputedStyle(e).borderTopStyle") == "solid"
+    assert named.nth(0).evaluate("e => getComputedStyle(e).borderBottomStyle") == "none"
+    assert named.nth(1).evaluate("e => getComputedStyle(e).borderTopStyle") == "none"
+    local = page.locator("#local-box > p")
+    assert local.nth(0).evaluate("e => getComputedStyle(e).borderBottomStyle") == "dotted"
+    assert local.nth(1).evaluate("e => getComputedStyle(e).borderTopStyle") == "none"
+    assert local.nth(1).evaluate("e => getComputedStyle(e).paddingLeft") == "5.33333px"
+    reset = page.get_by_text("Local reset removes every inherited border.", exact=True)
+    assert reset.evaluate("e => ['Top','Right','Bottom','Left'].every(s => getComputedStyle(e)['border'+s+'Style'] === 'none')")
+    assert page.locator("h3").evaluate("e => getComputedStyle(e).borderBottomStyle") == "double"
+    assert page.locator("#special-lines > p").evaluate("e => getComputedStyle(e).borderTopStyle") == "dashed"
 
 
 def verify_local_paragraph_formats(page: Page) -> None:
@@ -221,6 +237,7 @@ def verify_local_paragraph_formats(page: Page) -> None:
     unchanged = page.get_by_text("Only the font size changes; ordinary paragraph spacing and indentation remain.", exact=True)
     assert unchanged.evaluate("element => getComputedStyle(element).marginBottom") == "0px"
     assert unchanged.evaluate("element => getComputedStyle(element).textIndent") == "24px"
+    verify_paragraph_borders(page)
 
 
 @pytest.mark.visual

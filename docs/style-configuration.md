@@ -764,6 +764,7 @@ Common style fields under `docxStyle` include:
 - `firstLineIndentChars`: Word character-based first-line indent
 - `indentation`: length-based `left`, `right`, `firstLine`, or `hanging` indent values such as `0.5cm`
 - `paragraphSpacing`: `before` and `after` spacing values such as `6pt`
+- `borders`: a CSS-like border string, or a mapping of individual paragraph borders
 
 Character styles accept only the text properties `fontFamily`, `fontSize`,
 `fontColor`, and `bold`. Paragraph styles
@@ -822,6 +823,54 @@ styles retain their own properties. Local attributes neither change the named
 style nor add a style to the reference DOCX. See
 [Local Paragraph Formatting](manuscript-syntax.md#local-paragraph-formatting)
 for supported attributes, nested examples, and scope restrictions.
+
+### Paragraph Borders
+
+Set `borders` to a compact string for all four outer edges, or use a mapping
+when only one edge needs a line or some edges need different settings. These
+settings apply to existing paragraph styles in DOCX and their supported HTML
+counterparts; they are ignored on character styles.
+
+```yaml
+docxStyle:
+  Quote:
+    borders: "0.75pt solid #666666"
+  Heading 2:
+    borders:
+      bottom: "0.75pt double #666666"
+      space: 4pt
+```
+
+In a border mapping, `all` sets the four outer edges before explicit `top`,
+`bottom`, `left` and `right` declarations override them. `between` controls the
+horizontal separators between adjacent paragraphs with identical border sets.
+For example:
+
+```yaml
+docxStyle:
+  Quote:
+    borders:
+      all: "0.5pt solid #808080"
+      bottom: "1.5pt double #333333"
+      between: none
+      space: 4pt
+```
+
+The line string accepts width, style and color in any order, with defaults of
+`0.5pt solid #000000` for omitted tokens. It replaces the selected edge's line
+settings as one declaration. Omitted edges and distances retain reference/style
+inheritance. `space` changes the distance from text for all four outer sides,
+using whole points between `0pt` and `31pt`. Widths use `0.25pt`–`12pt` in
+`0.125pt` steps. Use `none` or `nil` alone to remove a side; `borders: none`
+clears the whole paragraph border set and distances, including inherited
+internal separators. Omitting `borders` or setting it to `null` leaves it unchanged.
+
+All Word paragraph line styles are supported, with `solid` as an alias for
+`single`. Special line styles have documented HTML approximations. See
+[Paragraph Borders](manuscript-syntax.md#paragraph-borders) for the complete
+line-style list, color syntax, connected-paragraph behavior, and local Markdown
+examples. Paragraph borders do not configure page or table borders, shadows,
+frames, or theme colors. These settings do not affect LaTeX.
 
 ## Changing Citation Styles
 

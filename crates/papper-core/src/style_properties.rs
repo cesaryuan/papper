@@ -62,8 +62,52 @@ pub const SPACING_PROPERTIES: &[StyleProperty] = &[
     },
 ];
 
+/// Compact border declarations and shared paragraph-to-border distance.
+pub const BORDER_PROPERTIES: &[StyleProperty] = &[
+    StyleProperty {
+        name: "all",
+        types: &["string"],
+        children: &[],
+    },
+    StyleProperty {
+        name: "top",
+        types: &["string"],
+        children: &[],
+    },
+    StyleProperty {
+        name: "bottom",
+        types: &["string"],
+        children: &[],
+    },
+    StyleProperty {
+        name: "left",
+        types: &["string"],
+        children: &[],
+    },
+    StyleProperty {
+        name: "right",
+        types: &["string"],
+        children: &[],
+    },
+    StyleProperty {
+        name: "between",
+        types: &["string"],
+        children: &[],
+    },
+    StyleProperty {
+        name: "space",
+        types: &["string", "number"],
+        children: &[],
+    },
+];
+
 /// Public paragraph and character properties; named Word styles remain extensible.
 pub const STYLE_PROPERTIES: &[StyleProperty] = &[
+    StyleProperty {
+        name: "borders",
+        types: &["string", "object"],
+        children: BORDER_PROPERTIES,
+    },
     StyleProperty {
         name: "fontFamily",
         types: &["string", "object"],

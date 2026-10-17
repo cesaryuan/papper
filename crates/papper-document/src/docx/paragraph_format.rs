@@ -20,7 +20,7 @@ pub(super) fn apply(
         .filter(|style| style.name == "w:style" && style.attr("w:type") == Some("character"))
         .filter_map(|style| style.attr("w:styleId").map(|id| (id.to_owned(), style)))
         .collect();
-    let mut changed = apply_tree(document, &character_styles)?;
+    let mut changed = apply_tree(document, &character_styles, styles)?;
     let parts: Vec<_> = package
         .entries
         .iter()
@@ -36,7 +36,7 @@ pub(super) fn apply(
         .collect();
     for name in parts {
         let mut part = package.xml(&name)?;
-        if apply_tree(&mut part, &character_styles)? {
+        if apply_tree(&mut part, &character_styles, styles)? {
             package.set_xml(&name, &part);
             changed = true;
         }
@@ -45,7 +45,11 @@ pub(super) fn apply(
 }
 
 /// Consume one paragraph's hidden transport run and retain every other authored run.
-fn apply_tree(element: &mut Element, styles: &BTreeMap<String, &Element>) -> Result<bool> {
+fn apply_tree(
+    element: &mut Element,
+    styles: &BTreeMap<String, &Element>,
+    paragraph_styles: &Element,
+) -> Result<bool> {
     let mut changed = false;
     if element.name == "w:p" {
         let marker = element
@@ -71,6 +75,13 @@ fn apply_tree(element: &mut Element, styles: &BTreeMap<String, &Element>) -> Res
             element.children.remove(index);
             apply_paragraph_properties(element.word("w:pPr"), &format.raw, "paragraph format")?;
             reset_inherited_indents(element.word("w:pPr"), &format.raw);
+            if let Some(borders) = format.normalized.get("paragraph_borders") {
+                super::borders::apply_paragraph(
+                    element,
+                    paragraph_styles,
+                    &serde_json::from_value(borders.clone())?,
+                );
+            }
             let mut defaults = Element::new("w:rPr");
             apply_text_properties(&mut defaults, &format.raw, "paragraph format")?;
             for child in element.elements_mut().filter(|child| child.name != "w:pPr") {
@@ -80,7 +91,7 @@ fn apply_tree(element: &mut Element, styles: &BTreeMap<String, &Element>) -> Res
         }
     }
     for child in element.elements_mut() {
-        changed |= apply_tree(child, styles)?;
+        changed |= apply_tree(child, styles, paragraph_styles)?;
     }
     Ok(changed)
 }

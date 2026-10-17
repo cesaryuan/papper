@@ -166,6 +166,40 @@ fn read_style_properties(
         .filter(|raw| raw.len() == 6)
         .and_then(|raw| u32::from_str_radix(&raw, 16).ok())
         .map(|number| [(number >> 16) as u8, (number >> 8) as u8, number as u8]);
+    let mut paragraph_borders = papper_core::paragraph_borders::ParagraphBorders::default();
+    if let Some(borders) = paragraph.and_then(|item| child(item, "pBdr")) {
+        for side in papper_core::paragraph_borders::BORDER_SIDES {
+            if let Some(border) = child(borders, side) {
+                if let Some(style) = attr(Some(border), "val") {
+                    paragraph_borders.lines.insert(
+                        side.into(),
+                        papper_core::paragraph_borders::BorderLine {
+                            style,
+                            width: attr(Some(border), "sz")
+                                .and_then(|raw| raw.parse().ok())
+                                .unwrap_or(4),
+                            color: attr(Some(border), "color").unwrap_or_else(|| "auto".into()),
+                            inherited_attributes: [
+                                "themeColor",
+                                "themeTint",
+                                "themeShade",
+                                "shadow",
+                                "frame",
+                            ]
+                            .into_iter()
+                            .filter_map(|name| {
+                                attr(Some(border), name).map(|value| (name.into(), value))
+                            })
+                            .collect(),
+                        },
+                    );
+                }
+                if let Some(space) = attr(Some(border), "space").and_then(|raw| raw.parse().ok()) {
+                    paragraph_borders.spaces.insert(side.into(), space);
+                }
+            }
+        }
+    }
     Ok(StyleSpec {
         font_size: amount(run.and_then(|item| child(item, "sz")), "val", 2.0)?,
         western_font: attr(fonts, "ascii").or_else(|| attr(fonts, "hAnsi")),
@@ -193,6 +227,7 @@ fn read_style_properties(
             table_border(table, "insideV")?,
         ],
         header_borders: Default::default(),
+        paragraph_borders,
     })
 }
 

@@ -8,6 +8,9 @@ use std::sync::LazyLock;
 
 use super::styles::{StyleKind, custom_style_css_text};
 
+mod borders;
+use borders::apply_paragraph_borders;
+
 /// Ordered HTML node representation, retaining source text between elements.
 #[derive(Clone)]
 enum HtmlNode {
@@ -777,6 +780,9 @@ fn apply_paragraph_formats(node: &mut HtmlNode) -> Result<()> {
             if let Some((index, payload)) = marker {
                 let format = papper_core::paragraph_format::resolve_scopes(&payload)?;
                 let css = super::styles::paragraph_format_css(&format);
+                if let Some(borders) = format.normalized.get("paragraph_borders") {
+                    attributes.push(("data-papper-local-borders".into(), borders.to_string()));
+                }
                 children.remove(index);
                 // Append local declarations so they override earlier paragraph formatting only.
                 if let Some((_, existing)) = attributes.iter_mut().find(|(key, _)| key == "style") {
@@ -813,6 +819,17 @@ fn postprocess_html(
         }
     }
     apply_paragraph_formats(&mut document)?;
+    let records = if let Some(settings) = settings {
+        papper_core::style_values::normalize_docx_style_settings(settings)?.unwrap_or_default()
+    } else if let Some(configured) = metadata.get("docxStyle").filter(|value| !value.is_null()) {
+        super::styles::normalize_docx_styles(configured)?
+    } else {
+        Vec::new()
+    };
+    let border_styles = reference_xml
+        .map(|xml| super::styles::ParagraphBorderStyles::new(xml, &records))
+        .transpose()?;
+    apply_paragraph_borders(&mut document, border_styles.as_ref())?;
     let mut output = "<!DOCTYPE html>\n".to_owned();
     render_node(&document, false, &mut output);
     output.push('\n');

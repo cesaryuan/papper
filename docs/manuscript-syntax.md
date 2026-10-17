@@ -308,6 +308,9 @@ strings; write nested fields with dots:
 | `indentation.left`, `indentation.right` | `indentation.left="0.5cm"` |
 | `indentation.firstLine`, `indentation.hanging` | `indentation.hanging="6pt"` |
 | `paragraphSpacing.before`, `paragraphSpacing.after` | `paragraphSpacing.after="6pt"` |
+| `borders` | `borders="0.75pt solid #666666"` |
+| `borders.all`, `borders.top`, `borders.bottom`, `borders.left`, `borders.right` | `borders.left="2pt solid #808080"` |
+| `borders.between`, `borders.space` | `borders.between="none" borders.space="4pt"` |
 
 Only specified fields change. Local attributes override the selected paragraph
 style, including its `docxStyle` configuration. They can be combined with
@@ -347,6 +350,68 @@ These attributes describe paragraph typography; they do not interpret arbitrary
 CSS. `style="..."` remains HTML-specific. Use named styles for formatting that
 should be maintained consistently throughout a manuscript. See
 [DOCX Text Styles](style-configuration.md#docx-text-styles) for values and units.
+
+#### Paragraph Borders
+
+Use a compact `width style color` string to add paragraph borders in DOCX and
+HTML. A whole-group string sets the four outer edges; individual sides override
+only that edge. Borders follow the same ordinary-paragraph scope as other local
+formatting, including explicitly authored blocks in notes and DOCX page stories.
+
+```markdown
+::: {borders="0.75pt solid #666666" borders.space="4pt" firstLineIndentChars="0"}
+Two paragraphs share an outer border.
+
+This paragraph continues the same box.
+:::
+
+::: {borders.left="2pt solid rgb(0, 85, 136)" borders.space="6pt"}
+A paragraph with only a left-side rule.
+:::
+```
+
+Use `borders.all` when mixing a common outer border with exceptions, for example
+`borders.all="0.5pt solid #808080" borders.bottom="1.5pt double #333333"`.
+The whole-group `borders="..."` shorthand may also coexist with side attributes
+and `borders.space` in one block. Specific sides take priority over the common
+outer declaration. Nested blocks inherit unchanged sides and distances; each
+side string replaces that side's line width, style and color as a unit.
+
+The width, style and color tokens may appear in any order. Omitted tokens default
+to `0.5pt`, `solid`, and black. Colors accept three- or six-digit hex and
+`rgb(...)` strings; `auto` uses the output's automatic text color. Widths must be
+between `0.25pt` and `12pt` in steps of `0.125pt`. `borders.space` is the distance
+from the four outer borders to the text, using whole points from `0pt` to `31pt`;
+an omitted distance retains the selected style's setting, or uses zero when
+there is no inherited setting. It is separate from paragraph spacing.
+
+Supported styles are all Word paragraph line styles: `single` (`solid` is its
+CSS alias), `thick`, `double`, `dotted`, `dashed`, `dotDash`, `dotDotDash`,
+`triple`, `thinThickSmallGap`, `thickThinSmallGap`, `thinThickThinSmallGap`,
+`thinThickMediumGap`, `thickThinMediumGap`, `thinThickThinMediumGap`,
+`thinThickLargeGap`, `thickThinLargeGap`, `thinThickThinLargeGap`, `wave`,
+`doubleWave`, `dashSmallGap`, `dashDotStroked`, `threeDEmboss`, `threeDEngrave`,
+`outset`, and `inset`. Names are case-sensitive. `none` and `nil` explicitly
+remove a border and must be used alone. `borders="none"` clears every inherited
+paragraph border and its text distance; `borders.bottom="none"` clears just the
+bottom edge. `borders.all="none"` clears the four outer edges while retaining
+the separately configured `between` edge.
+
+Adjacent paragraphs with matching border settings form a connected group in
+Word. Their internal horizontal line comes from `borders.between`, rather than
+each paragraph's top/bottom edge. Set it to `none` for an uninterrupted box or
+to a line string such as `"0.5pt dotted #AAAAAA"` for internal separators.
+Different settings split the group. Word ignores text distance for the between
+line, so `borders.between.space` is not supported.
+
+HTML joins matching adjacent paragraphs within ordinary prose containers too;
+tables, list items, quotes and figures form separate groups. It preserves
+solid, dotted, dashed, double, inset and outset borders. Dot/dash combinations
+use dashed lines; triple, double-wave and thick/thin combinations use double
+lines; wave and thick use solid lines; the two 3D styles use inset/outset.
+These are approximations: line geometry and pagination need not match Word.
+Page-art borders, mirrored-page bar borders, shadows, frames and theme-color
+controls are not configurable. Borders do not change LaTeX output.
 
 ### Ordinary Tables
 

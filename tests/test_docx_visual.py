@@ -141,6 +141,11 @@ def test_docx_render_matches_visual_snapshot(
             assert abs(inherited["bbox"][0] - margin - 18) < 0.2
             assert abs(character["bbox"][0] - margin - 10) < 0.2
             assert abs(hanging["bbox"][0] - margin - 12) < 0.2
+            # Word must actually draw the borders; schema-valid XML alone cannot prove this.
+            drawings = [drawing for page in rendered for drawing in page.get_drawings()]
+            assert len(drawings) >= 20, "Word lost the paragraph border drawings"
+            assert any(drawing.get("color") and drawing["color"][2] > 0.4
+                       and drawing["color"][0] < 0.1 for drawing in drawings), "Word lost the authored blue borders"
     if case_name == "docx_directives":
         # Check real Word output as well as pixels: a stable placeholder image
         # must not become the baseline when directory updating silently fails.

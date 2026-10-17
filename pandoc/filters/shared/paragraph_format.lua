@@ -1,6 +1,7 @@
 -- Apply local paragraph formatting without creating named Word styles.
 -- For example, ::: {fontSize="10pt" paragraphSpacing.after="6pt"} formats
 -- each ordinary paragraph. Nested Divs inherit fields and override them locally.
+-- Border shorthand such as borders="0.75pt solid #666666" uses the same scopes.
 -- Rust validates the attributes and renders native Word properties or paragraph CSS.
 -- Tables, figures, headings, code, display equations and note contents do not inherit
 -- body formatting; an explicit local Div inside a table/note can set its own format.

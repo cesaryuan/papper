@@ -477,6 +477,15 @@ pub fn normalize_paragraph_style_settings(
     }
     .validate(prefix)?;
     let mut normalized = Map::new();
+    if let Some(borders) = raw.get("borders").filter(|value| !value.is_null()) {
+        normalized.insert(
+            "paragraph_borders".into(),
+            serde_json::to_value(crate::paragraph_borders::parse_borders(
+                borders,
+                &format!("{prefix}.borders"),
+            )?)?,
+        );
+    }
     if let Some(size) = raw.get("fontSize").filter(|value| !value.is_null()) {
         let points = parse_font_size_points(size, &format!("{prefix}.fontSize"))?;
         if points <= 0.0 {

@@ -47,6 +47,7 @@ pub(super) struct StyleSpec {
     pub(super) cell_left: Option<f64>,
     pub(super) borders: [Option<String>; 6],
     pub(super) header_borders: [Option<String>; 4],
+    pub(super) paragraph_borders: papper_core::paragraph_borders::ParagraphBorders,
 }
 
 impl StyleSpec {
@@ -103,11 +104,25 @@ impl StyleSpec {
                 result.header_borders[index] = self.header_borders[index].clone();
             }
         }
+        for (side, line) in &self.paragraph_borders.lines {
+            if parent.paragraph_borders.lines.get(side) != Some(line) {
+                result
+                    .paragraph_borders
+                    .lines
+                    .insert(side.clone(), line.clone());
+            }
+        }
+        for (side, space) in &self.paragraph_borders.spaces {
+            if parent.paragraph_borders.spaces.get(side) != Some(space) {
+                result.paragraph_borders.spaces.insert(side.clone(), *space);
+            }
+        }
         result
     }
 
     /// Apply only explicitly declared child properties, including false and zero.
     pub(super) fn overlay(&mut self, child: Self) {
+        self.paragraph_borders.overlay(&child.paragraph_borders);
         macro_rules! copy {
             ($($field:ident),*) => {$(if child.$field.is_some() {self.$field = child.$field;})*};
         }

@@ -1,5 +1,6 @@
 //! Prepare DOCX metadata and edit Word packages without a Python runtime.
 
+mod borders;
 mod captions;
 mod directives;
 mod footer;
