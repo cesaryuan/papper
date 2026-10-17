@@ -101,6 +101,31 @@ def test_docx_render_matches_visual_snapshot(
         output = visual_copy
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "docx-word"
     word_visual_session.check(output, baseline, update_fields=update_fields)
+    if case_name == "docx_footer":
+        # Verify Word chooses the right live story and computes its page number;
+        # XML snapshots alone cannot catch the wrong story being rendered on a page.
+        with pymupdf.open(output.parent / "word-render/export-2/rendered.pdf") as rendered:
+            expected = [
+                ("Review copy - 1 -", "Confidential - 1 -"),
+                ("Review copy - 2 -", "Confidential - 2 -"),
+                ("Odd A", "Confidential - 3 -"),
+                ("Even B", "Confidential - 4 -"),
+                ("Odd A", "Confidential - 5 -"),
+                ("First header", "First - VI -"),
+                ("Default header", "Default - 7 -"),
+                ("Even header", "Even - 8 -"),
+                ("First header", "First - IX -"),
+                ("First header", "First - X -"),
+                ("Unified header", "Unified 11"),
+                ("Unified header", "Unified 12"),
+                ("Unified header", "Unified 13"),
+                ("", "Unified 14"),
+            ]
+            for page, (header, footer) in zip(rendered, expected, strict=True):
+                text = page.get_text()
+                assert header in text and footer in text
+            assert "Table" in rendered[5].get_text() and "Cell" in rendered[5].get_text()
+            assert "Unified header" not in rendered[13].get_text()
     if case_name == "paragraph_format":
         # Word can let inherited character indents override direct physical
         # indents; XML property checks alone cannot detect the wrong placement.

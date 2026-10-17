@@ -2,6 +2,8 @@
 -- []{t="toc" title="Contents"}, []{t="listofFigures" includeSubfigures="true"},
 -- and []{t="sectionBreak" pageStart="1" footer='[]{t="pageNum"}'} are standalone blocks.
 -- Section stories are rendered by Pandoc and moved into native parts after global stories.
+-- headerDefault/headerEven/headerFirst override the shared header independently;
+-- headerDistance="3cm" and footerDistance="2cm" set the following section's edge distances.
 
 local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
 local fields = dofile(pandoc.path.join {directory, 'docx_fields.lua'})
@@ -67,25 +69,41 @@ local function section(span)
     error('DOCX sectionBreak pageStart must be an integer between 0 and 2147483647')
   end
   section_count = section_count + 1
-  local record = {id = section_count, kind = kind, pageStart = attrs.pageStart}
+  local record = {id = section_count, kind = kind, pageStart = attrs.pageStart,
+    headerDistance = attrs.headerDistance, footerDistance = attrs.footerDistance}
+  if attrs.differentFirstPage ~= nil then
+    record.differentFirstPage = boolean(attrs.differentFirstPage, false, 'differentFirstPage')
+  elseif attrs.headerFirst ~= nil or attrs.footerFirst ~= nil then
+    record.differentFirstPage = true
+  end
+  if record.differentFirstPage == false and (attrs.headerFirst ~= nil or attrs.footerFirst ~= nil) then
+    error('DOCX first-page content conflicts with differentFirstPage=false')
+  end
   for _, story in ipairs({'header', 'footer'}) do
-    local link = boolean(attrs[story .. 'Link'], attrs[story] == nil, story .. 'Link')
-    if link and attrs[story] ~= nil then error('DOCX ' .. story .. ' content conflicts with ' .. story .. 'Link=true') end
+    local has_content = false
+    for _, suffix in ipairs({'', 'Default', 'Even', 'First'}) do
+      has_content = has_content or attrs[story .. suffix] ~= nil
+    end
+    local link = boolean(attrs[story .. 'Link'], not has_content, story .. 'Link')
+    if link and has_content then error('DOCX ' .. story .. ' content conflicts with ' .. story .. 'Link=true') end
     local alignment = attrs[story .. 'Alignment'] or 'center'
     if alignment ~= 'left' and alignment ~= 'center' and alignment ~= 'right' then
       error('DOCX ' .. story .. 'Alignment must be left, center, or right')
     end
-    if attrs[story .. 'Alignment'] and attrs[story] == nil then
+    if attrs[story .. 'Alignment'] and not has_content then
       error('DOCX ' .. story .. 'Alignment requires ' .. story .. ' content')
     end
     record[story .. 'Link'] = link
     record[story .. 'Alignment'] = alignment
-    if attrs[story] ~= nil then
-      local boundary = 'SECTION_' .. section_count .. '_' .. story:upper()
-      stories:insert(marker('PMT_DOCX_' .. boundary .. '_BEGIN'))
-      stories:extend(fields.story(attrs[story]))
-      stories:insert(marker('PMT_DOCX_' .. boundary .. '_END'))
-      record[story] = true
+    for _, suffix in ipairs({'', 'Default', 'Even', 'First'}) do
+      local key = story .. suffix
+      if attrs[key] ~= nil then
+        local boundary = 'SECTION_' .. section_count .. '_' .. key:upper()
+        stories:insert(marker('PMT_DOCX_' .. boundary .. '_BEGIN'))
+        stories:extend(fields.story(attrs[key]))
+        stories:insert(marker('PMT_DOCX_' .. boundary .. '_END'))
+        record[key] = true
+      end
     end
   end
   return marker('PMT_DOCX_SECTION:' .. pandoc.json.encode(record))

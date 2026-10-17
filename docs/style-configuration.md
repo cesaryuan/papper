@@ -579,7 +579,22 @@ Global `docxHeader`/`docxFooter` content applies before section-specific
 `[]{t="sectionBreak" ...}` options. A supplied section story overrides that
 global story and is inherited by subsequent sections unless overridden again.
 Section options can restart page numbers and independently link, copy, replace,
-or clear the header and footer. They do not modify `style.yml` or global defaults.
+or clear the header and footer. Use `headerDefault`/`headerEven`/`headerFirst`
+and the corresponding `footer` options to supply separate Markdown for normal,
+even, and first pages. Shared section `header`/`footer` content supplies the
+fallback, and individual variants override it. For example, `headerDefault`
+and `headerEven` with one shared `footer` give different headers and a common
+footer. Supplying an even variant enables document-wide odd/even differences
+while preserving other sections' previously uniform content. Supplying a first
+variant enables first-page differences for that section; `differentFirstPage`
+can explicitly enable or disable that mode in later sections.
+
+Section `headerDistance` and `footerDistance` set the distance from the physical
+top/bottom paper edge, accept nonnegative `pt`, `cm`, `mm`, and `in` values, and
+carry forward until changed. They are separate from body margins: the global
+`docxPageMargins` still accepts only `top`, `bottom`, `left`, and `right`.
+These section options do not modify `style.yml` or global defaults; the global
+`docxHeader`/`docxFooter` mappings still use only `content` and `alignment`.
 Read `papper guide syntax docx-native-insertions/section-breaks` for syntax and defaults.
 
 `alignment` accepts `left`, `center`, or `right` and applies to paragraphs outside

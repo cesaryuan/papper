@@ -434,18 +434,65 @@ This section starts on an odd page and has empty headers and footers.
 | --- | --- |
 | `kind` | `nextPage`; also accepts `continuous`, `oddPage`, and `evenPage`. Odd/even starts may leave a blank intervening page. |
 | `pageStart` | Omitted: continue the preceding section's page numbering. An integer from 0 to 2147483647 restarts this section only. Existing page-number format remains in use. |
-| `headerLink`, `footerLink` | Omitted: link to the preceding section unless corresponding content is supplied. `true` inherits; `false` without content creates an independent copy, including first/even page variants. |
-| `header`, `footer` | Omitted: follow the link option. Supplied content becomes an independent story; `""` clears it. Supplying content together with the corresponding `Link="true"` is an error. |
-| `headerAlignment`, `footerAlignment` | `center` for supplied content; also accepts `left` and `right`. Requires the corresponding content option. |
+| `headerLink`, `footerLink` | Omitted: inherit the preceding section unless content is supplied. `true` inherits and cannot be combined with any corresponding content option. `false` without content creates independent copies of all three variants. With content options, supplied variants are replaced and unspecified variants continue to inherit. |
+| `header`, `footer` | Shared Markdown for all three page variants. `""` clears all variants. Individual variant options below override this shared content. |
+| `headerDefault`, `footerDefault` | Normal-page content, used on odd pages when odd/even differences are enabled. Overrides shared content; `""` clears this variant. |
+| `headerEven`, `footerEven` | Even-page content. Overrides shared content; `""` clears this variant. Supplying either option automatically enables odd/even page differences. |
+| `headerFirst`, `footerFirst` | First-page content for this section. Overrides shared content; `""` clears this variant. Supplying either option automatically enables different-first-page mode for this section. |
+| `differentFirstPage` | `true` enables different-first-page mode; `false` disables it and cannot be combined with `headerFirst` or `footerFirst`. Omitted: retain the preceding section's mode, unless first-page content is supplied. |
+| `headerAlignment`, `footerAlignment` | `center` for all newly supplied content of that kind; also accepts `left` and `right`. Requires at least one corresponding content option. Local paragraph alignment in multiline Markdown can override it. |
+| `headerDistance`, `footerDistance` | Nonnegative distance from the physical top/bottom edge of the paper to the header/footer. Accepts `pt`, `cm`, `mm`, and `in`; numbers without units mean points. Zero is allowed. Omitted: retain the preceding section's distance. |
 
 Content supports the same Pandoc Markdown as `docxHeader.content` and
-`docxFooter.content`, including page, date, and custom Word fields. Supplied content is used for
-default, first, and even page variants; the document's existing first/even page
-modes remain in effect. Subsequent sections inherit the effective preceding
-stories unless their own options override them. Margins, paper size, and other
-layout settings carry forward. A page-number restart does not automatically
-repeat at the next break. Word may move a continuous break onto a new page
-when layout constraints require it.
+`docxFooter.content`, including page, date, and custom Word fields. When neither
+shared nor individual content is supplied for a variant, it follows the preceding
+section's corresponding variant. The first-page variant takes precedence on the
+section's first page when different-first-page mode is enabled. On the other pages,
+Word chooses the normal or even variant. Without odd/even differences, normal
+content is used on both odd and even pages.
+
+For different headers but a common footer, supply two header variants and one
+shared footer. These options apply after the break:
+
+```markdown
+[]{t="sectionBreak" headerDefault="**Chapter title**" headerEven="University doctoral dissertation" footer='- []{t="pageNum"} -' headerDistance="3cm" footerDistance="2.3cm"}
+```
+
+Supply all six options to give the first, normal, and even pages their own
+Markdown. Here bold, italic, and a page field are rendered separately:
+
+```markdown
+[]{t="sectionBreak" headerFirst="**Chapter opening**" headerDefault="**Odd-page title**" headerEven="*Even-page title*" footerFirst="" footerDefault='Odd · []{t="pageNum"}' footerEven='Even · []{t="pageNum"}'}
+```
+
+For multiline Markdown, encode line breaks inside the attribute as `&#10;`,
+for example `headerFirst="**Opening**&#10;&#10;Second paragraph"`. Two line breaks
+separate paragraphs; tables and lists use the same Markdown as global stories.
+To change alignment for one variant, wrap its paragraphs in a local-formatting
+block using these encoded line breaks.
+
+Word's odd/even switch applies to the whole document. When these options enable
+it for the first time, other sections retain their previous normal header/footer
+on even pages. The other story also keeps its normal content when only a header
+or only a footer gains first-page differences. If the reference document already
+enables those differences, its existing active variants remain available for
+inheritance. Hidden even/first variants in a reference do not automatically become
+active content when a previously disabled mode is newly enabled.
+
+Subsequent sections inherit the effective preceding stories, first-page mode,
+and edge distances unless their own options override them. To restore uniform
+content in a later section, supply shared stories and disable first-page differences:
+
+```markdown
+[]{t="sectionBreak" header="Common header" footer='- []{t="pageNum"} -' differentFirstPage="false"}
+```
+
+Header/footer distances do not change the body's page margins. Set sufficient
+top/bottom margins in `docxPageMargins` for the intended content. Paper size,
+other margins, and layout settings carry forward. A page-number restart does
+not automatically repeat at the next break. Word may move a continuous break
+onto a new page when layout constraints require it. These settings affect DOCX
+only; HTML and LaTeX do not reproduce page stories or section distances.
 
 ### Page Breaks and Inline Fields
 

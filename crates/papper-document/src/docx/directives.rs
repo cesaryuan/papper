@@ -1,7 +1,7 @@
 //! Finalize DOCX empty-span fields, section stories, and caption indexes without Word automation.
 
 use super::footer;
-use super::formatting::style_index;
+use super::formatting::{length_twips, style_index};
 use super::package::Package;
 use super::xml::{Element, Node};
 use anyhow::{Context, Result, bail};
@@ -76,13 +76,17 @@ pub(super) fn apply(
                 .as_u64()
                 .context("Missing section directive ID")?;
             for kind in ["header", "footer"] {
-                if record[kind].as_bool() == Some(true) {
+                for suffix in ["", "Default", "Even", "First"] {
+                    let key = format!("{kind}{suffix}");
+                    if record[&key].as_bool() != Some(true) {
+                        continue;
+                    }
                     let blocks = footer::take_rendered_blocks(
                         document,
-                        &format!("SECTION_{id}_{}", kind.to_uppercase()),
+                        &format!("SECTION_{id}_{}", key.to_uppercase()),
                     )?
                     .context("Missing rendered section header/footer")?;
-                    let references = footer::section_story(
+                    let reference = footer::section_story(
                         package,
                         document,
                         styles,
@@ -92,7 +96,7 @@ pub(super) fn apply(
                             .as_str()
                             .unwrap_or("center"),
                     )?;
-                    stories.insert((id, kind.to_owned()), references);
+                    stories.insert((id, key), reference);
                 }
             }
         }
@@ -186,7 +190,7 @@ fn sections(
     package: &mut Package,
     document: &mut Element,
     records: &[Value],
-    stories: &BTreeMap<(u64, String), Vec<Element>>,
+    stories: &BTreeMap<(u64, String), Element>,
 ) -> Result<()> {
     let body = document
         .child("w:body")
@@ -195,6 +199,36 @@ fn sections(
         .child("w:sectPr")
         .context("DOCX is missing final section properties")?
         .clone();
+    let mut settings = package.xml("word/settings.xml")?;
+    let enabled = settings
+        .child("w:evenAndOddHeaders")
+        .is_some_and(|value| !matches!(value.attr("w:val"), Some("false" | "0" | "off")));
+    let needs_even = records.iter().any(|record| {
+        record["headerEven"].as_bool() == Some(true) || record["footerEven"].as_bool() == Some(true)
+    });
+    if needs_even && !enabled {
+        // Enabling Word's document-wide switch must not expose dormant even stories
+        // or turn unchanged sections' even pages blank, including the initial section.
+        for kind in ["header", "footer"] {
+            let name = format!("w:{kind}Reference");
+            let primary = current
+                .elements()
+                .find(|child| child.name == name && child.attr("w:type") == Some("default"))
+                .cloned();
+            let mut even = match primary {
+                Some(reference) => reference,
+                None => footer::unlink_story(package, document, kind, None, "even")?,
+            };
+            even.set("w:type", "even");
+            current.children.retain(|node| {
+                !matches!(node,
+                Node::Element(child) if child.name == name && child.attr("w:type") == Some("even"))
+            });
+            insert_story_reference(&mut current, even, kind);
+        }
+        settings.word("w:evenAndOddHeaders").set("w:val", "true");
+        package.set_xml("word/settings.xml", &settings);
+    }
     let mut inherited: BTreeMap<(String, String), Element> = BTreeMap::new();
     for reference in current.elements().filter(|element| {
         matches!(
@@ -211,6 +245,7 @@ fn sections(
         );
     }
     let mut replacements = Vec::new();
+    let mut even_active = enabled;
     for record in records {
         let id = record["id"]
             .as_u64()
@@ -225,28 +260,92 @@ fn sections(
         if let Some(start) = record["pageStart"].as_str() {
             current.word("w:pgNumType").set("w:start", start);
         }
+        for kind in ["header", "footer"] {
+            let key = format!("{kind}Distance");
+            if !record[&key].is_null() {
+                let distance = length_twips(&record[&key])
+                    .with_context(|| format!("Invalid sectionBreak {key}"))?;
+                if !(0..=u32::MAX as i64).contains(&distance)
+                    || papper_core::style_values::parse_length(&record[&key], &key)?.0 < 0
+                {
+                    bail!("sectionBreak {key} must be a nonnegative Word length");
+                }
+                current
+                    .word("w:pgMar")
+                    .set(&format!("w:{kind}"), distance.to_string());
+            }
+        }
+        let was_first = current
+            .child("w:titlePg")
+            .is_some_and(|value| !matches!(value.attr("w:val"), Some("false" | "0" | "off")));
+        if let Some(first) = record["differentFirstPage"].as_bool() {
+            current
+                .word("w:titlePg")
+                .set("w:val", if first { "true" } else { "false" });
+        }
         current
             .word("w:type")
             .set("w:val", record["kind"].as_str().unwrap_or("nextPage"));
         for kind in ["header", "footer"] {
             let name = format!("w:{kind}Reference");
-            let references = if let Some(references) = stories.get(&(id, kind.to_owned())) {
-                references.clone()
-            } else if record[format!("{kind}Link")].as_bool() == Some(false) {
-                let mut references = Vec::new();
-                for variant in ["default", "first", "even"] {
-                    references.push(footer::unlink_story(
+            let has_content = ["", "Default", "Even", "First"]
+                .iter()
+                .any(|suffix| stories.contains_key(&(id, format!("{kind}{suffix}"))));
+            let mut references: Vec<Element> = Vec::new();
+            for (variant, suffix) in [("default", "Default"), ("first", "First"), ("even", "Even")]
+            {
+                let authored = stories
+                    .get(&(id, format!("{kind}{suffix}")))
+                    .or_else(|| stories.get(&(id, kind.to_owned())));
+                let reference = if let Some(reference) = authored {
+                    let mut reference = reference.clone();
+                    reference.set("w:type", variant);
+                    Some(reference)
+                } else if variant == "even"
+                    && needs_even
+                    && !even_active
+                    && stories.contains_key(&(id, format!("{kind}Default")))
+                {
+                    // Before any authored even variant, normal content applied to both
+                    // parities. A later section's global toggle must preserve that behavior.
+                    let mut reference = references
+                        .iter()
+                        .find(|reference| reference.attr("w:type") == Some("default"))
+                        .context("Missing rendered default section story")?
+                        .clone();
+                    reference.set("w:type", variant);
+                    Some(reference)
+                } else if variant == "first"
+                    && !was_first
+                    && record["differentFirstPage"].as_bool() == Some(true)
+                {
+                    // A first-page header must not unexpectedly blank the unchanged footer,
+                    // or reveal an inactive first-page story inherited from an earlier section.
+                    let primary = references
+                        .iter()
+                        .find(|reference| reference.attr("w:type") == Some("default"))
+                        .or_else(|| inherited.get(&(name.clone(), "default".into())));
+                    let mut reference = match primary {
+                        Some(reference) => reference.clone(),
+                        None => footer::unlink_story(package, document, kind, None, variant)?,
+                    };
+                    reference.set("w:type", variant);
+                    Some(reference)
+                } else if !has_content && record[format!("{kind}Link")].as_bool() == Some(false) {
+                    Some(footer::unlink_story(
                         package,
                         document,
                         kind,
                         inherited.get(&(name.clone(), variant.to_owned())),
                         variant,
-                    )?);
+                    )?)
+                } else {
+                    None
+                };
+                if let Some(reference) = reference {
+                    references.push(reference);
                 }
-                references
-            } else {
-                Vec::new()
-            };
+            }
             for reference in references {
                 inherited.insert(
                     (
@@ -255,12 +354,11 @@ fn sections(
                     ),
                     reference.clone(),
                 );
-                // References precede section layout properties; header variants precede footers.
-                let index = current.children.iter().take_while(|node| matches!(node,
-                    Node::Element(element) if element.name == "w:headerReference" || (kind == "footer" && element.name == "w:footerReference"))).count();
-                current.children.insert(index, Node::Element(reference));
+                insert_story_reference(&mut current, reference, kind);
             }
         }
+        even_active |= record["headerEven"].as_bool() == Some(true)
+            || record["footerEven"].as_bool() == Some(true);
     }
     let body = document
         .child_mut("w:body")
@@ -285,4 +383,11 @@ fn sections(
         .child_mut("w:sectPr")
         .context("Missing final section properties")? = current;
     Ok(())
+}
+
+/// Keep Word's required header-before-footer ordering when adding section references.
+fn insert_story_reference(section: &mut Element, reference: Element, kind: &str) {
+    let index = section.children.iter().take_while(|node| matches!(node,
+        Node::Element(element) if element.name == "w:headerReference" || (kind == "footer" && element.name == "w:footerReference"))).count();
+    section.children.insert(index, Node::Element(reference));
 }

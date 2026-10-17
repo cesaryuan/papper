@@ -75,6 +75,12 @@ page breaks, page-number restarts, section header/footer alignment, inheritance,
 and clearing. Its `pages.json` records the field-update mode; other cases retain
 their existing export behavior without explicit field updates.
 
+The existing `docx_footer` case also covers section-specific normal/even/first
+Markdown stories, a common footer under alternating headers, inherited and
+unlinked variants, first-page mode reset, a cleared even header, and header/footer
+edge distances. Its rendered text is checked alongside pixels, including live
+page fields in each variant and the first-page Markdown table.
+
 ```powershell
 uv run --no-sync pytest tests/test_docx_visual.py -k docx_directives --visual
 ```

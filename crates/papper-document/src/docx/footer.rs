@@ -449,7 +449,7 @@ fn append_formatted_field(
     Ok(())
 }
 
-/// Render an independent section story and return references for all page variants.
+/// Render one independent section story; callers select the page variants that use it.
 pub(super) fn section_story(
     package: &mut Package,
     document: &Element,
@@ -457,7 +457,7 @@ pub(super) fn section_story(
     mut blocks: Vec<Node>,
     kind: &str,
     alignment: &str,
-) -> Result<Vec<Element>> {
+) -> Result<Element> {
     let mut placeholder = Element::new("w:document");
     placeholder.push(Element::new("w:sectPr"));
     let name = create_primary_part(package, &mut placeholder, kind)?;
@@ -495,14 +495,7 @@ pub(super) fn section_story(
         .child("w:sectPr")
         .and_then(|section| section.child(&format!("w:{kind}Reference")))
         .context("Missing generated section story reference")?;
-    Ok(["default", "first", "even"]
-        .into_iter()
-        .map(|variant| {
-            let mut reference = reference.clone();
-            reference.set("w:type", variant);
-            reference
-        })
-        .collect())
+    Ok(reference.clone())
 }
 
 /// Clone a previous story part for unlinking while retaining its media relationships.

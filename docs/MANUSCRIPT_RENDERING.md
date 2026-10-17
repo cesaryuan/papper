@@ -113,9 +113,24 @@ after global stories have been applied, creates unique OPC story parts and
 relationships, and closes preceding sections with paragraph-level `sectPr`.
 Options belong to the following section; page starts are removed when carrying
 layout forward. Linked stories omit references; unlinked copies duplicate parts
-and media relationships, including default/first/even variants. Explicit content
-sets all variants. This mandatory finalization runs even with optional body
-postprocessing disabled.
+and media relationships, including default/first/even variants. Shared section
+content sets all variants; `headerDefault`/`headerEven`/`headerFirst` and matching
+footer keys override individual references. Each separately rendered content
+gets its own boundary and OPC part. Omitted variants inherit unless shared
+content supplies them; explicit empty content creates a blank story.
+First-page content sets section `titlePg`; `differentFirstPage` can disable it
+later. On newly enabling first-page mode, unspecified first stories use the
+effective normal story rather than a dormant first story. Explicit even content
+enables `settings.xml`'s document-wide `evenAndOddHeaders`. If that mode was
+previously disabled, the starting section's even references are first mapped to
+its normal parts, so unaffected earlier sections and the other story retain
+their appearance. Normal-only overrides before the first authored even variant
+are also mirrored onto even references. Already enabled reference modes retain
+their active variants.
+`headerDistance`/`footerDistance` are validated as nonnegative Word lengths and
+written as rounded twips in section `pgMar`, without replacing its body margins.
+Mode and distance overrides carry forward; numbering starts do not. This
+mandatory finalization runs even with optional body postprocessing disabled.
 
 Figure/table lists use TOC style switches rather than SEQ labels, supporting
 both static and native caption numbering. Primary-caption markers become

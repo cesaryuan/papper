@@ -97,12 +97,21 @@
         "properties": {
           "kind": {"description": "分节方式，默认 nextPage；continuous 连续，oddPage 奇数页，evenPage 偶数页", "valueType": "string", "values": ["nextPage", "continuous", "oddPage", "evenPage"]},
           "pageStart": {"description": "后续节页码起始值，整数 0 到 2147483647；省略时延续页码", "valueType": "integer", "suggestions": ["1"]},
-          "headerLink": {"description": "是否链接前一节页眉；无 header 时默认 true，有 header 时默认 false；true 与 header 冲突", "valueType": "boolean", "values": ["true", "false"]},
-          "footerLink": {"description": "是否链接前一节页脚；无 footer 时默认 true，有 footer 时默认 false；true 与 footer 冲突", "valueType": "boolean", "values": ["true", "false"]},
+          "headerLink": {"description": "是否链接前一节页眉；未提供页眉内容时默认 true；true 与任一页眉内容冲突；false 且无内容时复制所有变体", "valueType": "boolean", "values": ["true", "false"]},
+          "footerLink": {"description": "是否链接前一节页脚；未提供页脚内容时默认 true；true 与任一页脚内容冲突；false 且无内容时复制所有变体", "valueType": "boolean", "values": ["true", "false"]},
           "header": {"description": "后续节的独立页眉 Markdown；空字符串清空页眉，可包含 []{t=\"pageNum\"} 或日期域", "valueType": "string", "suggestions": ["", "Section title"]},
           "footer": {"description": "后续节的独立页脚 Markdown；空字符串清空页脚，可包含 []{t=\"pageNum\"} 或日期域", "valueType": "string", "suggestions": ["", "[]{t=\"pageNum\"}"]},
-          "headerAlignment": {"description": "独立页眉的水平对齐，默认 center；必须同时提供 header", "valueType": "string", "values": ["left", "center", "right"]},
-          "footerAlignment": {"description": "独立页脚的水平对齐，默认 center；必须同时提供 footer", "valueType": "string", "values": ["left", "center", "right"]}
+          "headerDefault": {"description": "普通页/奇数页页眉 Markdown；覆盖 header，空字符串清空，省略时使用 header 或继承对应变体", "valueType": "string", "suggestions": ["Odd page header"]},
+          "headerEven": {"description": "偶数页页眉 Markdown；覆盖 header，并自动启用文档奇偶页不同；空字符串清空", "valueType": "string", "suggestions": ["Even page header"]},
+          "headerFirst": {"description": "本节首页页眉 Markdown；覆盖 header，并自动启用本节首页不同；空字符串清空", "valueType": "string", "suggestions": ["First page header"]},
+          "footerDefault": {"description": "普通页/奇数页页脚 Markdown；覆盖 footer，空字符串清空，省略时使用 footer 或继承对应变体", "valueType": "string", "suggestions": ["Odd page footer"]},
+          "footerEven": {"description": "偶数页页脚 Markdown；覆盖 footer，并自动启用文档奇偶页不同；空字符串清空", "valueType": "string", "suggestions": ["Even page footer"]},
+          "footerFirst": {"description": "本节首页页脚 Markdown；覆盖 footer，并自动启用本节首页不同；空字符串清空", "valueType": "string", "suggestions": ["First page footer"]},
+          "differentFirstPage": {"description": "本节是否首页不同；提供 First 内容时自动 true，false 与 First 内容冲突；省略时沿用前节设置", "valueType": "boolean", "values": ["true", "false"]},
+          "headerDistance": {"description": "本节页眉距纸张顶边的非负长度，支持 pt、cm、mm、in，无单位为 pt；省略时沿用前节", "valueType": "length", "suggestions": ["3cm", "0pt"]},
+          "footerDistance": {"description": "本节页脚距纸张底边的非负长度，支持 pt、cm、mm、in，无单位为 pt；省略时沿用前节", "valueType": "length", "suggestions": ["2.3cm", "0pt"]},
+          "headerAlignment": {"description": "本节新提供的各类页眉水平对齐，默认 center；必须提供任一页眉内容", "valueType": "string", "values": ["left", "center", "right"]},
+          "footerAlignment": {"description": "本节新提供的各类页脚水平对齐，默认 center；必须提供任一页脚内容", "valueType": "string", "values": ["left", "center", "right"]}
         }
       }
     }
