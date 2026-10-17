@@ -6,6 +6,13 @@ pandocMetadata:
   lang: zh-CN
   numberSections: true
   sectionsDepth: 3
+  secHeaderTemplate: "$$secHeaderPrefix[n]$$$$i$$$$secHeaderDelim[n]$$$$t$$"
+  secHeaderPrefix:
+    - "第&#32;"
+    - ""
+  secHeaderDelim:
+    - "&#32;章&#32;"
+    - "&#32;"
   chapters: true
   chaptersDepth: 1
   chapDelim: "-"

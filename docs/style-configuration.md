@@ -287,6 +287,7 @@ pandocMetadata:
 | `linkReferences` | Make cross-references clickable; `false` keeps plain reference text. |
 | `autoSectionLabels`, `autoEqnLabels` | Supply section labels automatically and number display equations automatically. Explicit labels are preferable for stable references. |
 | `numberSections`, `sectionsDepth` | Enable heading numbering and choose how many heading levels are numbered. |
+| `secHeaderTemplate`, `secHeaderPrefix`, `secHeaderDelim` | Format numbered headings. The template can read array values with `[n]`, where `n` is the zero-based heading level. A configuration using these keys can render level-1 headings as `第 1 章 标题` and keep deeper levels as `1.1 标题` and `1.1.1 标题`. Use `&#32;` for spaces at the edge of a template value. |
 | `chapters`, `chaptersDepth`, `chapDelim` | Use chapter-based item numbers, choose the chapter heading depth, and set the separator; Chinese defaults use numbers such as `3-1`. |
 | `subfigGrid` | Enable the grouped Markdown subfigure layout described in the syntax guide. |
 | `subfigureChildTemplate`, `subfigureTemplate` | Format panel captions and the shared parent caption. `$$i$$` is the number or panel letter, and `$$t$$` is caption text. |
@@ -300,6 +301,29 @@ automatic equation numbering, heading numbering through level 3, and subfigure
 grids. Manuscript YAML can override these values for one manuscript. For
 document-class options and bibliography input syntax, see
 [`manuscript-syntax.md`](manuscript-syntax.md).
+
+To add `第 n 章` only to level-1 headings while keeping ordinary numeric
+subheadings, use the level-indexed template variables provided by
+pandoc-crossref:
+
+```yaml
+pandocMetadata:
+  numberSections: true
+  sectionsDepth: 3
+  secHeaderTemplate: "$$secHeaderPrefix[n]$$$$i$$$$secHeaderDelim[n]$$$$t$$"
+  secHeaderPrefix:
+    - "第&#32;"
+    - ""
+  secHeaderDelim:
+    - "&#32;章&#32;"
+    - "&#32;"
+```
+
+Here `n` is the zero-based heading level. The first array item applies to
+level 1, and the second applies to level 2 and deeper because pandoc-crossref
+reuses the last array item when a level is beyond the array length. The result
+is `第 1 章 标题`, followed by `1.1 小标题` and `1.1.1 更深的小标题`.
+`&#32;` represents a normal space at the edge of a template value.
 
 ## Numeric Citation Formatting
 
