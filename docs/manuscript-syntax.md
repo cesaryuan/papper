@@ -1462,7 +1462,13 @@ are written explicitly when layout is imported so build defaults do not add a
 header or footer that the source did not contain.
 
 Story content retains supported Markdown formatting, paragraphs, tables, links,
-images, and math. Pictures share the converted media directory and its existing-file
+images, and math. Import focuses on content and does not generate local paragraph
+formatting blocks such as `::: {alignment="left"}`. Global stories use their first
+paragraph's alignment as the overall setting. Section overrides use one shared
+alignment per header/footer kind, preferring the supplied normal variant, then
+even, then first. Differences in individual paragraph or variant alignment are
+not retained automatically; add local formatting manually when needed.
+Pictures share the converted media directory and its existing-file
 protection. Other Word fields in stories, such as `NUMPAGES` and `STYLEREF`, use
 `[]{t="field" instruction="..." result="..."}` with their cached display text.
 Word recalculates dynamic fields when updated; Convert does not compute page

@@ -7,13 +7,10 @@ local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
 local fields = dofile(pandoc.path.join {directory, 'docx_layout_fields.lua'})
 local writer = 'markdown-simple_tables-multiline_tables'
 
---- Serialize a story with local alignment when its section uses a different base.
-local function story_content(stories, definition, id, alignment)
+--- Serialize story content without adding local paragraph-alignment blocks.
+local function story_content(stories, id)
   if not id then return '' end
   local blocks = stories[id] or pandoc.Blocks {}
-  if alignment and definition.alignment ~= alignment and #blocks > 0 then
-    blocks = pandoc.Blocks {pandoc.Div(blocks, pandoc.Attr('', {}, {alignment=definition.alignment}))}
-  end
   local text = pandoc.write(pandoc.Pandoc(blocks), writer, {wrap_text='none'})
     :gsub('\r\n', '\n'):gsub('\r', '\n'):gsub('%s+$', '')
   -- A single paragraph is inline Markdown in the page-story reader. All other
@@ -29,17 +26,19 @@ local function section_fragment(section, index, manifest, stories)
     if section[key] ~= nil then options[#options + 1] = key .. '=' .. fields.quote(section[key]) end
   end
   for _, kind in ipairs({'header', 'footer'}) do
-    local supplied = false
+    local alignment
     for _, suffix in ipairs({'Default', 'Even', 'First'}) do
       local key = kind .. suffix
       local id = section.stories[key]
       if id ~= nil then
-        local definition = id and manifest.stories[tonumber(id)] or {}
-        options[#options + 1] = key .. '=' .. fields.quote(story_content(stories, definition, id, 'left'))
-        supplied = true
+        local definition = id and manifest.stories[tonumber(id)] or {alignment='left'}
+        options[#options + 1] = key .. '=' .. fields.quote(story_content(stories, id))
+        -- One alignment applies to all supplied variants. Prefer the normal
+        -- variant, then even/first, without wrapping individual stories in Divs.
+        alignment = alignment or definition.alignment
       end
     end
-    if supplied then options[#options + 1] = kind .. 'Alignment="left"' end
+    if alignment then options[#options + 1] = kind .. 'Alignment=' .. fields.quote(alignment) end
   end
   return '[]{' .. table.concat(options, ' ') .. '}'
 end
@@ -72,7 +71,7 @@ function Pandoc(document)
     for _, kind in ipairs({'header', 'footer'}) do
       local id = manifest.globals[kind]
       local definition = id and manifest.stories[tonumber(id)] or {alignment='left'}
-      local content = story_content(stories, definition, id)
+      local content = story_content(stories, id)
       local metadata_content
       if content == '' then
         has_empty = true

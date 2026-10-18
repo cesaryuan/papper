@@ -8,27 +8,17 @@ papperSettings:
     content: |
       **Header \"quoted\" &** *italic* [Project](https://example.org/paper?draft=1&view=full)
 
-      ::: {alignment="left"}
       ![](media/image1-dee5c401fed04b20cd5314251bddd4ece4752084.png){width="0.25in" height="0.125in"}
-      :::
 
-      +------------------------+------------------------+
-      | ::: {alignment="left"} | ::: {alignment="left"} |
-      | Key                    | Value                  |
-      | :::                    | :::                    |
-      +========================+========================+
-      | ::: {alignment="left"} | ::: {alignment="left"} |
-      | Version                | Draft                  |
-      | :::                    | :::                    |
-      +------------------------+------------------------+
+      +-----------+-----------+
+      | Key       | Value     |
+      +===========+===========+
+      | Version   | Draft     |
+      +-----------+-----------+
 
-      ::: {alignment="center"}
       Chapter: **[]{t="field" instruction="STYLEREF 1" result="Chapter 4"}**
-      :::
 
-      ::: {alignment="left"}
       $x$
-      :::
 title: Layout specimen
 ---
 

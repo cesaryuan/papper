@@ -70,7 +70,7 @@ local function property(paragraph, name, styles)
   return xml.child(styles.defaults, name)
 end
 
---- Convert Word paragraph alignment to an existing local formatting value.
+--- Read the first paragraph's alignment for the overall page-story setting.
 local function alignment(paragraph, styles)
   local node = property(paragraph, 'jc', styles)
   local value = node and xml.attr(node, 'val') or 'left'
@@ -134,19 +134,14 @@ local function marker_paragraph(context, token)
   return paragraph
 end
 
---- Replace page breaks and retain story paragraph alignment before Pandoc reads them.
-local function prepare_paragraphs(root, styles, marker, story_alignment)
+--- Replace authored body/note page breaks before Pandoc discards their layout semantics.
+local function prepare_paragraphs(root, styles, marker)
   xml.walk(root, function(node)
-    if xml.is(node, 'br') and xml.attr(node, 'type') == 'page' and not story_alignment then
+    if xml.is(node, 'br') and xml.attr(node, 'type') == 'page' then
       node.name = node.name:gsub('br$', 't')
       node.attrs, node.children, node.dirty = {}, {marker({inline='[]{t="pageBreak"}'})}, true
-    elseif xml.is(node, 'p') then
-      if story_alignment then
-        local value = alignment(node, styles)
-        if value ~= story_alignment then insert_marker(node, marker({alignment=value})) end
-      elseif xml.enabled(property(node, 'pageBreakBefore', styles)) then
-        insert_marker(node, marker({inline='[]{t="pageBreak"}'}))
-      end
+    elseif xml.is(node, 'p') and xml.enabled(property(node, 'pageBreakBefore', styles)) then
+      insert_marker(node, marker({inline='[]{t="pageBreak"}'}))
     end
   end)
 end
@@ -172,13 +167,6 @@ local function recover_markers(document, prefix, records)
   local function paragraph(para)
     local token = pandoc.utils.stringify(para)
     if records[token] and records[token].section then return pandoc.RawBlock('markdown', token) end
-    local value
-    para.content = para.content:filter(function(inline)
-      local record = inline.t == 'Str' and records[inline.text]
-      if record and record.alignment then value = record.alignment; return false end
-      return true
-    end)
-    if value then return pandoc.Div({para}, pandoc.Attr('', {}, {alignment=value})) end
     return para
   end
   return document:walk({Para=paragraph, Plain=paragraph})
@@ -229,8 +217,8 @@ function Pandoc(document)
     for _, child in ipairs(story.children) do
       if xml.is(child, 'p') then base_alignment = alignment(child, styles); break end
     end
-    -- Global and section alignments accept left/center/right; use a local block
-    -- for justify/distribute rather than emitting an invalid global value.
+    -- Import content without local formatting blocks; overall story settings
+    -- support left/center/right, so other paragraph alignments fall back to left.
     if base_alignment ~= 'left' and base_alignment ~= 'center' and base_alignment ~= 'right' then base_alignment = 'left' end
     local story_rels, mapped = relationships(part, entries), {}
     for id, relation in pairs(story_rels) do
@@ -254,7 +242,6 @@ function Pandoc(document)
     end)
     local sensitive
     story, sensitive = fields.prepare(story, format, true, function(fragment) return marker({inline=fragment}) end)
-    prepare_paragraphs(story, styles, marker, base_alignment)
     local id = tostring(#manifest.stories + 1)
     local begin_token, end_token = marker({storyBegin=id}), marker({storyEnd=id})
     manifest.stories[#manifest.stories + 1] = {beginToken=begin_token, endToken=end_token, alignment=base_alignment}

@@ -599,8 +599,12 @@ These section options do not modify `style.yml` or global defaults; the global
 Read `papper guide syntax docx-native-insertions/section-breaks` for syntax and defaults.
 
 `papper convert` writes the first section's imported normal stories into
-`papperSettings.docxHeader` and `papperSettings.docxFooter`, with their paragraph
-alignment. Imported empty stories explicitly use empty content so inherited
+`papperSettings.docxHeader` and `papperSettings.docxFooter`, using the first
+paragraph's alignment as the overall setting. It prioritizes content and does
+not generate local alignment blocks for individual paragraphs. Section overrides
+use one alignment per header/footer kind, taken from the first paragraph of the
+supplied normal variant, or otherwise the even/first variant in that order.
+Imported empty stories explicitly use empty content so inherited
 build defaults do not add content absent from the source. Later section stories,
 first/even-page variants, page-number restarts, and story distances use
 `sectionBreak` options in the generated Markdown. A leading continuous directive

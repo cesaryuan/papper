@@ -471,6 +471,10 @@ Active page stories are appended between temporary body boundaries so ordinary
 Pandoc reading preserves rich content and the established conversion/media
 filters process it. Relationships are remapped into the temporary main part,
 and inherited namespace declarations travel with copied story content.
+Import deliberately omits per-paragraph alignment markers and Div wrappers,
+including inside tables, to keep story Markdown focused on content. The first
+paragraph supplies overall alignment. Section overrides choose a shared
+alignment in default/even/first order rather than wrapping individual variants.
 Story import is cached by part and, for implicit PAGE fields, section numbering
 format. The source file is never written. Documents without imported layout
 return their original AST without ZIP recompression or a second DOCX read.

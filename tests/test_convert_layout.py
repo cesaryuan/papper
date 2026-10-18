@@ -138,6 +138,7 @@ def test_convert_inherited_page_field_format(
     """Keep inherited PAGE fields dynamic when the following section changes its numbering format."""
     document = Document()
     first = document.sections[0]
+    first.footer.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
     add_field(first.footer.paragraphs[0], " PAGE ", "1", simple=True)
     # Inactive first/even stories must not enable layout modes during import.
     first.first_page_header.paragraphs[0].text = "Dormant first"
@@ -162,6 +163,8 @@ def test_convert_inherited_page_field_format(
     assert not any(section.different_first_page_header_footer for section in reopened.sections)
     assert reopened.sections[0].footer.paragraphs[0].text == "1"
     assert reopened.sections[1].footer.paragraphs[0].text == ("I" if format_name == "upperRoman" else "1")
+    assert all(section.footer.paragraphs[0].alignment == WD_ALIGN_PARAGRAPH.CENTER
+               for section in reopened.sections)
 
 
 @pytest.mark.parametrize("note_kind", ["footnote", "endnote"])
