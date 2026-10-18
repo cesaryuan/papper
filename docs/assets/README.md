@@ -40,3 +40,7 @@ Only resizing, a neutral outer background, and page spacing were applied. Docume
 ```powershell
 magick montage docs/assets/examples/manuscript-page-001.png docs/assets/examples/manuscript-page-003.png docs/assets/examples/reviewer-reply-page-001.png -thumbnail 640x906 -background '#f4f5f6' -tile 3x1 -geometry +12+12 -depth 8 -strip docs/assets/docx-examples.png
 ```
+
+## Brand assets
+
+The `brand/` directory contains the Papper wordmark, capital-P icon, app icon sizes and Windows ICO in the project brand color. See [`brand/README.md`](brand/README.md) for the file map and background variants.
