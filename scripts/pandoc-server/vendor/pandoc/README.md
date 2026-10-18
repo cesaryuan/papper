@@ -1,9 +1,9 @@
-# Papper's Pandoc 3.12 overrides
+# Papper's Pandoc 3.12.1 overrides
 
 This directory maintains adapted upstream modules, the original GPL notices,
 and `SOURCES.json` with the immutable Hackage archive identity and supported formats.
 `papper-dev worker` verifies the source archive, prepares a private copy under
-`.pmt/pandoc-source/pandoc-3.12`, and installs these modules before Cabal builds it.
+`.pmt/pandoc-source/pandoc-3.12.1`, and installs these modules before Cabal builds it.
 The normal wheel command performs the same preparation automatically.
 Compiled packages live under `.pmt/pandoc-worker`; source commands select a
 stripped immutable Worker copy through `current.json`, so a running Windows
@@ -25,4 +25,8 @@ the overrides, and run the output snapshots and installed-wheel smoke validation
 The wheel builder verifies the actual prebuilt Worker's reported format profile,
 and ships these modified sources plus their content hashes in its source record.
 
-Upstream: <https://hackage.haskell.org/package/pandoc-3.12>
+The overrides are rebased on 3.12.1, including its DOCX table-style map,
+double-strikethrough handling, and caption bookmark preservation. The new upstream
+FODT functions remain exported, while FODT is outside Papper's registered formats.
+
+Upstream: <https://hackage.haskell.org/package/pandoc-3.12.1>

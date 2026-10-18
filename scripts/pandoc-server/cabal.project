@@ -1,8 +1,8 @@
 -- papper-dev prepares this pinned upstream source with tracked registry overrides.
-packages: . ../../.pmt/pandoc-source/pandoc-3.12
+packages: . ../../.pmt/pandoc-source/pandoc-3.12.1
 
 -- Keep Hackage versions and Cabal revisions consistent across wheel platforms.
-index-state: 2026-10-02T10:13:07Z
+index-state: 2026-10-08T02:00:00Z
 
 -- The wheel ships only the worker executable, so Pandoc's templates and other
 -- data files must be embedded instead of looked up in Cabal's build store.
@@ -59,7 +59,9 @@ allow-newer:
 -- of installed compiler libraries or outdated parent bounds. Constraints do not
 -- introduce dependencies on platforms where the named package is unused.
 constraints:
-    pandoc == 3.12
+    pandoc == 3.12.1
+-- Keep the compiler's containers version to avoid unrelated dependency rebuilds.
+  , containers == 0.8
   , any.Cabal >= 3.18.1.0
   , any.Cabal-syntax >= 3.18.1.0
   , QuickCheck == 2.19.0.0

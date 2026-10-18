@@ -44,7 +44,7 @@
 <strong>备注</strong>
 </th> </tr> </thead> <tbody> <tr> <td rowspan="2">A 组</td> <td>项目 1</td> <td>10</td> <td>第一项</td> </tr> <tr> <td>项目 2</td> <td>20</td> <td>第二项</td> </tr> <tr> <td rowspan="2">B 组</td> <td>项目 3</td> <td>30</td> <td>第三项</td> </tr> <tr> <td>项目 4</td> <td colspan="2">40</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>在 表 <a href="#tbl:merged-cells">2-3</a> 中，“A 组”和“B 组”分别跨越两行，最后一行的单元格跨越两列。</p> </div> <h2 id="sec:数学形式">2.3 数学形式</h2> <p>所提出的方法可以用数学形式表示。考虑函数 <span class="inline math">f(x)</span>：</p> <p>
 <span id="eq:linear">
-<span class="display math"> f(\boldsymbol{x}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b} \tag{2-1}</span>
+<span class="display math">f(\boldsymbol{x}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b}\tag{2-1}</span>
 </span>
 </p> <table data-autofit="fixed" data-cell_margin="0cm" data-custom-style="TableNoBorder" data-custom_text_style="式中"> <colgroup> <col> <col> <col> <col> </colgroup> <tbody> <tr> <td>
 <div data-custom-style="式中"> <p>式中</p> </div>
@@ -85,7 +85,7 @@
 <div data-custom-style="式中"> <p>损失函数</p> </div>
 </td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>
 <span id="eq:loss">
-<span class="display math"> \mathcal{L}(\theta) = \frac{1}{N} \sum_{j=1}^{N} \ell(y_j, \hat{y}_j) + \lambda R(\theta) \tag{2-2}</span>
+<span class="display math">\mathcal{L}(\theta) = \frac{1}{N} \sum_{j=1}^{N} \ell(y_j, \hat{y}_j) + \lambda R(\theta)\tag{2-2}</span>
 </span>
 </p> </div> <p>其中，<span class="inline math">\ell(\cdot)</span> 是单样本损失，<span class="inline math">R(\theta)</span> 是正则化项，<span class="inline math">\lambda</span> 控制正则化强度。关于 式 <a href="#eq:loss">2-2</a> 的实证验证，见 节 <a href="#sec:results">3</a>。</p> <h2 id="sec:研究流程">2.4 研究流程</h2> <p>实验流程包括四个主要阶段。首先，根据[具体准则]清理并归一化输入数据，处理异常值和缺失值。其次，使用[方法名称]进行特征提取，从原始数据中提取[具体特征]。第三，使用[优化算法]和[具体超参数]优化 式 <a href="#eq:linear">2-1</a> 与 式 <a href="#eq:loss">2-2</a>，完成模型训练。最后，使用 节 <a href="#sec:results">3</a> 中说明的指标和协议评估训练后的模型。</p> <h2 id="sec:伪代码示例">2.5 伪代码示例</h2> <p>当需要明确的逐步过程时，也可以用伪代码概括主要流程。在本模板中，伪代码采用单列表格表示，并可像普通表格一样引用，如算法 1 所示。</p> <table data-revision_rows="*"> <colgroup> <col> </colgroup> <thead> <tr> <th data-custom-style="Revision Char">
 <strong>算法：数据准备与模型评估流程</strong>

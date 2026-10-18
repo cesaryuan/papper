@@ -1,6 +1,6 @@
 # Shared Pandoc CLI and persistent HTML worker
 
-This executable provides a Pandoc 3.12 CLI and the native half of Papper's
+This executable provides a Pandoc 3.12.1 CLI and the native half of Papper's
 project-bound HTTP service. Ordinary arguments follow the upstream CLI, including
 stdin/stdout, binary outputs, information requests, Lua and HTTP server modes
 within Papper's supported format profile.
@@ -48,7 +48,7 @@ Linux inside manylinux 2.28.
 The wheel builder strips symbols from a staging copy of the worker before
 embedding it; the original Cabal output remains available for debugging. This
 uses the trimmed Reader/Writer registries maintained in `vendor/pandoc`.
-The builder verifies the SHA-256 of Pandoc 3.12's source archive and prepares
+The builder verifies the SHA-256 of Pandoc 3.12.1's source archive and prepares
 an independent local package before Cabal builds it. All upstream modules still
 compile; removing unused registry roots lets the linker discard unrelated
 formats. A prebuilt full-format worker is rejected during wheel packaging.
@@ -80,10 +80,13 @@ environment, which can fail with `SameFileError` while copying `Activate.ps1`.
 
 ## Build and install from source
 
-The supported versions are Pandoc 3.12, pandoc-crossref 0.3.25, and citeproc
-0.14. All direct dependency lower bounds track the latest stable Hackage
-versions audited on 2026-10-02. `cabal.project` pins Pandoc and the Hackage
-index state. Targeted `allow-newer` entries cover crossref's still-declared
+The supported versions are Pandoc 3.12.1, pandoc-crossref 0.3.25, and citeproc
+0.14.1 or newer within 0.14.x. The Pandoc upgrade was audited on 2026-10-18;
+other direct dependency lower bounds retain the 2026-10-02 audit.
+`cabal.project` pins Pandoc and the Hackage index state.
+The index is fixed to 2026-10-08, when 3.12.1 was published; containers stays at
+the compiler's 0.8 version to avoid unrelated dependency upgrades.
+Targeted `allow-newer` entries cover crossref's still-declared
 `pandoc <3.12` bound and lagging upper bounds in its dependency graph; all
 unlisted bounds remain active. HTTP resource fetching is explicitly enabled so
 the solver cannot silently remove remote CSL/image support to satisfy old TLS
@@ -213,3 +216,10 @@ The CLI dispatch in `Main.hs` also follows Pandoc 3.12's
 Lua and server launch modules with their original GPL notices. They and the
 adapted entry point are included in wheel source notices. The linked conversion
 library is shared by all modes rather than compiled into separate executables.
+
+The 3.12.1 upgrade rebases the registry and DOCX parser overrides on the new
+archive. The adapted citation, locator and CLI modules were checked against
+upstream; their source algorithms are unchanged in this release. Structured
+CSL name handling uses the updated Pandoc reference parser and citeproc 0.14.1,
+shared by CLI and persistent-worker reference parsing. FODT remains outside Papper's
+supported format profile.

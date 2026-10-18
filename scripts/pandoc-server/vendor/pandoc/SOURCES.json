@@ -1,8 +1,8 @@
 {
   "name": "pandoc",
-  "version": "3.12",
-  "source": "https://hackage.haskell.org/package/pandoc-3.12/pandoc-3.12.tar.gz",
-  "source_sha256": "ef4475d2b137c72340d36723d6d694c5bd7b823d7a214efc1d5b7634d5bea9b1",
+  "version": "3.12.1",
+  "source": "https://hackage.haskell.org/package/pandoc-3.12.1/pandoc-3.12.1.tar.gz",
+  "source_sha256": "b37833ca08e7bf58ce4cf7901d358d8dd401213250309824fdb8045fc51788ed",
   "overrides": [
     "src/Text/Pandoc/Readers.hs",
     "src/Text/Pandoc/Readers/Docx/Parse.hs",

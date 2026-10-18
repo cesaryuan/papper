@@ -33,15 +33,16 @@ Org、EPUB、ODT、PPTX、RST、Typst、各 Wiki/幻灯片等格式不再注册�
 ## 固定源码与发布流程
 
 `scripts/pandoc-server/vendor/pandoc/` 维护两个完整的上游注册表模块及
-`SOURCES.json`。上游 Pandoc 3.12 源码 tarball 的固定 SHA-256 是：
+`SOURCES.json`，以及保留本地修复的 DOCX 解析模块。
+当前上游 Pandoc 3.12.1 源码 tarball 的固定 SHA-256 是：
 
 ```text
-ef4475d2b137c72340d36723d6d694c5bd7b823d7a214efc1d5b7634d5bea9b1
+b37833ca08e7bf58ce4cf7901d358d8dd401213250309824fdb8045fc51788ed
 ```
 
 构建工具优先复用匹配的 Cabal 下载归档，否则下载固定 URL；均验证摘要。
-原始源码解包至 `.pmt/pandoc-source/pandoc-3.12`，随后使用项目维护的
-Readers/Writers 模块。Cabal 显式引用此本地包，启用 `-split-sections`，
+原始源码解包至 `.pmt/pandoc-source/pandoc-3.12.1`，随后使用项目维护的
+Readers/Writers 与 DOCX 解析模块。Cabal 显式引用此本地包，启用 `-split-sections`，
 HTTP、模板嵌入、Lua、citeproc 和 crossref 保留。
 
 ```powershell
@@ -69,7 +70,30 @@ CLI 测试不再要求裁剪后的格式列表与完整上游相同，增加真�
 本轮工作区另有 PDF 后端迁移改动，格式裁剪收益应以 Worker 的对照衡量；
 最终 wheel 大小包括工作区其余已集成改动，不能全部归因于 Reader/Writer 裁剪。
 
+## 2026-10-18 升级至 Pandoc 3.12.1
+
+源码版本、归档摘要、Cabal 本地包路径和依赖下限同步更新。
+Hackage 索引固定在 `2026-10-08T02:00:00Z`，保留编译器的 containers 0.8，
+本机解析到 citeproc 0.14.1、texmath 0.13.3.1。格式注册集合保持不变；
+上游新增的 FODT 函数保留导出，但不增加 FODT 格式注册。
+
+DOCX 解析覆盖文件合入上游表格样式映射、双删除线与题注书签保留改动，
+同时保留项目对未闭合 Word 域跨编号段落的修复。引用缓存、定位符和 CLI
+适配模块与上游核对后继续使用，其调用的引用解析逻辑来自新版 Pandoc。
+
+33 份内容快照随上游输出更新：公式边缘空白、标题书签的位置及相应关系编号，
+以及 DOCX 导入时恢复的题注交叉引用。逐份比较确认 DOCX 可见文字、公式文字、
+域指令与媒体字节保持一致，视觉基线不作更新。
+
+Windows x86-64 使用 GHC 9.14.1 / Cabal 3.18.1.0 实际构建后，相关回归检查
+为 **180 passed、2 skipped**；跳过项为需要显式启用的 Word 视觉检查。
+CLI 对照使用官方 Pandoc 3.12.1，另验证结构化 CSL 姓名排序与公开 HTML 输出。
+新 wheel 的隔离安装烟雾检查通过，覆盖各输出目标、MathType、SVG 像素、
+DOCX 导入、回复、缓存及服务关闭。日志位于 `.pmt/pandoc-upgrade/`。
+
 ## 本机验证
+
+以下为 2026-10-03 格式裁剪时的验证与产物记录，使用 Pandoc 3.12。
 
 - GHC 9.14.1 / Cabal 3.18.1.0 实际编译，输入格式 18 个名称、输出列表 20 个名称
 - Worker 未剥离符号为 185,718,784 bytes；发布/源码运行副本为 127,815,680 bytes

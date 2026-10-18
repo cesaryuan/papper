@@ -18,9 +18,9 @@ $$\sqrt{b^2-4ac}$$ {#eq:_Ref241620691}
 
 对题注的引用[@fig:_Ref241621754]
 
-![打我的d打我的](media/image5.png){width="1.8438in" height="0.59375in"}
+![ 打我的d打我的](media/image5.png){#fig:_Ref241623370 width="1.8438in" height="0.59375in"}
 
-对题注的引用[Figure 1](#_Ref241623370)
+对题注的引用[@fig:_Ref241623370]
 
 参考文献：
 

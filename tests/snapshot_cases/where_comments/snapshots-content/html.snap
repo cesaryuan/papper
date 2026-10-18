@@ -1,22 +1,22 @@
 <html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <title>where_comments</title> </head> <body> <main> <h1 id="sec:equation-explanations-separated-by-comments">1 Equation explanations separated by comments</h1> <p>
 <span id="eq:total-loss">
-<span class="display math"> L=\alpha L_{\mathrm{TSDF}}+\beta L_{\mathrm{texture}} \tag{1}</span>
+<span class="display math">L=\alpha L_{\mathrm{TSDF}}+\beta L_{\mathrm{texture}}\tag{1}</span>
 </span>
 </p> <div data-custom-style="Para Where"> <p>where <span class="inline math">\alpha</span> and <span class="inline math">\beta</span> denote the loss-weight coefficients for the TSDF sign-consistency loss and the texture reconstruction loss, respectively.</p> </div> <p>
 <span>
-<span class="display math"> x = 1 \tag{2}</span>
+<span class="display math">x = 1\tag{2}</span>
 </span>
 </p> <div data-custom-style="Para Where"> <p>where <span class="inline math">x</span> is the input value after several comments.</p> </div> <blockquote> <p>
 <span>
-<span class="display math"> y = 2 \tag{3}</span>
+<span class="display math">y = 2\tag{3}</span>
 </span>
 </p> <div data-custom-style="Para Where"> <p>where <span class="inline math">y</span> is the nested input value.</p> </div> </blockquote> <p>
 <span>
-<span class="display math"> z = 3 \tag{4}</span>
+<span class="display math">z = 3\tag{4}</span>
 </span>
 </p> <p>A visible paragraph separates the equation from its later discussion.</p> <p>where this paragraph remains ordinary prose because it follows visible text.</p> <p>
 <span>
-<span class="display math"> w = 4 \tag{5}</span>
+<span class="display math">w = 4\tag{5}</span>
 </span>
 </p> <hr> <p>where this paragraph remains ordinary prose because visible HTML intervenes.</p> <table> <colgroup> <col> <col> </colgroup> <thead> <tr> <th>Input</th> <th>Value</th> </tr> </thead> <tbody> <tr> <td>
 <span class="inline math">v</span>

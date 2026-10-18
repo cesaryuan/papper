@@ -61,6 +61,7 @@ module Text.Pandoc.Writers
     , writeMuse
     , writeNative
     , writeODT
+    , writeFODT
     , writeOPML
     , writeOpenDocument
     , writeOrg

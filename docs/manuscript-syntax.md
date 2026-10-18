@@ -1241,6 +1241,13 @@ or list selected keys in `nocite`. LaTeX uses its bibliography workflow and
 document-class citation settings. See
 [`style-configuration.md`](style-configuration.md) for citation styles.
 
+In structured CSL JSON or CSL YAML references, `family` and `given` keep the
+complete names you supply. For example, `family: de Gaulle` treats `de Gaulle`
+as the full family name, including for sorting. To represent a separate name
+particle, write `family: Gaulle` with `non-dropping-particle: de` explicitly.
+This applies to DOCX and HTML citation processing; BibTeX name parsing follows
+BibTeX's name conventions.
+
 ## Advanced Table Formatting
 
 Use table caption attributes for styles, cell text, layout, merging, and

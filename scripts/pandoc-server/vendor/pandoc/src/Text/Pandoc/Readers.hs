@@ -30,6 +30,7 @@ module Text.Pandoc.Readers
   , readPptx
   , readXlsx
   , readODT
+  , readFODT
   , readMarkdown
   , readCommonMark
   , readCreole
