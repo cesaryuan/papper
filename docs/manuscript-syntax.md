@@ -121,7 +121,7 @@ math. A single-line string is inline Markdown; a multiline YAML block string
 supports paragraphs and other blocks. Newlines and spaces follow Markdown rules.
 Footnotes/endnotes and bibliography citations are rejected; manuscript
 cross-references are unsupported. The page placeholder also works in
-`docxHeader.content` and body paragraphs, and is not supported in HTML/LaTeX output. A configured footer replaces
+`docxHeader.content` and body paragraphs (including tables and notes), and is not supported in HTML/LaTeX output. A configured footer replaces
 reference footer content. Use `docxFooter: null` to preserve it or
 `docxFooter: {content: ''}` to clear it. Read
 `papper guide style docx-page-layout` for defaults, style requirements, and
@@ -479,6 +479,11 @@ Put a section break on its own top-level body paragraph, outside tables, lists,
 quotes, and notes. Its options apply to the section **after** the break and
 override global page-story content for that section.
 
+A continuous section break at the very beginning of the body configures the
+first section without creating an empty preceding section. Convert uses this
+form to preserve initial page-number starts, first/even-page stories, and
+header/footer distances. Keep it before headings, paragraphs, and other insertions.
+
 ```markdown
 []{t="sectionBreak" kind="nextPage" pageStart="1" header="**Methods**" footer='Page []{t="pageNum"}' headerAlignment="left" footerAlignment="right"}
 
@@ -563,7 +568,8 @@ only; HTML and LaTeX do not reproduce page stories or section distances.
 
 Use `pageBreak` to start the following content on a new page without changing
 sections. It accepts no options and works as a standalone paragraph or inline.
-Page numbers and dates work in body paragraphs and configured headers/footers;
+Page numbers and dates work in body paragraphs, tables, footnotes/endnotes,
+and configured headers/footers;
 surrounding Markdown emphasis is retained.
 
 ```markdown
@@ -591,7 +597,7 @@ newlines in a date format are rejected.
 ### Custom Word Fields
 
 Use `field` to insert a Word field with an instruction you supply. It works
-inline or on its own paragraph, including in tables, configured headers/footers,
+inline or on its own paragraph, including in tables, footnotes/endnotes, configured headers/footers,
 and section-specific headers/footers. Surrounding Markdown emphasis is retained.
 
 ```markdown
@@ -1416,6 +1422,61 @@ retained after the formula. A matching
 bookmark link becomes `[@eq:_Ref123]`, which remains resolvable in later builds.
 Ordinary inline formulas and formulas embedded in prose keep their original
 context. Unrecognized equation previews remain images.
+
+Convert also imports authored pagination and DOCX page stories:
+
+| Word content | Imported Markdown or configuration |
+| --- | --- |
+| Manual page break, including one inside a paragraph | `[]{t="pageBreak"}` at the same position |
+| Paragraph **Page break before**, including an inherited paragraph-style setting | `[]{t="pageBreak"}` before the paragraph's text |
+| Next-page, continuous, odd-page, or even-page section break | A standalone `[]{t="sectionBreak" kind="..."}` before the following section |
+| Page-number restart | `pageStart` on the corresponding section directive |
+| Current-page field in body text, tables, notes, headers, or footers | Dynamic `[]{t="pageNum"}`; supported Roman, letter, and other explicit formats are retained |
+| First section's normal header/footer | `papperSettings.docxHeader` and `papperSettings.docxFooter` in the generated YAML header |
+| Section-specific and active first/even-page stories | `headerDefault`/`headerFirst`/`headerEven` and matching footer options on the section directive |
+
+For example, a document with a common centered footer and a new section
+restarting at page 1 can produce:
+
+```markdown
+---
+papperSettings:
+  docxFooter:
+    content: '- []{t="pageNum"} -'
+    alignment: center
+---
+
+First section text.
+
+[]{t="sectionBreak" kind="nextPage" pageStart="1" headerDefault="Methods"}
+
+Second section text.
+```
+
+When needed, a leading continuous section directive carries the first section's
+layout options. It configures that section when rebuilt; it adds no empty
+section. Later directives preserve inherited stories, explicit empty stories,
+different-first-page mode, and header/footer distances. Inactive first/even-page
+stories do not enable those modes during import. Empty imported global stories
+are written explicitly when layout is imported so build defaults do not add a
+header or footer that the source did not contain.
+
+Story content retains supported Markdown formatting, paragraphs, tables, links,
+images, and math. Pictures share the converted media directory and its existing-file
+protection. Other Word fields in stories, such as `NUMPAGES` and `STYLEREF`, use
+`[]{t="field" instruction="..." result="..."}` with their cached display text.
+Word recalculates dynamic fields when updated; Convert does not compute page
+numbers. A supported section numbering format is reflected in inherited
+`pageNum` fields as an explicit field format.
+
+Automatic pagination positions saved by Word are not manual page breaks and
+are ignored. This import covers the section options described above; it does
+not reproduce arbitrary Word page geometry, columns, floating/text-box layout,
+tab-stop layout, or every paragraph/run style. Unsupported section start modes
+use `nextPage` with a conversion warning. Unsupported page-field switches are
+retained as generic Word fields; unsupported section numbering formats are not
+recreated as section settings. Check the rebuilt document when its original
+layout depends on those features.
 
 When Han characters account for at least 60% of the letters and numbers in the
 body, footnotes, and endnotes, Convert adds `lang: zh-CN` to the Markdown YAML

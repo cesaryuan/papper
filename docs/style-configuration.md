@@ -559,7 +559,8 @@ of textual numbers from its document/language settings. Unknown formats or
 page-number attributes produce an error.
 
 This placeholder is supported in `docxFooter.content`, `docxHeader.content`,
-section-specific headers/footers, and manuscript body paragraphs. It affects DOCX only.
+section-specific headers/footers, and manuscript body paragraphs, including
+tables and footnotes/endnotes. It affects DOCX only.
 Page numbers remain automatic Word page numbers and
 use the `page number` character style from the reference DOCX; Pandoc creates
 the style when it is missing. Ordinary footer paragraphs use
@@ -596,6 +597,16 @@ carry forward until changed. They are separate from body margins: the global
 These section options do not modify `style.yml` or global defaults; the global
 `docxHeader`/`docxFooter` mappings still use only `content` and `alignment`.
 Read `papper guide syntax docx-native-insertions/section-breaks` for syntax and defaults.
+
+`papper convert` writes the first section's imported normal stories into
+`papperSettings.docxHeader` and `papperSettings.docxFooter`, with their paragraph
+alignment. Imported empty stories explicitly use empty content so inherited
+build defaults do not add content absent from the source. Later section stories,
+first/even-page variants, page-number restarts, and story distances use
+`sectionBreak` options in the generated Markdown. A leading continuous directive
+can configure these options for the first section without creating an extra
+section. Imported Markdown uses the same configuration precedence and content
+support described here; it does not modify a project's `style.yml`.
 
 `alignment` accepts `left`, `center`, or `right` and applies to paragraphs outside
 tables. Table cells retain their Markdown column alignment; list numbering and

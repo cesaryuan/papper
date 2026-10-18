@@ -41,6 +41,23 @@ pub(super) fn apply(
     for child in &mut document.children {
         footer::finalize_page_fields(child, styles)?;
     }
+    // Imported inline fields can occur in notes too. Without finalizing those
+    // separate parts, a round trip exposes internal page/field markers as text.
+    for part in ["word/footnotes.xml", "word/endnotes.xml"] {
+        let has_fields = package.entries.get(part).is_some_and(|bytes| {
+            std::str::from_utf8(bytes).is_ok_and(|text| {
+                text.contains("PMT_FOOTER_PAGE:") || text.contains("PMT_DOCX_FIELD:")
+            })
+        });
+        if has_fields {
+            let mut notes = package.xml(part)?;
+            for child in &mut notes.children {
+                footer::finalize_page_fields(child, styles)?;
+            }
+            package.set_xml(part, &notes);
+            changed = true;
+        }
+    }
     if update
         && let Some(index) = style_index(styles, "TOC Heading")
         && let Node::Element(style) = &styles.children[index]
@@ -339,6 +356,10 @@ fn sections(
                         inherited.get(&(name.clone(), variant.to_owned())),
                         variant,
                     )?)
+                } else if record["initial"].as_bool() == Some(true) {
+                    // There is no preceding section to inherit global stories from
+                    // after the leading configuration marker is removed.
+                    inherited.get(&(name.clone(), variant.to_owned())).cloned()
                 } else {
                     None
                 };
@@ -364,16 +385,23 @@ fn sections(
         .child_mut("w:body")
         .context("DOCX is missing its document body")?;
     let mut index = 0;
-    for node in &mut body.children {
+    body.children.retain_mut(|node| {
         if let Node::Element(paragraph) = node
             && paragraph.name == "w:p"
             && paragraph.text().starts_with("PMT_DOCX_SECTION:")
         {
+            // A leading continuous directive configures the initial section.
+            // Removing its marker avoids a spurious empty section on DOCX reimport.
+            if records[index]["initial"].as_bool() == Some(true) {
+                index += 1;
+                return false;
+            }
             paragraph.children.clear();
             paragraph.word("w:pPr").push(replacements[index].clone());
             index += 1;
         }
-    }
+        true
+    });
     if index != records.len() {
         bail!(
             "DOCX sectionBreak must be a top-level body paragraph, outside tables, lists, and notes"

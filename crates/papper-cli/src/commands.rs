@@ -610,6 +610,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         );
     }
     for filename in [
+        "docx_layout.lua",
         "mtef_parser.lua",
         "equation_tables.lua",
         "remove_toc_anchors.lua",
@@ -646,6 +647,12 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         "--lua-filter".into(),
         resources
             .resource("pandoc/filters/convert/media_paths.lua")
+            .into_os_string(),
+    ]);
+    command.extend([
+        "--lua-filter".into(),
+        resources
+            .resource("pandoc/filters/convert/docx_layout_finish.lua")
             .into_os_string(),
     ]);
     command.extend([

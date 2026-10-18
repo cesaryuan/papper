@@ -446,13 +446,51 @@ promoted, including one with a descriptive label, so its exported ID resolves on
 rebuild. Equations with preceding prose retain their inline context; unbookmarked
 flattened equations remain inline unless fuzzy reference recovery identifies them.
 
-The final convert filter,
+The media-finalization convert filter,
 [`media_paths.lua`](../pandoc/filters/convert/media_paths.lua), compares imported
 media with the destination before Pandoc extracts it. Conflicting bytes receive
 a content-hash suffix; an edited hash-named file receives an additional numeric
 suffix. References and media-bag entries change together. Native publication
 uses no-clobber writes and permits identical bytes, so a concurrent conflicting
 import fails safely and can be retried without replacing prior media.
+
+DOCX layout import runs in two Lua passes. `docx_layout.lua` reads the source
+package with `pandoc.zip`, edits an in-memory copy, and rereads that copy once
+with the DOCX reader. A small namespace-aware XML helper retains untouched
+OOXML tags, handles quoted attributes, and only treats active body/paragraph
+`sectPr` nodes as sections; `sectPrChange` history is excluded. Paragraph-level
+properties close the preceding section, so a boundary points to the next
+section's properties. Authored page breaks and resolved `pageBreakBefore`
+properties become collision-free tokens; `lastRenderedPageBreak` is ignored.
+Simple and complex PAGE fields are recognized before cached text is discarded,
+including instructions split across runs. Other body fields remain available
+to the existing cross-reference recovery; story fields may use generic field
+syntax with their source instruction and cached result.
+
+Active page stories are appended between temporary body boundaries so ordinary
+Pandoc reading preserves rich content and the established conversion/media
+filters process it. Relationships are remapped into the temporary main part,
+and inherited namespace declarations travel with copied story content.
+Story import is cached by part and, for implicit PAGE fields, section numbering
+format. The source file is never written. Documents without imported layout
+return their original AST without ZIP recompression or a second DOCX read.
+`docx_layout_finish.lua` runs after media renaming, removes story boundaries,
+and writes global settings and section directives using entity-escaped
+attributes for multiline content. Raw Markdown metadata keeps generated T
+fragments active rather than escaping them as literal text.
+Pandoc drops empty metadata strings, so the finish pass renders a complete YAML
+header with collision-free placeholders when a global story is empty, then
+replaces those placeholders with explicit empty strings. This prevents an empty
+imported footer from inheriting the bundled page-number default. Initial section
+markers are inserted after DOCX reading so they do not interrupt Title/Author
+metadata recognition. Native inline-field finalization also visits note parts,
+preventing imported PAGE or generic fields in notes from leaking marker text.
+
+A leading standalone continuous section directive is marked as initial by the
+DOCX writer filter. Native section finalization applies its options but removes
+the marker instead of closing an empty section. Global references must be
+retained explicitly for this first section because it has no preceding section
+from which to inherit. Subsequent section directives retain normal behavior.
 
 DOCX package saves borrow unchanged binary parts and stream ZIP members and the
 central directory into a temporary file beside the destination. XML parts that

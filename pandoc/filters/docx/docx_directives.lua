@@ -11,6 +11,7 @@ local helpers = dofile(pandoc.path.join {directory, 'native_field_helpers.lua'})
 local escape = helpers.xml_escape
 local block_types = {toc = true, listofFigures = true, listofTables = true, sectionBreak = true}
 local section_count = 0
+local initial_section = false
 local stories = pandoc.Blocks {}
 local lists = {}
 
@@ -71,6 +72,9 @@ local function section(span)
   section_count = section_count + 1
   local record = {id = section_count, kind = kind, pageStart = attrs.pageStart,
     headerDistance = attrs.headerDistance, footerDistance = attrs.footerDistance}
+  -- Convert uses a leading continuous break to configure the first section.
+  -- There is no preceding body content to close, so avoid creating an empty section.
+  record.initial = initial_section and section_count == 1
   if attrs.differentFirstPage ~= nil then
     record.differentFirstPage = boolean(attrs.differentFirstPage, false, 'differentFirstPage')
   elseif attrs.headerFirst ~= nil or attrs.footerFirst ~= nil then
@@ -162,6 +166,10 @@ end
 function Pandoc(doc)
   if FORMAT ~= 'docx' then return nil end
   section_count, stories, lists = 0, pandoc.Blocks {}, {}
+  local first = doc.blocks[1]
+  local first_span = first and first.t == 'Para' and #first.content == 1 and first.content[1]
+  initial_section = first_span and first_span.t == 'Span'
+    and first_span.attributes.t == 'sectionBreak' and first_span.attributes.kind == 'continuous' or false
   doc:walk({Table = reject_nested_section, BlockQuote = reject_nested_section,
     BulletList = reject_nested_section, OrderedList = reject_nested_section,
     DefinitionList = reject_nested_section, Note = reject_nested_section})
