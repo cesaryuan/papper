@@ -1,0 +1,31 @@
+{
+  "papper_version": "0.11.2",
+  "mathtype": true,
+  "mathtypeConversionMethod": "mathtype",
+  "word_file_version": "16.0.20430.20146",
+  "render_dpi": 144,
+  "manuscript": {
+    "source": "template/manuscript.md",
+    "source_sha256": "dace6366eff321014aa1d143c406e7e18988ccd9710409f60dd491db5dc9b6c4",
+    "converted_equations": 28,
+    "retained_equations": 0,
+    "ole_equation_objects": 28,
+    "omml_equations": 0,
+    "preview_pages": [
+      1,
+      3
+    ]
+  },
+  "reviewer_reply": {
+    "source": "tests/snapshot_cases/reply/reply.md",
+    "source_sha256": "292aee6bae4e77c210492f9daab196c31f0382df0e29dc112145c85834068abf",
+    "converted_equations": 2,
+    "retained_equations": 0,
+    "ole_equation_objects": 2,
+    "omml_equations": 0,
+    "preview_pages": [
+      1
+    ]
+  },
+  "user_documents_preserved": true
+}

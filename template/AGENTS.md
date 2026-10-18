@@ -1,5 +1,7 @@
 For manuscript Markdown and YAML syntax, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`. These commands list topics with brief descriptions; read only the relevant topic using `papper guide syntax <topic>` or `papper guide style <topic>`. Parent topics list their subtopics. Use `--full` only when you need the complete guide.
 
+For Word import, run `papper guide syntax importing-word-documents`; for reviewer responses, run `papper guide syntax reviewer-replies`. The [Papper README](https://github.com/cesaryuan/papper#documentation) links to separate import, editor integration, development, and release guides. Those repository documents are not copied into manuscript projects.
+
 ## Style Metadata
 
 If the user wants to change reusable style behavior, update `style.yml`. For settings that apply only to the Markdown being built, use a `papperSettings` mapping in its YAML header; it accepts the same configuration as `style.yml` and takes priority over it. Ordinary header fields override Pandoc metadata. Run `papper guide style configuration-placement-and-precedence` for details.

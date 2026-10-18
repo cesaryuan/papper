@@ -7,6 +7,8 @@ This template converts Pandoc Markdown manuscripts to DOCX, with optional LaTeX 
 
 For manuscript syntax and writing patterns, run `papper guide syntax`. For reusable formatting and build settings, run `papper guide style`. These commands list topics with brief descriptions; read only the relevant topic using `papper guide syntax <topic>` or `papper guide style <topic>`. Parent topics list their subtopics. Use `--full` only when you need the complete guide.
 
+For Word import, run `papper guide syntax importing-word-documents`; for reviewer responses, run `papper guide syntax reviewer-replies`. The [Papper README](https://github.com/cesaryuan/papper#documentation) links to separate import, editor integration, development, and release guides. Those repository documents are not copied into manuscript projects.
+
 ## Style Metadata
 
 If the user wants to change reusable style behavior, update `style.yml`. Papper-owned settings such as `mathtype`, `docxStyle`, `docxPageMargins`, and `docxFooter` stay at the top level. Pandoc, citeproc, and pandoc-crossref defaults belong under `pandocMetadata`. For settings that apply only to the Markdown being built, put the same configuration inside a `papperSettings` mapping in its YAML header; it takes priority over `style.yml`. Ordinary header fields override Pandoc metadata. Read `papper guide style configuration-placement-and-precedence` for merge and reply rules.

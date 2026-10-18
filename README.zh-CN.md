@@ -2,512 +2,147 @@
 
 # Papper
 
-用 Markdown 写论文，用 Word 交稿。
+**用 Markdown 写论文，用 Word 交稿。**
 
-Papper 是一个面向 AI 时代的、以 DOCX 为核心输出的学术写作工作流。现在 AI 很擅长起草、改写和整理 Markdown，但很多期刊、编辑和合作者最终仍然要 `.docx`。Papper 解决的正是这个错位问题：你继续用清晰、可版本控制、对 AI 友好的 Markdown 写作，在需要提交的时候再稳定地产出接近期刊工作流的 Word 文档。
+Papper 将 Markdown 稿件构建为 Word 文档，处理参考文献、图表与公式编号，以及审稿回复。源文件方便 AI 修改、Git 审阅，需要交给合作者或期刊时，再生成 DOCX。
 
-CLI、配置、HTML Server、文档后处理和集成层由 Rust 实现。Lua filters、Haskell
-Pandoc worker 和 Windows C# MathType helper 保留原实现。通过 `uv tool` 安装
-PyPI wheel 后，`papper` 和 `pmt` 直接运行原生可执行文件，构建时不启动 Python。
+[让 AI 使用 Papper](#让-ai-使用-papper) · [VS Code 扩展](#vs-code-扩展) · [实际输出](#实际输出) · [文档导航](#文档导航)
 
-<!--
-README 首图建议，方便你后面自己截图或绘制：
-- 用一个横向 3 面板流程图，不要只放 logo。
-- 左侧放 Markdown 稿件编辑界面，最好能看到引用、交叉引用，以及一个简短的 AI 提示词或对话片段。
-- 中间放终端，显示 `papper build docx` 和 `papper build docx reply.md`。
-- 右侧放排版完成的 Word 主稿页面，再加一个 reviewer reply 的 DOCX 页面。
-- 图上只保留 3 个短标语最抓眼球，比如：“AI writes Markdown well”, “Papper turns it into DOCX”, “Journal-ready output”。
-- 最重要的是让人一眼看懂“同一份内容从 Markdown 流到 Word”的前后对比，而不是抽象图标。
--->
+## 让 AI 使用 Papper
 
-## 为什么会有这个项目
+先安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)，再安装 Papper：
 
-对于很多研究团队来说，Markdown 正在变成一种非常自然的写作格式，尤其是在 AI 已经深度参与起草和修改的情况下。它比 LaTeX 更容易生成、更容易审阅，也更容易做版本比较。LaTeX 当然依然强大，但对很多主要任务是写作和修改的作者来说，它并不总是最友好的选择。Typst 也很有潜力，但目前还不是多数出版社默认接受的主流格式。
-
-现实是，DOCX 仍然是很多出版社、编辑和合作者最喜欢的格式。
-
-Papper 就是围绕这个现实构建的：
-
-- 用 Markdown 写稿
-- 保持源文件对人和 AI 都好编辑
-- 在交付时生成 Word 优先的投稿文件
-- 保留学术写作真正需要的能力：参考文献、公式、表格、图片、交叉引用，以及审稿回复
-
-## Papper 的价值
-
-Papper 不只是一个通用的 Pandoc 封装器。它是一个面向真实投稿流程的 manuscript workflow。
-
-- **DOCX 优先**：主目标是高质量 Word 稿件，而不是把 DOCX 当成顺手导出的副产品。
-- **对 AI 友好**：Markdown 更适合 LLM 生成，也更适合人在 Git 里审阅。
-- **一条命令初始化项目**：`papper init` 可以直接生成论文目录结构、稿件、样式元数据、参考文献和 agent 指南。
-- **面向投稿的后处理**：Pandoc 结束后，Papper 还会做 DOCX 侧的格式整理和增强。
-- **支持审稿回复**：在 YAML 顶部添加 `reply: manuscript.md` 后，`build html/docx` 可以生成审稿回复，并自动解析正文中的引用和交叉引用。
-- **内置 Pandoc 工具链**：平台 wheel 内置 Pandoc 3.12、crossref 和持久 HTML worker，无需另外下载；源码开发环境也支持受管工具。
-- **保留其他输出**：虽然以 DOCX 为核心，但仍然支持 HTML、LaTeX 和 JSON 输出。
-
-## 你能得到什么
-
-- 用 `papper init` 初始化论文工程
-- 用 `papper doctor` 检查环境
-- 用 `papper config describe --format json` 导出供编辑器使用的配置定义、模板和语言默认配置
-- 用 `papper setup` 准备项目本地工具
-- 用 `papper build` 构建 DOCX、LaTeX、JSON
-- 用 `papper convert` 将已有 DOCX 论文导入 Markdown
-- 用 `papper build docx reply.md` 构建审稿回复
-- 图、表、公式、章节的交叉引用
-- 基于 CSL 的参考文献格式
-- 通过 reference DOCX 控制 Word 样式
-- 面向 DOCX 的后处理：作者信息、表格行为、样式、行号相关工作流
-- `papper build docx` 中，制表符排版的公式段落自动应用 `Para Equation` 样式，继承“正文文本”，段后间距为 0.5 行，使用单倍行距。
-  样式的居中、右对齐制表位分别设在 DOCX 第一节正文可用宽度（页面宽度减左右页边距）的一半和末端；移除公式段落上的直接制表位，使其继承样式。修改页边距后需重新执行此步骤。
-- Word 不友好图片场景下的 SVG 处理和回退方案
-- 需要时支持 MathType 相关的 DOCX 工作流
-
-## 将 Word 论文转换为 Markdown
-
-使用 `papper convert` 导入 DOCX，生成 Markdown 和相邻的 `media` 图片目录：
-
-```powershell
-uv run papper convert "测试文档.docx" -o converted
+```bash
+uv tool install papper
 ```
 
-命令会生成 `converted/测试文档.md`，并只把 Markdown 仍需要的图片放进
-`converted/media`。十个内置 Lua 过滤器依次将 MathType OLE 公式转换为 LaTeX、
-展平单行的公式排版表格、清理 `_Toc...` 目录锚点及链接、识别子图排版、提取宽度超过 2 英寸的行内图片，
-将只用于图片排版的一列两行图片/题注表格转换为 figure，再将单张无题注图片与紧接着的
-`图1`、`图1‑11`、`Figure 1` 或 `Fig. 1-11` 这类编号题注段落合并（包括因 Word 左侧缩进而单独处在引用块中的图片），
-将无题注表格前紧邻的 `表2‑1`、`表2`、`Table 2-1` 或 `Tbl. 2` 段落合并为表题注，
-英文前缀不区分大小写，允许省略末尾句点。
-最后把可确认的 Word 书签链接转换为 `[@fig:_Ref241620557]`
-或 `[@eq:_Ref241620691]` 等 pandoc-crossref 引用。普通表格和无法确认的链接沿用
-Pandoc 的结果；公式无法解码时会保留预览图片。
+在 Codex、Claude Code、Workbuddy 等 AI Agent 中打开稿件所在文件夹，直接让它用 Papper 完成任务，例如：
 
-多次导入遇到同名图片时，相同内容复用原文件，不同内容使用新文件名并更新
-Markdown 链接。已有图片及用户编辑过的图片均会保留；重新导入同一 DOCX
-会替换该文档生成的 Markdown 文件。
+- “请用 Papper 帮我把这个 DOCX 转成 Markdown。”
+- “请将这个 MD 文件中的交叉引用、图片、表格、参考文献转换成 Papper 的格式。”
+- “请帮我把这个 MD 用 Papper 转成 DOCX。”
 
-题注合并保留原有文字、格式、`_Ref...` 书签和图片尺寸；目录链接清理保留显示文字及页码。
-单图检测不会重新配对已有题注、多图段落和中间隔着正文的图文。
+新建论文时，`papper init` 还会生成 `AGENTS.md` 和 `CLAUDE.md`，供 Agent 读取项目指引。
 
-`detect_subfigures.lua` 默认识别使用表格排版的一行多列、多行多列、纵向子图，
-以及图片与 `(a)`、`（b）` 子题注混在同一单元格的形式。总题注可以位于表格题注、
-内部合并单元格或紧接着的段落；带子题注的连续图片段落也能识别。结果使用
-pandoc-crossref 的 `::: {#fig:...}` 子图语法，每行图片保持在同一段落，最后一段为总题注，
-并自动添加 `subfigGrid: true`。保留书签引用；没有 ID 时根据图号生成稳定 ID。
-图片宽度改为网格所需的百分比，原始尺寸保留为 `original-width` / `original-height`。
-列数不一致的布局按原顺序转成纵向排列，避免 pandoc-crossref 丢弃后续行的额外图片。
-多个独立图号、冲突题注、跨行或嵌套表格等不明确结构保留原样，并记录冲突题注日志。
-未转换的表格使用 pipe/grid Markdown，避免简单表格或多行表格按列宽切断图片语法。
-旧导出已经损坏的图片语法无法自动还原，此时应从原 DOCX 重新运行 convert。
+![工作流示意：编写 Markdown，运行 papper build docx，生成 Word 主稿和审稿回复。](docs/assets/papper-workflow.png)
 
-可使用 `--fuzzy-crossrefs` 补充识别手写的图、表、公式引用；此功能默认关闭：
-
-```powershell
-uv run papper convert "测试文档.docx" -o converted --fuzzy-crossrefs
-```
-
-该选项在正规书签转换之后运行 `crossrefs_fuzz.lua`，根据题注中的类型和编号匹配
-`如图1-14所示`、`如表1-3所示`、`如式4-43所示`、`as shown in Fig. 2`、`see Tbl. 3`、
-`as in Eq. (4-43)` 等明确引用句式，输出 `[@fig:...]`、`[@tbl:...]` 或 `[@eq:...]`。
-已有 `fig:`/`tbl:`/`eq:` ID 会被复用；没有 ID 的目标会生成
-`fig:fuzz-1-14`、`tbl:fuzz-1-3` 等稳定 ID，冲突时添加数字后缀。支持英文缩写、单级编号、
-不同连字符，以及跨加粗等格式的引用文字。题注编号重复、找不到目标或缺少引用句式时保留原文。
-题注格式、代码、已有链接/引用和其他类型的自定义 ID 会保留。
-图、表题注开头的前缀和编号会移入 `original-number` 属性：
-`![图1‑14 脆弱性曲线](image.png)` 转换为
-`![脆弱性曲线](image.png){#fig:fuzz-1-14 original-number="图1‑14"}`。
-表题注同样处理，保留表格结构。
-
-独立公式段落 `$x=y$ (4-43)` 或 `$$x=y$$ (4‑43)` 会转换为
-`$$x=y$$ {#eq:fuzz-4-43}`；正文 `如式 4-43` 转换为 `如[@eq:fuzz-4-43]`。
-公式原编号在完成引用识别后直接去除。
-只含一个公式及其括号编号的独立行内公式会转为显示公式，以便 pandoc-crossref 编号和解析引用。
-正规书签转换删除的原公式编号会通过临时元数据保留到捡漏完成，文本引用因此能复用已有
-`eq:_Ref...` ID；临时元数据不会写入最终 Markdown。正文中的普通行内公式、一个段落中的多个公式，
-以及公式后的描述性文字保持原样。
-
-宽度超过 2 英寸且嵌在正文段落中的图片会被移到所在段落后，成为独立 figure。
-支持常见绝对单位；百分比或无效宽度、恰好 2 英寸的图片及已经独立成段的图片保持原位。
-
-当 DOCX 正文及脚注、尾注中的汉字占文字字符（汉字、其他语言字母和数字）的比例
-达到 60% 时，命令会在 Markdown 最前面的 YAML header 中添加 `lang: zh-CN`。
-空白、标点和格式信息不参与统计；空文档和纯图片文档不会自动设置语言。
-
-MathType 反向解码复用 LaTeX 转 MTEF 时直接链接的同一份 Rust 公式库。
-`papper convert` 在当前 Rust 进程中完成解码，再把结果交给 Lua；wheel
-无需独立 MathType DLL 或公式转换可执行文件。
-
-在源码仓库中也可以直接运行 MathType Lua 过滤器，将原生 `papper` 放到 Pandoc 的 PATH：
-
-```powershell
-pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/mtef_parser.lua -o converted.md
-```
-
-此时 Lua 一次调用原生批量解码入口，使用直接链接的公式库。若 `papper` 不在 Pandoc 的
-PATH 中，可将 `PAPPER_EXECUTABLE` 设置为原生可执行文件路径。DOCX 公式转换为
-Pandoc Math 节点后，Markdown writer 直接生成数学分隔符，不需要再次反转义。
+*上图为 AI 生成的工作流示意图，真实 Word 输出见下方。*
 
 ## 快速开始
 
-### 前置依赖
-
-建议准备以下工具：
-
-1. `uv`，用于安装平台 wheel
-2. Papper 平台 wheel，已内置 Pandoc 3.12 和 crossref
-3. 行号来源工作流在 Windows 上需要安装 Microsoft Word；其他平台可以使用 `soffice`
-4. 可选：Windows MathType，仅 `rust-sdk`、`mathtype`、`auto` 或 `both` 方式需要；默认 `rust` 方式可独立工作
-
-平台 wheel 的 `papper setup` 和 `papper init --setup` 在本地验证内置引擎，包含
-`--force` 时也不另外下载。源码开发环境可以使用本地编译的 worker、用户目录中的
-worker，或 Pandoc 3.11+ 配合独立 crossref；需要时下载受管工具到 `~/.papper/tools`。
-可复用缓存和持久构建状态分别保存在 `~/.papper/projects/<project-id>/cache` 与
-`~/.papper/projects/<project-id>/work`。项目 ID 由项目绝对路径计算，不同项目不会互相覆盖。
-MathType OLE/WMF 预览图、行号来源转换文件等单次构建中间产物存放在系统临时目录，Papper
-进程退出时清理。`papper clean` 删除生成结果，并清理当前项目的 work 和缓存，
-包括 MathType 公式缓存及旧版 `.pandoc-cache`。
-原有项目内的 `.pmt` 和 `.papper` 目录不会自动迁移或删除。
-
-六个原 Python filters 现在由 Pandoc 进程内的 Lua 执行，共享资源查找和 SVG
-处理模块。仅 SVGZ 解压与 PNG 像素渲染按需调用独立的原生 `papper-svg` helper；
-它不内嵌整份运行时，也不复制或启动完整 `papper` 来执行 AST JSON filter。
-DOCX 构建还会在转换子进程的 PATH 中提供内置的 `rsvg-convert` PNG 适配入口，
-将 Pandoc 的备用图转换交给 `papper-svg`，同时保留原始 SVG 与 PNG 兼容图片。
-无需单独安装 librsvg，也不修改系统 PATH。设置 `docxConvertSvgToPng: true`
-时仍按原有行为用 PNG 替代 SVG。
-
-### 源码开发与验证
-
-安装固定版本的 Rust 工具链后运行：
+安装后，也可以自己运行命令，创建并构建第一篇论文：
 
 ```bash
-cargo check --workspace --locked
-cargo test --workspace --locked
-cargo run -p papper-dev -- worker
-uv sync
-uv run pytest
-```
-
-`uv sync` 安装原生开发 CLI。Python 只用于驱动集成测试并检查 Rust 和现用
-Haskell/Lua 组件生成的实际产物。Pytest 每次会话都会编译当前 Rust CLI，测试
-不依赖已安装的开发程序是否最新。`tests/legacy/` 仅作为历史归档，不参与测试，
-也不会加入开发安装的 Python 搜索路径。修改 CLI 后，运行
-`uv sync --reinstall-package papper` 刷新开发
-可执行文件。发布 wheel 不包含旧 Python 实现，也不依赖 Python 运行库。
-源码集成测试需要 GHC 9.14.1 和 Cabal 3.18.1.0，先用上面的 worker 命令构建
-当前锁定的格式配置，避免测试误用以前保留全部格式的开发程序。
-完整打包和安装验证分别使用 `cargo run -p papper-dev -- wheel --output dist` 和
-`cargo run -p papper-dev -- smoke --wheel <wheel-path>`。
-
-Papper 自有配置使用真实 Rust 字段和受控更新，字段名仅接受规范 camelCase 写法，保留显式
-false/null 的优先级；任意 Pandoc 元数据单独处理。MathType OLE/MTEF 编解码和
-LaTeX→WMF 通过安全 Rust API 直接链接，不再使用公式 DLL 或二进制 hex/JSON
-C ABI。公式缓存采用 `native-v2` 和构建期引擎指纹，仍验证用户偏好、字体与可选
-helper 输入。独立图像 helper 不依赖 `papper-core`，不内嵌运行时资源归档。
-PDF 几何提取通过 `mupdf-sys` 0.8.0 直接链接 MuPDF 1.27.2，仅开启 PDF 和
-Base14 字体。C 异常包装器将原生错误返回独立 Rust PDF helper，不再动态加载
-MuPDF DLL。源码构建需要 C/C++ 编译器与 libclang，见 [DEVELOPMENT.md](DEVELOPMENT.md)。
-Windows C# helper 保留 SDK 桥接职责。
-打包器仅按原生组件实际 PE imports 和目录分发 Windows CRT，保留跨平台依赖审计。
-
-内置 Worker 保留 Markdown 系列、HTML、LaTeX、DOCX、JSON/native 和文献格式，
-不再注册 Org、EPUB、ODT、PPTX、RST 等其他 Pandoc 格式；Lua Reader/Writer
-调用也使用这一格式集。源码配置与构建方法见
-[scripts/pandoc-server/README.md](scripts/pandoc-server/README.md)。
-
-原来的 `pandoc_manuscript` Python 导入 API 和 `python -m` 工具不随原生 wheel
-发布。集成使用原生 CLI 或 Rust workspace 库；旧实现仅供仓库测试对照。
-已有稿件和样式配置继续使用，原生服务状态单独保存在 `work/rust-v1`。
-后台 HTML 服务从按程序内容哈希保存的独立副本运行，因此服务运行期间也可以执行
-`uv tool upgrade papper`，不会锁住 Windows CLI 入口。下一次执行
-`papper build html --start-server` 时，会校验服务的实际版本和程序身份：同一项目的
-旧版原生服务先正常停止，再在原端口启动已安装的新版，保留项目输出和磁盘缓存；
-程序未变化时复用现有服务，不会停止其他项目的服务。本修复之前的版本启动的服务，
-在 Windows 上首次升级前仍需停止一次。
-
-### 创建第一个项目
-
-```bash
-uvx --from papper papper init my-paper
-cd my-paper
-papper doctor
-papper build docx
-```
-
-如需中文主稿和审稿回复模板，使用 `papper init my-paper --lang zh-cn`。
-
-生成结果：
-
-```text
-output/docx/manuscript.docx
-```
-
-如果你更喜欢先全局安装一次工具：
-
-```bash
-uv tool install --upgrade papper
 papper init my-paper
-```
-
-每次 `papper` 命令结束后，Papper 会读取本地缓存的 PyPI 更新状态；发现新版本时会提示升级命令。后台 worker 最多每小时刷新一次缓存，因此命令不会等待网络请求。使用以下命令升级已安装的 Papper：
-
-```bash
-uv tool upgrade papper
-```
-
-## 典型工作流
-
-```bash
-# 初始化一个新的论文项目
-papper init my-paper --setup
-
-# 检查依赖和项目文件
-papper doctor
-
-# 构建主稿
+cd my-paper
 papper build docx
-
-# 构建中文主稿，交叉引用本地化，图表按章节编号
-papper build docx --lang zh-cn
-
-# 显式构建另一个 Markdown 文件
-papper build docx paper.md -o build/paper.docx
-
-# 为本次构建指定样式文件
-papper build docx paper.md --style-file styles/journal.yml
-
-# 仅导出 reference DOCX 为 reference-doc.docx，跳过实际稿件构建
-papper build docx --export-reference-doc
-
-# 使用自定义 reference DOCX 构建
-papper build docx paper.md --reference-doc journal-reference.docx
-
-# 仅导出本次生效的自定义 reference，跳过实际稿件构建
-papper build docx paper.md --reference-doc journal-reference.docx --export-reference-doc build/active-reference.docx
-
-# 构建一个资源内嵌的独立 HTML 文件
-papper build html -o build/paper.html
-
-# 构建审稿回复（reply.md 顶部 YAML 添加 reply: manuscript.md）
-papper build docx reply.md -o output/docx/reply.docx
-papper build html reply.md
 ```
 
-`papper doctor` 可以在任意目录运行；缺少 `manuscript.md` 或 `style.yml` 只会输出信息提示，不会导致诊断失败。`--export-reference-doc [PATH]` 仅导出当前生效的 reference DOCX，跳过实际构建，省略路径时写入当前目录的 `reference-doc.docx`；已有稿件输出保持不变。未指定稿件且默认 `manuscript.md` 不存在时，仍可按项目样式和内置默认值导出；存在或显式选中的稿件只提供 YAML 配置，正文不参与构建。导出包含生效的 `docxStyle` 和页边距，源 reference 文件保持不变；行号和页码仍应用于最终稿件。`--reference-doc PATH` 优先于 `PMT_REFERENCE_DOC`，两者均未设置时使用内置 reference。若要保留自定义 reference 的页边距，在 `style.yml` 设置 `docxPageMargins: null`；若要同时保留其全部文字样式，再设置 `docxStyle: null`。详见[`papper guide style one-off-docx-builds`](docs/style-configuration.md#one-off-docx-builds)。
+打开 **`output/docx/manuscript.docx`** 查看结果。之后编辑 `manuscript.md`，再次构建即可生成新的 Word 稿件。
 
-HTML 构建使用通用 Pandoc filter 处理中文嵌套编号和
-`!<!`/`!^!` 表格单元格合并，再通过 HTML 后处理插入作者信息。DOCX
-还使用通用 AST filter 处理独立行内公式的尾部空格。
-HTML 构建会强制使用适合独立 HTML 的原生行间公式设置：编号使用
-`\tag` 和 `$$i$$`，关闭块公式转行内公式，并关闭公式表格布局。
-三线表外观来自 Pandoc 内置的 standalone HTML CSS。直接运行 Pandoc
-时需要加 `-s`/`--standalone` 才会把这段 CSS 写入文件；不加时只会输出
-HTML 片段。
+需要中文主稿和审稿回复模板时，将初始化命令换成 `papper init my-paper --lang zh-cn`。运行 `papper doctor` 可以检查安装环境。
 
-中文构建（DOCX、HTML、LaTeX 和 JSON）默认使用内置的《GB/T 7714—2015（顺序编码，双语，姓名不大写，无 URL、DOI）》CSL。稿件 metadata 或 `style.yml` 中显式设置的 `csl` 优先。其他构建默认使用内置的 Elsevier Vancouver CSL。
+## VS Code 扩展
 
-Papper 读取 `style.yml` 和稿件 YAML 头部后，根据构建语言生成 Pandoc 默认元数据，再依次合并 `style.yml:pandocMetadata`、头部中的 `papperSettings.pandocMetadata` 和普通稿件 YAML 字段。题注、交叉引用前缀、参考文献标题及 `csl` 的显式设置均高于语言默认值。构建 DOCX 时，`--lang zh-cn` 可以为本次构建选择中文默认值，即使稿件声明了其他语言。
-随包发布的 `defaults/style.yml` 和 `defaults/style-cn.yml` 分别提供英文、中文构建默认值。`papper init` 生成的项目 `style.yml` 只用于覆盖需要调整的值；未填写的值取自当前构建语言对应的随包 YAML。
-若只需调整当前构建稿件的样式，可在其 YAML 头部加入 `papperSettings` 映射。配置键只能使用规范名称，如 `docxPageWidth`、`pandocMetadata`；不接受连字符、下划线、大小写变体或缩写。其配置项、合法值与 `style.yml` 相同，优先级高于自动发现或显式选择的样式文件；嵌套映射递归合并，未填写的字段继续继承。普通稿件 YAML 字段仍优先于 `papperSettings.pandocMetadata`。详见[单稿件样式覆盖](docs/style-configuration.md#per-manuscript-style-overrides)。
-`papper build` 的 DOCX、LaTeX、HTML 和 JSON 目标均支持 `--style-file PATH`。指定后，本次构建只读取该文件作为项目样式，不再自动查找和合并稿件目录及当前目录的 `style.yml`。相对路径以当前工作目录为基准，也支持绝对路径；文件不存在或路径指向目录时会报错。内置语言默认值仍然生效，稿件 YAML 仍优先于所选文件的 `pandocMetadata`。不传此参数时保留原有的自动查找和合并行为。
-中文 DOCX 和 HTML 输出的章节标题与章节交叉引用使用点号编号，例如 `3.1`；图、表和公式使用按章节的横杠编号，例如 `3-1`。JSON AST 保留解析后的引用文本。LaTeX 源码保留原生 `\ref`，显示的编号由 TeX 编译阶段决定。
+在 VS Code 中写作时，可以安装我们配套的 [Pandoc Manuscript Tools 扩展](https://marketplace.visualstudio.com/items?itemName=cesaryuan.pandoc-manuscript-tools)：
 
-## 这个项目最吸引人的地方
+- **引用导航与补全**：跳转到标签、查找引用、输入 `@` 补全标签，并提示未定义引用和重复标签。
+- **悬停预览**：编辑时直接查看公式及本地 SVG、EMF、WMF 图片。
+- **更清楚的稿件显示**：高亮 Pandoc 块与 span、折叠修订属性，并用识别 Pandoc 语法的大纲浏览章节。
+- **图片目录预览**：按网格、瀑布流或文件夹查看图片。
+- **审稿回复导航**：在 `reply_to_reviewers.md` 中跳转到工作区根目录 `manuscript.md` 的标签。
 
-### 1. Markdown 真的适合写和改
+## 实际输出
 
-Papper 不会逼你放弃纯文本写作。你的 manuscript 仍然易于 diff、重构、喂给 AI、以及协作审阅。
+下面展示主稿和审稿回复示例经 Microsoft Word 渲染的真实页面。公式使用 `mathtype: true` 和 `mathtypeConversionMethod: mathtype` 构建，由已安装的 MathType 应用完成转换。
 
-### 2. DOCX 不是附带功能，而是主要目标
+[![真实 Word 输出：主稿首页、表格与公式、审稿回复。](docs/assets/docx-examples.png)](docs/assets/docx-examples.png)
 
-很多学术写作工具链把 DOCX 当成“顺便导出一下”。Papper 从一开始就是 Word 导向的，默认设置和后处理都围绕最终交付文档来设计。
+可以查看[英文稿件源文件](template/manuscript.md)、[中文稿件源文件](template/manuscript-cn.md)和[审稿回复模板](template/reply_to_reviewers.md)，点击预览图可放大。这些示例展示支持的排版能力，具体期刊格式仍需按要求配置和检查。
 
-### 3. 面向真实投稿细节
+也可以下载[主稿 DOCX](docs/assets/examples/manuscript.docx)和[审稿回复 DOCX](docs/assets/examples/reviewer-reply.docx)，在 Word 中检查排版和可编辑的 MathType 对象。
 
-Papper 关注的不只是“把 Markdown 转成 Word”，还包括那些常常在投稿前最后几天最容易出问题的环节：
+## 核心能力
 
-- 审稿回复
-- 图表引用
-- 公式编号
-- 参考文献格式
-- Word reference document
-- SVG 等 DOCX 图片边界情况
+Papper 基于 Pandoc 和 pandoc-crossref，将论文模板、Word 排版和审稿回复流程整合到一个命令行工具中。
 
-### 4. 适合自动化，但文件仍然透明
+| 你要完成的事 | Papper 提供的支持 |
+| --- | --- |
+| 起草和反复修改论文 | Markdown 源文件、可复用的项目结构，以及供 AI Agent 读取的写作指引 |
+| 保持引用一致 | CSL 参考文献格式，以及图、表、公式和章节的交叉引用 |
+| 准备 Word 主稿 | 作者信息、表格格式、公式编号、页面设置和 reference DOCX 样式 |
+| 交付可编辑公式 | Word 原生公式或可编辑的 MathType 兼容对象 |
+| 回复审稿意见 | 复用主稿编号的 DOCX、HTML 审稿回复，以及可选的行号定位 |
+| 接入已有 Word 稿件 | DOCX 导入，恢复支持的公式、题注、图片和引用关系 |
 
-整个流程可以脚本化、可复现、可版本控制，但生成出来的项目结构依然是研究者一眼能看懂的论文目录，而不是黑盒。
+内置中英文模板。中文构建提供本地化引用前缀、按章节编号的图表公式和 GB/T 7714 引文样式，显式指定的引文样式优先。也支持 HTML 预览和 JSON 导出。
+
+## 日常写作与返修
+
+初始化后，项目包含 `manuscript.md`、`style.yml`、`reply_to_reviewers.md`、示例图片与参考文献，以及 Agent 指引。稿件内容写在 Markdown 中，可复用的排版设置放在 `style.yml`。
+
+```bash
+papper build docx
+papper build html
+papper build docx reply_to_reviewers.md
+```
+
+审稿回复模板已在 YAML 头部声明 `reply: manuscript.md`。回复中使用主稿已有的图、表、公式和章节标签，可以保持引用编号一致。[查看审稿回复语法与行号定位 →](docs/manuscript-syntax.md#reviewer-replies)
+
+需要为某个期刊选择样式文件或 Word reference 文档时：
+
+```bash
+papper build docx --style-file styles/journal.yml
+papper build docx --reference-doc journal-reference.docx
+```
+
+这两个示例文件需要自行准备。CSL 控制参考文献格式，`style.yml` 和 reference DOCX 控制文档外观。适配期刊模板前，请先阅读[自定义 reference 与样式优先级](docs/style-configuration.md#one-off-docx-builds)。
+
+已有 Word 初稿也可以导入到独立目录：
+
+```bash
+papper convert existing-paper.docx -o converted
+```
+
+命令生成 `converted/existing-paper.md` 及其图片资源。导入后请与原稿核对；复杂 Word 布局可能需要手工整理。[查看导入示例与恢复范围 →](docs/DOCX_IMPORT.md)
+
+## 适合怎样的工作方式？
+
+如果你希望保留 Markdown 稿件源文件，在修改时使用 AI 或 Git，并最终交付 Word，Papper 会比较适合。需要反复构建主稿和审稿回复时，它的价值尤其明显。
+
+用于投稿前，请注意：
+
+- **Markdown 是持续维护的源文件。** 在生成的 DOCX 中修改内容，不会自动合并回 Markdown；Word 导入是单独的操作。
+- **投稿格式仍需检查。** 配置好引文样式和文档外观后，应按期刊要求核对最终 DOCX，Papper 不保证自动满足所有出版社模板。
+- **回复中的行号定位可能依赖 Office 软件。** 从 Markdown 或 Word 生成行号来源时，Windows 需要 Microsoft Word，其他平台需要 LibreOffice；提供合适的 PDF 可省去这一步转换。
+- **最终分页请在 Word 中检查。** HTML 预览方便检查内容，其分页和布局可能与 Word 不同。
 
 ## 文档导航
 
-运行 `papper guide` 查看语法与配置的章节目录和简介，再按需读取，例如
-`papper guide syntax equations` 或 `papper guide style docx-text-styles`。
-有子小节的章节会列出小节目录；例如
-`papper guide syntax advanced-table-formatting/cell-merging` 只读取单元格合并说明。
-需要全文时使用 `papper guide syntax --full` 或 `papper guide style --full`。
-章节名称以当前命令列出的目录为准。
-
-- `papper guide syntax`：稿件 YAML 与 Markdown 语法、引用、交叉引用、图片、表格和修订标记（[指南源文件](docs/manuscript-syntax.md)）
-- `papper guide style`：项目排版、引文样式、DOCX 选项和构建设置（[指南源文件](docs/style-configuration.md)）
-- [`template/manuscript.md`](template/manuscript.md)：示例稿件
-- [`AGENTS.md`](AGENTS.md)：仓库级 agent 指南
-- [`docs/MANUSCRIPT_RENDERING.md`](docs/MANUSCRIPT_RENDERING.md)：面向 Papper 维护者的渲染实现说明
-
-## 什么时候特别适合用 Papper
-
-如果你符合下面这些情况，Papper 会很合适：
-
-- 你会大量借助 AI 起草和修改论文
-- 你希望稿件源文件更适合 Git 管理，而不是直接修改二进制 Word
-- 目标期刊仍然要求 DOCX
-- 你需要一套可重复的主稿和审稿回复工作流
-- 你想要 Pandoc 的能力，但不想强迫所有合作者都进入 LaTeX-first 工作方式
-
-## 命令速览
+安装后的 CLI 内置写作与配置指南，你和 AI Agent 都可以直接在稿件项目中查询：
 
 ```bash
-papper init my-paper
-papper setup
-papper doctor
-papper build docx
-papper build html
-papper build latex
-papper build json
-papper build docx reply.md -o output/docx/reply.docx
-papper clean
+papper guide
+papper guide syntax equations
+papper guide style docx-text-styles
 ```
 
-完整 CLI 请查看 `papper --help`。
+`papper guide` 列出章节与简短说明。指定章节或 `章节/小节` 可按需读取；在 `syntax` 或 `style` 后添加 `--full` 可查看全文。
 
-在 `style.yml` 中使用 `docxHeader` 自定义 DOCX 页眉，Markdown、页码格式和对齐方式与页脚相同：
+| 想了解的内容 | 入口 |
+| --- | --- |
+| 稿件 YAML、引文、图表和公式语法 | [`papper guide syntax`](docs/manuscript-syntax.md) |
+| 页面、字体、引文样式和 Word 设置 | [`papper guide style`](docs/style-configuration.md) |
+| DOCX 导入与可选的引用恢复 | [导入指南](docs/DOCX_IMPORT.md) |
+| 编辑器集成与本机 HTML API | [运行时与集成文档](docs/RUNTIME_AND_INTEGRATION.md) |
+| 源码构建与验证 | [开发指南](DEVELOPMENT.md) |
+| 打包与发布 | [维护者发布指南](docs/RELEASING.md) |
+| 渲染实现 | [渲染内部说明](docs/MANUSCRIPT_RENDERING.md) |
 
-```yaml
-docxHeader:
-  content: '**Review copy** · []{t="pageNum" format="upperRoman"}'
-  alignment: right
-```
+## 更新与反馈
 
-页眉默认 `null`，保留参考文档页眉；空 `content` 清空页眉。字体和字号通过 `docxStyle` 的 `Header` 样式配置。
+使用 `uv tool upgrade papper` 升级。运行 `papper --help` 或 `papper build --help` 查看命令与选项；需要诊断日志时添加 `--verbose`。
 
-在 `style.yml` 中使用 `docxFooter` 自定义 DOCX 页脚文字和对齐方式：
+遇到问题时，请[提交 issue](https://github.com/cesaryuan/papper/issues)，附上 Papper 版本、操作系统、执行命令和最小复现示例。分享前请移除保密稿件内容。
 
-```yaml
-docxFooter:
-  content: '- []{t="pageNum"} -'
-  alignment: center
-```
-
-`[]{t="pageNum"}` 插入动态页码，以上示例显示为 `- 1 -`、`- 2 -`。
-`content` 支持 Pandoc Markdown，包括加粗、斜体、链接、图片、列表和表格。
-使用 `[]{t="pageNum" format="upperRoman"}` 可显示大写罗马数字页码；
-省略 `format` 时沿用参考文档当前节的编号格式。
-`alignment` 支持 `left`、`center` 和 `right`，默认页脚为居中的页码。
-使用 `docxFooter: null` 保留参考文档页脚，使用空 `content` 清空页脚。
-新配置会替换参考文档的整个页脚；旧 `docxShowPageNumbers` 仍兼容。
-配置优先级与支持范围见
-[`papper guide style docx-page-layout`](docs/style-configuration.md#docx-page-layout)。
-
-DOCX 支持用空 span 插入原生内容：`[]{t="toc" title="目录"}`、
-`[]{t="listofFigures" includeSubfigures="true"}`、`[]{t="listofTables"}`、
-`[]{t="sectionBreak" pageStart="1" footer='第 []{t="pageNum"} 页'}`、
-`[]{t="pageBreak"}` 和 `[]{t="date"}`。页码也可以插在正文中。
-目录与分节符独占段落，分节选项作用于后续内容；在 Word 中更新目录后取得条目和页码。
-完整选项见 [`papper guide syntax docx-native-insertions`](docs/manuscript-syntax.md#docx-native-insertions)。
-
-`papper build docx` 的原生交叉引用默认关闭。在 `style.yml` 顶层设置：
-
-```yaml
-docxNativeCrossref: true
-```
-
-默认值 `false` 完整保留原有 Pandoc 编号和超链接引用行为。开启后，图、表、公式
-使用原生 `SEQ` 编号和 `REF` 引用；章节标题使用关联标题样式的 Word 多级列表，
-章节编号引用使用 `REF ... \r \t \h`。章节编号仍遵循 `numberSections`、
-`sectionsDepth` 以及不编号标题的设置。常规一级章节前缀使用 `STYLEREF`，项目
-序列通过 `SEQ \s 1` 随章节重启。图、表的 `SEQ` 序列名分别取去除首尾空白后的
-`figureTitle`、`tableTitle`；标题为空时回退到 `Figure`、`Table`，公式序列名为
-`Equation`。
-数字制 CSL 参考文献的条目编号使用 `SEQ PapperBibliography`，正文引用编号使用
-指向对应编号书签的 `REF ... \h \* MERGEFORMAT`。保留 CSL 的方括号、上标、
-页码定位符和连续引用范围分隔符，范围的两端分别使用 REF 域。作者—年份制和无法
-识别的文献编号格式保留 citeproc 输出；显式设置 `link-citations: false` 时正文
-文献引用仍为纯文本。Word 可以重编号文献条目并更新 REF，但引用分组、排序或
-CSL 格式改变后仍需重新构建。
-原生引用书签名使用 `PapperRef-` 加 9 位随机小写字母或数字，总长
-19 个字符，并在本篇文档内排重；书签起止位置的数字
-ID 成对随机化，覆盖正文、脚注和页眉页脚，以降低合并文档时的冲突。
-修改文档后在 Word 中更新域；前向引用可能
-需要更新两遍。无法识别的自定义编号或模板保留 Pandoc 结果并给出提示。
-该选项仅用于主稿 DOCX 构建，其他输出目标和审稿回复继续使用原有流程。
-
-如果需要同时为编辑器或其他扩展启动（或复用）本机 Pandoc HTTP 服务，可以执行：
-
-```bash
-papper build html --start-server
-```
-
-命令会先请求 `http://127.0.0.1:3030/version`；已有可用的 PMT 服务时直接复用，否则
-启动项目绑定的 PMT runtime。需要使用其他通用 server 时才设置
-`PMT_PANDOC_SERVER_COMMAND`。服务地址会打印到构建日志，支持 `/`、`/batch`、
-`/version` 接口。
-Rust 服务的进程状态保存在 `~/.papper/projects/<project-id>/work/rust-v1/server-state.json`，配置与日志分别保存在同目录的 `server-config.json` 和 `server.log`。
-
-这个服务用于高频 Markdown 转换。它会读取当前项目的 PMT defaults 和 metadata，使用
-与正常 HTML 构建相同的 `pandoc-crossref` 与 Lua filter 链。带 `--start-server` 的首次
-HTML 构建也通过 `/convert/raw` 完成，后续构建复用同一个 worker。Markdown 可以位于
-工作目录项目之外；服务仍绑定工作目录项目，样式与资源查找保留源文件所在目录的上下文。若
-确实需要使用其他通用 server，可以显式指定：
-
-```powershell
-$env:PMT_PANDOC_SERVER_COMMAND = 'C:\path\to\pandoc-server.exe'
-papper build html --start-server --server-port 3030
-```
-
-仓库在 `scripts/pandoc-server` 中提供了最小的可执行入口。安装了 GHC/Cabal 且有
-匹配 Pandoc 3.11 的 Haskell 包时，可以将它构建到项目管理的工具目录：
-
-```powershell
-Push-Location .\scripts\pandoc-server
-cabal install . --installdir "$HOME\.papper\tools\bin" --overwrite-policy=always
-Pop-Location
-```
-
-Papper 包装后的服务不会要求扩展重复传 Pandoc 参数。使用 `GET /version` 检查服务，
-使用 `POST /convert` 并提交 `{"path":"manuscript.md"}` 转换单个文件（省略 path 时默认
-使用 `manuscript.md`）；也可以向
-`POST /batch` 提交多个 `{"path": ...}`。相对路径基于启动服务的项目目录解析，也接受
-指向项目外 Markdown 的绝对路径或相对路径。编辑器可以向 `/convert/raw` 提交
-`{"path":"<源文件路径>","text":"<当前编辑器文本>"}`，无需保存源文件。返回的
-HTML 会继续经过与 `papper build html` 相同的 PMT HTML 后处理。
-
-## 维护者发布与构建缓存
-
-发布 wheel 时，Typst CLI 必须与 `Cargo.lock` 中 `typst-library` 的版本一致。
-CI 会从官方发布包安装对应版本。本地打包前，先运行
-`uv run --script tools/ci/prepare-typst.py`，再把仓库的 `.pmt/typst/bin`
-目录加入 `PATH`。打包器会拒绝缺失或版本不匹配的 CLI，清除 MiTeX 规格的 release
-构建缓存，并显式启用 `papper-platform/generate-mitex-spec`，避免新编译的 wheel
-使用上游旧的预生成规格。安装包检查要求带圆圈的数学运算符全部转换为 MathType
-对象，不能退回 Word 原生公式。
-
-提交修改后，使用 `uvx bump-my-version bump patch` 更新版本，再运行
-`git push origin main --tags`。**Publish to PyPI** 的 `main` 运行会构建并验证
-Windows、macOS 和 Linux wheel，保留七天的构建产物；版本 tag 运行等待同一提交的
-`main` 构建完成后，直接复用这些 wheel 发布，不再重复编译三个平台。
-找不到对应构建、构建失败或产物已过期时，tag 运行会重新构建；等待超时则可以在
-`main` 构建完成后重跑 tag 工作流。手动选择 `main` 运行工作流也可以预热缓存。
-
-Rust 缓存键包含源码和嵌入资源，避免只修改源码时一直恢复旧编译产物。Haskell 缓存
-同时保存依赖、包索引、`.pmt/pandoc-worker` 和 `.pmt/pandoc-source`，其中 Linux
-也会保留本地 Pandoc 编译产物。macOS 缓存固定版本的 GHC/Cabal；Linux 缓存容器内
-固定版本的 Rust 和 GHC/Cabal 工具链。三个平台构建成功后，工作流只保留每个平台、
-每类发布缓存的最新快照，清理旧发布缓存；其他工作流和 tag 下的缓存不受影响。
-
-## 致谢
-
-- [Pandoc](https://pandoc.org/)
-- [pandoc-crossref](https://github.com/lierdakil/pandoc-crossref)
-
-## 支持
-
-- 运行 `papper guide syntax` 查看稿件语法，运行 `papper guide style` 查看配置说明
-- 提 issue 时尽量附上最小可复现示例
+Papper 自有代码采用 [MIT 许可证](LICENSE)，随包组件保留各自的许可证和声明。感谢 [Pandoc](https://pandoc.org/) 和 [pandoc-crossref](https://github.com/lierdakil/pandoc-crossref) 提供文档转换与交叉引用基础。

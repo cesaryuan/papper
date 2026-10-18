@@ -1,5 +1,63 @@
 # Development
 
+Start here for source builds and validation. See [runtime and editor integration](docs/RUNTIME_AND_INTEGRATION.md) for the local HTML API and [release packaging](docs/RELEASING.md) for maintainer publication procedures.
+
+## Source Development and Validation
+
+Install the pinned Rust toolchain, GHC 9.14.1 and Cabal 3.18.1.0, then run:
+
+```bash
+cargo check --workspace --locked
+cargo test --workspace --locked
+cargo run -p papper-dev -- worker
+uv sync
+uv run pytest
+```
+
+`uv sync` installs a native development CLI. Python only drives integration
+tests and inspects artifacts produced by Rust and the active Haskell/Lua filters.
+Pytest builds the current Rust CLI once per session, so tests do not depend on
+the installed development executable being up to date. `tests/legacy/` is a
+historical archive excluded from active tests and development installations.
+Build the worker once with the command above so native format checks use the
+current pinned profile rather than an older full-format development binary.
+After changing native CLI code, use `uv sync --reinstall-package papper` to
+refresh that development executable. Release wheels omit the archive and
+have no Python runtime dependencies. Build and validate a release wheel with
+`cargo run -p papper-dev -- wheel --output dist` and
+`cargo run -p papper-dev -- smoke --wheel <wheel-path>`.
+
+Papper-owned configuration uses typed Rust fields and controlled updates;
+Papper configuration keys use exact camelCase names; explicit false/null
+precedence remains supported.
+Arbitrary Pandoc metadata stays separate. MathType OLE/MTEF conversion and
+LaTeX-to-WMF rendering link Rust libraries directly, with owned results and
+ordinary Rust errors. PDF geometry extraction links MuPDF 1.27.2 through
+`mupdf-sys` 0.8.0 with PDF and Base14 fonts enabled. Its C exception wrappers
+return native errors to the isolated Rust PDF helper; no MuPDF DLL is loaded.
+Source builds require a C/C++ compiler and libclang, as described in
+[DEVELOPMENT.md](#native-pdf-extraction).
+
+The bundled Worker registers Papper's Markdown, HTML, LaTeX, DOCX, JSON/native
+and bibliography formats. Other Pandoc formats such as Org, EPUB, ODT, PPTX and
+RST are excluded from its registry. This also applies to Lua reader/writer calls.
+The source profile and build procedure are documented in
+[scripts/pandoc-server/README.md](scripts/pandoc-server/README.md).
+
+The former `pandoc_manuscript` Python import API and `python -m` utilities are
+not included in native wheels. Use the public native commands or the Rust
+workspace libraries for integrations. The reference remains available to
+repository tests only. Existing manuscript files and style configuration
+continue to work; native state uses a separate `work/rust-v1` namespace.
+The background HTML service runs from an independent, content-addressed binary,
+so `uv tool upgrade papper` can replace the Windows CLI entry points while the
+service remains running. The next `papper build html --start-server` checks the
+actual service version and binary identity. It gracefully stops an older native
+service for the same project and starts the installed version on the same port,
+preserving project outputs and disk caches. An unchanged service is reused;
+another project's service is never stopped. Services started by releases before
+this isolation fix still need to be stopped once before upgrading on Windows.
+
 ## Native PDF extraction
 
 The CLI links MuPDF 1.27.2 through the locked `mupdf-sys` 0.8.0 crate with
