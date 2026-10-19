@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Papper：用 Markdown 写论文，用 Word 交稿。">
+    <title>Papper · 安装与下载</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { max-width: 44rem; margin: 12vh auto; padding: 0 1.5rem; line-height: 1.8; }
+      h1 { margin-bottom: 0; font-size: 2.8rem; }
+      .tagline { margin-top: .2rem; font-size: 1.25rem; }
+      pre { padding: 1rem 1.25rem; background: light-dark(#f1f5f9, #1e293b); border-radius: .5rem; overflow: auto; }
+      a { color: light-dark(#155e75, #67e8f9); }
+      footer { margin-top: 3rem; font-size: .9rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Papper</h1>
+      <p class="tagline">用 Markdown 写论文，用 Word 交稿。</p>
+      <p>将 Markdown 稿件构建为 Word 文档，处理参考文献、图表与公式编号，以及审稿回复。</p>
+      <h2>安装</h2>
+      <p>无需预装 Python 或 uv，无需管理员权限。自动检测公网 IP：中国 IP 使用 CERNET 镜像，其他地区使用官方 PyPI，校验 SHA-256 后安装到当前用户目录。</p>
+      <h3>Windows x64 · PowerShell</h3>
+      <pre><code>irm https://papper.cesaryuan.top/install.ps1 | iex</code></pre>
+      <h3>Linux x86_64 / macOS Apple Silicon · 终端</h3>
+      <pre><code>curl -fsSL https://papper.cesaryuan.top/install.sh | sh</code></pre>
+      <p>Linux 需要 glibc 2.28 及以上、<code>curl</code> 和 <code>unzip</code>；macOS 需要 14 及以上。Windows 请使用 64 位 PowerShell 5.1 或更新版本。</p>
+      <p>安装完成后打开新终端，运行 <code>papper --version</code>。再次运行安装命令即可升级。</p>
+      <p><a href="/install.ps1">查看 PowerShell 脚本</a> · <a href="/install.sh">查看 Shell 脚本</a> · <a href="#advanced">指定版本、切换镜像与卸载</a></p>
+      <h3>已经安装 uv？</h3>
+      <pre><code>uv tool install papper</code></pre>
+      <p>两种安装方式任选其一。若迁移到独立安装，先运行 <code>uv tool uninstall papper</code>，避免 PATH 中出现多个版本。</p>
+      <details id="advanced">
+        <summary>指定版本、镜像、安装目录与卸载</summary>
+        <p>Windows 可先设置环境变量，再运行安装命令。例如指定版本、使用官方 PyPI：</p>
+        <pre><code>$env:PAPPER_VERSION = '0.11.3'
+$env:PAPPER_INDEX_URL = 'https://pypi.org/simple'
+irm https://papper.cesaryuan.top/install.ps1 | iex</code></pre>
+        <p>Linux / macOS 可以向脚本传参：</p>
+        <pre><code>curl -fsSL https://papper.cesaryuan.top/install.sh | sh -s -- --version 0.11.3 --index-url https://pypi.org/simple</code></pre>
+        <p>两种脚本都支持 <code>PAPPER_VERSION</code>（默认 <code>latest</code>）、<code>PAPPER_INDEX_URL</code>（手动指定索引后跳过 IP 检测）、<code>PAPPER_INSTALL_DIR</code>（绝对安装路径）和 <code>PAPPER_NO_MODIFY_PATH=1</code>（不配置 PATH）。镜像地址应使用以 <code>/simple</code> 结尾的索引地址。</p>
+        <p>自动检测依次查询 Cloudflare trace 和 IPinfo，每次请求设置 2 秒超时；只有国家代码为 <code>CN</code> 才使用 <code>https://mirrors.cernet.edu.cn/pypi/web/simple</code>，其他地区或检测失败使用官方 PyPI。自动选择的镜像索引不可用时也会回退官方源。检测反映当前网络出口，代理 / VPN 会影响结果。</p>
+        <p>默认安装到 Windows 的 <code>%LOCALAPPDATA%\Programs\Papper</code> 或 Linux / macOS 的 <code>~/.local/share/papper</code>。自定义目录升级时须使用同一个目录。校验失败不会切换现有版本，历史版本保存在安装目录的 <code>releases</code> 下。</p>
+        <p>卸载时删除安装目录，并从 Windows 用户 PATH 或安装时提示的 shell 配置文件中移除该目录的 <code>bin</code> 条目。稿件目录和 <code>~/.papper</code> 运行缓存会保留。</p>
+        <p>目前不提供 Linux ARM64、Alpine / musl、Intel Mac 和 Windows ARM64 原生安装包。</p>
+      </details>
+      <h2>开始写作</h2>
+      <pre><code>papper init my-paper
+cd my-paper
+papper build docx</code></pre>
+      <p>打开 <code>output/docx/manuscript.docx</code> 查看结果。</p>
+    </main>
+    <footer>
+      <a href="https://github.com/cesaryuan/papper">GitHub</a> ·
+      <a href="https://github.com/cesaryuan/papper/blob/main/README.zh-CN.md">使用说明</a> ·
+      <a href="https://pypi.org/project/papper/">PyPI</a>
+    </footer>
+  </body>
+</html>

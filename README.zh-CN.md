@@ -10,7 +10,23 @@ Papper 将 Markdown 稿件构建为 Word 文档，处理参考文献、图表与
 
 ## 让 AI 使用 Papper
 
-先安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)，再安装 Papper：
+无需 Python 或 uv，直接安装 Papper（自动检测公网 IP：中国 IP 使用 CERNET 镜像，其他地区使用官方 PyPI）：
+
+Windows x64，在 64 位 PowerShell 中运行：
+
+```powershell
+irm https://papper.cesaryuan.top/install.ps1 | iex
+```
+
+Linux x86_64（glibc ≥ 2.28）或 macOS 14+（Apple Silicon）：
+
+```bash
+curl -fsSL https://papper.cesaryuan.top/install.sh | sh
+```
+
+安装后打开新终端。安装器会校验 SHA-256，安装到当前用户目录并配置 PATH；Linux 需要 `curl`、`unzip`。参见[安装、升级与卸载](docs/INSTALLATION.md)了解指定版本、切换镜像和自定义目录。
+
+也可以继续使用已安装的 [uv](https://docs.astral.sh/uv/getting-started/installation/)（两种方式任选其一）：
 
 ```bash
 uv tool install papper
@@ -141,7 +157,7 @@ papper guide style docx-text-styles
 
 ## 更新与反馈
 
-使用 `uv tool upgrade papper` 升级。运行 `papper --help` 或 `papper build --help` 查看命令与选项；需要诊断日志时添加 `--verbose`。
+独立安装用户重新运行安装命令即可升级；uv 用户使用 `uv tool upgrade papper`。运行 `papper --help` 或 `papper build --help` 查看命令与选项；需要诊断日志时添加 `--verbose`。
 
 遇到问题时，请[提交 issue](https://github.com/cesaryuan/papper/issues)，附上 Papper 版本、操作系统、执行命令和最小复现示例。分享前请移除保密稿件内容。
 

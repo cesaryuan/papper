@@ -2,6 +2,9 @@
 
 Start here for source builds and validation. See [runtime and editor integration](docs/RUNTIME_AND_INTEGRATION.md) for the local HTML API and [release packaging](docs/RELEASING.md) for maintainer publication procedures.
 
+For the public static download site, its deployment paths, and file publication
+procedure, see [installer download hosting](docs/INSTALLER_HOSTING.md).
+
 ## Source Development and Validation
 
 Install the pinned Rust toolchain, GHC 9.14.1 and Cabal 3.18.1.0, then run:

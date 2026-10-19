@@ -10,7 +10,23 @@ Papper turns Markdown manuscripts into Word documents with citations, numbered f
 
 ## Write with an AI agent
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then install Papper:
+Install Papper directly without Python or uv. The installer detects your public IP country, using the CERNET mirror for China (`CN`) and official PyPI elsewhere.
+
+On Windows x64, run in a 64-bit PowerShell:
+
+```powershell
+irm https://papper.cesaryuan.top/install.ps1 | iex
+```
+
+On Linux x86_64 (glibc ≥ 2.28) or macOS 14+ (Apple Silicon):
+
+```bash
+curl -fsSL https://papper.cesaryuan.top/install.sh | sh
+```
+
+Open a new terminal after installation. The installer verifies SHA-256, installs into your user directory, and configures PATH. Linux needs `curl` and `unzip`. See [installation, upgrades, and removal](docs/INSTALLATION.md) for version pinning, alternate indexes, and custom directories.
+
+If you already use [uv](https://docs.astral.sh/uv/getting-started/installation/), this remains supported. Choose one installation method:
 
 ```bash
 uv tool install papper
@@ -141,7 +157,7 @@ papper guide style docx-text-styles
 
 ## Updates and support
 
-Upgrade with `uv tool upgrade papper`. Run `papper --help` or `papper build --help` for commands and options; add `--verbose` when you need diagnostic logs.
+For a standalone installation, rerun the installer to upgrade. For a uv installation, use `uv tool upgrade papper`. Run `papper --help` or `papper build --help` for commands and options; add `--verbose` when you need diagnostic logs.
 
 For a problem, [open an issue](https://github.com/cesaryuan/papper/issues) with your Papper version, operating system, command, and a minimal example that reproduces it. Remove confidential manuscript content before sharing.
 
