@@ -115,6 +115,10 @@ If you installed with uv, continue using `uv tool upgrade papper`, or first run
 `uv tool uninstall papper` and then use the standalone installer. Multiple
 installations on PATH can cause the wrong version to run. Diagnose this with
 `Get-Command papper -All` on PowerShell or `command -v papper` on Unix.
+Update notifications recognize standalone installations and show a platform-specific
+installer command that upgrades the same directory to the latest version, including
+custom installation paths. These upgrade commands preserve your existing PATH settings.
+Legacy wheel installations retain the `uv tool upgrade papper` instruction.
 Older Papper versions may still mention uv in their update notification; for a
 standalone installation, rerunning its installer is the correct upgrade method.
 

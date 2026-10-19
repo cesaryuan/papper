@@ -1084,6 +1084,40 @@ fn timestamp() -> f64 {
         .as_secs_f64()
 }
 
+/// Recognize the standalone release layout without treating unrelated parent markers as receipts.
+fn standalone_install_root(executable: &Path) -> Option<PathBuf> {
+    let executable = fs::canonicalize(executable).ok()?;
+    let bin = executable.parent()?;
+    let releases = bin.parent()?.parent()?;
+    if bin.file_name()? != "bin" || releases.file_name()? != "releases" {
+        return None;
+    }
+    let root = releases.parent()?;
+    let marker = fs::read_to_string(root.join(".papper-installer")).ok()?;
+    (marker.trim() == "papper-installer-v1").then(|| root.to_path_buf())
+}
+
+/// Upgrade the active standalone prefix; preserve the uv hint for legacy wheel installations.
+fn upgrade_command(executable: Option<&Path>) -> String {
+    let Some(root) = executable.and_then(standalone_install_root) else {
+        return "uv tool upgrade papper".into();
+    };
+    let root = display_path(&root);
+    // Explicit directory/version arguments prevent custom installs or an old
+    // PAPPER_VERSION environment variable from upgrading a different installation.
+    if cfg!(windows) {
+        let quoted = root.replace('\'', "''");
+        format!(
+            "& ([scriptblock]::Create((irm https://papper.cesaryuan.top/install.ps1))) -InstallDir '{quoted}' -Version latest -NoModifyPath"
+        )
+    } else {
+        let quoted = root.replace('\'', "'\\''");
+        format!(
+            "curl -fsSL https://papper.cesaryuan.top/install.sh | sh -s -- --install-dir '{quoted}' --version latest --no-modify-path"
+        )
+    }
+}
+
 /// Print a cached hint and spawn a silent refresh only after a completed public command.
 pub fn notify_and_schedule_update_check(installed: &str) {
     if std::env::var("PAPPER_DISABLE_UPDATE_CHECK").is_ok_and(|value| value == "1") {
@@ -1091,7 +1125,9 @@ pub fn notify_and_schedule_update_check(installed: &str) {
     }
     let cache = read_update_cache(&update_cache_path());
     if let Some(latest) = cached_available_update(installed, cache.as_ref()) {
-        eprintln!("[UPDATE] Papper {latest} is available, upgrade with `uv tool upgrade papper`");
+        let executable = std::env::current_exe().ok();
+        let command = upgrade_command(executable.as_deref());
+        eprintln!("[UPDATE] Papper {latest} is available, upgrade with `{command}`");
     }
     if update_cache_needs_refresh(cache.as_ref(), timestamp())
         && let Ok(executable) = std::env::current_exe()
