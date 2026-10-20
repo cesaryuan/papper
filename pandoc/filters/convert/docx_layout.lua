@@ -358,7 +358,9 @@ function Pandoc(document)
   for _, entry in ipairs(original.entries) do
     zip_entries[#zip_entries + 1] = pandoc.zip.Entry(entry.path, entries[entry.path], entry.modtime)
   end
-  local parsed = pandoc.read(pandoc.zip.Archive(zip_entries):bytestring(), 'docx', PANDOC_READER_OPTIONS)
+  -- Layout recovery rereads the package; keep citation parsing enabled here too,
+  -- otherwise restored page breaks turn citation fields back into formatted text.
+  local parsed = pandoc.read(pandoc.zip.Archive(zip_entries):bytestring(), 'docx+citations', PANDOC_READER_OPTIONS)
   for name, value in pairs(document.meta) do parsed.meta[name] = value end
   -- A leading Word paragraph marker interrupts Pandoc's Title/Author metadata
   -- recognition and duplicates that text in the body. Insert initial settings

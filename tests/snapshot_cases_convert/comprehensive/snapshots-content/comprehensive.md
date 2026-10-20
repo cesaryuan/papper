@@ -1,3 +1,7 @@
+---
+bibliography: comprehensive.bib
+---
+
 # Comprehensive DOCX import
 
 下面是个公式
@@ -24,9 +28,7 @@ $$\sqrt{b^2-4ac}$$ {#eq:_Ref241620691}
 
 参考文献：
 
-如\[1\]所见
-
-\[1\] Long F, Bao Y, Hou R. Region-aware neural radiance fields for three-dimensional building reconstruction and facade detail preservation. Dev Built Environ 2026;27:101019.
+如[@longRegionawareNeuralRadiance2026]所见
 
 # Word content
 

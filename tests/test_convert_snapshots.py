@@ -1,4 +1,4 @@
-"""Snapshot DOCX imports as Markdown and a normalized media filename tree.
+"""Snapshot DOCX imports as Markdown, companion bibliography, and normalized media.
 
 Each Convert case keeps its input DOCX beside ``snapshots-content/``. Tests run
 the public Rust Convert command against the checked-in DOCX, without rebuilding
@@ -57,6 +57,7 @@ def test_convert_detects_chinese_language_from_document_text(
     assert result.returncode == 0, result.stdout + result.stderr
     markdown = (output / "language.md").read_bytes().decode("utf-8")
     assert "\r" not in markdown
+    assert not list(output.glob("*.bib")), "Documents without citation data must not produce an empty bibliography"
     if expected_language:
         assert markdown.startswith("---\n")
         header, body = markdown[4:].split("\n---\n", 1)
@@ -230,6 +231,12 @@ def test_convert_output_matches_snapshot(
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(path.read_bytes())
     assert_snapshot(markdown, expected / markdown_name, update=snapshot_update)
+    # Protect exported reference data as well as Markdown citation keys: a writer
+    # regression must not silently leave a valid-looking manuscript without its sources.
+    bibliography_name = f"{case_name}.bib"
+    bibliography = (output / bibliography_name).read_bytes().decode("utf-8")
+    assert "\r" not in bibliography
+    assert_snapshot(bibliography, expected / bibliography_name, update=snapshot_update)
     assert output_tree(output) == output_tree(expected), "Convert output file/directory tree differs from the snapshot"
 
 

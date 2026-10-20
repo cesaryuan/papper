@@ -473,6 +473,38 @@ fn reference_exports_preserve_custom_styles_and_effective_margins() -> Result<()
     Ok(())
 }
 
+/// Verify suspicious rendered text warns on stderr and still publishes a commented DOCX successfully.
+#[test]
+#[ignore = "Requires a prepared Pandoc engine; run with --ignored for real DOCX builds"]
+fn syntax_warnings_keep_a_successful_exit_code_and_annotate_output() -> Result<()> {
+    let project = tempfile::tempdir()?;
+    fs::write(
+        project.path().join("paper.md"),
+        "# Example\n\nFigure Figure 1\n\nTable (Table 2)\n",
+    )?;
+    let output = cli(
+        project.path(),
+        &[
+            "build",
+            "docx",
+            "paper.md",
+            "--no-mathtype",
+            "-o",
+            "paper.docx",
+        ],
+        None,
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    successful(output);
+    assert!(stderr.contains("[WARNING] DOCX syntax check"), "{stderr}");
+    assert!(stderr.contains("Figure Figure 1") && stderr.contains("Table (Table 2)"));
+    let docx = project.path().join("paper.docx");
+    let comments = part(&docx, "word/comments.xml")?;
+    assert!(comments.contains("Figure Figure 1") && comments.contains("Table (Table 2)"));
+    assert!(part(&docx, "word/document.xml")?.contains("commentReference"));
+    Ok(())
+}
+
 /// Doctor must succeed outside manuscript projects and when only one conventional file exists.
 #[test]
 #[ignore = "Requires a prepared Pandoc engine; run with --ignored for real diagnostics"]

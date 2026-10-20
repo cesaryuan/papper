@@ -8,6 +8,17 @@ configuration lives in
 Keep pipeline order, source locations, intermediate artifacts, and rendering
 algorithms here rather than in the user guides exposed by `papper guide`.
 
+## DOCX Import Bibliography
+
+Convert reads `docx+citations`. The existing `media_paths.lua` filter serializes
+nonempty `references` through `pandoc.write(..., 'biblatex')` into a companion
+file in the conversion work directory, then replaces inline references with a
+relative `bibliography` filename. This runs before `docx_layout_finish.lua`,
+because empty page stories may cause that filter to serialize metadata as a raw
+Markdown YAML block. Rust publishes the staged bibliography after Pandoc
+succeeds and before publishing the Markdown that refers to it. Reimports
+replace regenerated bibliography files, following the generated Markdown policy.
+
 ## DOCX Package Finalization
 
 Manuscript and reviewer-reply builds use `docx::finalize_docx` to read the
@@ -24,6 +35,28 @@ the build also publishes `<project-name>.marked.docx` before equation injection
 and retains formula sidecars. That diagnostic mode intentionally writes an
 additional archive. Standalone postprocessing and marked-DOCX conversion APIs
 remain available for callers that already have separate input files.
+
+## DOCX Syntax Diagnostics
+
+`docx/syntax.rs` runs at the end of optional DOCX postprocessing, before
+MathType injection. Residual Pandoc syntax, raw HTML, and duplicated reference
+labels produce stderr warnings rather than an error return. All scanned
+paragraphs are checked, and all matching categories in a paragraph are merged
+into one traditional Word comment authored by Papper. Hidden `MTLATEX:` source
+runs are excluded. Text-box paragraphs are scanned separately from their
+enclosing paragraphs.
+
+Body comments surround the affected paragraph without splitting or replacing
+runs, preserving formatting, fields, and hyperlinks. Findings in header,
+footer, footnote, and endnote parts are reported in comments anchored to the
+first body paragraph, with a readable story name, paragraph index, and text in
+the comment. Stderr diagnostics retain the exact source part path.
+This avoids comments in stories where Word cannot reliably display them.
+The comments part is discovered through the document relationship; existing
+comments, relationship IDs, and comment IDs are preserved. Newly created parts
+receive a relationship and content-type declaration before package normalization.
+Repeating postprocessing does not duplicate an unchanged Papper comment.
+Malformed XML, package I/O, and other genuine processing errors remain fatal.
 
 ## DOCX Custom Property Compatibility
 

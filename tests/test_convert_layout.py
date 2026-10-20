@@ -270,6 +270,11 @@ def test_convert_layout_retains_comprehensive_import_contract(
     metadata = yaml.safe_load(header)
     assert metadata.pop("papperSettings")["docxFooter"]["content"] == ""
     assert metadata == original_metadata
+    # Empty page stories serialize the YAML header early; the bibliography link
+    # and its reference data must survive that path together.
+    assert (output / metadata["bibliography"]).read_bytes() == (
+        case / "snapshots-content" / metadata["bibliography"]
+    ).read_bytes()
     assert content.count('[]{t="pageBreak"}') == 1
     assert content.replace('\n\n[]{t="pageBreak"}\n\n', "\n\n").lstrip("\n") == original_content.lstrip("\n")
     expected_media = {path.relative_to(case / "snapshots-content").as_posix()

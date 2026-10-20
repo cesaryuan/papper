@@ -685,13 +685,21 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     if temporary.path().join("media").is_dir() {
         publish_media_tree(&temporary.path().join("media"), &destination.join("media"))?;
     }
+    // The Lua filter stages recovered references before page-story metadata is serialized.
+    // Publish only after Pandoc succeeds, before Markdown starts referring to the file.
+    let bibliography = output.with_extension("bib");
+    if bibliography.is_file() {
+        let target = destination.join(bibliography.file_name().unwrap());
+        atomic_write(&target, &std::fs::read(&bibliography)?)?;
+        println!("[convert] Wrote {}", target.display());
+    }
     atomic_write(&destination.join(&output_name), markdown.as_bytes())?;
     println!(
         "[convert] Wrote {}",
         destination.join(&output_name).display()
     );
     println!(
-        "[convert] AI: Read `papper guide syntax cross-references` and `papper guide syntax citations`, then convert figure, table, equation, and heading cross-references in \"{}\" to Papper syntax (@fig:label, @tbl:label, @eq:label, @sec:label), adding matching target labels where needed; also convert the bibliography to a BibTeX .bib file, set bibliography in the manuscript YAML, and convert in-text citations to matching Pandoc citation keys (e.g. [@smith2023]); preserve references and citations that already use Papper format",
+        "[convert] AI: Read `papper guide syntax cross-references` and `papper guide syntax citations`, then convert figure, table, equation, and heading cross-references in \"{}\" to Papper syntax (@fig:label, @tbl:label, @eq:label, @sec:label), adding matching target labels where needed; convert any remaining plain-text bibliography entries to a .bib file, set bibliography in the manuscript YAML, and convert remaining plain-text in-text citations to matching Pandoc citation keys (e.g. [@smith2023]); preserve the exported .bib file and references and citations that already use Papper format",
         destination.join(output_name).display()
     );
     Ok(())

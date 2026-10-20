@@ -22,6 +22,15 @@ Only images still needed by the Markdown are saved. MathType recovery does not r
 
 Existing media are preserved. Identical images reuse their filenames; different images with a conflicting filename receive a new name and updated Markdown links. User-edited images are preserved too. **Reimporting the same DOCX replaces its generated Markdown file.** Choose a different output directory if you want to keep an earlier Markdown version.
 
+When the DOCX contains supported structured citation data, Convert also creates
+`existing-paper.bib` in BibLaTeX format and selects it with
+`bibliography: existing-paper.bib` in the Markdown YAML. In-text citations retain
+matching keys such as `[@smith2023]`. No empty `.bib` is created for documents
+without recovered bibliography data. Reimporting replaces the companion `.bib`
+when it is regenerated, so keep manual edits in a separate output directory.
+Plain-text references still need review; the final AI prompt asks your AI to
+finish those while preserving already converted references and citations.
+
 ## Equations and references
 
 Supported MathType OLE objects and WMF previews carrying MathType equation data become LaTeX math. A supported preview can also recover a formula when its OLE object is missing or damaged. Unrecognized or undecodable equations retain their preview images.
