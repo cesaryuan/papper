@@ -1420,6 +1420,10 @@ with the same filename receive a content-based suffix and updated Markdown paths
 Existing edited images are preserved too. Reimporting the same document replaces
 its Markdown file; use a separate output directory to keep multiple Markdown versions.
 
+Supported Word citation fields are imported as editable Pandoc citations rather
+than plain text. Recognition depends on the citation data stored in the DOCX;
+plain-text citations and bibliographies still need review.
+
 An independent formula with a confirmed Word bookmark and a numeric equation
 label becomes a display equation such as `$$x=y$$ {#eq:_Ref123}`. Formulas recovered
 from equation layout tables are exported as inline math beside their labels;

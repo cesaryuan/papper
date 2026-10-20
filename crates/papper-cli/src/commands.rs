@@ -593,7 +593,8 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     let output = temporary.path().join(&output_name);
     let mut command = vec![
         source.as_os_str().to_owned(),
-        "--from=docx".into(),
+        // Retain supported Word citation fields as editable citations instead of plain text.
+        "--from=docx+citations".into(),
         // Simple/multiline tables can split long image syntax at a column
         // boundary. Pipe/grid tables retain conservatively preserved layouts.
         "--to=markdown-simple_tables-multiline_tables".into(),
@@ -687,6 +688,10 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     atomic_write(&destination.join(&output_name), markdown.as_bytes())?;
     println!(
         "[convert] Wrote {}",
+        destination.join(&output_name).display()
+    );
+    println!(
+        "[convert] AI: Read `papper guide syntax cross-references` and `papper guide syntax citations`, then convert figure, table, equation, and heading cross-references in \"{}\" to Papper syntax (@fig:label, @tbl:label, @eq:label, @sec:label), adding matching target labels where needed; also convert the bibliography to a BibTeX .bib file, set bibliography in the manuscript YAML, and convert in-text citations to matching Pandoc citation keys (e.g. [@smith2023]); preserve references and citations that already use Papper format",
         destination.join(output_name).display()
     );
     Ok(())
