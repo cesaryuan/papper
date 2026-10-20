@@ -51,7 +51,7 @@ This section describes the methodology employed in the research.
 | Test split       | $15\%$         | Portion used for final evaluation      |
 | Cross-validation | 5-fold         | Number of folds for CV                 |
 
-: Experimental setup configuration {#tbl:setup}
+: Table 1 Experimental setup configuration {#tbl:setup}
 
 The table above demonstrates basic table formatting. [For DOCX output, you can use advanced formatting features by adding Pandoc table attributes or cell merge markers]{custom-style="Revision Char"} (see examples in @tbl:advanced-formatting and @tbl:merged-cells).
 

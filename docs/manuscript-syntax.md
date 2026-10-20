@@ -34,6 +34,10 @@ Text with a footnote.[^note]
 > A quoted paragraph.
 ```
 
+Normal DOCX builds flag suspected unrendered syntax or duplicated reference
+labels with warnings and Word comments authored by **Papper**, without failing
+the build.
+
 Start the manuscript with a YAML header between `---` lines. Keep
 manuscript-specific information here:
 

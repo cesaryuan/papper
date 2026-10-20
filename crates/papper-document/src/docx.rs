@@ -11,6 +11,7 @@ mod native;
 mod note_marks;
 mod package;
 mod paragraph_format;
+mod syntax;
 mod tables;
 mod xml;
 
@@ -278,7 +279,7 @@ fn postprocess_package(
     }
     directives::index_captions(&mut document, &mut styles)?;
     paragraph_format::apply(package, &mut document, &styles)?;
-    validate_syntax(package, &document)?;
+    syntax::annotate(package, &mut document)?;
     package.set_xml("word/document.xml", &document);
     package.set_xml("word/styles.xml", &styles);
     Ok(())
@@ -318,126 +319,4 @@ fn finalize_package_content(package: &mut Package, effective: &EffectiveMetadata
     } else {
         Ok(false)
     }
-}
-
-/// Inspect visible text in every document/header/footer/note part before publication.
-fn validate_syntax(package: &Package, document: &xml::Element) -> Result<()> {
-    let part_names =
-        regex::Regex::new(r"^word/(document|header\d+|footer\d+|footnotes|endnotes)\.xml$")?;
-    let fenced = regex::Regex::new(r"^\s*:{3,}(?:\s*\{[^{}]*\}|\s*)$")?;
-    let attribute = regex::Regex::new(r"\{#[A-Za-z][\w.-]*(?::[\w.-]+)?(?:\s+[^{}]+)?\}")?;
-    let crossref = regex::Regex::new(
-        r"[@#](?:sec|fig|tbl|eq|app|alg|lem|thm|cor|def|prop|exm|exr):[A-Za-z0-9._:-]+",
-    )?;
-    let citation = regex::Regex::new(r"-?@[A-Za-z0-9_][A-Za-z0-9_:+-]*")?;
-    let citation_brackets = regex::Regex::new(r"\[\s*@[\w:-]+(?:\s*;\s*@[\w:-]+)*\s*\]")?;
-    // Match only HTML's standard element names. Scientific notation such as
-    // `<k>` or `<degree>` is ordinary visible text, while known elements such
-    // as `<div>` and `<span>` still indicate raw HTML that Pandoc failed to render.
-    let raw_html = regex::Regex::new(concat!(
-        r"(?i)<!--.*?-->|</?(?:",
-        r"a|abbr|address|area|article|aside|audio|b|base|bdi|bdo|blockquote|body|br|button|",
-        r"canvas|caption|cite|code|col|colgroup|data|datalist|dd|del|details|dfn|dialog|div|dl|dt|",
-        r"em|embed|fieldset|figcaption|figure|footer|form|h[1-6]|head|header|hgroup|hr|html|",
-        r"i|iframe|img|input|ins|kbd|label|legend|li|link|main|map|mark|menu|meta|meter|",
-        r"nav|noscript|object|ol|optgroup|option|output|p|picture|pre|progress|q|rp|rt|ruby|",
-        r"s|samp|script|search|section|select|slot|small|source|span|strong|style|sub|summary|sup|",
-        r"table|tbody|td|template|textarea|tfoot|th|thead|time|title|tr|track|u|ul|var|video|wbr",
-        r")(?:\s+[^<>]*?)?\s*/?>",
-    ))?;
-    let duplicate = regex::Regex::new(
-        r"\b(Section|Figure|Table|Equation)\s+(Section|Figure|Table|Equation)\b",
-    )?;
-    let parenthesized = regex::Regex::new(
-        r"\b(Section|Figure|Table|Equation)\s*\(\s*(Section|Figure|Table|Equation)\s+\d+(?:\.\d+)*\s*\)",
-    )?;
-    let numbered = regex::Regex::new(
-        r"\b(Section|Figure|Table|Equation)\s+(\d+(?:\.\d+)*)\s+(Section|Figure|Table|Equation)\s+(\d+(?:\.\d+)*)\b",
-    )?;
-    let mut texts = Vec::new();
-    document.visit(&mut |element| {
-        if element.name == "w:p" {
-            texts.push(validation_text(element));
-        }
-    });
-    for name in package
-        .entries
-        .keys()
-        .filter(|name| name.as_str() != "word/document.xml" && part_names.is_match(name))
-    {
-        package.xml(name)?.visit(&mut |element| {
-            if element.name == "w:p" {
-                texts.push(validation_text(element));
-            }
-        });
-    }
-    for text in texts {
-        let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
-        let label = if fenced.is_match(&text) {
-            Some("Pandoc fenced_divs marker")
-        } else if attribute.is_match(&text) {
-            Some("Pandoc attribute block")
-        } else if crossref.find_iter(&text).any(|found| {
-            text[..found.start()]
-                .chars()
-                .next_back()
-                .is_none_or(|previous| {
-                    !previous.is_alphanumeric() && !matches!(previous, '_' | '/')
-                })
-        }) {
-            Some("Pandoc cross-reference label")
-        } else if citation_brackets.is_match(&text)
-            || citation.find_iter(&text).any(|found| {
-                text[..found.start()]
-                    .chars()
-                    .next_back()
-                    .is_none_or(|previous| {
-                        !previous.is_alphanumeric() && !matches!(previous, '_' | '.' | '/' | '-')
-                    })
-            })
-        {
-            Some("Pandoc citation syntax")
-        } else if raw_html.is_match(&text) {
-            Some("raw HTML tag")
-        } else if duplicate
-            .captures_iter(&text)
-            .any(|captures| captures[1] == captures[2])
-        {
-            Some("duplicated reference label word")
-        } else if parenthesized
-            .captures_iter(&text)
-            .any(|captures| captures[1] == captures[2])
-        {
-            Some("duplicated parenthesized reference label")
-        } else if numbered
-            .captures_iter(&text)
-            .any(|captures| captures[1] == captures[3] && captures[2] == captures[4])
-        {
-            Some("duplicated numbered reference label")
-        } else {
-            None
-        };
-        if let Some(label) = label {
-            bail!("Final DOCX still contains unrendered Pandoc syntax ({label}): {text}");
-        }
-    }
-    Ok(())
-}
-
-/// Exclude temporary hidden TeX markers that are removed after MathType conversion.
-fn validation_text(paragraph: &xml::Element) -> String {
-    if paragraph.name == "w:r"
-        && paragraph.text().starts_with("MTLATEX:")
-        && paragraph
-            .child("w:rPr")
-            .is_some_and(|properties| properties.contains("w:vanish"))
-    {
-        // A formula's source TeX can contain reference-like text. Checking the
-        // intermediate marker would reject valid math before it becomes OLE.
-        return String::new();
-    }
-    if paragraph.name == "w:t" {
-        return paragraph.direct_text();
-    }
-    paragraph.elements().map(validation_text).collect()
 }
