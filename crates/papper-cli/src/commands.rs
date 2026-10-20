@@ -591,6 +591,21 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     atomic_write(&map, &serde_json::to_vec(&decoded)?)?;
     let output_name = format!("{}.md", source.file_stem().unwrap().to_string_lossy());
     let output = temporary.path().join(&output_name);
+    let zotero_data_dir = args
+        .zotero_data_dir
+        .as_ref()
+        .map(|path| absolute(path, &project));
+    let restored_csl = crate::convert_csl::RestoredCsl::prepare(
+        &source,
+        &output,
+        zotero_data_dir.as_deref(),
+        args.offline,
+    )
+    .unwrap_or_else(|error| {
+        // Broken optional plugin properties must not prevent recovery of manuscript content.
+        eprintln!("[WARN] Could not read Zotero style preferences: {error:#}");
+        None
+    });
     let mut command = vec![
         source.as_os_str().to_owned(),
         // Retain supported Word citation fields as editable citations instead of plain text.
@@ -602,6 +617,12 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         // Filters can add metadata such as subfigGrid even to English documents.
         "--standalone".into(),
     ];
+    if let Some(csl) = &restored_csl {
+        command.extend([
+            "--metadata-file".into(),
+            csl.metadata.clone().into_os_string(),
+        ]);
+    }
     let chinese_ratio = papper_document::docx::chinese_character_ratio(&source)?;
     if chinese_ratio >= 0.6 {
         command.push("--metadata=lang:zh-CN".into());
@@ -684,6 +705,13 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     std::fs::create_dir_all(&destination)?;
     if temporary.path().join("media").is_dir() {
         publish_media_tree(&temporary.path().join("media"), &destination.join("media"))?;
+    }
+    if let Some(restored) = &restored_csl
+        && let Some(csl) = &restored.csl
+    {
+        let target = destination.join(csl.file_name().unwrap());
+        atomic_write(&target, &std::fs::read(csl)?)?;
+        println!("[convert] Wrote {}", target.display());
     }
     // The Lua filter stages recovered references before page-story metadata is serialized.
     // Publish only after Pandoc succeeds, before Markdown starts referring to the file.

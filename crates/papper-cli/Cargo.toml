@@ -28,6 +28,7 @@ papper-server.workspace = true
 papper-platform.workspace = true
 serde.workspace = true
 regex.workspace = true
+roxmltree.workspace = true
 sha2.workspace = true
 zip.workspace = true
 flate2.workspace = true
@@ -40,6 +41,3 @@ pulldown-cmark.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows.workspace = true
-
-[dev-dependencies]
-roxmltree.workspace = true

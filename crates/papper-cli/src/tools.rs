@@ -553,8 +553,8 @@ fn request_json(url: &str, timeout: Duration) -> Result<Value> {
     serde_json::from_slice(&bytes).context("Invalid release metadata JSON")
 }
 
-/// Build a network client only on setup/update paths, never during ordinary CLI startup.
-fn download_agent(timeout: Duration, url: &str) -> Result<ureq::Agent> {
+/// Build a proxy-aware network client only when setup, updates or CSL recovery request downloads.
+pub(crate) fn download_agent(timeout: Duration, url: &str) -> Result<ureq::Agent> {
     let mut builder = ureq::AgentBuilder::new()
         .try_proxy_from_env(false)
         .timeout(timeout)

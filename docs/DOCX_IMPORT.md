@@ -33,6 +33,28 @@ finish those while preserving already converted references and citations.
 
 ## Equations and references
 
+Zotero document preferences also identify the source citation style. Convert
+preserves that ID as `zotero-style-id`, finds the matching CSL locally or in the
+public CSL repository, and writes `existing-paper.csl` beside the Markdown.
+The generated YAML selects it with `csl: existing-paper.csl`. Local styles take
+priority over downloaded versions; missing parent styles are resolved so the
+exported CSL is usable offline. Explicit Zotero citation locales are retained.
+Use `--zotero-data-dir 'D:/Zotero'` for a custom data directory or `--offline` to
+prevent downloads. Missing styles produce a warning while preserving the style
+identity and completing the content import. Reimports replace regenerated `.csl`
+files. A public style's current version may differ from the original document's
+version or local modifications; use the original local CSL when exact formatting
+matters.
+
+Without `--zotero-data-dir`, Convert checks profile-configured data directories
+and `~/Zotero`, including hidden parent styles. `--zotero-data-dir` selects the
+directory containing `styles/`. `--offline` permits installed styles and the
+previously downloaded CSL cache, with no style downloads. Custom style IDs must
+be available locally. The optional `zotero-style-locale` records the citation
+language; it is applied to the exported CSL without changing manuscript `lang`.
+If the style cannot be recovered, obtain the original `.csl` and set manuscript
+`csl` before building to preserve its citation formatting.
+
 Supported MathType OLE objects and WMF previews carrying MathType equation data become LaTeX math. A supported preview can also recover a formula when its OLE object is missing or damaged. Unrecognized or undecodable equations retain their preview images.
 
 Recognizable Word bookmark links become figure, table, equation, or section references, using the target labels recovered during import. Unknown links remain as imported by Pandoc. Supported equation layout tables are flattened, and confirmed numbered standalone formulas can become numbered display equations. For the detailed behavior, see [Importing Word Documents](manuscript-syntax.md#importing-word-documents).

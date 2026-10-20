@@ -10,6 +10,7 @@ borders; their paths, not bytes, are the contract here. Refresh explicitly with
 from __future__ import annotations
 
 import os
+import shutil
 import struct
 import subprocess
 import zlib
@@ -188,8 +189,12 @@ def test_convert_output_matches_snapshot(
     """Detect changed imported syntax, missing pictures, and leaked formula previews."""
     source = CASE_ROOT / case_name / f"{case_name}.docx"
     output = tmp_path / "converted"
+    # Use the source document's actual CSL as a fixed input, so the successful
+    # import snapshot does not depend on installed Zotero styles or the network.
+    shutil.copytree(CASE_ROOT / case_name / "styles", tmp_path / "zotero/styles")
     result = subprocess.run(
-        [str(rust_executable), "convert", str(source), "-o", str(output)],
+        [str(rust_executable), "convert", str(source), "-o", str(output),
+         "--offline", "--zotero-data-dir", str(tmp_path / "zotero")],
         cwd=tmp_path,
         env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")},
         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90,
@@ -237,6 +242,8 @@ def test_convert_output_matches_snapshot(
     bibliography = (output / bibliography_name).read_bytes().decode("utf-8")
     assert "\r" not in bibliography
     assert_snapshot(bibliography, expected / bibliography_name, update=snapshot_update)
+    csl_name = f"{case_name}.csl"
+    assert_snapshot((output / csl_name).read_text(encoding="utf-8"), expected / csl_name, update=snapshot_update)
     assert output_tree(output) == output_tree(expected), "Convert output file/directory tree differs from the snapshot"
 
 
@@ -274,12 +281,16 @@ def test_convert_recovers_wmf_when_ole_is_unusable(
             archive.writestr(name, data)
     output = tmp_path / "converted"
     result = subprocess.run(
-        [str(rust_executable), "convert", str(damaged), "-o", str(output)], cwd=tmp_path,
+        [str(rust_executable), "convert", str(damaged), "-o", str(output),
+         "--offline", "--zotero-data-dir", str(tmp_path / "zotero")], cwd=tmp_path,
         env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")},
         capture_output=True, text=True, encoding="utf-8", timeout=90,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     markdown = (output / "fallback.md").read_text(encoding="utf-8")
+    if markdown.startswith("---\n"):
+        # Isolated formulas still inherit Zotero document identity from the source package.
+        markdown = markdown[4:].split("\n---\n", 1)[1]
     # WMF recovery omits redundant grouping braces while preserving the formula.
     assert markdown.strip() == r"$$\sqrt{b^2-4ac}$$"
     assert not list(output.rglob("*.wmf")), "Recovered previews must not leak into published media"

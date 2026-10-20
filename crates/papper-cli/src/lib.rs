@@ -1,6 +1,7 @@
 //! Command definitions and dispatch for both native executable names.
 
 mod commands;
+mod convert_csl;
 mod docx_pipeline;
 mod guide;
 mod images;
@@ -242,6 +243,12 @@ pub struct ConvertArgs {
     /// Infer figure/table/equation references from numbers and plain-text reference phrases.
     #[arg(long)]
     pub fuzzy_crossrefs: bool,
+    /// Zotero data directory containing styles; omit to discover local Zotero directories.
+    #[arg(long)]
+    pub zotero_data_dir: Option<PathBuf>,
+    /// Recover styles from local files only, without downloading missing CSL files.
+    #[arg(long)]
+    pub offline: bool,
     #[command(flatten)]
     pub logging: VerboseArgs,
 }

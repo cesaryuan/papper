@@ -9,6 +9,7 @@ by inspecting actual Markdown and reopened DOCX output.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from zipfile import ZipFile
@@ -57,6 +58,8 @@ def add_field(paragraph, instruction: str, result: str, *, simple: bool = False)
 
 def run_papper(executable: Path, directory: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     """Run the real CLI with isolated tool state and surface conversion/build failures."""
+    if arguments and arguments[0] == "convert":
+        arguments = (*arguments, "--offline", "--zotero-data-dir", str(directory / "zotero"))
     result = subprocess.run(
         [str(executable), *arguments], cwd=directory,
         env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(directory / "home")},
@@ -242,6 +245,7 @@ def test_convert_layout_retains_comprehensive_import_contract(
 ) -> None:
     """Protect equation recovery, captions, crossrefs, notes, and media when layout forces a reread."""
     case = ROOT / "tests/snapshot_cases_convert/comprehensive"
+    shutil.copytree(case / "styles", tmp_path / "zotero/styles")
     with ZipFile(case / "comprehensive.docx") as archive:
         parts = {entry.filename: archive.read(entry) for entry in archive.infolist()}
     root = etree.fromstring(parts["word/document.xml"])
@@ -270,6 +274,9 @@ def test_convert_layout_retains_comprehensive_import_contract(
     metadata = yaml.safe_load(header)
     assert metadata.pop("papperSettings")["docxFooter"]["content"] == ""
     assert metadata == original_metadata
+    assert (output / metadata["csl"]).read_bytes() == (
+        case / "snapshots-content" / metadata["csl"]
+    ).read_bytes()
     # Empty page stories serialize the YAML header early; the bibliography link
     # and its reference data must survive that path together.
     assert (output / metadata["bibliography"]).read_bytes() == (

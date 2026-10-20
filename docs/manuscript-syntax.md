@@ -1428,6 +1428,9 @@ Supported Word citation fields are imported as editable Pandoc citations rather
 than plain text. Recognition depends on the citation data stored in the DOCX;
 plain-text citations and bibliographies still need review.
 
+Convert also extracts available Zotero CSL information from the DOCX and restores
+the corresponding citation style when it can be obtained.
+
 An independent formula with a confirmed Word bookmark and a numeric equation
 label becomes a display equation such as `$$x=y$$ {#eq:_Ref123}`. Formulas recovered
 from equation layout tables are exported as inline math beside their labels;

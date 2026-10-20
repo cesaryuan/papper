@@ -1,5 +1,7 @@
 ---
 bibliography: comprehensive.bib
+csl: comprehensive.csl
+zotero-style-id: "http://www.zotero.org/styles/elsevier-vancouver-nodoi"
 ---
 
 # Comprehensive DOCX import

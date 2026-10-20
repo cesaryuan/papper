@@ -10,6 +10,18 @@ algorithms here rather than in the user guides exposed by `papper guide`.
 
 ## DOCX Import Bibliography
 
+`papper-cli/src/convert_csl.rs` reads numbered `ZOTERO_PREF_*` custom properties
+in numeric order, accepting Zotero XML and JSON preferences. It stages recovered
+identity metadata before Pandoc reads the document, so layout rereads and empty
+page-story YAML serialization retain it. CSL lookup prefers configured/default
+local Zotero directories, then a content-validated disk cache, then the public
+CSL repository. Local matches use embedded style IDs rather than filenames.
+Dependent styles are flattened to their independent parent rules, carrying the
+dependent and document locale forward. Only recognized public repository IDs
+are downloaded; custom identities require local files. The CLI publishes the
+staged CSL after Pandoc succeeds, before the Markdown that selects it. Failure
+retains identity metadata and warns without aborting the manuscript import.
+
 Convert reads `docx+citations`. The existing `media_paths.lua` filter serializes
 nonempty `references` through `pandoc.write(..., 'biblatex')` into a companion
 file in the conversion work directory, then replaces inline references with a
