@@ -3,13 +3,13 @@ title: "Your Manuscript Title: A Comprehensive Study"
 authors:
   - name: First Author
     email: first.author@university.edu
-    affiliation: 
+    affiliation:
       - Department of Example, University Name, City, Country
       - Institute of Research, University Name, City, Country
 
   - name: Second Author
     email: second.author@university.edu
-    affiliation: 
+    affiliation:
       - Department of Example, University Name, City, Country
       - Institute of Another Research, University Name, City, Country
     corresponding: true
@@ -17,7 +17,7 @@ authors:
 abstract: |
   This is a template for academic manuscripts using Pandoc. Replace this abstract with your own summary of the research. The abstract should concisely describe the research problem, methodology, key results, and conclusions. Aim for 150-250 words depending on journal requirements. This template demonstrates proper formatting for figures, tables, citations, cross-references, and equations like $E=mc^2$ using Pandoc Markdown syntax.
 
-keywords: [Keyword 1, Keyword 2, Keyword 3, Keyword 4, Keyword 5]
+keywords: [ Keyword 1, Keyword 2, Keyword 3, Keyword 4, Keyword 5 ]
 
 # Bibliography configuration
 bibliography: examples/references/sample-references.bib
@@ -51,7 +51,7 @@ This section describes the methodology employed in the research.
 | Test split       | $15\%$         | Portion used for final evaluation      |
 | Cross-validation | 5-fold         | Number of folds for CV                 |
 
-: Table 1 Experimental setup configuration {#tbl:setup}
+: Experimental setup configuration {#tbl:setup}
 
 The table above demonstrates basic table formatting. [For DOCX output, you can use advanced formatting features by adding Pandoc table attributes or cell merge markers]{custom-style="Revision Char"} (see examples in @tbl:advanced-formatting and @tbl:merged-cells).
 
