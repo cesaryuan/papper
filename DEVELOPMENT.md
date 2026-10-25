@@ -216,6 +216,8 @@ The build snapshots require `pandoc` and `pandoc-crossref` on `PATH`.
 Each CLI build runs from its temporary output directory so concurrently running
 tests cannot overwrite the same project metadata. DOCX normalization uses that
 build directory's cache path while retaining the repository resource paths.
+DOCX content snapshots exclude `word/styles.xml`; style definitions are not
+compared, while package relationships and other members remain in the snapshot.
 Cache filename hashes derived from absolute SVG source paths are normalized;
 embedded image bytes, their SHA-256 hashes, and drawing dimensions remain exact.
 

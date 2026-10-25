@@ -181,7 +181,7 @@ def canonical_docx(
     path: Path, *, repository_root: Path, project_dir: Path | None = None,
     normalize_native_crossrefs: bool = False,
 ) -> str:
-    """Serialize every decompressed DOCX ZIP member for a reviewable snapshot.
+    """Serialize decompressed DOCX ZIP members except styles.xml for a snapshot.
 
     XML members are canonicalized and split at tag boundaries. Binary members
     retain their exact SHA-256 and byte size without ZIP-container timestamps.
@@ -200,6 +200,9 @@ def canonical_docx(
         # other snapshots retain their original bookmark serialization.
         bookmarks = NativeBookmarkNormalizer(archive) if normalize_native_crossrefs else None
         for info in sorted(archive.infolist(), key=lambda item: item.filename):
+            # Style definitions are excluded from content snapshot comparisons.
+            if info.filename == "word/styles.xml":
+                continue
             data = archive.read(info.filename)
             if info.filename.lower().endswith((".xml", ".rels")):
                 entries[info.filename] = {
