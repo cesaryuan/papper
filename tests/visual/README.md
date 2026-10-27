@@ -1,5 +1,16 @@
 # HTML and DOCX visual regression tests
 
+DOCX visual runs use both Microsoft Word and DOCXIDE by default. Each renderer
+has independent baselines and pytest results; neither renderer must match the
+other pixel for pixel. Word remains the reference for field and layout semantics.
+
+For the DOCXIDE 0.19.1 versus Word experiment and six isolated
+reproductions (mixed-script footnotes, nested images, SVG fallback, paragraph
+wrapping, header tables and body fields), see
+[DOCX renderer evaluation](../../docs/DOCX_RENDERER_EVALUATION.md). The known
+differences are retained in DOCXIDE's initial baselines, not ignored with a pixel
+tolerance or accepted as Word-equivalent behavior.
+
 HTML content snapshots and browser screenshots protect different contracts.
 `tests/snapshot_cases/<case>/snapshots-content/html.snap` retains text, document
 structure, metadata, reference targets, table spans, math modes and semantic
@@ -34,8 +45,30 @@ Browser tests are opt-in, so normal pytest runs need no browser installation or
 npm assets. `--visual` explicitly requests verification and fails if baselines,
 assets or the recorded environment are missing; it never generates a baseline.
 
-DOCX visual tests are also opt-in and require Windows, Microsoft Word, and the
-locked Python dependencies. The native TOC numbering regression checks actual
+DOCX visual tests are also opt-in. The default pair requires Windows, Microsoft
+Word, the locked Python dependencies, and this pinned external DOCXIDE build:
+
+```powershell
+cargo install --git https://github.com/sverrejb/docxide-pdf.git --rev 123aae5755ef77e51608b069221d53b526ffd162 --locked --root tests/visual/.tools/docxide docxide-pdf
+uv run --no-sync pytest tests/test_docx_visual.py --visual
+```
+
+The tool installation is ignored by Git and is not a Papper runtime dependency.
+`PAPPER_DOCXIDE_RENDERER` can point at another Cargo-installed executable; retain
+its `.crates2.json` in the installation root. `PAPPER_DOCXIDE_TIMEOUT` controls the
+per-export timeout in seconds (default 90). DOCXIDE needs no Word process or printer.
+Missing binaries, environment records or baselines fail an explicit visual run;
+the suite never silently drops one of the default backends.
+
+Use `--docx-backend word` or `--docx-backend docxide` to select one renderer:
+
+```powershell
+uv run --no-sync pytest tests/test_docx_visual.py --visual --docx-backend word
+uv run --no-sync pytest tests/test_docx_visual.py --visual --docx-backend docxide
+```
+
+This selector applies to `test_docx_visual.py`; dedicated native Word tests such
+as the TOC numbering check still require Word. The native TOC regression checks actual
 Word field updates and list labels without image baselines; run it with
 `uv run pytest tests/test_native_crossrefs.py --visual -k native_toc`.
 Word opens a unique read-only copy of every generated
@@ -55,10 +88,13 @@ updated fields request them explicitly after the temporary copy is open.
 uv run --no-sync pytest tests/test_docx_visual.py --visual
 ```
 
-The DOCX renderer rasterizes PDF pages with PyMuPDF at 144 DPI in RGB. Each page
+Both DOCX renderers rasterize PDF pages with PyMuPDF at 144 DPI in RGB. Each page
 must have the same physical geometry and exact pixels as its reviewed
-`page-001.png`, `page-002.png`, ... baseline. Word exports every case twice before
-comparison; a non-deterministic export fails without updating a baseline. The
+`page-001.png`, `page-002.png`, ... baseline for that backend. Both engines receive
+the same generated DOCX bytes and export every case twice before comparison;
+a non-deterministic export fails without updating a baseline. Results include
+`[word-<case>]` and `[docxide-<case>]`, so a failure in one engine does not hide
+the other's result. The color/pagination harness also exercises both engines. The
 current suite covers the manuscript fixtures plus the reviewer reply fixture,
 including both `template/manuscript.md` and `template/manuscript-cn.md`.
 The generated DOCX build uses `--no-mathtype` unless a fixture style explicitly
@@ -109,12 +145,26 @@ Baseline comparisons verify this environment before checking images. Other OSes
 need separately reviewed baselines and consistent fonts; Linux must not reuse
 the Windows PNGs. Chromium is the bundled headless browser, never user Chrome.
 
+DOCXIDE uses `docx-docxide.json` and case directories named `docx-docxide/`,
+alongside the existing `docx-word/` directories. Its environment records the Cargo
+package/revision, binary SHA-256, build settings, installed fonts, any
+`DOCXIDE_FONTS` directories and their font hashes, and PyMuPDF/MuPDF versions.
+It has no Word/printer identity. The initial reviewed environment is Windows AMD64;
+other platforms require their own environment and page baselines. Upgrading the
+renderer requires an explicit review and update of its baselines.
+
+Word-only semantic checks still verify computed fields, TOCs, story selection and
+paragraph layout. DOCXIDE captures its current supported-field evaluation and
+cached results for unsupported fields. Both use the fixed-date input for dynamic
+field fixtures. Keeping separate snapshots allows DOCXIDE to protect regressions
+now while Word coverage is reduced deliberately as upstream support improves.
+
 Every visual run compares newly rendered images with the last committed
 baselines in Git `HEAD`, including runs with `--visual-update`. Review differences
 beside the baselines under each case's `snapshots-visual/<platform>-<architecture>/`:
 
 - HTML: `diff.png`, beside `html.png`.
-- DOCX: `docx-word/page-001-diff.png`, `page-002-diff.png`, ... beside the page
+- DOCX: `docx-word/page-001-diff.png` or `docx-docxide/page-001-diff.png`, ... beside the page
   baselines, for each changed, added, or removed page.
 
 Only diff PNGs are saved, with changed pixels highlighted in magenta. Added or
@@ -139,7 +189,12 @@ Update only after reviewing an intentional change:
 uv run --no-sync pytest tests/test_build_snapshots.py -k html --snapshot-update
 uv run --no-sync pytest tests/test_html_visual.py --visual-update
 uv run --no-sync pytest tests/test_docx_visual.py --visual-update
+uv run --no-sync pytest tests/test_docx_visual.py --visual-update --docx-backend docxide
 ```
+
+The unqualified DOCX update command updates both renderers. Select a backend to
+refresh only its baseline and environment; a DOCXIDE upgrade does not require
+replacing Word baselines.
 
 The update switches are independent. `--snapshot-update` cannot overwrite
 visual baselines. Select individual cases with `-k` when an intentional change is

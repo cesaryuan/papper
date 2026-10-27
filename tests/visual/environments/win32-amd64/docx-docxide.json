@@ -1,0 +1,30 @@
+{
+  "source_commit": "f7f4ea3dec9bf5585a476337e698d9132ac12cf9",
+  "environment": {
+    "platform": "win32",
+    "architecture": "amd64",
+    "os_release": "11",
+    "renderer": "docxide-pdf 0.19.1 (git+https://github.com/sverrejb/docxide-pdf.git?rev=123aae5755ef77e51608b069221d53b526ffd162#123aae5755ef77e51608b069221d53b526ffd162)",
+    "installation": {
+      "version_req": null,
+      "bins": [
+        "docxide-pdf.exe"
+      ],
+      "features": [],
+      "all_features": false,
+      "no_default_features": false,
+      "profile": "release",
+      "target": "x86_64-pc-windows-msvc",
+      "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-pc-windows-msvc\nrelease: 1.98.0\nLLVM version: 22.1.8\n"
+    },
+    "renderer_sha256": "fcfd5a2fba6b178d9245d07730b5b20f0a4412375ce1bd8daed219a461877b8a",
+    "installed_fonts_sha256": "41cf86779e354aba755ebefad8705a06ab9db24a75ff2b0aa326d01392969378",
+    "extra_fonts_sha256": {},
+    "pymupdf": "1.27.2.3",
+    "mupdf": "1.27.2",
+    "dpi": 144,
+    "colorspace": "RGB",
+    "alpha": false,
+    "export": "DOCXIDE CLI PDF; automatic supported-field evaluation"
+  }
+}

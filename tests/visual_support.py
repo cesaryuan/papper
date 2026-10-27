@@ -1,4 +1,4 @@
-"""Shared pixel comparison for browser screenshots and Word-rendered DOCX pages."""
+"""Shared pixel comparison for browser screenshots and Word/DOCXIDE-rendered DOCX pages."""
 
 from __future__ import annotations
 

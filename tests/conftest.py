@@ -45,7 +45,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Create or refresh Papper output snapshots.",
     )
-    parser.addoption("--visual", action="store_true", help="Run HTML browser and DOCX Word visual regression tests.")
+    parser.addoption("--visual", action="store_true", help="Run HTML browser and both DOCX renderer visual regression tests.")
+    parser.addoption(
+        "--docx-backend", choices=("both", "word", "docxide"), default="both",
+        help="DOCX visual renderers to run (default: both); each uses independent baselines.",
+    )
     parser.addoption(
         "--visual-update", action="store_true",
         help="Explicitly replace visual baselines; --snapshot-update never changes them.",
@@ -59,6 +63,14 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         if "visual" in item.keywords:
             item.add_marker(pytest.mark.skip(reason="use --visual to run visual regression tests"))
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    """Collect independent DOCX backend results so a failure in one cannot hide the other."""
+    if "docx_backend" in metafunc.fixturenames:
+        selection = metafunc.config.getoption("--docx-backend")
+        backends = ("word", "docxide") if selection == "both" else (selection,)
+        metafunc.parametrize("docx_backend", backends, scope="session")
 
 
 @pytest.fixture

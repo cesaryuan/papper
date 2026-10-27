@@ -284,3 +284,4 @@ scripts/pandoc-server/dist-newstyle/
 .venv/
 tests/visual/node_modules/
 tests/visual/results/
+tests/visual/.tools/
