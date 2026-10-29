@@ -995,6 +995,31 @@ Use a caption and `fig:` label when you need an ordinary numbered figure.
 For LaTeX, the figure layout may choose its own width; see the two-column
 figure guidance above.
 
+### Editable Image Crops in DOCX
+
+Use `crop-left`, `crop-top`, `crop-right`, and `crop-bottom` on an image to
+retain its original file while cropping its display in DOCX. Each value is a
+percentage of the **original** image width or height, measured inward from that
+edge. Omitted edges default to zero; a trailing `%` is optional.
+
+```markdown
+![Detail](media/photo.png){width="3in" crop-left="10" crop-right="25" crop-top="5"}
+```
+
+This removes 10% from the left, 25% from the right, and 5% from the top in the
+built Word document. The embedded original stays available for further cropping
+in Word. Left plus right, and top plus bottom, must each be less than 100%.
+Negative values extend the displayed canvas beyond the original image.
+When both `width` and `height` are supplied, they describe the final visible
+rectangle. When one dimension is omitted, the cropped aspect ratio determines it.
+
+These attributes apply to DOCX images in body text, tables, notes, headers,
+footers, and supported figure layouts. HTML, LaTeX, and PDF output currently
+display the original image without applying these crop attributes. Use physically
+cropped image files when the same visible crop is needed across output formats.
+The attributes describe rectangular cropping; they do not reproduce Word's
+crop-to-shape masks, picture effects, or rotations.
+
 ## Subfigure Layouts
 
 Compose panels in one SVG for explicit layout, or use `subfigGrid` for grouped
@@ -1423,6 +1448,42 @@ existing media: identical images reuse their filenames, while different images
 with the same filename receive a content-based suffix and updated Markdown paths.
 Existing edited images are preserved too. Reimporting the same document replaces
 its Markdown file; use a separate output directory to keep multiple Markdown versions.
+
+Word's rectangular image crops are retained as editable image attributes by
+default (`--image-crop attributes`), preserving the original image files. For
+example, a 52.014% right crop becomes `crop-right="52.014"` on the image.
+`papper build docx` restores that crop while embedding the complete original.
+HTML, LaTeX, and PDF currently show the original image in this mode. This mode
+also retains rectangular crop information for vector images that the DOCX image
+reader supports. You can select it explicitly with:
+
+```powershell
+papper convert existing-paper.docx -o converted --image-crop attributes
+```
+
+To apply crops directly to exported image files, use:
+
+```powershell
+papper convert existing-paper.docx -o converted --image-crop apply
+```
+
+Supported raster sources are PNG, JPEG, GIF, BMP, TIFF,
+and WebP; a cropped image is saved as a lossless PNG at source resolution. GIF
+and TIFF imports use the first decoded frame/image. SVG and EMF images keep
+their vector format and receive a cropped visible canvas. Common placeable WMF
+images also keep their format. Vector paths and other drawing content are
+preserved, including content hidden outside the new canvas;
+this is not irreversible removal of hidden content. Vector crops do not produce
+PNG files. Metafile crop edges round to their native coordinate precision; GDI
+and GDI+ players can differ by a reference-device pixel at an EMF's lower/right
+clip edges. WMFs with certain coordinate transforms or an overriding embedded
+EMF are not supported in apply mode. Uncropped images keep their original bytes.
+Different crops of the same source image remain independent.
+Unsupported or invalid crops produce a warning and retain the original image.
+
+Both modes leave the source DOCX unchanged and cover
+supported images in the body, tables, notes, headers, and footers. Legacy VML
+picture crops and crop-to-shape masks are not recovered.
 
 Supported Word citation fields are imported as editable Pandoc citations rather
 than plain text. Recognition depends on the citation data stored in the DOCX;

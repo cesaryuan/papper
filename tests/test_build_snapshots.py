@@ -73,12 +73,13 @@ CASES = {
     "svg_rasterization": (
         ROOT / "tests" / "snapshot_cases" / "svg_rasterization", "svg_rasterization.md",
     ),
+    "image_crops": (CASE_ROOT / "image_crops", "image_crops.md"),
 }
 # Trailing equation revision attributes are supported by the DOCX pipeline only.
 DOCX_ONLY_CASES = {
     "native_crossrefs", "equation_attributes", "equation_attributes_no_mathtype",
     "docx_footer", "docx_footer_markdown", "docx_footer_formats",
-    "docx_directives", "word_fields",
+    "docx_directives", "word_fields", "image_crops",
 }
 
 pytestmark = pytest.mark.skipif(

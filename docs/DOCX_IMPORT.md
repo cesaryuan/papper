@@ -20,6 +20,43 @@ converted/
 
 Only images still needed by the Markdown are saved. MathType recovery does not require a MathType installation.
 
+Word's rectangular image crops are retained as editable image attributes by
+default (`--image-crop attributes`). Original image files are preserved, and
+the resulting Markdown uses attributes such as `crop-right="52.014"`. Values
+are percentages of the original image, and `papper build docx` restores them as
+Word cropping. HTML, LaTeX, and PDF currently show the original image in this
+mode. You can select it explicitly with:
+
+```bash
+papper convert existing-paper.docx -o converted --image-crop attributes
+```
+
+To apply crops to the exported image files instead, use:
+
+```bash
+papper convert existing-paper.docx -o converted --image-crop apply
+```
+
+For example, a cropped PNG is exported with the hidden pixels removed. PNG, JPEG, GIF, BMP,
+TIFF, and WebP sources are supported; cropped raster results are lossless PNG files.
+GIF and TIFF use their first decoded frame/image. SVG and EMF crops retain their
+vector format; common placeable WMF images are also supported. Vector crops
+change the visible canvas and keep the original drawing content, so hidden
+paths may still exist inside the exported file. They do not
+rasterize vectors or remove hidden content irreversibly. Metafile crop edges
+round to their native coordinate precision; GDI and GDI+ players can differ by a
+reference-device pixel at an EMF's lower/right clip edges. WMFs with certain
+coordinate transforms or an overriding embedded EMF are currently unsupported.
+Unsupported or invalid crops retain the original image with a warning; use
+attribute mode to keep their crops editable in DOCX.
+
+Both modes leave the source DOCX unchanged and support independent
+crops of a shared image. They recover rectangular DrawingML cropping, including
+supported pictures in tables, notes, headers, and footers; legacy VML crops,
+crop-to-shape masks, effects, and rotations are outside this support. See
+[editable image crops](manuscript-syntax.md#editable-image-crops-in-docx) for the
+attribute syntax and sizing rules.
+
 Existing media are preserved. Identical images reuse their filenames; different images with a conflicting filename receive a new name and updated Markdown links. User-edited images are preserved too. **Reimporting the same DOCX replaces its generated Markdown file.** Choose a different output directory if you want to keep an earlier Markdown version.
 
 When the DOCX contains supported structured citation data, Convert also creates

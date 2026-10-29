@@ -5,6 +5,7 @@ mod captions;
 mod directives;
 mod footer;
 mod formatting;
+mod image_crops;
 mod lists;
 mod mathtype;
 mod native;
@@ -22,6 +23,7 @@ use papper_core::resources::ResourcePaths;
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 
+pub use image_crops::prepare_image_crops;
 pub use mathtype::{
     MathTypeConversionResult, check_mathtype_available, convert_marked_docx,
     convert_marked_docx_with_work_dir,
@@ -279,6 +281,7 @@ fn postprocess_package(
     }
     directives::index_captions(&mut document, &mut styles)?;
     paragraph_format::apply(package, &mut document, &styles)?;
+    image_crops::finalize(package, &mut document)?;
     syntax::annotate(package, &mut document)?;
     package.set_xml("word/document.xml", &document);
     package.set_xml("word/styles.xml", &styles);
@@ -306,10 +309,12 @@ fn finalize_package_content(package: &mut Package, effective: &EffectiveMetadata
     let directives_changed = directives::apply(package, &mut document, &mut styles)?;
     let captions_changed = directives::index_captions(&mut document, &mut styles)?;
     let paragraph_format_changed = paragraph_format::apply(package, &mut document, &styles)?;
+    let image_crops_changed = image_crops::finalize(package, &mut document)?;
     if note_marks::apply(package, &mut document)?
         || directives_changed
         || captions_changed
         || paragraph_format_changed
+        || image_crops_changed
         || effective.pmt_settings.fields().docx_footer.is_some()
         || effective.pmt_settings.fields().docx_header.is_some()
     {

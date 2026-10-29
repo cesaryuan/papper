@@ -24,6 +24,7 @@ pub(crate) fn output_filters(resources: &ResourcePaths) -> Vec<PathBuf> {
         "docx/docx_metadata",
         "docx/svg_embed_images",
         "docx/svg_to_png",
+        "docx/image_crops",
     ]
     .into_iter()
     .map(|kind| resources.resource(format!("pandoc/filters/{kind}.lua")))

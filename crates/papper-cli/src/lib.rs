@@ -243,6 +243,9 @@ pub struct ConvertArgs {
     /// Infer figure/table/equation references from numbers and plain-text reference phrases.
     #[arg(long)]
     pub fuzzy_crossrefs: bool,
+    /// Retain originals with Word crop attributes, or apply crops to exported images.
+    #[arg(long, value_enum, default_value = "attributes")]
+    pub image_crop: ImageCropMode,
     /// Zotero data directory containing styles; omit to discover local Zotero directories.
     #[arg(long)]
     pub zotero_data_dir: Option<PathBuf>,
@@ -251,6 +254,13 @@ pub struct ConvertArgs {
     pub offline: bool,
     #[command(flatten)]
     pub logging: VerboseArgs,
+}
+
+/// Select cropped raster/vector files or editable Word crop attributes during import.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ImageCropMode {
+    Apply,
+    Attributes,
 }
 
 /// Preserve the existing reply command's manuscript, line-source and output options.

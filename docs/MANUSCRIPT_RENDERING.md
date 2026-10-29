@@ -484,6 +484,45 @@ services do not belong to a conversion job.
 
 ## Import Media and Package Publication
 
+Native image-crop import prepares a private DOCX before the layout reread.
+Convert defaults to attribute mode; `--image-crop apply` opts into image changes.
+DrawingML `a:srcRect` values are thousandths of a percent. Apply mode creates
+lossless PNG crops for raster sources and a new per-picture relationship,
+leaving shared original media and uncropped references intact. Negative edges add transparent padding.
+Source-coordinate boundaries round to the nearest pixel; empty/subpixel or
+unsupported crops warn and preserve the source picture.
+
+Vector apply crops never render pixels. SVG retains its XML inside a full-size
+viewport and an outer cropped viewport, preserving original viewBox mapping,
+letterboxing and relative dimensions. usvg only measures the original viewport.
+Word's `asvg:svgBlip` takes precedence over its PNG fallback; both references are
+redirected to the cropped SVG for the private import package. EMF changes its
+physical frame and device bounds, then prepends IntersectClipRect/SetMetaRgn
+records. Drawing records, including EMF+ comments, remain untouched. Placeable
+WMF changes its bounding box, checksum and record sizes, and rewrites anisotropic
+window origins/extents while retaining drawing/object records. It tracks saved
+DC windows and reapplies the crop after clip-region replacement. Explicit
+viewport transforms, scaled windows, clip-region offsets, RTL layouts, and
+overriding embedded EMF escapes are rejected rather than risking distortion.
+Vector canvas cropping can leave hidden source content in the file; it is not
+destructive geometry trimming or data sanitization. All vector paths are native
+byte/XML transformations and do not require Windows graphics APIs.
+GDI+ playback of ordinary EMF GDI records can omit a reference-device pixel at
+lower/right clip edges compared with GDI playback. The EMF pixel regression uses
+direct GDI playback; the WMF check uses GDI+ because Pillow's WMF-to-EMF conversion
+can refit out-of-frame drawing bounds.
+
+Attribute mode transports each picture's crop and original title temporarily
+through `wp:docPr/@title`. The Convert image-crop filter restores the title and
+emits `crop-left/top/right/bottom` in percent after layout rereading, so shared
+media with different crops does not require filename-based matching. The final
+DOCX image filter carries crop attributes through the writer using the same
+title transport. Mandatory native finalization removes transport metadata,
+inserts `a:srcRect` after `a:blip`, and updates drawing extents when a dimension
+was inferred from the uncropped source. It runs after page stories move into
+their own parts, including with optional DOCX postprocessing disabled. Neither
+mode mutates the input DOCX. Non-DOCX writers currently ignore crop attributes.
+
 The equation-table filter flattens confirmed layout rows to InlineMath, retaining
 their labels and bookmarks. The cross-reference filter owns promotion to
 DisplayMath: a confirmed bookmarked equation at the start of its paragraph is

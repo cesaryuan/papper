@@ -587,6 +587,14 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     let temporary = tempfile::Builder::new()
         .prefix("papper-convert-")
         .tempdir()?;
+    let cropped_source = temporary.path().join("image-crops.docx");
+    let crop_attributes = matches!(args.image_crop, crate::ImageCropMode::Attributes);
+    let import_source =
+        if papper_document::docx::prepare_image_crops(&source, &cropped_source, crop_attributes)? {
+            &cropped_source
+        } else {
+            &source
+        };
     let map = temporary.path().join("equations.json");
     atomic_write(&map, &serde_json::to_vec(&decoded)?)?;
     let output_name = format!("{}.md", source.file_stem().unwrap().to_string_lossy());
@@ -607,7 +615,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         None
     });
     let mut command = vec![
-        source.as_os_str().to_owned(),
+        import_source.as_os_str().to_owned(),
         // Retain supported Word citation fields as editable citations instead of plain text.
         "--from=docx+citations".into(),
         // Simple/multiline tables can split long image syntax at a column
@@ -633,6 +641,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     }
     for filename in [
         "docx_layout.lua",
+        "image_crops.lua",
         "mtef_parser.lua",
         "equation_tables.lua",
         "remove_toc_anchors.lua",
