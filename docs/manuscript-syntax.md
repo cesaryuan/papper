@@ -456,9 +456,13 @@ a numbered heading or an entry in the contents.
 
 []{t="listofFigures" title="Figures" includeSubfigures="false"}
 
+[]{t="listofFigures" title="English captions" caption-en="true"}
+
 []{t="listofFigures" title="Figures and panels" includeSubfigures="true"}
 
 []{t="listofTables" title="Tables"}
+
+[]{t="listofTables" title="English table captions" caption-en="true"}
 ```
 
 `toc` lists headings through `depth`, an integer from 1 to 9 (default 3).
@@ -466,14 +470,31 @@ The default titles are `Contents`, `List of Figures`, and `List of Tables`.
 Figure lists include captioned standalone figures and grouped-figure captions;
 `includeSubfigures="true"` additionally includes panel captions. All figure and
 table list entries use Word's **Table of Figures** style (**图表目录** in Chinese
-Word). The default is `false`. Table lists include captioned
-manuscript tables, excluding tables used to lay out subfigures. With bilingual
-captions, only the primary language appears in the list. These lists work with
-both ordinary caption numbers and `docxNativeCrossref`.
-With `docxNativeCrossref: true`, figure lists without subfigures and table lists
-use Word's native caption-label lists, following the configured primary figure
-or table label (for example, `Figure` or `图`). With ordinary caption numbers,
-or with `includeSubfigures="true"`, lists select caption paragraphs by style.
+Word). The default for `includeSubfigures` is `false`. Table lists include
+captioned manuscript tables, excluding tables used to lay out subfigures.
+
+Both list types select captions by their source. By default, or with
+`caption-en="false"`, they include only **main captions**: the text inside
+`![...]` for figures, or the table's `: Caption` line. Main captions may be
+written in any language. With `caption-en="true"`, the directory includes only
+the **English captions** supplied by the figure or table's `caption-en`
+attribute. The text's characters do not determine its source. A figure or table
+without a nonempty `caption-en` has no entry in an English-caption directory;
+its main caption is not used as a fallback.
+
+Main-caption and English-caption lists can coexist in one document. This
+selection does not translate text or change the directory title. The boolean
+accepts only `true` or `false`; `lang` is not a directory option.
+`includeSubfigures="true"` additionally selects panel captions from the chosen
+source. Currently grouped subfigures do not support `caption-en`, so they add
+no panel entries to an English-caption directory.
+
+These lists work with both ordinary caption numbers and `docxNativeCrossref`.
+With `docxNativeCrossref: true`, main-caption lists without subfigures use
+Word's native caption-label lists, following the configured primary figure or
+table label (for example, `Figure` or `图`), including when English captions
+are present. English-caption lists, lists including subfigures, and builds
+without native crossrefs select caption paragraphs by style.
 
 Directories are dynamic Word fields. Papper requests a field update when Word
 opens a document containing a directory. Until Word updates them, they display
@@ -881,7 +902,10 @@ configured section-reference prefix; it does not repeat `第` and `章`.
 ### Bilingual Figure and Table Captions
 
 Add `caption-en` to ordinary numbered figures or tables for an English caption
-sharing the primary caption's number in DOCX and HTML.
+sharing the main caption's number in DOCX and HTML. The main caption is the
+text in the image's square brackets or the table's caption line, and may be
+written in any language. The additional English caption comes exclusively
+from `caption-en`; Papper does not infer caption sources from the characters.
 
 ```markdown
 ![MT-MoE ViT 网络架构图](images/architecture.svg){#fig:architecture caption-en="Architecture diagram of the *MT-MoE ViT* network"}
@@ -897,7 +921,10 @@ Write only the translated title in the attribute. Papper adds `Fig.` or `Table`
 and reuses the primary caption's number, including chapter prefixes. The primary
 caption appears first and the English caption on its own line. Normal references
 such as `@fig:architecture` and `@tbl:comparison` keep the same IDs. Crossref's
-figure/table lists contain the primary title once, without the translation.
+figure/table lists written as `\listoffigures` or `\listoftables` contain the
+primary title once, without the translation. DOCX lists inserted with
+`[]{t="listofFigures"}` or `[]{t="listofTables"}` include main captions by
+default; add `caption-en="true"` to list only the additional English captions.
 An empty `caption-en` keeps the ordinary single-caption output.
 
 The attribute accepts one paragraph of inline Markdown, including emphasis and
@@ -907,9 +934,17 @@ for example, use `caption-en="Error for $\\alpha$"` for a TeX command. A numbere
 ordinary figures and tables in HTML and DOCX.
 Grouped subfigures and LaTeX output do not support `caption-en`.
 
-Both caption lines share `Image Caption` for figures or `Table Caption` for
-tables. For caption fonts and Word numbering options, see
+In DOCX, main captions use `Image Caption` for figures or `Table Caption` for
+tables. Additional English captions use `Image Caption EN` or `Table Caption EN`,
+inheriting the corresponding main-caption style unless the reference document
+defines their own appearance. For caption fonts and Word numbering options, see
 [`style-configuration.md`](style-configuration.md).
+
+When an `Image Caption` paragraph is immediately followed by `Image Caption EN`,
+or `Table Caption` is immediately followed by `Table Caption EN`, Papper sets
+the main caption's space after to 0 in DOCX. For tables it also sets the English
+caption's space before to 0. Single captions and all other spacing retain
+their configured values.
 
 ## Equations
 

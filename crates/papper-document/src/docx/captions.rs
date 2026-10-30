@@ -70,3 +70,68 @@ pub(crate) fn keep_groups(document: &mut Element, styles: &Element) {
         }
     });
 }
+
+/// Clear paired main space-after and the inherited leading gap on English table captions.
+pub(crate) fn tighten_english_spacing(document: &mut Element, styles: &Element) -> bool {
+    let pairs: Vec<_> = ["Image Caption", "Table Caption"]
+        .into_iter()
+        .filter_map(|name| {
+            let primary_index = style_index(styles, name)?;
+            let english_index = style_index(styles, &format!("{name} EN"))?;
+            let (Node::Element(primary), Node::Element(english)) = (
+                &styles.children[primary_index],
+                &styles.children[english_index],
+            ) else {
+                return None;
+            };
+            Some((
+                primary.attr("w:styleId")?.to_owned(),
+                english.attr("w:styleId")?.to_owned(),
+                name == "Table Caption",
+            ))
+        })
+        .collect();
+    if pairs.is_empty() {
+        return false;
+    }
+    let mut changed = false;
+    document.visit_mut(&mut |parent| {
+        for index in 1..parent.children.len() {
+            let Node::Element(english) = &parent.children[index] else {
+                continue;
+            };
+            if english.name != "w:p" {
+                continue;
+            }
+            let Some((primary_id, _, table)) = pairs
+                .iter()
+                .find(|(_, english_id, _)| paragraph_style(english) == Some(english_id.as_str()))
+            else {
+                continue;
+            };
+            let Node::Element(primary) = &parent.children[index - 1] else {
+                continue;
+            };
+            if primary.name != "w:p" || paragraph_style(primary) != Some(primary_id.as_str()) {
+                continue;
+            }
+            // Both kinds clear main space-after. Table EN styles also inherit
+            // the main caption's leading gap, so clear English space-before too.
+            for (target, side) in [(index - 1, "after"), (index, "before")] {
+                if target == index && !table {
+                    continue;
+                }
+                let Node::Element(paragraph) = &mut parent.children[target] else {
+                    continue;
+                };
+                // Line-based and automatic spacing override point spacing in Word.
+                let spacing = paragraph.word("w:pPr").word("w:spacing");
+                for suffix in ["", "Lines", "Autospacing"] {
+                    spacing.set(&format!("w:{side}{suffix}"), "0");
+                }
+            }
+            changed = true;
+        }
+    });
+    changed
+}

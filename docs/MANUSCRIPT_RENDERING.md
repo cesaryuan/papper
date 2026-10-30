@@ -177,15 +177,35 @@ written as rounded twips in section `pgMar`, without replacing its body margins.
 Mode and distance overrides carry forward; numbering starts do not. This
 mandatory finalization runs even with optional body postprocessing disabled.
 
-With native crossrefs enabled, figure lists without subfigures and table lists
-use caption-label fields such as `TOC \h \z \c "Figure"`, reusing existing SEQ
-fields. Labels are shared with native crossrefs and trimmed identically.
-Static-numbered lists and expanded figure lists retain the TOC `\t` style
-selector. A bare `\c` switch makes Word apply `Table of Figures` formatting
-without requiring a SEQ label. Primary-caption markers become inherited
-paragraph styles; panels use their separate style, and translated captions
-retain their original styles. This preserves live caption content and avoids
-allocating independent panel numbers or adding SEQ fields to static captions.
+With native crossrefs enabled, main-caption lists without subfigures use
+caption-label fields such as `TOC \h \z \c "Figure"`, reusing existing SEQ
+fields even when English captions are present. Labels are shared with native
+crossrefs and trimmed identically. English-caption lists (`caption-en="true"`),
+expanded panel lists, and static-number builds use TOC `\t` style selectors.
+A bare `\c` makes Word apply `Table of Figures` formatting without a SEQ label.
+
+Caption sources are structural: main captions retain `Image Caption` or
+`Table Caption`, regardless of their characters. The bilingual-caption filter
+marks only lines generated from `caption-en`; mandatory DOCX finalization
+removes the markers and applies `Image Caption EN` or `Table Caption EN`, even
+when no directory is inserted. Missing EN styles inherit the paragraph's
+authored base style; reference-defined EN styles are retained. Applying these
+styles after caption grouping preserves existing keep-with-next behavior.
+Figure directories additionally mark child panels with the inherited
+`Papper Subfigure Caption` style, keeping them out of ordinary main-figure
+lists. The EN variant is reserved for caption-en panel lines; grouped subfigures
+currently reject caption-en. Directory selection needs no character detection,
+CN styles, or authored-language metadata. It preserves live caption content and
+does not allocate panel numbers or add SEQ fields to static captions.
+After caption styles and local paragraph formatting are finalized, adjacent
+`Image Caption` / `Image Caption EN` and `Table Caption` / `Table Caption EN`
+pairs receive zero space after on the main paragraph. Table pairs additionally
+receive zero space before on the English paragraph: EN styles inherit the main
+table caption's leading gap, so clearing main space-after alone leaves that gap.
+Preserve all outer spacing and single-caption spacing. Set each chosen side's
+point, line-based, and automatic spacing attributes to zero so inherited
+line-based or automatic spacing cannot override it.
+The same rule runs in mandatory finalization without optional postprocessing.
 All figure/table list placeholders also use `Table of Figures`.
 Directory fields are dirty and set `updateFields`; layout and final
 directory results are computed by Word. DATE results are normalized only in

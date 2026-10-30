@@ -4,11 +4,10 @@ DOCX visual runs use both Microsoft Word and DOCXIDE by default. Each renderer
 has independent baselines and pytest results; neither renderer must match the
 other pixel for pixel. Word remains the reference for field and layout semantics.
 
-For the DOCXIDE 0.19.1 versus Word experiment and six isolated
-reproductions (mixed-script footnotes, nested images, SVG fallback, paragraph
-wrapping, header tables and body fields), see
+For the DOCXIDE 0.20.1 versus Word review, verified fixes and remaining
+differences (including paragraph wrapping, equations and fields), see
 [DOCX renderer evaluation](../../docs/DOCX_RENDERER_EVALUATION.md). The known
-differences are retained in DOCXIDE's initial baselines, not ignored with a pixel
+differences are retained in DOCXIDE's reviewed baselines, not ignored with a pixel
 tolerance or accepted as Word-equivalent behavior.
 
 HTML content snapshots and browser screenshots protect different contracts.
@@ -49,7 +48,7 @@ DOCX visual tests are also opt-in. The default pair requires Windows, Microsoft
 Word, the locked Python dependencies, and this pinned external DOCXIDE build:
 
 ```powershell
-cargo install --git https://github.com/sverrejb/docxide-pdf.git --rev 123aae5755ef77e51608b069221d53b526ffd162 --locked --root tests/visual/.tools/docxide docxide-pdf
+cargo install --git https://github.com/sverrejb/docxide-pdf.git --rev c2fa4fa461d987653dc717d7327096e57afb4686 --locked --root tests/visual/.tools/docxide --force docxide-pdf
 uv run --no-sync pytest tests/test_docx_visual.py --visual
 ```
 

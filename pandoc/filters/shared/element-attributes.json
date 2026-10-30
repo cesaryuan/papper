@@ -16,7 +16,7 @@
       "autofit": {"description": "DOCX 表格列宽模式：fixed 固定列宽，content 按内容调整，window 按页面宽度调整", "valueType": "string", "values": ["fixed", "content", "window"], "targets": ["docx"], "docxMetadata": true},
       "custom-style": {"description": "应用 reference.docx 中的 Word 表格样式；样式名须与参考文档一致，HTML 应用其中支持的表格外观", "valueType": "string", "targets": ["docx", "html"]},
       "custom-text-style": {"description": "应用到所有表格单元格段落的 Word 文本样式", "valueType": "string", "aliases": ["custom_text_style"], "targets": ["docx", "html"], "docxMetadata": true},
-      "caption-en": {"description": "英文副题注；与中文题注组成双语题注", "valueType": "string", "targets": ["docx", "html", "latex"]},
+      "caption-en": {"description": "英文题注；显示在主题注之后并共享编号，主题注不限语言", "valueType": "string", "targets": ["docx", "html", "latex"]},
       "twocol": {"description": "双栏 LaTeX 文档中让表格跨两栏", "valueType": "boolean", "values": ["true", "false"], "targets": ["latex"]}
     }
   },
@@ -67,13 +67,15 @@
         "description": "插入可在 Word 中更新的图目录；须单独占据一个段落",
         "properties": {
           "title": {"description": "图目录标题，默认 List of Figures；空字符串隐藏标题", "valueType": "string", "suggestions": ["List of Figures", "图目录", ""]},
-          "includeSubfigures": {"description": "是否同时收录子图题注，默认 false", "valueType": "boolean", "values": ["true", "false"]}
+          "includeSubfigures": {"description": "是否同时收录子图题注，默认 false", "valueType": "boolean", "values": ["true", "false"]},
+          "caption-en": {"description": "true 仅收录通过 caption-en 设置的英文题注；默认 false，仅收录主题注，不判断文字语言", "valueType": "boolean", "values": ["true", "false"]}
         }
       },
       "listofTables": {
         "description": "插入可在 Word 中更新的表目录；须单独占据一个段落",
         "properties": {
-          "title": {"description": "表目录标题，默认 List of Tables；空字符串隐藏标题", "valueType": "string", "suggestions": ["List of Tables", "表目录", ""]}
+          "title": {"description": "表目录标题，默认 List of Tables；空字符串隐藏标题", "valueType": "string", "suggestions": ["List of Tables", "表目录", ""]},
+          "caption-en": {"description": "true 仅收录通过 caption-en 设置的英文题注；默认 false，仅收录主题注，不判断文字语言", "valueType": "boolean", "values": ["true", "false"]}
         }
       },
       "pageNum": {

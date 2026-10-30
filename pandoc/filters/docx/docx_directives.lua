@@ -2,8 +2,9 @@
 -- []{t="toc" title="Contents"}, []{t="listofFigures" includeSubfigures="true"},
 -- and []{t="sectionBreak" pageStart="1" footer='[]{t="pageNum"}'} are standalone blocks.
 -- Section stories are rendered by Pandoc and moved into native parts after global stories.
--- Native crossrefs use caption-label lists; static numbers and expanded panel lists
--- keep style selectors, with a bare \c to apply Word's Table of Figures style.
+-- Native main-caption lists use caption labels; English-caption and expanded panel
+-- lists use styles, with bare \c for Table of Figures formatting.
+-- For example, []{t="listofFigures" caption-en="true"} selects caption-en lines.
 -- headerDefault/headerEven/headerFirst override the shared header independently;
 -- headerDistance="3cm" and footerDistance="2cm" set the following section's edge distances.
 
@@ -18,6 +19,12 @@ local stories = pandoc.Blocks {}
 local lists = {}
 local labels = {}
 local native_lists = false
+local caption_styles = {F = 'Image Caption', S = 'Papper Subfigure Caption', T = 'Table Caption'}
+
+--- Select caption sources through their existing main or English paragraph styles
+local function selected_styles(kind, english, level)
+  return caption_styles[kind] .. (english and ' EN' or '') .. ',' .. level
+end
 
 --- Require literal booleans for section linkage and subfigure selection
 local function boolean(value, fallback, key)
@@ -43,14 +50,15 @@ local function contents(span)
     instruction, default_title = 'TOC \\o "1-' .. depth .. '" \\h \\z', 'Contents'
   else
     local include = kind == 'listofFigures' and boolean(attrs.includeSubfigures, false, 'includeSubfigures')
-    local identifier = kind == 'listofTables' and 'T' or (include and 'S' or 'F')
-    if native_lists and not include then
+    local english = boolean(attrs['caption-en'], false, 'caption-en')
+    local identifier = kind == 'listofTables' and 'T' or 'F'
+    lists[identifier] = true
+    if native_lists and not include and not english then
       local label = labels[identifier]
       instruction = 'TOC \\h \\z \\c "' .. label:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"'
     else
-      lists[identifier] = true
-      local styles = kind == 'listofTables' and 'Papper Table Caption,1'
-        or (include and 'Papper Figure Caption,1,Papper Subfigure Caption,2' or 'Papper Figure Caption,1')
+      local styles = selected_styles(identifier, english, 1)
+      if include then styles = styles .. ',' .. selected_styles('S', english, 2) end
       -- A bare \c selects Table of Figures formatting without requiring SEQ labels.
       instruction = 'TOC \\t "' .. styles .. '" \\h \\z \\c'
     end
@@ -156,23 +164,21 @@ local function reject_nested_section(container)
   end})
 end
 
---- Mark primary caption paragraphs for inherited styles used by style-based lists
-local function caption_entry(element, identifiers)
-  local last = element.caption.long[1]
-  if not last then return element end
-  while last.t == 'Div' do last = last.content[#last.content] end
-  if last.t ~= 'Para' and last.t ~= 'Plain' then return element end
-  for _, identifier in ipairs(identifiers) do
-    if lists[identifier] then
-      local kind = identifiers[1] == 'S' and 'S' or identifier == 'T' and 'T' or 'F'
-      last.content:insert(pandoc.RawInline('openxml',
-        '<w:r><w:rPr><w:vanish/></w:rPr><w:t>PMT_DOCX_CAPTION:'
-        .. kind
-        .. '</w:t></w:r>'))
-      break
+--- Separate panels from main Image Caption paragraphs so ordinary lists exclude them
+local function subfigure_entry(figure)
+  --- Follow caption-en containers rather than inferring a source from caption text
+  local function mark(block, english)
+    if block.t == 'Div' then
+      if block.classes:includes('caption-en') then english = true end
+      for _, child in ipairs(block.content) do mark(child, english) end
+    elseif block.t == 'Para' or block.t == 'Plain' then
+      block.content:insert(pandoc.RawInline('openxml',
+        '<w:r><w:rPr><w:vanish/></w:rPr><w:t>PMT_DOCX_CAPTION:S'
+        .. (english and ':en' or '') .. '</w:t></w:r>'))
     end
   end
-  return element
+  for _, block in ipairs(figure.caption.long) do mark(block, false) end
+  return figure
 end
 
 --- Process body directives and caption indexes before appending rendered section stories
@@ -192,7 +198,7 @@ function Pandoc(doc)
     DefinitionList = reject_nested_section, Note = reject_nested_section})
   doc = doc:walk({Para = paragraph, Plain = paragraph})
   doc = doc:walk({Span = inline})
-  if next(lists) then
+  if lists.F then
     local children = {}
     doc:walk({Figure = function(figure)
       if figure.classes:includes('subfigures') then
@@ -202,9 +208,8 @@ function Pandoc(doc)
       end
     end})
     doc = doc:walk({
-      Figure = function(figure) return caption_entry(figure, children[figure.identifier] and {'S'} or {'F', 'S'}) end,
-      Table = function(tbl)
-        if tbl.attributes['custom-style'] ~= 'TableSubfigure' then return caption_entry(tbl, {'T'}) end
+      Figure = function(figure)
+        if children[figure.identifier] then return subfigure_entry(figure) end
       end,
     })
   end

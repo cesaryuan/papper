@@ -281,6 +281,7 @@ fn postprocess_package(
     }
     directives::index_captions(&mut document, &mut styles)?;
     paragraph_format::apply(package, &mut document, &styles)?;
+    captions::tighten_english_spacing(&mut document, &styles);
     image_crops::finalize(package, &mut document)?;
     syntax::annotate(package, &mut document)?;
     package.set_xml("word/document.xml", &document);
@@ -309,11 +310,13 @@ fn finalize_package_content(package: &mut Package, effective: &EffectiveMetadata
     let directives_changed = directives::apply(package, &mut document, &mut styles)?;
     let captions_changed = directives::index_captions(&mut document, &mut styles)?;
     let paragraph_format_changed = paragraph_format::apply(package, &mut document, &styles)?;
+    let caption_spacing_changed = captions::tighten_english_spacing(&mut document, &styles);
     let image_crops_changed = image_crops::finalize(package, &mut document)?;
     if note_marks::apply(package, &mut document)?
         || directives_changed
         || captions_changed
         || paragraph_format_changed
+        || caption_spacing_changed
         || image_crops_changed
         || effective.pmt_settings.fields().docx_footer.is_some()
         || effective.pmt_settings.fields().docx_header.is_some()

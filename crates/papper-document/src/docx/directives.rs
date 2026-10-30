@@ -129,7 +129,7 @@ pub(super) fn apply(
     Ok(changed)
 }
 
-/// Add caption styles based on each authored style so Word lists keep live caption content.
+/// Give caption-en lines and panels distinct styles while preserving default main captions.
 pub(super) fn index_captions(document: &mut Element, styles: &mut Element) -> Result<bool> {
     let mut changed = false;
     document.visit_mut(&mut |paragraph| {
@@ -150,22 +150,20 @@ pub(super) fn index_captions(document: &mut Element, styles: &mut Element) -> Re
         let Some(kind) = kind else {
             return;
         };
-        let (identifier, name, fallback) = match kind.as_str() {
-            "T" => (
-                "PapperTableCaption",
-                "Papper Table Caption",
-                "Table Caption",
+        let (kind, source) = kind.split_once(':').unwrap_or((&kind, ""));
+        let (identifier, name, fallback) = match (kind, source) {
+            ("T", "en") => ("TableCaptionEN", "Table Caption EN", "Table Caption"),
+            ("S", "en") => (
+                "PapperSubfigureCaptionEN",
+                "Papper Subfigure Caption EN",
+                "Image Caption",
             ),
-            "S" => (
+            ("S", _) => (
                 "PapperSubfigureCaption",
                 "Papper Subfigure Caption",
                 "Image Caption",
             ),
-            _ => (
-                "PapperFigureCaption",
-                "Papper Figure Caption",
-                "Image Caption",
-            ),
+            _ => ("ImageCaptionEN", "Image Caption EN", "Image Caption"),
         };
         if style_index(styles, name).is_none() {
             let base = paragraph

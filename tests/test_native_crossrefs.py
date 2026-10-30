@@ -12,6 +12,7 @@ from native_support import native_pandoc_executable, papper_command
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
+from docx import Document
 import pytest
 import yaml
 
@@ -330,6 +331,15 @@ lang: zh-CN
         expected = ["3-1", "3-1", *expected]
     assert values == (expected if native_crossref else [])
     assert "keeping its Link" not in log
+    # Caption sources keep distinct styles even when no figure/table directory exists.
+    document = Document(output)
+    main = [paragraph for paragraph in document.paragraphs
+            if any(title in paragraph.text for title in ("中文图一", "中文图二", "中文图三", "中文表一", "中文表二"))]
+    assert Counter(paragraph.style.name for paragraph in main) == {"Image Caption": 3, "Table Caption": 2}
+    english = [paragraph for paragraph in document.paragraphs
+               if any(title in paragraph.text for title in ("Architecture of", "Next chapter", "Comparison of"))]
+    assert Counter(paragraph.style.name for paragraph in english) == {"Image Caption EN": 2, "Table Caption EN": 1}
+    assert all(paragraph.paragraph_format.keep_together for paragraph in english)
 
 
 def test_explicit_unlinked_references_keep_plain_text_with_native_crossref(tmp_path: Path) -> None:

@@ -2,7 +2,7 @@
 -- Run before crossref to preserve translated Markdown and mark its number template,
 -- then after number normalization and before DOCX native field conversion.
 -- Crossref sees only the primary caption, so translations never increment counters
--- or become duplicate list-of-figures/table entries.
+-- Native t-span directories select main captions or caption-en lines independently.
 
 local phase_key = 'pmt-bilingual-captions'
 local number_class = 'pmt-bilingual-number'
@@ -109,11 +109,18 @@ local function prepare(doc)
   return doc
 end
 
---- Keep both caption languages in the same semantic style and native container.
+--- Preserve caption sources; finalization gives only caption-en lines an inherited EN style.
 local function caption_block(content, kind, english)
   local class = english and 'caption-en' or 'caption-primary'
   if FORMAT == 'docx' then
     local style = kind == 'fig' and 'Image Caption' or 'Table Caption'
+    if english then
+      -- Mark every caption-en line, even without a directory, while retaining its
+      -- base style until caption grouping and authored typography have been applied.
+      content:insert(pandoc.RawInline('openxml',
+        '<w:r><w:rPr><w:vanish/></w:rPr><w:t>PMT_DOCX_CAPTION:'
+        .. (kind == 'fig' and 'F' or 'T') .. ':en</w:t></w:r>'))
+    end
     return pandoc.Div({ pandoc.Para(content) },
       pandoc.Attr('', { class }, { ['custom-style'] = style, lang = english and 'en' or nil }))
   end

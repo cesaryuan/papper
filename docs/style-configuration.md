@@ -749,6 +749,21 @@ Figure and table lists inserted with `listofFigures` and `listofTables` use the
 `Table of Figures` paragraph style (`图表目录` also works as a configuration
 name). Configure this style to change list entries; `TOC 1` and other numbered
 TOC styles apply to the heading contents list.
+The insertion lists main captions by default; `caption-en="true"` instead lists
+the English captions supplied through the figure or table's `caption-en`
+attribute. Main captions can be written in any language. This selection also
+applies with `docxNativeCrossref` enabled and does not change caption numbering.
+Main figure and table captions use `Image Caption` and `Table Caption`.
+English captions use `Image Caption EN` and `Table Caption EN`, inheriting their
+corresponding main style when absent from the reference document. Define these
+EN styles in a reference DOCX to configure their appearance independently;
+`docxStyle` overrides can configure them when they exist in that reference.
+For adjacent `Image Caption` / `Image Caption EN` or `Table Caption` /
+`Table Caption EN` paragraphs, the generated DOCX sets the main caption's
+space after to 0. For tables it also sets the English caption's space before to 0.
+Each rule overrides the relevant style or local setting for that paragraph
+only. Single captions and all other spacing retain their configured values.
+These rules also apply with optional postprocessing disabled.
 
 Author metadata uses the bundled `Author` paragraph style (12pt, centered,
 0pt spacing before) and `Affiliation` paragraph style (10pt Western text,
