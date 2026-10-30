@@ -399,6 +399,17 @@ aliases. The C# helper still receives its `set-data` method argument, and the
 equation cache retains that backend identity so the public rename reuses
 existing native MathType artifacts.
 
+The Typst preview scope works around
+[MiTeX #229](https://github.com/mitex-rs/mitex/issues/229): Typst 0.15 preserves
+the baseline of MiTeX's `aligned` block, which can make surrounding stretchy
+delimiters excessively tall. Nonempty `aligned` results are wrapped in a
+single-element, delimiter-free math vector to center the whole block on the
+math axis. The wrapped text uses `bounds` for both vertical edges so multiline
+centering includes the full math ink rather than asymmetric text line metrics.
+Empty environments retain MiTeX's zero-width result. This override
+leaves the bundled upstream scope files and editable OLE source unchanged;
+it needs neither a font-specific offset nor image trimming.
+
 ### Equation Cache Identity
 
 Equation caches live under
