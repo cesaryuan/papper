@@ -3,6 +3,24 @@
 
 local helpers = {}
 
+--- Use the same trimmed caption label in SEQ fields and native figure/table lists
+function helpers.sequence_name(value, fallback)
+  local text = pandoc.utils.stringify(value or fallback)
+  local first, last
+  for position, codepoint in utf8.codes(text) do
+    -- YAML Markdown can retain boundary spaces as NBSP or ideographic spaces.
+    local whitespace = (codepoint >= 0x09 and codepoint <= 0x0D) or codepoint == 0x20
+      or codepoint == 0x85 or codepoint == 0xA0 or codepoint == 0x1680
+      or (codepoint >= 0x2000 and codepoint <= 0x200A) or codepoint == 0x2028
+      or codepoint == 0x2029 or codepoint == 0x202F or codepoint == 0x205F or codepoint == 0x3000
+    if not whitespace then
+      first = first or position
+      last = utf8.offset(text, 2, position) or (#text + 1)
+    end
+  end
+  return first and text:sub(first, last - 1) or fallback
+end
+
 --- Escape field instructions and hidden marker text before embedding OpenXML
 function helpers.xml_escape(text)
   return text:gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;')

@@ -80,7 +80,7 @@ def test_insertions_survive_finalization_and_preserve_section_stories(
     fixture = ROOT / "tests/snapshot_cases/docx_directives/docx_directives.md"
     text = fixture.read_text(encoding="utf-8").replace(
         "../crossrefs/figure.svg", (ROOT / "tests/snapshot_cases/crossrefs/figure.svg").as_posix(),
-    ).replace("  mathtype: false", f"  mathtype: false\n  docxNativeCrossref: {str(native).lower()}")
+    ).replace("  docxNativeCrossref: true", f"  docxNativeCrossref: {str(native).lower()}")
     # A hyperlink in an independent story exercises OPC relationship relocation,
     # which plain-text output snapshots cannot distinguish from a broken target.
     text = text.replace('header="**Methods header**"',
@@ -108,8 +108,24 @@ def test_insertions_survive_finalization_and_preserve_section_stories(
     ]
     for story in (methods.header, copied.header):
         assert any(relationship.target_ref == "https://example.org" for relationship in story.part.rels.values())
-    assert sum(paragraph.style.name == "Papper Figure Caption" for paragraph in document.paragraphs) == 2
-    assert sum(paragraph.style.name == "Papper Table Caption" for paragraph in document.paragraphs) == 1
+    instructions = [node.text.strip() for node in document.element.iter(qn("w:instrText"))]
+    assert [instruction for instruction in instructions if instruction.startswith("TOC ")] == [
+        r'TOC \o "1-2" \h \z',
+        r'TOC \h \z \c "Figure"' if native else r'TOC \t "Papper Figure Caption,1" \h \z \c',
+        r'TOC \t "Papper Figure Caption,1,Papper Subfigure Caption,2" \h \z \c',
+        r'TOC \h \z \c "Table"' if native else r'TOC \t "Papper Table Caption,1" \h \z \c',
+    ]
+    directories = [paragraph for paragraph in document.paragraphs
+                   if any(' \\c' in node.text for node in paragraph._p.iter(qn("w:instrText")))]
+    assert len(directories) == 3
+    assert all(paragraph.style.name.lower() == "table of figures" for paragraph in directories)
+    # Style-based lists must not add SEQ fields or change build-time numbering.
+    assert sum(instruction.startswith("SEQ Figure") for instruction in instructions) == (2 if native else 0)
+    assert sum(instruction.startswith("SEQ Table") for instruction in instructions) == (1 if native else 0)
+    translated = [paragraph for paragraph in document.paragraphs if "Translated" in paragraph.text]
+    assert len(translated) == 2
+    assert all(not any("SEQ " in node.text for node in paragraph._p.iter(qn("w:instrText")))
+               for paragraph in translated)
     # Both panel captions stay in layout-table cells and are available only to the expanded list.
     panel_paragraphs = document.element.xpath('.//w:tc/w:p[w:pPr/w:pStyle[@w:val="PapperSubfigureCaption"]]')
     assert len(panel_paragraphs) == 2
@@ -120,6 +136,36 @@ def test_insertions_survive_finalization_and_preserve_section_stories(
             if name.startswith("word/") and name.endswith(".xml"):
                 assert b"PMT_DOCX_" not in archive.read(name)
                 assert b"PMT_FOOTER_PAGE:" not in archive.read(name)
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_caption_lists_follow_custom_labels(tmp_path: Path, rust_executable: Path, native: bool) -> None:
+    """Prevent empty native lists when localized caption labels differ from defaults."""
+    source = tmp_path / "labels.md"
+    figure = (ROOT / "tests/snapshot_cases/crossrefs/figure.svg").as_posix()
+    source.write_text(
+        f'---\nfigureTitle: "\u00a0图\u3000"\ntableTitle: 表\n'
+        f'papperSettings:\n  mathtype: false\n  docxNativeCrossref: {str(native).lower()}\n'
+        '  docxStyle:\n    图表目录:\n      fontSize: 11pt\n---\n\n'
+        '[]{t="listofFigures"}\n\n[]{t="listofTables"}\n\n'
+        f'![Primary]({figure}){{#fig:one}}\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n: Values {{#tbl:one}}\n',
+        encoding="utf-8",
+    )
+    output = tmp_path / "labels.docx"
+    result = build_insertions(rust_executable, source, output)
+    assert result.returncode == 0, result.stdout + result.stderr
+    document = Document(output)
+    instructions = [node.text.strip() for node in document.element.iter(qn("w:instrText"))]
+    if native:
+        assert r'TOC \h \z \c "图"' in instructions
+        assert r'TOC \h \z \c "表"' in instructions
+        assert sum(instruction.startswith("SEQ 图 ") for instruction in instructions) == 1
+        assert sum(instruction.startswith("SEQ 表 ") for instruction in instructions) == 1
+    else:
+        assert r'TOC \t "Papper Figure Caption,1" \h \z \c' in instructions
+        assert r'TOC \t "Papper Table Caption,1" \h \z \c' in instructions
+        assert not any(instruction.startswith("SEQ ") for instruction in instructions)
+    assert document.styles["table of figures"].font.size.pt == 11
 
 
 @pytest.mark.parametrize("postprocess,native", [(True, False), (True, True), (False, False)])

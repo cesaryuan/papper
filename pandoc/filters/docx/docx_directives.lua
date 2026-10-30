@@ -2,6 +2,8 @@
 -- []{t="toc" title="Contents"}, []{t="listofFigures" includeSubfigures="true"},
 -- and []{t="sectionBreak" pageStart="1" footer='[]{t="pageNum"}'} are standalone blocks.
 -- Section stories are rendered by Pandoc and moved into native parts after global stories.
+-- Native crossrefs use caption-label lists; static numbers and expanded panel lists
+-- keep style selectors, with a bare \c to apply Word's Table of Figures style.
 -- headerDefault/headerEven/headerFirst override the shared header independently;
 -- headerDistance="3cm" and footerDistance="2cm" set the following section's edge distances.
 
@@ -14,6 +16,8 @@ local section_count = 0
 local initial_section = false
 local stories = pandoc.Blocks {}
 local lists = {}
+local labels = {}
+local native_lists = false
 
 --- Require literal booleans for section linkage and subfigure selection
 local function boolean(value, fallback, key)
@@ -40,10 +44,16 @@ local function contents(span)
   else
     local include = kind == 'listofFigures' and boolean(attrs.includeSubfigures, false, 'includeSubfigures')
     local identifier = kind == 'listofTables' and 'T' or (include and 'S' or 'F')
-    lists[identifier] = true
-    local styles = kind == 'listofTables' and 'Papper Table Caption,1'
-      or (include and 'Papper Figure Caption,1,Papper Subfigure Caption,2' or 'Papper Figure Caption,1')
-    instruction = 'TOC \\t "' .. styles .. '" \\h \\z'
+    if native_lists and not include then
+      local label = labels[identifier]
+      instruction = 'TOC \\h \\z \\c "' .. label:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"'
+    else
+      lists[identifier] = true
+      local styles = kind == 'listofTables' and 'Papper Table Caption,1'
+        or (include and 'Papper Figure Caption,1,Papper Subfigure Caption,2' or 'Papper Figure Caption,1')
+      -- A bare \c selects Table of Figures formatting without requiring SEQ labels.
+      instruction = 'TOC \\t "' .. styles .. '" \\h \\z \\c'
+    end
     default_title = kind == 'listofTables' and 'List of Tables' or 'List of Figures'
   end
   local blocks = pandoc.Blocks {}
@@ -54,7 +64,9 @@ local function contents(span)
   end
   local field = helpers.field(instruction, {pandoc.Str('Update field in Word.')})
   field[1].text = field[1].text:gsub('w:fldCharType="begin"', 'w:fldCharType="begin" w:dirty="true"')
-  blocks:insert(pandoc.Para(field))
+  local paragraph = pandoc.Para(field)
+  blocks:insert(kind == 'toc' and paragraph or pandoc.Div({paragraph},
+    pandoc.Attr('', {}, {['custom-style'] = 'table of figures'})))
   return blocks
 end
 
@@ -144,7 +156,7 @@ local function reject_nested_section(container)
   end})
 end
 
---- Mark primary caption paragraphs for dedicated inherited styles used by Word's lists
+--- Mark primary caption paragraphs for inherited styles used by style-based lists
 local function caption_entry(element, identifiers)
   local last = element.caption.long[1]
   if not last then return element end
@@ -152,9 +164,10 @@ local function caption_entry(element, identifiers)
   if last.t ~= 'Para' and last.t ~= 'Plain' then return element end
   for _, identifier in ipairs(identifiers) do
     if lists[identifier] then
+      local kind = identifiers[1] == 'S' and 'S' or identifier == 'T' and 'T' or 'F'
       last.content:insert(pandoc.RawInline('openxml',
         '<w:r><w:rPr><w:vanish/></w:rPr><w:t>PMT_DOCX_CAPTION:'
-        .. (identifiers[1] == 'S' and 'S' or identifier == 'T' and 'T' or 'F')
+        .. kind
         .. '</w:t></w:r>'))
       break
     end
@@ -166,6 +179,10 @@ end
 function Pandoc(doc)
   if FORMAT ~= 'docx' then return nil end
   section_count, stories, lists = 0, pandoc.Blocks {}, {}
+  labels = {F = helpers.sequence_name(doc.meta.figureTitle, 'Figure'),
+    T = helpers.sequence_name(doc.meta.tableTitle, 'Table')}
+  local native = (os.getenv('PMT_DOCX_NATIVE_CROSSREFS') or 'false'):lower()
+  native_lists = native ~= 'false' and native ~= 'no' and native ~= '0'
   local first = doc.blocks[1]
   local first_span = first and first.t == 'Para' and #first.content == 1 and first.content[1]
   initial_section = first_span and first_span.t == 'Span'

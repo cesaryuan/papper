@@ -745,6 +745,11 @@ DOCX-specific. Style settings do not change LaTeX document-class typography.
 
 Common Chinese built-in names such as `标题 1`, `正文文本`, and `正文` are automatically mapped to the corresponding Word built-in style names like `Heading 1`, `Body Text`, and `Normal`. Custom styles still need to use their exact DOCX style names.
 
+Figure and table lists inserted with `listofFigures` and `listofTables` use the
+`Table of Figures` paragraph style (`图表目录` also works as a configuration
+name). Configure this style to change list entries; `TOC 1` and other numbered
+TOC styles apply to the heading contents list.
+
 Author metadata uses the bundled `Author` paragraph style (12pt, centered,
 0pt spacing before) and `Affiliation` paragraph style (10pt Western text,
 italic, centered, 6pt spacing

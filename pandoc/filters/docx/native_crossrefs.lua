@@ -17,6 +17,7 @@ local helpers = dofile(pandoc.path.join {
   pandoc.path.directory(PANDOC_SCRIPT_FILE), 'native_field_helpers.lua',
 })
 local xml_escape, bookmark_suffix, field = helpers.xml_escape, helpers.bookmark_suffix, helpers.field
+local sequence_name = helpers.sequence_name
 local equation_template = [[
 +:------+:--------------------------------------------------:+--------:+
 |       | $$t$$                                              | $$nmi$$ |
@@ -33,24 +34,6 @@ local function enabled(value, fallback)
   end
   local text = pandoc.utils.stringify(value):lower()
   return text ~= 'false' and text ~= 'no' and text ~= '0'
-end
-
---- Use a caption title as the sequence name, trimming Unicode boundary whitespace
-local function sequence_name(value, fallback)
-  local text = pandoc.utils.stringify(value or fallback)
-  local first, last
-  for position, codepoint in utf8.codes(text) do
-    -- Markdown metadata can preserve boundary spaces as NBSP or ideographic spaces.
-    local whitespace = (codepoint >= 0x09 and codepoint <= 0x0D) or codepoint == 0x20
-      or codepoint == 0x85 or codepoint == 0xA0 or codepoint == 0x1680
-      or (codepoint >= 0x2000 and codepoint <= 0x200A) or codepoint == 0x2028
-      or codepoint == 0x2029 or codepoint == 0x202F or codepoint == 0x205F or codepoint == 0x3000
-    if not whitespace then
-      first = first or position
-      last = utf8.offset(text, 2, position) or (#text + 1)
-    end
-  end
-  return first and text:sub(first, last - 1) or fallback
 end
 
 --- Quote sequence labels containing spaces or field syntax without changing them

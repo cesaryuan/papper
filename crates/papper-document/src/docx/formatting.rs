@@ -69,6 +69,7 @@ pub(crate) fn style_index(styles: &Element, name: &str) -> Option<usize> {
         "标题" => "Title",
         "副标题" => "Subtitle",
         "题注" => "Caption",
+        "图表目录" => "Table of Figures",
         "页眉" => "Header",
         "页脚" => "Footer",
         "脚注文本" => "Footnote Text",

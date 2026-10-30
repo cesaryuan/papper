@@ -161,7 +161,7 @@ def test_build_output_matches_snapshot(
         if target == "html"
         else canonical_docx(
             output, repository_root=ROOT, project_dir=tmp_path,
-            normalize_native_crossrefs=native_crossrefs,
+            normalize_native_crossrefs=native_crossrefs or case_name == "docx_directives",
         )
     )
     # Resolve from the checked-in case, even when inputs were copied to tmp_path.

@@ -196,7 +196,7 @@ def canonical_docx(
     )
     entries: dict[str, object] = {}
     with ZipFile(path) as archive:
-        # Native builds randomize all bookmark IDs. Canonicalize only this fixture;
+        # Native builds randomize all bookmark IDs. Canonicalize opted-in fixtures;
         # other snapshots retain their original bookmark serialization.
         bookmarks = NativeBookmarkNormalizer(archive) if normalize_native_crossrefs else None
         for info in sorted(archive.infolist(), key=lambda item: item.filename):

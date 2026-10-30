@@ -464,11 +464,16 @@ a numbered heading or an entry in the contents.
 `toc` lists headings through `depth`, an integer from 1 to 9 (default 3).
 The default titles are `Contents`, `List of Figures`, and `List of Tables`.
 Figure lists include captioned standalone figures and grouped-figure captions;
-`includeSubfigures="true"` additionally includes panel captions one level below
-the main captions. The default is `false`. Table lists include captioned
+`includeSubfigures="true"` additionally includes panel captions. All figure and
+table list entries use Word's **Table of Figures** style (**图表目录** in Chinese
+Word). The default is `false`. Table lists include captioned
 manuscript tables, excluding tables used to lay out subfigures. With bilingual
 captions, only the primary language appears in the list. These lists work with
 both ordinary caption numbers and `docxNativeCrossref`.
+With `docxNativeCrossref: true`, figure lists without subfigures and table lists
+use Word's native caption-label lists, following the configured primary figure
+or table label (for example, `Figure` or `图`). With ordinary caption numbers,
+or with `includeSubfigures="true"`, lists select caption paragraphs by style.
 
 Directories are dynamic Word fields. Papper requests a field update when Word
 opens a document containing a directory. Until Word updates them, they display

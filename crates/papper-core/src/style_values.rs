@@ -399,6 +399,7 @@ pub fn candidate_style_names_for(style_name: &str) -> Vec<String> {
         "标题" => Some("Title".to_string()),
         "副标题" => Some("Subtitle".to_string()),
         "题注" => Some("Caption".to_string()),
+        "图表目录" => Some("Table of Figures".to_string()),
         "页眉" => Some("Header".to_string()),
         "页脚" => Some("Footer".to_string()),
         "脚注文本" => Some("Footnote Text".to_string()),

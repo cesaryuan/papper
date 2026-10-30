@@ -177,12 +177,17 @@ written as rounded twips in section `pgMar`, without replacing its body margins.
 Mode and distance overrides carry forward; numbering starts do not. This
 mandatory finalization runs even with optional body postprocessing disabled.
 
-Figure/table lists use TOC style switches rather than SEQ labels, supporting
-both static and native caption numbering. Primary-caption markers become
-inherited paragraph styles after body/caption formatting; translated captions
-retain their original styles, and panels use a separate style. This keeps list
-entries live when captions are edited, without copying cached caption text into
-TC fields. Directory fields are dirty and set `updateFields`; layout and final
+With native crossrefs enabled, figure lists without subfigures and table lists
+use caption-label fields such as `TOC \h \z \c "Figure"`, reusing existing SEQ
+fields. Labels are shared with native crossrefs and trimmed identically.
+Static-numbered lists and expanded figure lists retain the TOC `\t` style
+selector. A bare `\c` switch makes Word apply `Table of Figures` formatting
+without requiring a SEQ label. Primary-caption markers become inherited
+paragraph styles; panels use their separate style, and translated captions
+retain their original styles. This preserves live caption content and avoids
+allocating independent panel numbers or adding SEQ fields to static captions.
+All figure/table list placeholders also use `Table of Figures`.
+Directory fields are dirty and set `updateFields`; layout and final
 directory results are computed by Word. DATE results are normalized only in
 test snapshots because the actual published cache uses the build date.
 
