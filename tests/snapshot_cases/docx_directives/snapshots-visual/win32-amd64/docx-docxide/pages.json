@@ -23,6 +23,12 @@
       "height_pt": 841.9000244140625,
       "width_px": 1191,
       "height_px": 1684
+    },
+    {
+      "width_pt": 595.2999877929688,
+      "height_pt": 841.9000244140625,
+      "width_px": 1191,
+      "height_px": 1684
     }
   ],
   "field_update": "DOCXIDE evaluates supported fields automatically; unsupported fields retain caches; DATE locked to fixture cache"
