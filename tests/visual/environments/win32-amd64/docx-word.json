@@ -1,14 +1,14 @@
 {
-  "source_commit": "80eb640a73823af02c2dd6a4f6c90c4c509cacc8",
+  "source_commit": "658d27f08c20c0a9ba675d0714f18f9e51cb9304",
   "environment": {
     "platform": "win32",
     "architecture": "amd64",
     "os_release": "11",
     "word": {
       "word_version": "16.0",
-      "word_build": "16.0.20430",
-      "word_file_version": "16.0.20430.20146",
-      "word_sha256": "a02ec8e28e1210a13f1c8d1874c9f10d6ed987a18365cbaae72d8403ba2d906d",
+      "word_build": "16.0.20527",
+      "word_file_version": "16.0.20527.20088",
+      "word_sha256": "9be13b7adc7eda2d1b5256d7f392eb688c996a3cb0adf84bad8cb0ef9e5b871d",
       "active_printer": "HP9A1E06.lan (HP LaserJet Pro MFP 4104)",
       "ui_language": 2052,
       "print_hidden_text": false,
@@ -22,6 +22,6 @@
     "colorspace": "RGB",
     "alpha": false,
     "export": "print-quality document-content without review markup; repaginate; no field update",
-    "installed_fonts_sha256": "cfc326989e5b0f42a6c14b894996ae1c58914c30bc9dcfd6381bec19b8b1ec5f"
+    "installed_fonts_sha256": "41cf86779e354aba755ebefad8705a06ab9db24a75ff2b0aa326d01392969378"
   }
 }
