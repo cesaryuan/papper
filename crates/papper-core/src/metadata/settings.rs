@@ -641,6 +641,11 @@ impl PmtSettings {
         self.provided.insert(SettingField::Mathtype);
     }
 
+    /// Select a build-local equation backend without changing project configuration provenance.
+    pub fn set_mathtype_conversion_method(&mut self, method: ConversionMethod) {
+        self.fields.mathtype_conversion_method = method;
+    }
+
     /// Change derived line-number policy without making an absent project field explicit.
     pub fn set_line_numbers(&mut self, mode: LineNumberMode) {
         self.fields.docx_show_line_numbers = mode;

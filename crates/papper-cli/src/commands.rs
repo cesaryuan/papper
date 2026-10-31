@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result, bail};
 use papper_core::metadata::{
-    MetadataOptions, load_effective_metadata_text, markdown_without_yaml_header,
+    ConversionMethod, MetadataOptions, load_effective_metadata_text, markdown_without_yaml_header,
     reply_manuscript_text, write_pandoc_metadata,
 };
 use papper_core::paths::{
@@ -377,6 +377,25 @@ pub(crate) fn build_other_with_worker(
             }
         }
         if effective.pmt_settings.fields().mathtype {
+            if resident.is_some()
+                && effective.pmt_settings.fields().mathtype_conversion_method
+                    != ConversionMethod::Rust
+            {
+                // Docxide cannot draw SDK WMF text records. Override only the
+                // preview's effective backend, before SDK checks and cache selection;
+                // Rust emits outlines while native-equation opt-outs stay intact.
+                eprintln!(
+                    "[DOCX preview] Using Rust outline WMF for MathType equations (project method: {})",
+                    effective
+                        .pmt_settings
+                        .fields()
+                        .mathtype_conversion_method
+                        .as_str()
+                );
+                effective
+                    .pmt_settings
+                    .set_mathtype_conversion_method(ConversionMethod::Rust);
+            }
             match papper_document::docx::check_mathtype_available(resources, &effective) {
                 Ok(()) => use_mathtype = true,
                 Err(error) => eprintln!(

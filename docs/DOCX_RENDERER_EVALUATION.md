@@ -45,6 +45,7 @@ Word 的字段更新、目录及布局语义检查继续保留；没有放宽像
 
 | 类别 / 案例 | Word 与 DOCXIDE 0.20.1 的差异 | 本地对比图 |
 | --- | --- | --- |
+| SDK MathType WMF 公式：真实论文与 12 公式最小输入 | 193 个公式 WMF 均含当前未绘制的 `META_EXTTEXTOUT`；最小输入中 Word 显示前 12 个公式，DOCXIDE 全部空白。原生 OMML、Rust 轮廓 WMF 的对照能显示，详见 [预览内容复核](DOCX_PREVIEW_RENDERING_CHECK.md) | `output/benchmarks/docx-render-investigation-20261031/math-minimal-comparison.png` |
 | 英文两端对齐换行：`template` 第 2 页及 `04-introduction-wrap.docx` | Introduction 首段仍是 Word 2 行、DOCXIDE 3 行；完整模板后续表格和公式也向后移动 | `detail-introduction.png` |
 | 目录字段：`docx_directives` | Word 生成正文、图、表及子图等目录和页码；DOCXIDE 保留 `Update field in Word.` 占位缓存，整份文档为 8 页 / 5 页。这是字段支持差异，不能直接归因于正文排版变紧 | `docx_directives-01.png`、`docx_directives-04.png` |
 | 章节编号字段：`native_crossrefs` | Word 题注为 `图 1-1`、`表 1-1`，DOCXIDE 为 `图 第 1 章-1`、`表 第 1 章-1`；公式编号也带入“第…章”并在窄栏中折成多行。正文引用仍为原缓存的 `图 1-1`，与题注不一致 | `detail-chapter-fields.png` |

@@ -22,6 +22,14 @@
 SVG filter 仍遵循项目配置，Pandoc SVG PNG 备用图保留。上一轮显式关闭备用图
 会导致当前渲染链路中部分图片空白，该实验开关及其 Pandoc 应用模块覆盖现已移除。
 
+预览启用 MathType 时，内部固定使用 Rust 后端生成轮廓 WMF；`mathtype: false`
+仍保留原生 Word 公式。覆盖发生在 SDK 检查与缓存选择之前，不需要本机 MathType，
+继续遵循项目的公式渲染器和字体设置。正式导出仍遵循作者选择的转换后端。
+这是为绕开当前 Docxide 不绘制 SDK WMF 文字记录的限制：修复前真实论文的
+193 个公式对象均涉及此路径。Rust 轮廓可恢复显示，但尺寸、字体及分页可能与
+SDK 正式输出不同。
+详见 [SVG 与公式缺失复核](DOCX_PREVIEW_RENDERING_CHECK.md)。
+
 ## 服务与分发
 
 `papper-server/src/docx_preview.rs` 提供本机 HTTP 服务。扩展启动内部入口
@@ -46,6 +54,8 @@ PDF 仍全量生成，浏览器随后只绘制附近页；没有实现 DOCX 或 
 ## 实测与验证
 
 37 页真实论文的原稿只读，以此前验证过的图片／公式缓存预热私有状态目录。
+后续内容复核确认这份 37 页 PDF 存在 SDK WMF 公式缺失，以下数据仅记录当时的
+链路耗时，不能视为完整预览通过验收；修复后需要重新测量有效输出的耗时和页数。
 两轮预热后提交五次不同的、可见的正文编辑。每次生成的 PDF 均含对应编辑文本，
 页数均为 37，七次请求的 Pandoc PID 相同。测量期间没有并行编译或测试。
 
@@ -101,3 +111,22 @@ PDF 仍全量生成，浏览器随后只绘制附近页；没有实现 DOCX 或 
 服务回归共 61 项通过，两个 Word 视觉用例按默认策略跳过。Rust CLI 与恢复上游
 应用模块后的 Pandoc worker 均重新编译。服务回归直接检查当前 PDF 内容与图片
 像素，不再通过已删除的 JSONL 协议验证预览。
+
+## 预览使用 Rust 轮廓公式
+
+启用 MathType 的项目在预览内部改用 Rust 后端，保留作者的原生公式 opt-out、
+公式渲染器和字体设置。新增实际 HTTP 回归先在旧实现复现公式缺失，再验证修复后的
+公式像素、MathType／原生／MathType 连续切换、进程复用及源文件保护。
+
+修复后预览服务、原生交叉引用和 HTML 服务回归共 62 项通过，两个显式 Word
+视觉用例按默认策略跳过。Release CLI 编译、Rust 格式检查和差异空白检查通过。
+
+真实论文不修改原有 `both` 配置，正常预览生成 39 页、193 个轮廓 WMF；所有 WMF
+字节及 39 页的像素都与已核对的 Rust 对照一致。预览前后的两次正式 `both` 导出
+保留 SDK WMF，公式图片字节相同。源稿 SHA-256 不变，服务正常退出并清理工作目录。
+本轮只做内容回归，没有重新进行多轮性能 benchmark。
+
+本机 uv editable 开发安装已更新；经 PATH 上的 `papper` 再次检查实际 PDF 公式
+像素及 MathType 对象均正常。已有预览进程需要关闭面板后重开才能加载更新的程序。
+证据位于忽略目录 `output/benchmarks/docx-preview-rust-wmf-20261031/`，包括
+`verification.json`、`installed-verification.json` 和 `paper-preview.pdf`。

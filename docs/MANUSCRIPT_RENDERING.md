@@ -30,6 +30,15 @@ unsupported SVG content can otherwise disappear from the PDF. There is no
 request-selected output path, arbitrary DOCX option array or standalone DOCX
 worker command.
 
+When MathType is enabled, the builder overrides only its effective conversion
+method to `rust` before dependency checks and equation-cache selection. SDK WMF
+text records are not drawn by Docxide; Rust's polygon outlines avoid missing
+formulas without requiring the SDK. The configured `mathtype: false` opt-out,
+SVG backend and math-font choices remain effective. Ordinary exports reload and
+use the author's conversion method. Formula dimensions and pagination can differ
+from SDK-based Word exports. The real HTTP regression checks actual formula
+pixels across enabled/native/enabled requests in one retained process.
+
 The extension handles edit debounce, latest-request coalescing and obsolete PDF
 rejection. Invalidation reaches PDF.js before a replacement is loaded, so an edit
 also rejects a candidate still parsing or drawing. The PDF service is serialized

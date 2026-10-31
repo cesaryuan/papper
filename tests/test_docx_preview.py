@@ -106,6 +106,46 @@ def native_fields(path: Path) -> list[str]:
         return root.xpath('//*[local-name()="instrText"]/text()')
 
 
+def assert_inline_equation_visible(data: bytes) -> None:
+    """Catch blank formula previews by inspecting pixels between surrounding text markers."""
+    with pymupdf.open(stream=data, filetype="pdf") as pdf:
+        page = next(page for page in pdf if page.search_for("LEFT") and page.search_for("RIGHT"))
+        left, right = page.search_for("LEFT")[0], page.search_for("RIGHT")[0]
+        assert abs(left.y0 - right.y0) < 2, "Equation markers unexpectedly wrapped"
+        # The markers sit outside the crop: neither surrounding prose nor a
+        # surviving equation number can hide a missing MathType preview image.
+        area = pymupdf.Rect(left.x1 + 1, left.y0 - 15, right.x0 - 1, right.y1 + 5)
+        assert area.width > 5, "Equation lost its reserved inline width"
+        pixels = page.get_pixmap(matrix=pymupdf.Matrix(2, 2), clip=area,
+                                 colorspace=pymupdf.csGRAY, alpha=False).samples
+        assert sum(value < 180 for value in pixels) > 40, "Inline formula is blank in the PDF"
+
+
+def test_preview_draws_mathtype_equations_and_keeps_native_opt_out(session: PreviewSession) -> None:
+    """SDK-selected projects must show formulas, including after toggling native equations in a warm service."""
+    style = "mathtype: true\nmathtypeConversionMethod: both\n"
+    (session.project / "style.yml").write_text(style, encoding="utf-8")
+    worker_pids = []
+    for settings, expected_objects in [
+        ("mathtypeConversionMethod: mathtype", 1),
+        ("mathtype: false", 0),
+        ("mathtypeConversionMethod: rust-sdk", 1),
+    ]:
+        text = "---\npapperSettings:\n  " + settings + "\n---\n\nLEFT $x^2+1$ RIGHT\n"
+        pdf, headers = session.preview(text)
+        assert_inline_equation_visible(pdf)
+        with ZipFile(next(session.work.rglob("preview.docx"))) as package:
+            document = etree.fromstring(package.read("word/document.xml"))
+        # OMML could also draw the pixels; require MathType to remain enabled
+        # unless this particular buffer explicitly opts out of conversion.
+        assert len(document.xpath('//*[local-name()="object"]')) == expected_objects
+        assert len(document.xpath('//*[local-name()="oMath"]')) == 1 - expected_objects
+        worker_pids.append(headers["X-Papper-Worker-Pid"])
+    assert len(set(worker_pids)) == 1
+    assert (session.project / "style.yml").read_text(encoding="utf-8") == style
+    assert session.source.read_text(encoding="utf-8") == "Saved source must stay untouched\n"
+
+
 def test_unsaved_preview_clears_previous_page_stories(session: PreviewSession) -> None:
     """A later buffer must not inherit headers or footers from a previous warm request."""
     first = ('---\ntitle: Header A\npapperSettings:\n  docxHeader:\n    content: "PRIVATE HEADER A"\n'

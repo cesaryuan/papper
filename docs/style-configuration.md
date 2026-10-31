@@ -164,6 +164,11 @@ Choose `mathtypeConversionMethod` according to your environment:
 | `auto` | On Windows with MathType available, try `mathtype` and then fall back to `rust`; elsewhere, use `rust`. |
 | `both` | Diagnose conversion differences on Windows with MathType installed; the document uses the `mathtype` result. |
 
+The experimental editor DOCX preview uses `rust` whenever MathType conversion is
+enabled, so formulas remain visible without a MathType installation. It keeps
+`mathtype: false` as native Word equations. Normal DOCX exports still use your
+selected conversion method; preview formula fonts, sizes and pagination can differ.
+
 For installed MathType on Windows, use:
 
 ```yaml
