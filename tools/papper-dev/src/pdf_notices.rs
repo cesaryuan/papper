@@ -59,10 +59,25 @@ pub fn stage(files: &mut BTreeMap<String, PathBuf>, root: &Path, prefix: &str) -
         let version = package["version"]
             .as_str()
             .context("PDF crate version missing")?;
+        // Git snapshots can share a published version, so link their exact source
+        // instead of attributing preview fixes to the older crates.io archive.
+        let crate_source = if let Some(source) = package["source"]
+            .as_str()
+            .filter(|source| source.starts_with("git+"))
+        {
+            let (repository, revision) = source
+                .trim_start_matches("git+")
+                .split_once('#')
+                .context("Locked PDF Git revision missing")?;
+            let repository = repository.split('?').next().unwrap_or(repository);
+            format!("{}/tree/{revision}", repository.trim_end_matches(".git"))
+        } else {
+            format!("https://crates.io/api/v1/crates/{name}/{version}/download")
+        };
         sources.push(json!({
             "crate": name, "crate_version": version,
             "license": package["license"], "repository": package["repository"],
-            "crate_source": format!("https://crates.io/api/v1/crates/{name}/{version}/download"),
+            "crate_source": crate_source,
             "features": node["features"],
         }));
     }

@@ -46,7 +46,7 @@ pub fn run(token: &str, mut build: impl FnMut(Value) -> Result<(Vec<u8>, Value)>
             &json!({
                 "type":"ready", "protocol":"papper-docx-preview-v1",
                 "url":format!("http://{address}"), "pid":std::process::id(),
-                "renderer":"docxide-pdf/0.20.1"
+                "renderer":"docxide-pdf/0.20.1+0d97e9b0468d"
             }),
         )?;
         writeln!(output)?;
