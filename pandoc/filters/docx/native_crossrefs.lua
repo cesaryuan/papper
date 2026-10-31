@@ -1,3 +1,6 @@
+-- Read request-local Unicode environment values; Windows Lua os.getenv retains stale CRT values in a resident worker.
+local request_environment = pandoc.system.environment()
+
 -- Native Word cross-references for Papper manuscript DOCX builds
 -- The DOCX defaults load this file before and after pandoc-crossref
 -- First pass: mark number placeholders in caption, section, and reference templates
@@ -54,7 +57,7 @@ end
 
 --- Keep routine field totals in verbose logs, matching Papper's logging setting
 local function debug(message)
-  if (os.getenv('PANDOC_TEMPLATE_LOG_LEVEL') or ''):upper() == 'DEBUG' then
+  if (request_environment['PANDOC_TEMPLATE_LOG_LEVEL'] or ''):upper() == 'DEBUG' then
     io.stderr:write('[native-crossrefs] ' .. message .. '\n')
   end
 end
@@ -131,7 +134,7 @@ local function convert(doc)
     eq = 'Equation',
   }
   -- Papper supplies a UUID namespace; standalone filter runs get their own fallback.
-  local bookmark_namespace = os.getenv('PMT_DOCX_BOOKMARK_NAMESPACE')
+  local bookmark_namespace = request_environment['PMT_DOCX_BOOKMARK_NAMESPACE']
     or pandoc.utils.sha1(tostring({}) .. os.time() .. os.clock()):sub(1, 24)
   local chapters = enabled(doc.meta.chapters, false)
   local chapter_level = tonumber(pandoc.utils.stringify(doc.meta.chaptersDepth or '1')) or 1
@@ -445,7 +448,7 @@ end
 
 --- Run the preparation and conversion phases only for the DOCX writer
 function Pandoc(doc)
-  if FORMAT ~= 'docx' or not enabled(os.getenv('PMT_DOCX_NATIVE_CROSSREFS'), false) then
+  if FORMAT ~= 'docx' or not enabled(request_environment['PMT_DOCX_NATIVE_CROSSREFS'], false) then
     return nil
   end
   if doc.meta[phase_key] then return convert(doc) end

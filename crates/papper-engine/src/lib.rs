@@ -217,6 +217,9 @@ pub struct WorkerConfig {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkerRequest {
+    /// Complete DOCX options; absent for HTML requests using the startup defaults cache.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arguments: Option<Vec<String>>,
     pub input: PathBuf,
     pub output: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -50,12 +50,17 @@ end
 
 --- Locate a tag boundary without treating greater-than signs inside quotes as markup
 local function tag_end(text, start)
-  local quote
-  for index = start, #text do
+  local cursor = start
+  while cursor <= #text do
+    -- Exporters put megabytes of base64 in quoted hrefs. Search those strings
+    -- in native code instead of allocating one Lua substring per image byte.
+    local index = text:find('[>"\']', cursor)
+    if not index then break end
     local character = text:sub(index, index)
-    if character == quote then quote = nil
-    elseif not quote and (character == '"' or character == "'") then quote = character
-    elseif not quote and character == '>' then return index end
+    if character == '>' then return index end
+    local ending = text:find(character, index + 1, true)
+    if not ending then break end
+    cursor = ending + 1
   end
   error('Invalid SVG XML: incomplete opening tag')
 end

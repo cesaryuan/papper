@@ -50,6 +50,7 @@ papper-document = { path = "crates/papper-document" }
 papper-engine = { path = "crates/papper-engine" }
 papper-server = { path = "crates/papper-server" }
 papper-platform = { path = "crates/papper-platform" }
+docxide-pdf = { version = "=0.20.1", default-features = false }
 
 [profile.release]
 lto = "thin"

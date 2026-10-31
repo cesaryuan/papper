@@ -63,6 +63,7 @@ instance FromJSON Config
 data Request = Request
   { input :: FilePath
   , output :: FilePath
+  , arguments :: Maybe [String]
   , mode :: Maybe String
   , inputFormat :: Maybe String
   , assetFingerprint :: Maybe String
@@ -205,10 +206,16 @@ convertRequest engine timings citationCache config optionsCache request = do
   Citations.setRemoteResources citationCache (fromMaybe M.empty (remoteResources request))
   result <- try $ do
     (previous, cachedOptions) <- readIORef optionsCache
-    baseOpts <- if assetFingerprint request == Nothing || previous /= assetFingerprint request
-      then loadOptions config
-      else pure cachedOptions
-    writeIORef optionsCache (assetFingerprint request, baseOpts)
+    -- DOCX requests carry their complete, current reference/metadata/filter options.
+    -- Keep the HTML defaults cache separate so a DOCX request cannot poison it.
+    baseOpts <- case arguments request of
+      Just args -> loadOptions config {pandocArgs = args}
+      Nothing -> do
+        opts <- if assetFingerprint request == Nothing || previous /= assetFingerprint request
+          then loadOptions config
+          else pure cachedOptions
+        writeIORef optionsCache (assetFingerprint request, opts)
+        pure opts
     mapM_ (mapM_ setFilterVariable . M.toList) (filterEnvironment request)
     source <- resolveProjectPath config (input request)
     target <- resolveProjectPath config (output request)
@@ -233,7 +240,14 @@ convertRequest engine timings citationCache config optionsCache request = do
 -- | Update request-local filter settings; arbitrary environment keys are rejected.
 setFilterVariable :: (String, Maybe String) -> IO ()
 setFilterVariable (key, value)
-  | key `elem` ["PMT_CITATION_NUMBER_RANGE_DELIMITER", "PMT_TABLE_AUTOFIT"] =
+  | key `elem` ["PMT_CITATION_NUMBER_RANGE_DELIMITER", "PMT_TABLE_AUTOFIT",
+      "PMT_CHINESE_MODE", "PMT_DOCX_NATIVE_CROSSREFS", "PMT_ENABLE_MATHTYPE_MARKERS",
+      "PMT_DOCX_BOOKMARK_NAMESPACE", "PMT_DOCX_FOOTER_CONTENT_PATH", "PMT_DOCX_HEADER_CONTENT_PATH",
+      "PMT_SVG_EMBED_IMAGES", "PMT_SVG_TO_PNG_CONVERT_ALL", "PMT_SVG_EMBED_BASE_DIRS",
+      "PMT_SVG_TO_PNG_BASE_DIRS", "PMT_SVG_EMBED_DIR", "PMT_SVG_TO_PNG_DIR",
+      "PAPPER_SVG_CACHE_DIR", "PAPPER_SVG_FONT_ID", "PMT_SVG_EMBED_PMT_VERSION",
+      "PMT_SVG_TO_PNG_PMT_VERSION", "PMT_SVG_TO_PNG_DPI", "PMT_SVG_TO_PNG_SCALE",
+      "PMT_SVG_TO_PNG_WIDTH", "PAPPER_SVG_RENDERER_ID", "PAPPER_SVG_RENDERER", "PATH"] =
       maybe (unsetEnv key) (setEnv key) value
   | otherwise = fail $ "Unsupported filter environment variable: " ++ key
 

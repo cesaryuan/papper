@@ -22,6 +22,7 @@ fn main() {
         "crates/papper-svg/src/renderer.rs",
         "crates/papper-svg/src/rsvg.rs",
         "crates/papper-svg/src/cache.rs",
+        "crates/papper-svg/src/font_cache.rs",
     ] {
         let path = root.join(relative);
         println!("cargo:rerun-if-changed={}", path.display());

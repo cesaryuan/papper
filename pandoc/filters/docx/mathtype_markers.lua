@@ -1,3 +1,6 @@
+-- Read request-local Unicode environment values; Windows Lua os.getenv retains stale CRT values in a resident worker.
+local request_environment = pandoc.system.environment()
+
 -- Preserve each formula's original LaTeX and inline/display context for DOCX.
 --
 -- This filter must run before pandoc-crossref. With `eqnBlockInlineMath: true`,
@@ -7,7 +10,7 @@
 -- is otherwise inert. Marker emission is enabled only for MathType builds.
 
 local marker_prefix = "MTLATEX:"
-local markers_enabled = (os.getenv("PMT_ENABLE_MATHTYPE_MARKERS") or ""):lower() == "true"
+local markers_enabled = (request_environment["PMT_ENABLE_MATHTYPE_MARKERS"] or ""):lower() == "true"
 
 -- Escape formula source before embedding it in a WordprocessingML text node.
 local function xml_escape(text)

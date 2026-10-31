@@ -545,7 +545,7 @@ impl AssetCache {
         let expected = [
             (
                 "normalize_chinese_numbering",
-                "0d2278ae300e7d4452cff58b3cafb3f3aaf3fc7bd271014afe3db1e92511e242",
+                "697de889b9c7edb135d42432b68d7c0a5b00169082b1b2111b6aabffb6e0c5c6",
             ),
             (
                 "merge_table_cells",

@@ -202,6 +202,9 @@ the previews produced by installed MathType or the `ratex` renderer.
 Enable `docxNativeCrossref` for updateable Word numbering and references in
 manuscript DOCX, including numeric citations.
 
+The experimental editor DOCX preview always uses static numbers and references,
+even when this setting is enabled. Normal Word exports still follow the setting.
+
 This setting is opt-in. Set it at the top level of `style.yml`:
 
 ```yaml

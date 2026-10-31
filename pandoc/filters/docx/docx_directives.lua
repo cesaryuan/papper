@@ -1,3 +1,6 @@
+-- Read request-local Unicode environment values; Windows Lua os.getenv retains stale CRT values in a resident worker.
+local request_environment = pandoc.system.environment()
+
 -- Insert DOCX-only layout and Word fields at empty t spans after manuscript numbering.
 -- []{t="toc" title="Contents"}, []{t="listofFigures" includeSubfigures="true"},
 -- and []{t="sectionBreak" pageStart="1" footer='[]{t="pageNum"}'} are standalone blocks.
@@ -187,7 +190,7 @@ function Pandoc(doc)
   section_count, stories, lists = 0, pandoc.Blocks {}, {}
   labels = {F = helpers.sequence_name(doc.meta.figureTitle, 'Figure'),
     T = helpers.sequence_name(doc.meta.tableTitle, 'Table')}
-  local native = (os.getenv('PMT_DOCX_NATIVE_CROSSREFS') or 'false'):lower()
+  local native = (request_environment['PMT_DOCX_NATIVE_CROSSREFS'] or 'false'):lower()
   native_lists = native ~= 'false' and native ~= 'no' and native ~= '0'
   local first = doc.blocks[1]
   local first_span = first and first.t == 'Para' and #first.content == 1 and first.content[1]

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Retain upstream notices for the linked PDF engine and its required Office module.
+/// Retain upstream notices for PDF extraction, Office decoding and DOCX rendering.
 pub fn stage(files: &mut BTreeMap<String, PathBuf>, root: &Path, prefix: &str) -> Result<()> {
     let output = Command::new("cargo")
         .args(["metadata", "--locked", "--format-version", "1"])
@@ -25,7 +25,7 @@ pub fn stage(files: &mut BTreeMap<String, PathBuf>, root: &Path, prefix: &str) -
         .as_array()
         .context("Cargo resolution missing")?;
     let mut sources = Vec::new();
-    for name in ["pdf_oxide", "office_oxide"] {
+    for name in ["pdf_oxide", "office_oxide", "docxide-pdf"] {
         let package = packages
             .iter()
             .find(|package| package["name"] == name)
@@ -36,7 +36,12 @@ pub fn stage(files: &mut BTreeMap<String, PathBuf>, root: &Path, prefix: &str) -
                 .context("PDF crate manifest missing")?,
         );
         let source = manifest.parent().context("PDF crate directory missing")?;
-        for required in ["LICENSE-MIT", "LICENSE-APACHE"] {
+        let required_notices = if name == "docxide-pdf" {
+            vec!["LICENSE"]
+        } else {
+            vec!["LICENSE-MIT", "LICENSE-APACHE"]
+        };
+        for required in required_notices {
             let path = source.join(required);
             anyhow::ensure!(path.is_file(), "PDF crate {name} omitted {required}");
             files.insert(format!("{prefix}/bin/pdf-notices/{name}/{required}"), path);

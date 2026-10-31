@@ -264,6 +264,46 @@ def test_text_fallback_cache_tracks_actual_installed_font_bytes(svg_tools, tmp_p
     assert len(list((tmp_path / "cache").rglob("*.cache"))) == 2
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Validate Windows ChangeTime against restored font timestamps")
+def test_text_cache_refreshes_after_same_size_font_replacement(svg_tools, tmp_path) -> None:
+    """Font identity reuse must not hide replacements with restored length/mtime or removals."""
+    fonts = tmp_path / "system/Fonts"
+    fonts.mkdir(parents=True)
+    system = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "Fonts"
+    normal, italic = (system / "times.ttf").read_bytes(), (system / "timesi.ttf").read_bytes()
+    length = max(len(normal), len(italic))
+    selected = fonts / "selected.ttf"
+    selected.write_bytes(normal.ljust(length, b'\0'))
+    controls = {"SYSTEMROOT": str(fonts.parent), "USERPROFILE": str(tmp_path / "user")}
+    svg = (b'<svg xmlns="http://www.w3.org/2000/svg" width="150" height="30">'
+           b'<text x="0" y="20" font-family="Times New Roman">Papper</text></svg>')
+    original = cached_conversion(svg_tools, tmp_path, svg, controls=controls).stdout
+    assert cached_conversion(svg_tools, tmp_path, svg, controls=controls).stdout == original
+    stamp = selected.stat()
+    selected.write_bytes(italic.ljust(length, b'\0'))
+    os.utime(selected, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+    assert selected.stat().st_size == stamp.st_size and selected.stat().st_mtime_ns == stamp.st_mtime_ns
+    updated = cached_conversion(svg_tools, tmp_path, svg, controls=controls).stdout
+    assert updated != original
+    # An independent uncached conversion must draw the same newly installed face.
+    assert cached_conversion(svg_tools, tmp_path, svg,
+                             controls={**controls, "PAPPER_SVG_CACHE": "0"}).stdout == updated
+    selected.unlink()
+    removed = cached_conversion(svg_tools, tmp_path, svg, controls=controls).stdout
+    assert removed != updated
+    selected.write_bytes(normal.ljust(length, b'\0'))
+    assert cached_conversion(svg_tools, tmp_path, svg, controls=controls).stdout == original
+    # A damaged optional identity record must recover through a full byte scan.
+    identity_record, = (tmp_path / "cache").glob("*.meta")
+    identity_record.write_bytes(b"Interrupted identity write")
+    assert cached_conversion(svg_tools, tmp_path, svg, controls=controls).stdout == original
+    blocked = tmp_path / "blocked-font-cache"
+    blocked.write_bytes(b"Keep this authored file")
+    assert cached_conversion(svg_tools, tmp_path, svg,
+                             controls={**controls, "PAPPER_SVG_CACHE_DIR": str(blocked)}).stdout == original
+    assert blocked.read_bytes() == b"Keep this authored file"
+
+
 def test_embedded_webp_retains_color_and_transparency(svg_tools, tmp_path) -> None:
     """A lossless WebP panel must remain visible even without Skia's WebP codec."""
     # Four-by-four translucent blue fixture, independent of installed image encoders.

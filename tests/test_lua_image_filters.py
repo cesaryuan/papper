@@ -56,7 +56,8 @@ def run_image_filters(
                    "PMT_SVG_EMBED_PMT_VERSION": "image-contract",
                    "PMT_SVG_TO_PNG_PMT_VERSION": "image-contract",
                    "PMT_SVG_TO_PNG_CONVERT_ALL": "false", "PMT_SVG_TO_PNG_DPI": "300",
-                   "PMT_SVG_TO_PNG_SCALE": "1", "PAPPER_SVG_RENDERER": str(renderer)}
+                   "PMT_SVG_TO_PNG_SCALE": "1", "PAPPER_SVG_RENDERER": str(renderer),
+                   "PAPPER_SVG_CACHE_DIR": str(project / "renderer-cache")}
     # Caller-wide image controls must not override this fixture's intrinsic viewport.
     environment.pop("PMT_SVG_TO_PNG_WIDTH", None)
     command = [str(pandoc), "--from=json", "--to=json"]
@@ -182,7 +183,8 @@ def test_svg_doctype_declaration_is_supported(
     source = tmp_path / "with-doctype.svg"
     source_bytes = (
         b'<?xml version="1.0" encoding="UTF-8"?>\n' + doctype + b'\n'
-        b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10">'
+        b'<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" '
+        b'data-note="quoted > and \'single\'" data-other=\'double "quote" >\'>'
         b'<image href="child.svg" width="20" height="10"/></svg>'
     )
     source.write_bytes(source_bytes)

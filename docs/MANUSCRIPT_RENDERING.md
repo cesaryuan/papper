@@ -8,6 +8,49 @@ configuration lives in
 Keep pipeline order, source locations, intermediate artifacts, and rendering
 algorithms here rather than in the user guides exposed by `papper guide`.
 
+## Resident DOCX Preview
+
+The editor integration starts `papper __docx_preview_server --token <hex> --work-dir <owned-root>` from
+the manuscript project. It announces `papper-docx-preview-v1` and its ephemeral
+loopback URL on stdout. Authenticated `POST /preview` accepts `source` and
+`source_text`, runs the same retained DOCX builder, and returns PDF bytes plus
+DOCX/PDF timing and worker-PID headers. The renderer is `docxide-pdf` 0.20.1 linked
+into `papper-server` with its CLI feature disabled. Neither a separate Docxide
+executable nor arbitrary request-selected output paths are involved. The service
+owns its DOCX work file under the editor's temporary root; the extension owns
+revision-specific PDF files and removes crash leftovers after native exit. Stdin
+EOF closes the service and its native worker. A build error returns HTTP 422 and
+leaves the service usable; authentication errors return HTTP 401.
+
+The resident builder is private to this preview service. Both the Lua environment
+and final DOCX postprocessing disable native Word cross-references whenever this
+builder is present, leaving Pandoc's static numbering visible in PDF. Ordinary
+exports still honor `docxNativeCrossref`. PNG SVG fallbacks remain enabled because
+unsupported SVG content can otherwise disappear from the PDF. There is no
+request-selected output path, arbitrary DOCX option array or standalone DOCX
+worker command.
+
+The extension handles edit debounce, latest-request coalescing and obsolete PDF
+rejection. Invalidation reaches PDF.js before a replacement is loaded, so an edit
+also rejects a candidate still parsing or drawing. The PDF service is serialized
+and owned per preview panel, independently of the shared HTML server.
+
+The service reuses `build_other_with_worker`, so each request reloads
+metadata/style/reference inputs and runs the complete image, equation and ZIP
+pipeline. One owned Pandoc worker and the existing dependency-aware citation
+cache survive between requests. Complete per-request writer arguments avoid
+contaminating HTML's startup-options cache. Existing image/MathType disk caches
+remain authoritative. Replies still use the normal resolver, which can start
+additional one-shot conversions.
+
+Lua filters read mutable request controls through `pandoc.system.environment()`.
+On Windows, Lua `os.getenv` can retain the C runtime's startup environment even
+after Haskell updates the Windows environment. Removed controls explicitly
+restore inherited values, avoiding stale markers and page-story settings.
+The preview service owns the native worker and closes it before removing its
+private files. See [the preview integration record](DOCX_LIVE_PREVIEW.md) for
+service latency and distribution measurements.
+
 ## DOCX Import Bibliography
 
 `papper-cli/src/convert_csl.rs` reads numbered `ZOTERO_PREF_*` custom properties
@@ -493,6 +536,24 @@ explicit `--resource-path`. Font fingerprints are requested only when an SVG
 contains text or potentially text-bearing nested images. Both explicit PNG
 conversion and Pandoc's fallback cache include font identity for text images;
 vector-only rendering skips loading the system font database.
+
+On Windows, `papper-svg` caches its byte-derived font identity under the existing
+SVG cache directory. Each lookup validates the exact ordered font inventory used
+by fontdb 0.23: system fonts and both per-user roots. File IDs, volume identity,
+length, creation/write times and Windows ChangeTime invalidate same-size edits
+even when mtime is restored. The helper executable identity is part of the key.
+Uncertain metadata, links or inventory errors bypass reuse; cache corruption and
+write failures fall back to a full font scan. Installation, removal and directory
+enumeration-order changes invalidate the inventory. Before/after validation
+prevents publishing a cache across a font change during scanning. Other platforms
+retain full font-byte scanning. `PAPPER_SVG_TRACE=1` also reports font cache hits,
+misses and bypasses. Source/child SVG image caches continue validating content.
+
+The lexical SVG scanner jumps over complete quoted attributes with native string
+searches. Large base64 href values no longer allocate a Lua substring per byte;
+quoted greater-than signs and both quote styles retain their original boundaries.
+See [the SVG optimization benchmark](SVG_FILTER_BENCHMARK.md) for paired timings
+and output-equivalence checks on a real paper.
 
 Office-exported diagrams can contain hundreds of Gaussian-blur shadows whose
 `userSpaceOnUse` filter regions cover the whole SVG viewport. Rasterization cost

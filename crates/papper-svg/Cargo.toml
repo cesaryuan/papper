@@ -18,6 +18,9 @@ tempfile.workspace = true
 # The official Windows Skia SVG archive omits WebP; retain SVG image compatibility.
 image-webp = "0.2.4"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
 # These platform additions match upstream's published SVG archive variants.
 [target.'cfg(target_os = "linux")'.dependencies]
 skia-safe = { workspace = true, features = ["x11"] }

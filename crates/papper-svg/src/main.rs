@@ -13,6 +13,8 @@
 //! system fonts on demand for text images, leaving other builds free of font scans.
 
 mod cache;
+#[cfg(windows)]
+mod font_cache;
 mod renderer;
 mod rsvg;
 

@@ -35,6 +35,9 @@ pub fn dispatch(command: CliCommand) -> Result<()> {
             args.port,
             args.refresh_runtime,
         ),
+        CliCommand::NativeDocxPreviewServer { token, work_dir } => {
+            crate::docx_preview::run(&token, &work_dir)
+        }
         CliCommand::NativeDecode(args) => {
             let decoded = papper_platform::native::decode_documents(&args.documents)?;
             serde_json::to_writer(std::io::stdout().lock(), &decoded)?;
@@ -245,7 +248,26 @@ fn build_other(
     output: &Path,
     resources: &ResourcePaths,
 ) -> Result<()> {
-    let temporary = tempfile::Builder::new().prefix("papper-build-").tempdir()?;
+    build_other_with_worker(args, project, source, output, resources, None, None)
+}
+
+/// Share the complete build pipeline with the private editor-preview builder.
+pub(crate) fn build_other_with_worker(
+    args: &BuildArgs,
+    project: &Path,
+    source: &Path,
+    output: &Path,
+    resources: &ResourcePaths,
+    source_text: Option<&str>,
+    mut resident: Option<&mut crate::docx_preview::PreviewBuilder>,
+) -> Result<()> {
+    let temporary = if let Some(worker) = &resident {
+        tempfile::Builder::new()
+            .prefix("build-")
+            .tempdir_in(worker.directory.path())?
+    } else {
+        tempfile::Builder::new().prefix("papper-build-").tempdir()?
+    };
     // An explicit style (including style.yml) selects exactly one project-relative
     // file; source-directory discovery must not override that user selection.
     let mut styles = if let Some(style) = &args.style_file {
@@ -262,7 +284,9 @@ fn build_other(
         project.to_path_buf(),
         resources.root.clone(),
     ];
-    let text = if source.is_file() {
+    let text = if let Some(text) = source_text {
+        text.trim_start_matches('\u{feff}').replace("\r\n", "\n")
+    } else if source.is_file() {
         std::fs::read_to_string(source)?
             .trim_start_matches('\u{feff}')
             .replace("\r\n", "\n")
@@ -368,7 +392,11 @@ fn build_other(
             "PMT_CHINESE_MODE".into(),
             if chinese { Some("true".into()) } else { None },
         );
-        let native = reply.is_none() && effective.pmt_settings.fields().docx_native_crossref;
+        // Preview uses Pandoc's resolved numbers: Word fields are not refreshed by
+        // the PDF renderer, and must remain enabled for ordinary exports only.
+        let native = resident.is_none()
+            && reply.is_none()
+            && effective.pmt_settings.fields().docx_native_crossref;
         environment.insert("PMT_DOCX_NATIVE_CROSSREFS".into(), Some(native.to_string()));
         environment.insert(
             "PMT_ENABLE_MATHTYPE_MARKERS".into(),
@@ -515,7 +543,18 @@ fn build_other(
         )?);
     }
     command.push(input.into_os_string());
-    PandocCli::new(discover_engine(&resources.root)?).run(&command, project, &environment)?;
+    if let Some(worker) = resident.as_deref_mut() {
+        worker.convert(
+            &command,
+            &environment,
+            &resource_roots,
+            &effective.pandoc_metadata,
+            source,
+            &text,
+        )?;
+    } else {
+        PandocCli::new(discover_engine(&resources.root)?).run(&command, project, &environment)?;
+    }
     if args.target == BuildTarget::Docx {
         let debug_parent = std::env::var_os("PMT_MATHTYPE_WORK_DIR").map(PathBuf::from);
         let project_name = if args.markdown.is_some() || args.manuscript.is_some() {
@@ -532,7 +571,8 @@ fn build_other(
             .unwrap_or(true);
         let formatting = papper_document::docx::DocxPostprocessOptions {
             reply_style_formatting: reply.is_some(),
-            native_crossrefs: reply.is_none()
+            native_crossrefs: resident.is_none()
+                && reply.is_none()
                 && effective.pmt_settings.fields().docx_native_crossref,
         };
         let work = debug_parent

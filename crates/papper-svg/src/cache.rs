@@ -148,7 +148,7 @@ impl Cache {
 }
 
 /// Fingerprint direct helper invocations without trusting only a package version.
-fn executable_identity() -> Result<String> {
+pub(super) fn executable_identity() -> Result<String> {
     let mut file = std::fs::File::open(std::env::current_exe()?)?;
     let mut digest = Sha256::new();
     let mut buffer = [0; 64 * 1024];
@@ -162,8 +162,16 @@ fn executable_identity() -> Result<String> {
     Ok(hex(digest.finalize().as_slice()))
 }
 
-/// Hash the renderer's actual font database once per build, including file contents.
+/// Reuse a validated Windows font identity, falling back to a full scan on uncertainty.
 pub(super) fn font_identity() -> Result<String> {
+    #[cfg(windows)]
+    return super::font_cache::identity(compute_font_identity);
+    #[cfg(not(windows))]
+    compute_font_identity()
+}
+
+/// Hash actual font bytes and selection order when no safe identity cache is available.
+fn compute_font_identity() -> Result<String> {
     let fonts = super::font_database();
     let mut digest = Sha256::new();
     let mut files = BTreeMap::<&Path, Vec<u8>>::new();

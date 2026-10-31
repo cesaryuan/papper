@@ -1,3 +1,6 @@
+-- Read request-local Unicode environment values; Windows Lua os.getenv retains stale CRT values in a resident worker.
+local request_environment = pandoc.system.environment()
+
 -- Normalize Chinese section numbering in the Pandoc AST.
 -- Enabled by PMT_CHINESE_MODE or Chinese `lang`; otherwise leaves the AST unchanged.
 -- In level 2+ headings, change a leading nested number such as `3-1` to `3.1`.
@@ -120,7 +123,7 @@ local function normalize_body_inlines(inlines)
 end
 
 function Meta(meta)
-  enabled = is_truthy(os.getenv("PMT_CHINESE_MODE"))
+  enabled = is_truthy(request_environment["PMT_CHINESE_MODE"])
   if not enabled and meta.lang ~= nil then
     enabled = is_chinese_language(pandoc.utils.stringify(meta.lang))
   end

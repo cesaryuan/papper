@@ -1,3 +1,6 @@
+-- Read request-local Unicode environment values; Windows Lua os.getenv retains stale CRT values in a resident worker.
+local request_environment = pandoc.system.environment()
+
 -- Apply the Papper-configured delimiter to citeproc numeric citation ranges.
 -- CSL requires collapsed citation-number ranges to use an en dash, so this
 -- narrowly adjusts the rendered citation output after citeproc has run.
@@ -12,7 +15,7 @@ end
 
 local function environment_string(name)
   -- Papper-owned filter settings stay outside the Pandoc metadata namespace.
-  local value = os.getenv(name)
+  local value = request_environment[name]
   if value == nil then
     return nil
   end

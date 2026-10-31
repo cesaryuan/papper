@@ -20,6 +20,7 @@ ureq.workspace = true
 papper-core.workspace = true
 papper-document.workspace = true
 papper-engine.workspace = true
+docxide-pdf.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true

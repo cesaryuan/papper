@@ -1,3 +1,6 @@
+-- Read request-local Unicode environment values; Windows Lua os.getenv retains stale CRT values in a resident worker.
+local request_environment = pandoc.system.environment()
+
 -- Convert citeproc's numeric bibliography and citation links to Word SEQ/REF fields
 -- Run after citeproc and citation_number_range_delimiter.lua, so CSL punctuation,
 -- range collapsing, locators, and superscripts are already resolved
@@ -11,7 +14,7 @@ local helpers = dofile(pandoc.path.join {
 
 --- Keep routine bibliography totals in verbose build logs
 local function debug(message)
-  if (os.getenv('PANDOC_TEMPLATE_LOG_LEVEL') or ''):upper() == 'DEBUG' then
+  if (request_environment['PANDOC_TEMPLATE_LOG_LEVEL'] or ''):upper() == 'DEBUG' then
     io.stderr:write('[native-citations] ' .. message .. '\n')
   end
 end
@@ -85,7 +88,7 @@ end
 
 --- Bind numeric citations to bibliography number bookmarks after CSL rendering
 function Pandoc(doc)
-  if FORMAT ~= 'docx' or os.getenv('PMT_DOCX_NATIVE_CROSSREFS') ~= 'true' then
+  if FORMAT ~= 'docx' or request_environment['PMT_DOCX_NATIVE_CROSSREFS'] ~= 'true' then
     return nil
   end
   local entries, identifiers = {}, {}
@@ -114,7 +117,7 @@ function Pandoc(doc)
     end,
   }
   local targets = {}
-  local namespace = (os.getenv('PMT_DOCX_BOOKMARK_NAMESPACE')
+  local namespace = (request_environment['PMT_DOCX_BOOKMARK_NAMESPACE']
     or pandoc.utils.sha1(tostring({}) .. os.time() .. os.clock())) .. ':bibliography'
   local next_bookmark = 0
   for index, entry in ipairs(entries) do

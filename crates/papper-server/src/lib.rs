@@ -1,6 +1,7 @@
 //! Project-bound HTML service, worker lifecycle and dependency-aware caches.
 
 pub mod assets;
+pub mod docx_preview;
 mod file_cache;
 mod process;
 mod service;

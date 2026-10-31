@@ -3,6 +3,7 @@
 mod commands;
 mod convert_csl;
 mod docx_pipeline;
+mod docx_preview;
 mod guide;
 mod images;
 mod reply;
@@ -50,6 +51,15 @@ pub enum CliCommand {
     Doctor(VerboseArgs),
     #[command(name = "__server", hide = true)]
     NativeServer(ServerArgs),
+    #[command(name = "__docx_preview_server", hide = true)]
+    NativeDocxPreviewServer {
+        /// Authenticate the preview-owned loopback service.
+        #[arg(long)]
+        token: String,
+        /// Keep crash leftovers within the editor's owned temporary directory.
+        #[arg(long)]
+        work_dir: PathBuf,
+    },
     #[command(name = "__decode_docx", hide = true)]
     NativeDecode(DecodeArgs),
     #[command(name = "__pdf_extract", hide = true)]
@@ -340,6 +350,7 @@ pub fn run() -> i32 {
     let public_command = !matches!(
         &command,
         CliCommand::NativeServer(_)
+            | CliCommand::NativeDocxPreviewServer { .. }
             | CliCommand::Config(_)
             | CliCommand::NativePdf(_)
             | CliCommand::NativeDecode(_)
