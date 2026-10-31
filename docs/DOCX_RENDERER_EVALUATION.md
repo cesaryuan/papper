@@ -23,8 +23,8 @@ Word、字体及 PDF 栅格化环境保持不变；仅更新 DOCXIDE 的环境�
 `Update field in Word.` 占位；`word_fields` 的中文 SEQ 结果从“一”变为“1”；
 `native_crossrefs` 题注不再将“第…章”混入章节号；`docx_footer` 第 6 页小表格恢复居中。
 段落边框线型、列表标记及部分表格布局也发生变化，已保留逐页差异图。
-仍可见英文模板换行与后续分页、`native_crossrefs` 子图分组及窄栏公式编号换行等差异；
-目录虽然生成，条目页码仍与 Word 的分节页码不同。此次未重新验证全部历史最小复现，
+随后按下节重新检查全部 25 个案例的 PDF 文本、位置及链接，并将历史九份最小输入
+在两个后端各独立导出两次。主要残留问题为章节序号重置、目录页码、字段链接及正文排版。
 下文的旧坐标测量和上游报告继续作为历史记录。
 
 本地运行日志及并排复核图保存在忽略目录
@@ -32,6 +32,69 @@ Word、字体及 PDF 栅格化环境保持不变；仅更新 DOCXIDE 的环境�
 `preview-verify.log`、`review-index.json`、`comparison-*.png` 和 `overview-*.png`。
 并排图从左至右为旧 DOCXIDE、新 DOCXIDE、Word；基线旁的 `page-*-diff.png`
 继续以 Git HEAD 为参照保留变化。
+
+## 2026-10-31 最新提交与 Word 的主要差异
+
+以下仅列本轮实际输出中再次确认的问题。25 个案例分别比较，Word 和 DOCXIDE
+每个案例的页数都相同，总计均为 70 页，但段落落页、编号和 PDF 跳转仍有差异。
+本轮稿件 visual 使用原生 OMML，不覆盖旧报告中的 SDK MathType WMF 缺失问题。
+
+| 类别 | 当前观察与影响 | 复核材料 |
+| --- | --- | --- |
+| 章节内序号未重置 | `native_crossrefs` 第 2 章 Word 为图 2-1、表 2-1、式 (2-1)，DOCXIDE 为图 2-3、表 2-2、式 (2-2)。正文引用仍为缓存的 2-1，与实际题注不一致；输入 SEQ 指令包含按一级标题重置的 `\s 1` | `remaining-full-05.png`、`current-texts.json` |
+| 目录页码与样式 | `docx_directives` 首个 Methods 条目 Word 页码为 1、DOCXIDE 为 3；Results 为 2 / 3。子图 (a)/(b) 条目在 Word 有页码，DOCXIDE 只显示引导线且没有对应跳转；图目录主条目粗体也与 Word 不同。目录能生成尚不代表分节页码和子图目录正确 | `remaining-full-03.png`、`remaining-links.json` |
+| PDF 引用跳转缺失 | `references` 的 Word PDF 有 4 个内部链接区域，DOCXIDE 为 0；`native_crossrefs` 为 29 / 2，缺少章节、图表、公式和文献字段的多数跳转。DOCXIDE 仍保留普通显式内部链接及脚注链接，不能概括为完全不支持链接 | `remaining-links.json` |
+| 英文换行与布局累积偏移 | `template` 第 2 页 Introduction 首段 Word 2 行、DOCXIDE 3 行；Methods 标题顶部 y 为约 467.10 / 487.78 pt。第 3 页 Mathematical Formulation 标题为约 619.65 / 689.79 pt，已相差约 70 pt，后续公式和表格位置随之不同 | `remaining-full-01.png`、`remaining-full-02.png` |
+| 标题随正文分页 | `bilingual_captions` 的“4 第四章”在 DOCXIDE 第 1 页末独自出现，Word 将其与后面的图放在第 2 页。历史独立标题最小输入本次已恢复两者均在第 2 页，因此不能认定所有 keep-with-next 场景都已修复 | `remaining-full-06.png`、`remaining-minimal.json` |
+| 自动表格宽度与列间距 | 历史 `05-header-table-center` 的表格已居中，但 DOCXIDE 表格仍比 Word 宽，列间距也更大；两个后端的 First 首词位置约为 275.45 / 270.02 pt。定位问题已修复，不代表自动宽度一致 | `remaining-05-header-table-center.png`、`remaining-minimal.json` |
+| 段落边框细节 | dotted、dashed、double 等已能区分，但 wave 在 Word 中为细斜纹状，在 DOCXIDE 为明显的连续正弦波；`paragraph_format` 嵌套连接框的接边位置与间隔仍不同 | `remaining-07-paragraph-border-styles.png`、`remaining-full-08.png`、`remaining-full-09.png` |
+
+需要更正前一轮概览中的两项判断：`native_crossrefs` 的两个子图本次都已完整放到
+第 2 页，原先拆到两页的问题没有复现；窄栏公式编号折成两行在 Word 中同样存在，
+不应单独归为 DOCXIDE 差异。当前公式编号的实质差异是第 2 章序号没有重置。
+
+九份历史最小输入确认了简单目录生成、STYLEREF 编号提取、ASCII/中文 SEQ、居中
+列表标记、表格居中继承、合并单元格垂直居中，以及嵌套表格与标题的两个简单分页
+场景均已恢复对应行为。上述完整稿件中的残留不能直接用这些简单案例全部通过来排除。
+
+本节材料仍在 `tests/visual/results/docxide-0d97e9b0468d/`，所有 `remaining-*.png`
+均为左 Word、右 DOCXIDE；`remaining-minimal/` 保留本轮双次导出的 PDF，
+`inspect_remaining.py` 为本地诊断入口，不是长期测试或基线更新入口。
+
+## 2026-10-31 补充：Rust MathType 公式居中偏右
+
+对同一 Markdown 仅切换 `mathtypeConversionMethod: rust/both`，生成两份 DOCX，
+再分别由 Word 与当前固定提交的 DOCXIDE 各导出两次。Rust 输入中的两个公式
+在 Word 中居中，在 DOCXIDE 中分别向右偏约 **61.10 pt** 和 **80.37 pt**；
+对应公式对象宽度为 **123 pt** 和 **161.5 pt**，偏移接近对象宽度的一半。
+公式编号在 DOCXIDE 中也落在公式主体的下方。
+
+该输入正文中线为 **297.65 pt**。按公式可见轮廓测量，Word 的两个中心分别为
+**297.99/297.27 pt**，DOCXIDE 为 **358.75/378.02 pt**。同一份 Rust DOCX
+在 Word 中正确，不能将此归因为 Rust 公式转换没有设置居中。
+`both` 在 Word 中显示并居中，但本次 DOCXIDE 中公式主体仍为空，不能作为
+“both 居中正常”的有效对照。
+
+独立的一段式 PNG 对照进一步排除了公式字体、WMF 和 OLE：在宽 **468 pt**
+的正文中设置中心制表位和右对齐编号，放置宽 **123 pt** 的普通 PNG。
+Word 图像中心为 **306 pt**；DOCXIDE 将图像左边缘放到 **306 pt**，
+中心变为 **367.5 pt**，恰好偏右 **61.5 pt**。
+固定提交的 `src/pdf/layout.rs` 中，`resolve_tab_aligned_start` 调用的
+`segment_width` 只测量文字；实际排版随后才累加 `inline_image` 的宽度。
+因此中心制表位预估遗漏了内嵌图像，影响不限于 MathType。
+
+之前普通稿件的 visual 构建使用 `--no-mathtype`，未验证这条 Rust OLE 路径；
+两种后端各自基线通过也不能独立证明跨后端居中一致。
+本次未更新基线或修改公式排版实现。两种公式输入和 PNG 对照在每个后端
+分别双次导出，页面像素稳定，源 DOCX 哈希未变。
+本地最小输入、PDF、对比图、测量及诊断脚本位于忽略目录
+`tests/visual/results/docxide-0d97e9b-followup/math-rust-vs-both/`。
+
+已提交独立上游 [issue #147](https://github.com/sverrejb/docxide-pdf/issues/147)，
+附[公开最小复现材料](https://gist.github.com/cesaryuan/b872d303313a66827e2a8a64b20457e5)：
+三份原始 DOCX、六份 PDF、三张对比图、测量 JSON 及可独立生成 PNG 对照的脚本。
+公开二进制附件重新下载后的 SHA-256 均与本地一致，issue 中三张图片均已验证加载。
+编号纵向偏移仅记录为观察，未将其原因归结为本次已定位的横向宽度计算。
 
 ## 2026-10-30 发布版评估记录
 
