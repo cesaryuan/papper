@@ -37,8 +37,8 @@ SDK 正式输出不同。
 取得带版本的 ready 消息及随机端口。`POST /preview` 使用 Bearer token，接收
 `source` 与 `source_text`，返回 PDF 字节和 DOCX/PDF 耗时、Pandoc PID 响应头。
 
-CLI 提供现有完整 DOCX 构建回调，服务内部直接调用 `docxide-pdf` 0.20.1 的
-字节转换接口，锁定提交 `0d97e9b0468d43bf23aacbb46b2619557d701c6e`，与 visual
+CLI 提供现有完整 DOCX 构建回调，服务内部直接调用 `docxide-pdf` 0.21.3 的
+字节转换接口，锁定提交 `3936b809c2cdbf50b81cf283a02b79ff7ce784d5`，与 visual
 测试 CLI 一致。该依赖关闭默认功能，不编译其 CLI。无需另外安装 Docxide，
 也不调用其可执行文件。常驻 Pandoc、引用依赖缓存和现有公式／图片缓存继续复用。
 PDF 仍全量生成，浏览器随后只绘制附近页；没有实现 DOCX 或 PDF 的增量分页。

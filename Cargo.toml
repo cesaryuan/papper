@@ -50,7 +50,7 @@ papper-document = { path = "crates/papper-document" }
 papper-engine = { path = "crates/papper-engine" }
 papper-server = { path = "crates/papper-server" }
 papper-platform = { path = "crates/papper-platform" }
-docxide-pdf = { git = "https://github.com/sverrejb/docxide-pdf.git", rev = "0d97e9b0468d43bf23aacbb46b2619557d701c6e", default-features = false }
+docxide-pdf = { git = "https://github.com/sverrejb/docxide-pdf.git", rev = "3936b809c2cdbf50b81cf283a02b79ff7ce784d5", default-features = false }
 
 [profile.release]
 lto = "thin"

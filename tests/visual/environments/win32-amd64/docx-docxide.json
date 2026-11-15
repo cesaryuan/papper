@@ -1,10 +1,10 @@
 {
-  "source_commit": "801652e0965b39b7962e086f888131aec309577d",
+  "source_commit": "59fa8798f8a21cfafc409c9530643f925c92756e",
   "environment": {
     "platform": "win32",
     "architecture": "amd64",
     "os_release": "11",
-    "renderer": "docxide-pdf 0.20.1 (git+https://github.com/sverrejb/docxide-pdf.git?rev=0d97e9b0468d43bf23aacbb46b2619557d701c6e#0d97e9b0468d43bf23aacbb46b2619557d701c6e)",
+    "renderer": "docxide-pdf 0.21.3 (git+https://github.com/sverrejb/docxide-pdf.git?rev=3936b809c2cdbf50b81cf283a02b79ff7ce784d5#3936b809c2cdbf50b81cf283a02b79ff7ce784d5)",
     "installation": {
       "version_req": null,
       "bins": [
@@ -17,7 +17,7 @@
       "target": "x86_64-pc-windows-msvc",
       "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: x86_64-pc-windows-msvc\nrelease: 1.98.0\nLLVM version: 22.1.8\n"
     },
-    "renderer_sha256": "8e3bc072f8f414a0f5de79acd96e50002f8eb611c1bf0a25f290dab90f7c4e58",
+    "renderer_sha256": "930a514eb14aa091a5c112ffa8f781c8805636dd202b8d4d4a2ccd0c34e2b95b",
     "installed_fonts_sha256": "41cf86779e354aba755ebefad8705a06ab9db24a75ff2b0aa326d01392969378",
     "extra_fonts_sha256": {},
     "pymupdf": "1.27.2.3",

@@ -6,7 +6,7 @@ mathtype: true
 # mathtype: LaTeX -> MathType OLE TeX 输入 -> OLE/WMF/JSON。
 # auto: Windows 且 MathType 可用时依次尝试 mathtype、rust；否则直接使用 rust。
 # both: 仅限 Windows；同时使用 rust 和 mathtype，仅比较 OLE 中的 MTEF 公式数据流，不同时发出警告，并采用 mathtype 的结果。
-mathtypeConversionMethod: both
+mathtypeConversionMethod: rust
 # 跨平台 rust 后端使用的 SVG 渲染器：ratex 或 typst。
 # ratex 直接解析 LaTeX；typst 通过 MiTeX 转换，默认使用内置的 XITS Math 字体，
 # 并读取公式框的实际基线深度。

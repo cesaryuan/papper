@@ -14,8 +14,8 @@ The editor integration starts `papper __docx_preview_server --token <hex> --work
 the manuscript project. It announces `papper-docx-preview-v1` and its ephemeral
 loopback URL on stdout. Authenticated `POST /preview` accepts `source` and
 `source_text`, runs the same retained DOCX builder, and returns PDF bytes plus
-DOCX/PDF timing and worker-PID headers. The renderer is `docxide-pdf` 0.20.1 at
-commit `0d97e9b0468d43bf23aacbb46b2619557d701c6e`, matching the visual CLI, linked
+DOCX/PDF timing and worker-PID headers. The renderer is `docxide-pdf` 0.21.3 at
+commit `3936b809c2cdbf50b81cf283a02b79ff7ce784d5`, matching the visual CLI, linked
 into `papper-server` with its CLI feature disabled. Neither a separate Docxide
 executable nor arbitrary request-selected output paths are involved. The service
 owns its DOCX work file under the editor's temporary root; the extension owns

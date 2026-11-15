@@ -1,5 +1,5 @@
 {
-  "source_commit": "79aed285de99e5298577758b48bcc6726ebfc362",
+  "source_commit": "59fa8798f8a21cfafc409c9530643f925c92756e",
   "environment": {
     "platform": "win32",
     "architecture": "amd64",
@@ -7,8 +7,8 @@
     "word": {
       "word_version": "16.0",
       "word_build": "16.0.20527",
-      "word_file_version": "16.0.20527.20088",
-      "word_sha256": "9be13b7adc7eda2d1b5256d7f392eb688c996a3cb0adf84bad8cb0ef9e5b871d",
+      "word_file_version": "16.0.20527.20196",
+      "word_sha256": "c93a476ebae673f571414fd4e230a1920c1456807ff813105ac5e0ff34a24619",
       "active_printer": "HP9A1E06.lan (HP LaserJet Pro MFP 4104)",
       "ui_language": 2052,
       "print_hidden_text": false,
