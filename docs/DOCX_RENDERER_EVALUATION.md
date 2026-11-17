@@ -67,6 +67,45 @@ main 的 **0.21.3 / `3936b809c2cdbf50b81cf283a02b79ff7ce784d5`**。
 保存全部变化页面；`previous-baselines/` 与 `previous-docxide-pdf.exe`
 保留更新前的工作区版本。本轮没有发布新的上游 issue 或评论。
 
+### 2026-11-16 当前版本与 Word 的完整对照
+
+本次直接复查上一轮 `3936b80` 正式视觉测试留下的同输入双次导出，
+没有升级依赖、重跑整套测试或更新基线。Word 版本为 **16.0.20527.20196**。
+重新生成并检查全部 **25 个案例、70 页**的 Word/DOCXIDE 并排对照，
+读取当前 PDF 的文字位置、图片和链接；两边逐案例页数仍相同。
+下表列出当前产物中仍能确认的主要差异。
+
+| 类别 | 当前实际差异 |
+| --- | --- |
+| 高：设置“与下段同页”的标题仍孤立 | 中文模板 `3.2 统计显著性` 在 DOCXIDE 第 6 页末，下一段在第 7 页；Word 将标题与下一段一起放在第 7 页。已检查同一生成 DOCX：标题使用样式 ID `2`，该样式明确设置 `keepNext` 和 `keepLines`，段落没有关闭 `keepNext`。这不只是两边整体落页不同，当前完整样例仍违反标题的同页要求；之前简单 `keepNext` 原始输入恢复不能覆盖此情况 |
+| 高：`both` MathType 公式主体残缺 | 最新导出的原始两公式输入中，Word 完整显示公式，DOCXIDE 仍只有线条和符号片段，无法正常阅读。`rust` 公式主体完整且编号位置已恢复，不应把两种转换模式混为一谈 |
+| 高：表格内子图目录页码及跳转错误 | 两个子图均在物理第 7 页、正文第 5 页，DOCXIDE 的 6 个重复目录条目仍显示 4，且跳到物理第 6 页；Word 显示 5 并正确跳转。其余 64 个目录页码一致 |
+| 中高：换行累积改变段落和表格落页 | 英文模板第 2 页 Introduction 首段为 Word 2 行 / DOCXIDE 3 行；表格后的红色说明在 Word 第 2 页、DOCXIDE 第 3 页。Results 标题在 Word 第 4 页、DOCXIDE 第 5 页；Table 4 在 Word 第 6 页完整，DOCXIDE 的最后一行 Proposed 和重复表头移到第 7 页。两边总页数同为 9 不能代表内容逐页一致 |
+| 中：PDF 交叉引用及目录点击范围 | `native_crossrefs` Word 29 个链接区域 / DOCXIDE 2 个，`references` 4 / 0，英文模板 42 / 13。普通引用文字存在，但许多点击区域缺失。目录两边均有 70 个链接，Word 链接宽度中位数约 419.6 pt，可点击整条；DOCXIDE 约 6.0 pt，通常只能点击页码 |
+| 中：行号计数不同 | `docx_footer` 第 10 页同一标题 Independent copies 的行号为 Word 22 / DOCXIDE 17，第 14 页最后正文为 33 / 26。行号字体本轮已修复，但计数差异仍在，不能把预览行号直接当作 Word 的审稿行号 |
+
+放大核对了孤立标题的上下页、英文模板首段及跨页表格、行号，并确认涉及
+`template`、`template_cn`、`docx_footer` 的两次独立导出像素一致。
+这些差异可在已完成的同输入导出中稳定观察；本轮尚未为新增确认的完整样例
+孤立标题问题重新缩减最小输入，也没有向上游发布新报告。
+
+上轮已确认恢复的公式编号纵向位置和行号样式字体，本轮没有再列为待修复问题；
+中文参考文献原先的严重重叠在当前整页对照中也未再次出现。
+脚注图像案例中还存在 Word 空框与 DOCXIDE 无框的差别，但其生成 DOCX
+缺少脚注图片所需的关系文件，不能据此归为有效脚注图片的 DOCXIDE 渲染缺失，
+未纳入上述主要问题。
+
+本轮本地材料位于忽略目录 `tests/visual/results/docxide-word-current-20261116/`：
+`pages/` 和 `overview-01.png` 至 `overview-12.png` 覆盖全部 70 页；
+`corpus.json` 保存逐页文字、位置、图片及链接；
+`detail-orphan-heading-page6.png` / `detail-orphan-heading-page7.png` 记录
+标题与正文被拆开的上下页；`detail-template-introduction.png`、
+`detail-template-table-continuation.png`、`detail-line-numbering.png`
+为其余重点放大证据；`detail-measurements.json` 保存标题样式设置、输入哈希、
+文字位置和链接统计。MathType 和子图目录沿用上一轮相同版本的
+`detail-original-math-both.png`、`detail-remaining-panel-directory.png`
+及对应测量记录。
+
 ## 2026-11-14 中文重叠修复与验证范围
 
 2026-11-14 在上一轮更新后，再将内置预览库和 visual CLI 同步锁定到
