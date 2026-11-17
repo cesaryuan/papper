@@ -486,8 +486,9 @@ Main-caption and English-caption lists can coexist in one document. This
 selection does not translate text or change the directory title. The boolean
 accepts only `true` or `false`; `lang` is not a directory option.
 `includeSubfigures="true"` additionally selects panel captions from the chosen
-source. Currently grouped subfigures do not support `caption-en`, so they add
-no panel entries to an English-caption directory.
+source. With `caption-en="true"`, only panels with a nonempty `caption-en`
+are included; a group's English total caption and its panels' English captions
+are supplied independently.
 
 These lists work with both ordinary caption numbers and `docxNativeCrossref`.
 With `docxNativeCrossref: true`, main-caption lists without subfigures use
@@ -901,11 +902,12 @@ configured section-reference prefix; it does not repeat `第` and `章`.
 
 ### Bilingual Figure and Table Captions
 
-Add `caption-en` to ordinary numbered figures or tables for an English caption
-sharing the main caption's number in DOCX and HTML. The main caption is the
-text in the image's square brackets or the table's caption line, and may be
-written in any language. The additional English caption comes exclusively
-from `caption-en`; Papper does not infer caption sources from the characters.
+Add `caption-en` to numbered figures, subfigure groups, panels or tables for an
+English caption sharing the main caption's number in DOCX and HTML. The main
+caption is the text in the image's square brackets, the table's caption line
+or the final caption paragraph in a subfigure group, and may be written in any
+language. The additional English caption comes exclusively from `caption-en`;
+Papper does not infer caption sources from the characters.
 
 ```markdown
 ![MT-MoE ViT 网络架构图](images/architecture.svg){#fig:architecture caption-en="Architecture diagram of the *MT-MoE ViT* network"}
@@ -931,19 +933,45 @@ The attribute accepts one paragraph of inline Markdown, including emphasis and
 math. Escape double quotes and backslashes as required by Markdown attributes;
 for example, use `caption-en="Error for $\\alpha$"` for a TeX command. A numbered
 `fig:` or `tbl:` identifier is required. Bilingual captions are supported for
-ordinary figures and tables in HTML and DOCX.
-Grouped subfigures and LaTeX output do not support `caption-en`.
+figures, grouped subfigures and tables in HTML and DOCX.
+LaTeX output does not support `caption-en`.
+
+For a subfigure group, put `caption-en` on the group's `fig:` container for the
+English total caption and on each panel image for its English panel caption.
+Either can be supplied independently. The total caption uses `Fig.` and the
+group's number; English panel captions use `(a)`, `(b)`, etc., matching the main
+panel's letter without adding another figure number:
+
+```markdown
+:::: {#fig:model-comparison caption-en="Comparison of baseline and proposed models"}
+
+![基线模型](figures/model-a.png){#fig:model-a width=49% caption-en="Baseline *model*"}
+![改进模型](figures/model-b.png){#fig:model-b width=49% caption-en="Proposed model"}
+
+基线模型与改进模型比较。
+
+::::
+```
+
+The same attributes work on an HTML `<div id="fig:..." caption-en="...">`
+group. Enable `subfigGrid` as described in [Subfigure Layouts](#subfigure-layouts).
+Panel translations accept the same inline Markdown as ordinary captions.
 
 In DOCX, main captions use `Image Caption` for figures or `Table Caption` for
 tables. Additional English captions use `Image Caption EN` or `Table Caption EN`,
 inheriting the corresponding main-caption style unless the reference document
 defines their own appearance. For caption fonts and Word numbering options, see
 [`style-configuration.md`](style-configuration.md).
+When a DOCX figure directory is inserted with `[]{t="listofFigures"}`, panel captions use
+`Papper Subfigure Caption` and `Papper Subfigure Caption EN` so they appear only
+in directories with `includeSubfigures="true"`. These styles also inherit
+`Image Caption` unless defined in the reference document.
 
 When an `Image Caption` paragraph is immediately followed by `Image Caption EN`,
 or `Table Caption` is immediately followed by `Table Caption EN`, Papper sets
 the main caption's space after to 0 in DOCX. For tables it also sets the English
-caption's space before to 0. Single captions and all other spacing retain
+caption's space before to 0. The same zero space-after rule applies to paired
+main and English panel captions. Single captions and all other spacing retain
 their configured values.
 
 ## Equations
@@ -1232,6 +1260,12 @@ Enable this layout with `pandocMetadata.subfigGrid: true` in `style.yml`, or
 image widths, and separate rows with a blank line. Customize the
 `TableSubfigure` table style in your reference DOCX to change the group's
 appearance; ordinary manuscript tables keep their own style.
+
+For bilingual total and panel captions in HTML and DOCX, add `caption-en` to
+the group and individual panel images as shown in
+[Bilingual Figure and Table Captions](#bilingual-figure-and-table-captions).
+Panel captions retain their letters and references, and each translation is
+optional.
 
 ## Marking Revisions in Red
 

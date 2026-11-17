@@ -4,6 +4,39 @@
 </figcaption> </figure> <figure id="fig:next"> <img alt="图 3-2 后续单语图" src="../crossrefs/figure.svg"> <figcaption aria-hidden="true">图 3-2 后续单语图</figcaption> </figure> <table data-cell_margin="0.10cm" data-revision_rows="*" id="tbl:comparison"> <caption>
 <span>表 3-1 模型性能对比</span> <span lang="en">Table 3-1 Performance comparison of <strong>different models</strong>
 </span>
-</caption> <colgroup> <col> <col> </colgroup> <thead> <tr> <th data-custom-style="Revision Char">模型</th> <th data-custom-style="Revision Char">得分</th> </tr> </thead> <tbody> <tr> <td data-custom-style="Revision Char">A</td> <td data-custom-style="Revision Char">95</td> </tr> <tr> <td data-custom-style="Revision Char">B</td> <td data-custom-style="Revision Char">96</td> </tr> </tbody> </table> <table id="tbl:next"> <caption>表 3-2 后续单语表</caption> <colgroup> <col> <col> </colgroup> <thead> <tr> <th>项目</th> <th>值</th> </tr> </thead> <tbody> <tr> <td>A</td> <td>1</td> </tr> </tbody> </table> <h1 id="sec:第四章">4 第四章</h1> <figure id="fig:chapter"> <img alt="新章节图" src="../crossrefs/figure.svg"> <figcaption>
+</caption> <colgroup> <col> <col> </colgroup> <thead> <tr> <th data-custom-style="Revision Char">模型</th> <th data-custom-style="Revision Char">得分</th> </tr> </thead> <tbody> <tr> <td data-custom-style="Revision Char">A</td> <td data-custom-style="Revision Char">95</td> </tr> <tr> <td data-custom-style="Revision Char">B</td> <td data-custom-style="Revision Char">96</td> </tr> </tbody> </table> <table id="tbl:next"> <caption>表 3-2 后续单语表</caption> <colgroup> <col> <col> </colgroup> <thead> <tr> <th>项目</th> <th>值</th> </tr> </thead> <tbody> <tr> <td>A</td> <td>1</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>参见 图 <a href="#fig:panels">3-3</a>、图 <a href="#fig:panel-a">3-3 (a)</a>、图 <a href="#fig:panel-b">3-3 (b)</a> 和 图 <a href="#fig:panel-c">3-3 (c)</a>。</p> </div> <figure id="fig:panels"> <table data-custom-style="TableSubfigure"> <colgroup> <col> <col> </colgroup> <tbody> <tr> <td>
+<figure id="fig:panel-a"> <img alt="基线模型" src="../crossrefs/figure.svg"> <figcaption>
+<span>(a) 基线模型</span> <span lang="en">(a) Baseline <em>model</em>
+</span>
+</figcaption> </figure>
+</td> <td>
+<figure id="fig:panel-b"> <img alt="改进模型" src="../crossrefs/figure.svg"> <figcaption>
+<span>(b) 改进模型</span> <span lang="en">(b) Proposed model with <span class="inline math">\beta</span>
+</span>
+</figcaption> </figure>
+</td> </tr> <tr> <td>
+<figure id="fig:panel-c"> <img alt="独立一行" src="../crossrefs/figure.svg"> <figcaption>
+<span>(c) 独立一行</span> <span lang="en">(c) Panel on a separate row</span>
+</figcaption> </figure>
+</td> <td>
+</td> </tr> <tr> <td>
+<figure id="fig:panel-d"> <img alt="(d) 仅主题注" src="../crossrefs/figure.svg"> <figcaption aria-hidden="true">(d) 仅主题注</figcaption> </figure>
+</td> <td>
+</td> </tr> </tbody> </table> <figcaption>
+<span>图 3-3 模型比较。</span> <span lang="en">Fig. 3-3 Comparison of <strong>models</strong> with <span class="inline math">\alpha</span>
+</span>
+</figcaption> </figure> <figure id="fig:child-only"> <table data-custom-style="TableSubfigure"> <colgroup> <col> <col> </colgroup> <tbody> <tr> <td>
+<figure id="fig:child-only-a"> <img alt="仅子图双语" src="../crossrefs/figure.svg"> <figcaption>
+<span>(a) 仅子图双语</span> <span lang="en">(a) Translated panel only</span>
+</figcaption> </figure>
+</td> <td>
+<figure id="fig:child-only-b"> <img alt="(b) 单语子图" src="../crossrefs/figure.svg"> <figcaption aria-hidden="true">(b) 单语子图</figcaption> </figure>
+</td> </tr> </tbody> </table> <figcaption>
+<p>图 3-4 只有子图提供英文题注。</p>
+</figcaption> </figure> <h1 id="sec:第四章">4 第四章</h1> <figure id="fig:chapter"> <img alt="新章节图" src="../crossrefs/figure.svg"> <figcaption>
 <span>图 4-1 新章节图</span> <span lang="en">Fig. 4-1 Figure in a new chapter</span>
-</figcaption> </figure> <p>图目录只包含主题注：</p> <h1>List of Figures</h1> <div> 3-1. MT-MoE ViT 网络架构图<br> 3-2. 后续单语图<br> 4-1. 新章节图<br> </div> <p>表目录只包含主题注：</p> <h1>List of Tables</h1> <div> 3-1. 模型性能对比<br> 3-2. 后续单语表<br> </div> </main> </body> </html>
+</figcaption> </figure> <figure id="fig:parent-only"> <table data-custom-style="TableSubfigure"> <colgroup> <col> </colgroup> <tbody> <tr> <td>
+<figure id="fig:parent-only-a"> <img alt="(a) 单语面板" src="../crossrefs/figure.svg"> <figcaption aria-hidden="true">(a) 单语面板</figcaption> </figure>
+</td> </tr> </tbody> </table> <figcaption>
+<span>图 4-2 只有总题注提供英文译文。</span> <span lang="en">Fig. 4-2 Translated group only</span>
+</figcaption> </figure> <p>后向引用：图 <a href="#fig:panels">3-3</a>、图 <a href="#fig:panel-a">3-3 (a)</a>、图 <a href="#fig:panel-b">3-3 (b)</a>、图 <a href="#fig:panel-c">3-3 (c)</a> 和 图 <a href="#fig:next">3-2</a>。</p> <p>图目录只包含主题注：</p> <h1>List of Figures</h1> <div> 3-1. MT-MoE ViT 网络架构图<br> 3-2. 后续单语图<br> 3-3. 模型比较。<br> 3-3 (a). 基线模型<br> 3-3 (b). 改进模型<br> 3-3 (c). 独立一行<br> 3-3 (d). 仅主题注<br> 3-4. 只有子图提供英文题注。<br> 3-4 (a). 仅子图双语<br> 3-4 (b). 单语子图<br> 4-1. 新章节图<br> 4-2. 只有总题注提供英文译文。<br> 4-2 (a). 单语面板<br> </div> <p>表目录只包含主题注：</p> <h1>List of Tables</h1> <div> 3-1. 模型性能对比<br> 3-2. 后续单语表<br> </div> </main> </body> </html>

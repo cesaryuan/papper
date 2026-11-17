@@ -286,60 +286,79 @@ $$ {#eq:second}
 def test_bilingual_caption_numbers_share_one_sequence_and_bookmark(
     tmp_path: Path, native_crossref: bool, link_references: bool,
 ) -> None:
-    """Keep bilingual captions on one sequence with valid targets in both link modes."""
-    manuscript = r'''---
-lang: zh-CN
----
+    """Keep ordinary and grouped bilingual captions on shared numbers with independent directories."""
+    fixture = ROOT / "tests/snapshot_cases/bilingual_captions/bilingual_captions.md"
+    manuscript = fixture.read_text(encoding="utf-8").replace("../crossrefs/figure.svg", "figure.svg")
+    # The same fixture covers HTML; add Word-only directory selectors for this DOCX contract.
+    manuscript += """
 
-# 第一章
+[]{t="listofFigures" title="Main"}
 
-# 第二章
+[]{t="listofFigures" title="English" caption-en="true"}
 
-# 第三章
-
-参见 @fig:first 和 @tbl:first。
-
-![中文图一](figure.svg){#fig:first caption-en="Architecture of the *network* with $\\alpha$"}
-
-![中文图二](figure.svg){#fig:second}
-
-| 模型 | 得分 |
-| --- | --- |
-| A | 1 |
-
-: 中文表一 {#tbl:first caption-en="Comparison of **models**" revision_rows="*"}
-
-| 模型 | 得分 |
-| --- | --- |
-| B | 2 |
-
-: 中文表二 {#tbl:second}
-
-# 第四章
-
-![中文图三](figure.svg){#fig:third caption-en="Next chapter"}
-'''
+[]{t="listofFigures" title="English panels" caption-en="true" includeSubfigures="true"}
+"""
     prepare_project(tmp_path, manuscript, native_crossref, linkReferences=link_references)
     output, log = build_document(tmp_path)
-    assert "No marked number" not in log
-    fields, bookmarks, _ = read_native_content(output)
-    sequences = [item for item in fields if item["code"].startswith("SEQ ")]
-    assert [item["result"] for item in sequences] == (["1", "2", "1", "2", "1"] if native_crossref else [])
+    assert "No marked number" not in log and "keeping its Link" not in log
+    fields, bookmarks, root = read_native_content(output)
     values = assert_reference_targets(fields, bookmarks)
-    expected = ["3-1", "3-1", "4-1"]
+    sequences = [item["result"] for item in fields if item["code"].startswith("SEQ ")]
+    assert sequences == (["1", "2", "1", "2", "3", "4", "1", "2"] if native_crossref else [])
+    expected = ["3-1", "3-1", "3-3", "a", "b", "c", "a", "4-1", "4-2"]
     if link_references:
-        expected = ["3-1", "3-1", *expected]
-    assert values == (expected if native_crossref else [])
-    assert "keeping its Link" not in log
-    # Caption sources keep distinct styles even when no figure/table directory exists.
+        expected += [
+            "3-1", "3-2", "3-1", "3-2",
+            "3-3", "3-3", "a", "3-3", "b", "3-3", "c",
+            "3-3", "3-3", "a", "3-3", "b", "3-3", "c", "3-2",
+        ]
+    assert Counter(values) == Counter(expected if native_crossref else [])
     document = Document(output)
-    main = [paragraph for paragraph in document.paragraphs
-            if any(title in paragraph.text for title in ("中文图一", "中文图二", "中文图三", "中文表一", "中文表二"))]
-    assert Counter(paragraph.style.name for paragraph in main) == {"Image Caption": 3, "Table Caption": 2}
-    english = [paragraph for paragraph in document.paragraphs
-               if any(title in paragraph.text for title in ("Architecture of", "Next chapter", "Comparison of"))]
-    assert Counter(paragraph.style.name for paragraph in english) == {"Image Caption EN": 2, "Table Caption EN": 1}
-    assert all(paragraph.paragraph_format.keep_together for paragraph in english)
+    styles = {style.style_id: style.name for style in document.styles}
+    captions = []
+    for paragraph in root.iter(W + "p"):
+        style = paragraph.find(W + "pPr/" + W + "pStyle")
+        name = styles.get(style.get(W + "val"), "") if style is not None else ""
+        if "Caption" in name:
+            text = "".join(node.text or "" for node in paragraph.iter(W + "t"))
+            captions.append((name, text, paragraph))
+    english = [(name, text) for name, text, _ in captions if name.endswith(" EN")]
+    panel_style = "Papper Subfigure Caption EN"
+    # A same-row image and a separate-row Figure must both keep their own letter.
+    assert (panel_style, "(a) Baseline model") in english
+    assert (panel_style, "(b) Proposed model with ") in english  # Math is stored as OMML, not w:t.
+    assert (panel_style, "(c) Panel on a separate row") in english
+    assert (panel_style, "(a) Translated panel only") in english
+    assert ("Image Caption EN", "Fig. 3-3 Comparison of models with ") in english
+    assert ("Image Caption EN", "Fig. 4-1 Figure in a new chapter") in english
+    assert ("Image Caption EN", "Fig. 4-2 Translated group only") in english
+    assert Counter(name for name, _ in english) == {
+        "Image Caption EN": 4, "Table Caption EN": 1, panel_style: 4,
+    }
+    for index, (name, _, paragraph) in enumerate(captions):
+        if name.endswith(" EN"):
+            primary = captions[index - 1][2]
+            spacing = primary.find(W + "pPr/" + W + "spacing")
+            assert spacing is not None and spacing.get(W + "after") == "0"
+            # OOXML boolean properties are also enabled when w:val is omitted.
+            assert primary.find(W + "pPr/" + W + "keepNext").get(W + "val", "true") in ("true", "1")
+            assert paragraph.find(W + "pPr/" + W + "keepLines").get(W + "val", "true") in ("true", "1")
+    assert "PMT_DOCX_CAPTION:" not in document.element.xml
+    main = [text for name, text, _ in captions if name == "Image Caption"]
+    translated = [text for name, text in english if name == "Image Caption EN"]
+    expanded = [text for name, text in english if name != "Table Caption EN"]
+    assert len(main) == 6 and len(translated) == 4 and len(expanded) == 8
+    assert sum(name == "Table Caption" for name, _, _ in captions) == 2
+    instructions = [item["code"] for item in fields if item["code"].startswith("TOC ")]
+    assert (
+        'TOC \\h \\z \\c "图"' if native_crossref
+        else 'TOC \\t "Image Caption,1" \\h \\z \\c'
+    ) in instructions
+    assert 'TOC \\t "Image Caption EN,1" \\h \\z \\c' in instructions
+    assert (
+        'TOC \\t "Image Caption EN,1,Papper Subfigure Caption EN,2" \\h \\z \\c'
+    ) in instructions
+    assert document.styles[panel_style].base_style.name == "Image Caption"
 
 
 def test_explicit_unlinked_references_keep_plain_text_with_native_crossref(tmp_path: Path) -> None:

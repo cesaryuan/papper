@@ -73,7 +73,8 @@ pub(crate) fn keep_groups(document: &mut Element, styles: &Element) {
 
 /// Clear paired main space-after and the inherited leading gap on English table captions.
 pub(crate) fn tighten_english_spacing(document: &mut Element, styles: &Element) -> bool {
-    let pairs: Vec<_> = ["Image Caption", "Table Caption"]
+    // Directory selection gives panels their own styles; retain the same paired spacing.
+    let pairs: Vec<_> = ["Image Caption", "Table Caption", "Papper Subfigure Caption"]
         .into_iter()
         .filter_map(|name| {
             let primary_index = style_index(styles, name)?;

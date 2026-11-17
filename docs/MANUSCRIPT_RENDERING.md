@@ -246,12 +246,18 @@ authored base style; reference-defined EN styles are retained. Applying these
 styles after caption grouping preserves existing keep-with-next behavior.
 Figure directories additionally mark child panels with the inherited
 `Papper Subfigure Caption` style, keeping them out of ordinary main-figure
-lists. The EN variant is reserved for caption-en panel lines; grouped subfigures
-currently reject caption-en. Directory selection needs no character detection,
+lists. The EN variant selects caption-en panel lines. Before crossref,
+group Div attributes and same-row Image attributes are collected alongside
+standalone Figure captions; crossref's resulting Figure IDs reconnect them
+after layout. Group and child templates preserve their own number boundaries,
+so English group captions mirror the parent's number and English panels mirror
+only their letter. Native panel mirrors use the existing child bookmark and
+never allocate another SEQ. Directory selection needs no character detection,
 CN styles, or authored-language metadata. It preserves live caption content and
 does not allocate panel numbers or add SEQ fields to static captions.
 After caption styles and local paragraph formatting are finalized, adjacent
-`Image Caption` / `Image Caption EN` and `Table Caption` / `Table Caption EN`
+`Image Caption` / `Image Caption EN`, `Papper Subfigure Caption` /
+`Papper Subfigure Caption EN` and `Table Caption` / `Table Caption EN`
 pairs receive zero space after on the main paragraph. Table pairs additionally
 receive zero space before on the English paragraph: EN styles inherit the main
 table caption's leading gap, so clearing main space-after alone leaves that gap.

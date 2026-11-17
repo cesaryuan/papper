@@ -3,6 +3,8 @@
 -- then after number normalization and before DOCX native field conversion.
 -- Crossref sees only the primary caption, so translations never increment counters
 -- Native t-span directories select main captions or caption-en lines independently.
+-- For example, a fig: Div and its panel images can each supply caption-en;
+-- the group reuses Fig. 1 and translated panels reuse their (a), (b) labels.
 
 local phase_key = 'pmt-bilingual-captions'
 local number_class = 'pmt-bilingual-number'
@@ -44,6 +46,23 @@ local function prepare(doc)
   local captions = {}
   local kinds = {}
 
+  --- Save one translated title before crossref replaces group and panel containers.
+  local function remember(id, text, kind, primary)
+    if text == nil or text:match('^%s*$') then return end
+    if not id:match('^' .. kind .. ':') then
+      error('[bilingual-captions] caption-en requires a ' .. kind .. ': identifier')
+    end
+    local translation = translated_inlines(text, id)
+    if translation then
+      if captions[id] then error('[bilingual-captions] Duplicate caption identifier: ' .. id) end
+      captions[id] = pandoc.MetaMap {
+        translation = pandoc.MetaInlines(translation),
+        primary = pandoc.MetaBlocks(primary),
+      }
+      kinds[kind] = true
+    end
+  end
+
   --- Extract attributes from either a table or a figure's direct image.
   local function collect(element, kind)
     local text = element.attributes['caption-en']
@@ -60,20 +79,7 @@ local function prepare(doc)
         end
       end
     end
-    if text == nil or text:match('^%s*$') then return element end
-    local id = element.identifier
-    if not id:match('^' .. kind .. ':') then
-      error('[bilingual-captions] caption-en requires a ' .. kind .. ': identifier')
-    end
-    local translation = translated_inlines(text, id)
-    if translation then
-      if captions[id] then error('[bilingual-captions] Duplicate caption identifier: ' .. id) end
-      captions[id] = pandoc.MetaMap {
-        translation = pandoc.MetaInlines(translation),
-        primary = pandoc.MetaBlocks(element.caption.long),
-      }
-      kinds[kind] = true
-    end
+    remember(element.identifier, text, kind, element.caption.long)
     return element
   end
 
@@ -81,18 +87,40 @@ local function prepare(doc)
     Figure = function(figure) return collect(figure, 'fig') end,
     Table = function(tbl) return collect(tbl, 'tbl') end,
   }
-  -- Remaining attributes belong to inline images or grouped figures, not numbered objects.
+  doc = doc:walk {
+    Div = function(div)
+      if not div.identifier:match('^fig:') then return nil end
+      local text = div.attributes['caption-en']
+      div.attributes['caption-en'] = nil
+      remember(div.identifier, text, 'fig', {})
+      -- Same-row panels remain Image nodes until crossref builds the grid.
+      -- Separate-row Figure nodes were already collected by the first walk.
+      for _, block in ipairs(div.content) do
+        if block.t == 'Para' or block.t == 'Plain' then
+          for _, inline in ipairs(block.content) do
+            if inline.t == 'Image' then
+              text = inline.attributes['caption-en']
+              inline.attributes['caption-en'] = nil
+              remember(inline.identifier, text, 'fig', { pandoc.Plain(inline.caption) })
+            end
+          end
+        end
+      end
+      return div
+    end,
+  }
+  -- Translations on ordinary inline images and non-figure wrappers have no numbered target.
   doc:walk {
     Image = function(image)
       local text = image.attributes['caption-en']
       if text and not text:match('^%s*$') then
-        error('[bilingual-captions] caption-en requires an ordinary standalone numbered figure')
+        error('[bilingual-captions] caption-en requires a standalone numbered figure or a numbered subfigure panel')
       end
     end,
     Div = function(div)
       local text = div.attributes['caption-en']
       if text and not text:match('^%s*$') then
-        error('[bilingual-captions] caption-en on grouped/wrapping Divs is unsupported; attach it to a figure or table')
+        error('[bilingual-captions] caption-en requires a fig: group, figure or table')
       end
     end,
   }
@@ -100,6 +128,9 @@ local function prepare(doc)
   if kinds.fig then
     doc.meta.figureTemplate = marked_template(doc.meta.figureTemplate,
       '$$figureTitle$$ $$i$$$$titleDelim$$ $$t$$')
+    doc.meta.subfigureTemplate = marked_template(doc.meta.subfigureTemplate,
+      '$$figureTitle$$ $$i$$$$titleDelim$$ $$t$$. $$ccs$$')
+    doc.meta.subfigureChildTemplate = marked_template(doc.meta.subfigureChildTemplate, '$$i$$')
   end
   if kinds.tbl then
     doc.meta.tableTemplate = marked_template(doc.meta.tableTemplate,
@@ -133,6 +164,16 @@ local function render(doc)
   local captions = doc.meta[phase_key]
   local rendered = {}
   local native = FORMAT == 'docx' and resources.boolean(resources.getenv('PMT_DOCX_NATIVE_CROSSREFS'))
+  local panels = {}
+  doc:walk {
+    Figure = function(figure)
+      if figure.classes:includes('subfigures') then
+        pandoc.Div(figure.content):walk {
+          Figure = function(child) panels[child.identifier] = true end,
+        }
+      end
+    end,
+  }
 
   --- Assemble one caption and preserve direct image descriptions separately.
   local function append(element, kind)
@@ -161,8 +202,16 @@ local function render(doc)
     end
     local number = pandoc.Inlines { pandoc.Str(numbers[1]) }
     if native then number = { pandoc.Span(number, pandoc.Attr('', { mirror_class })) } end
-    local english = pandoc.Inlines { pandoc.Str(kind == 'fig' and 'Fig.' or 'Table'), pandoc.Space() }
-    english:extend(number)
+    local english = pandoc.Inlines {}
+    if panels[element.identifier] then
+      english:insert(pandoc.Str('('))
+      english:extend(number)
+      english:insert(pandoc.Str(')'))
+    else
+      english:insert(pandoc.Str(kind == 'fig' and 'Fig.' or 'Table'))
+      english:insert(pandoc.Space())
+      english:extend(number)
+    end
     english:insert(pandoc.Space())
     english:extend(stored.translation)
     element.caption.long = {
@@ -192,7 +241,7 @@ local function render(doc)
   }
   for id, _ in pairs(captions) do
     if not rendered[id] then
-      error('[bilingual-captions] Crossref removed the caption target; grouped subfigures are unsupported: ' .. id)
+      error('[bilingual-captions] Crossref removed the caption target: ' .. id)
     end
   end
   doc.meta[phase_key] = nil
