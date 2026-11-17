@@ -27,6 +27,7 @@ from snapshot_utils import assert_snapshot
     ("table_crossrefs", "crossrefs"),
     ("image_dimensions", "round_image_dimensions"),
     ("equation_tables", "equation_tables"),
+    ("equation_terms", "equation_terms"),
 ])
 def test_convert_cleanup_filter_snapshot(
     case: str, filter_name: str, tmp_path: Path, snapshot_update: bool,

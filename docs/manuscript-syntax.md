@@ -1061,6 +1061,17 @@ DOCX should include the `式中` paragraph style and `TableNoBorder` table style
 LaTeX output retains an ordinary definition list introduced by “式中”; it does
 not reproduce the four-column layout.
 
+`papper convert` restores matching Word symbol-explanation tables to this
+syntax. It recognizes “式中 / symbol / —— / description” columns, including a
+vertically merged “式中” cell or blank label cells after the first row. The
+separator may also begin the description cell, and “式中” or “式中：” may be a
+standalone paragraph immediately before a table of symbols and explanations.
+Every row must contain a symbol, a separator, and a nonempty description.
+Formulas, emphasis, links, pictures, and description paragraphs/lists are
+retained. Tables with captions, other merged cells, or inconsistent rows remain
+ordinary tables. Import recovers the entries; rebuilding applies Papper's
+equation-term layout and automatic column widths.
+
 ## Images
 
 Insert standalone images with optional captions, `fig:` labels for numbered
@@ -1594,6 +1605,10 @@ retained after the formula. A matching
 bookmark link becomes `[@eq:_Ref123]`, which remains resolvable in later builds.
 Ordinary inline formulas and formulas embedded in prose keep their original
 context. Unrecognized equation previews remain images.
+
+Thesis-style “式中” tables with a consistent symbol, dash, and description
+layout become editable [`.equation-terms` blocks](#thesis-style-equation-terms).
+Ordinary paragraphs explaining symbols remain paragraphs.
 
 Convert also imports authored pagination and DOCX page stories:
 

@@ -443,6 +443,20 @@ with narrow, nonwrapping first columns. Both outputs add a 5pt gap after each
 of those columns. LaTeX retains the definition list with an introductory
 “式中” paragraph. Unmarked definition lists are never transformed.
 
+The Convert filter
+[`convert/equation_terms.lua`](../pandoc/filters/convert/equation_terms.lua)
+recovers these blocks after MathType decoding and caption pairing, before
+cross-reference recovery. It checks all rows across the table head, bodies,
+and foot; a header partition created by the DOCX reader is not assumed to be
+an authored header. Accepted layouts have a “式中” column or an immediately
+preceding label paragraph, followed by a symbol and either a separate dash
+column or a description beginning with a dash. Only the label column may span
+rows. Captioned and partially matching tables are left intact, including
+descriptions inspected while recognizing earlier rows. Recovered symbol math
+is inline; description blocks retain their structure for later media and
+cross-reference processing. Physical source widths are replaced by the
+ordinary `.equation-terms` rendering rules on rebuild.
+
 ## MathType Conversion and Preview Geometry
 
 Conversion orchestration and caches are managed by
