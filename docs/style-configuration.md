@@ -855,6 +855,25 @@ for complete inline, paragraph, and configuration examples.
 To change a table's cell paragraph style, use `custom-text-style`; table
 appearance is a separate `custom-style`. See the syntax guide for examples.
 
+The optional [thesis-style equation terms](manuscript-syntax.md#thesis-style-equation-terms)
+block uses the `式中` paragraph style for its DOCX and HTML cells. The bundled
+style has no first-line indent and zero paragraph spacing before/after.
+Column widths adapt to the rendered content and available page width; font-size
+changes therefore affect the space reserved for symbols automatically.
+Configure its font and line spacing under `docxStyle` when a thesis requires
+this special layout:
+
+```yaml
+docxStyle:
+  式中:
+    fontFamily: {western: Times New Roman, chinese: 宋体}
+    fontSize: 12pt
+    lineSpacing: 1.5
+```
+
+This style is for documents with special equation-explanation formatting
+requirements. For ordinary documents, explain symbols in normal paragraphs.
+
 For a local exception, put supported typography fields directly on a Markdown
 fenced block, for example
 `::: {custom-style="Quote" fontSize="10pt" paragraphSpacing.after="6pt"}`.

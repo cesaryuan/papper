@@ -70,6 +70,7 @@ CASES = {
     "where_comments": (
         ROOT / "tests" / "snapshot_cases" / "where_comments", "where_comments.md",
     ),
+    "equation_terms": (CASE_ROOT / "equation_terms", "equation_terms.md"),
     "svg_rasterization": (
         ROOT / "tests" / "snapshot_cases" / "svg_rasterization", "svg_rasterization.md",
     ),

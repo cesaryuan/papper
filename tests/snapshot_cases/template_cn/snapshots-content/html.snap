@@ -46,48 +46,51 @@
 <span id="eq:linear">
 <span class="display math">f(\boldsymbol{x}) = \sum_{i=1}^{n} w_i \boldsymbol{x_i + b}\tag{2-1}</span>
 </span>
-</p> <table data-autofit="fixed" data-cell_margin="0cm" data-custom-style="TableNoBorder" data-custom_text_style="式中"> <colgroup> <col> <col> <col> <col> </colgroup> <tbody> <tr> <td>
-<div data-custom-style="式中"> <p>式中</p> </div>
+</p> <div> <table data-autofit="window" data-cell_margin="0cm" data-custom-style="TableNoBorder" data-custom-text-style="式中"> <tbody> <tr> <td>
+<div> <div data-custom-style="式中"> <p>式中</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>
+<div> <div data-custom-style="式中"> <p>
 <span class="inline math">w_i</span>
-</p> </div>
+</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>——</p> </div>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>权重参数</p> </div>
+<div> <div data-custom-style="式中"> <p>权重参数；</p> </div> </div>
 </td> </tr> <tr> <td>
+<div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>
+<div> <div data-custom-style="式中"> <p>
 <span class="inline math">x_i</span>
-</p> </div>
+</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>——</p> </div>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>输入特征</p> </div>
+<div> <div data-custom-style="式中"> <p>输入特征；</p> </div> </div>
 </td> </tr> <tr> <td>
+<div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>
+<div> <div data-custom-style="式中"> <p>
 <span class="inline math">b</span>
-</p> </div>
+</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>——</p> </div>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>偏置项</p> </div>
+<div> <div data-custom-style="式中"> <p>偏置项；</p> </div> </div>
 </td> </tr> <tr> <td>
+<div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>
+<div> <div data-custom-style="式中"> <p>
 <span class="inline math">\mathcal{L}</span>
-</p> </div>
+</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>——</p> </div>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
 </td> <td>
-<div data-custom-style="式中"> <p>损失函数</p> </div>
-</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>
+<div> <div data-custom-style="式中"> <p>损失函数。</p> </div> </div>
+</td> </tr> </tbody> </table> </div> <p>
 <span id="eq:loss">
 <span class="display math">\mathcal{L}(\theta) = \frac{1}{N} \sum_{j=1}^{N} \ell(y_j, \hat{y}_j) + \lambda R(\theta)\tag{2-2}</span>
 </span>
-</p> </div> <p>其中，<span class="inline math">\ell(\cdot)</span> 是单样本损失，<span class="inline math">R(\theta)</span> 是正则化项，<span class="inline math">\lambda</span> 控制正则化强度。关于 式 <a href="#eq:loss">2-2</a> 的实证验证，见 节 <a href="#sec:results">3</a>。</p> <h2 id="sec:研究流程">2.4 研究流程</h2> <p>实验流程包括四个主要阶段。首先，根据[具体准则]清理并归一化输入数据，处理异常值和缺失值。其次，使用[方法名称]进行特征提取，从原始数据中提取[具体特征]。第三，使用[优化算法]和[具体超参数]优化 式 <a href="#eq:linear">2-1</a> 与 式 <a href="#eq:loss">2-2</a>，完成模型训练。最后，使用 节 <a href="#sec:results">3</a> 中说明的指标和协议评估训练后的模型。</p> <h2 id="sec:伪代码示例">2.5 伪代码示例</h2> <p>当需要明确的逐步过程时，也可以用伪代码概括主要流程。在本模板中，伪代码采用单列表格表示，并可像普通表格一样引用，如算法 1 所示。</p> <table data-revision_rows="*"> <colgroup> <col> </colgroup> <thead> <tr> <th data-custom-style="Revision Char">
+</p> <p>其中，<span class="inline math">\ell(\cdot)</span> 是单样本损失，<span class="inline math">R(\theta)</span> 是正则化项，<span class="inline math">\lambda</span> 控制正则化强度。关于 式 <a href="#eq:loss">2-2</a> 的实证验证，见 节 <a href="#sec:results">3</a>。</p> <h2 id="sec:研究流程">2.4 研究流程</h2> <p>实验流程包括四个主要阶段。首先，根据[具体准则]清理并归一化输入数据，处理异常值和缺失值。其次，使用[方法名称]进行特征提取，从原始数据中提取[具体特征]。第三，使用[优化算法]和[具体超参数]优化 式 <a href="#eq:linear">2-1</a> 与 式 <a href="#eq:loss">2-2</a>，完成模型训练。最后，使用 节 <a href="#sec:results">3</a> 中说明的指标和协议评估训练后的模型。</p> <h2 id="sec:伪代码示例">2.5 伪代码示例</h2> <p>当需要明确的逐步过程时，也可以用伪代码概括主要流程。在本模板中，伪代码采用单列表格表示，并可像普通表格一样引用，如算法 1 所示。</p> <table data-revision_rows="*"> <colgroup> <col> </colgroup> <thead> <tr> <th data-custom-style="Revision Char">
 <strong>算法：数据准备与模型评估流程</strong>
 </th> </tr> </thead> <tbody> <tr> <td data-custom-style="Revision Char"> <strong>输入：</strong> 原始数据集 <span class="inline math">D</span>、模型族 <span class="inline math">M</span>、评估指标 <span class="inline math">s</span> </td> </tr> <tr> <td data-custom-style="Revision Char"> <strong>输出：</strong> 训练后的模型 <span class="inline math">\hat{m}</span> 和评估得分 <span class="inline math">\hat{s}</span> </td> </tr> <tr> <td data-custom-style="Revision Char">1.  清理并归一化 <span class="inline math">D</span> 中的所有记录</td> </tr> <tr> <td data-custom-style="Revision Char">2.  将 <span class="inline math">D</span> 划分为训练集、验证集和测试集</td> </tr> <tr> <td data-custom-style="Revision Char">3.  <strong>for</strong> 每一个候选模型 <span class="inline math">m \in M</span> <strong>do</strong> </td> </tr> <tr> <td data-custom-style="Revision Char">4.    在训练集上训练 <span class="inline math">m</span> </td> </tr> <tr> <td data-custom-style="Revision Char">5.    使用验证集调整超参数</td> </tr> <tr> <td data-custom-style="Revision Char">6.  <strong>end for</strong> </td> </tr> <tr> <td data-custom-style="Revision Char">7.  根据验证集表现选择最佳模型 <span class="inline math">\hat{m}</span> </td> </tr> <tr> <td data-custom-style="Revision Char">8.  在测试集上计算 <span class="inline math">\hat{m}</span> 的 <span class="inline math">\hat{s}</span> </td> </tr> <tr> <td data-custom-style="Revision Char">9.  <strong>return</strong> <span class="inline math">\hat{m}</span> 和 <span class="inline math">\hat{s}</span> </td> </tr> </tbody> </table> <h1 id="sec:results">3 结果</h1> <p>本节介绍实验结果及其分析。</p> <h2 id="sec:定量结果">3.1 定量结果</h2> <p>表 <a href="#tbl:results">3-1</a> 给出了不同方法的定量比较。</p> <p>为了说明本模板中标准图像的插入和引用方式，下面在 图 <a href="#fig:single-example">3-1</a> 中加入一个合成趋势图。该示例使用 <code>examples/images/</code>
 下的图像，适合演示可复用模板中的相对路径。</p> <p>

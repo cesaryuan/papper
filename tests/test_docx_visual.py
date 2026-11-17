@@ -129,6 +129,25 @@ def test_docx_render_matches_visual_snapshot(
     # layout limitations recorded in upstream issue #142. Its own pixels still gate changes.
     if docx_visual_session.backend != "word":
         return
+    if case_name == "equation_terms":
+        # A too-narrow separator column splits the two dashes in real Word,
+        # although the DOCX still stores the expected text in one run.
+        with pymupdf.open(output.parent / "word-render/export-2/rendered.pdf") as rendered:
+            spans = [span["text"] for page in rendered
+                     for block in page.get_text("dict")["blocks"]
+                     for line in block.get("lines", []) for span in line["spans"]]
+            assert sum(span.count("——") for span in spans) == 5
+            lines = [line for page in rendered for block in page.get_text("dict")["blocks"]
+                     for line in block.get("lines", [])]
+            explanation = next(line for line in lines
+                               if "软掩码" in "".join(span["text"] for span in line["spans"]))
+            single = next(line for line in lines
+                          if "single-entry" in "".join(span["text"] for span in line["spans"]))
+            # First-column labels may share the PDF line with the explanation;
+            # compare the description spans themselves, not the whole line box.
+            main_x = next(span["bbox"][0] for span in explanation["spans"] if "软掩码" in span["text"])
+            short_x = next(span["bbox"][0] for span in single["spans"] if "single-entry" in span["text"])
+            assert short_x < main_x - 40
     if case_name == "docx_footer":
         # Verify Word chooses the right live story and computes its page number;
         # XML snapshots alone cannot catch the wrong story being rendered on a page.

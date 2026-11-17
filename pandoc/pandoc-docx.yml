@@ -13,6 +13,7 @@ columns: 1
 # Filters are applied in order
 filters:
   - ${.}/filters/shared/bracketed_lists.lua
+  - ${.}/filters/shared/equation_terms.lua
   - ${.}/filters/shared/fix_math.lua
   - ${.}/filters/docx/equation_revision_attr.lua
   # Preserve original display/inline context before pandoc-crossref can turn

@@ -949,7 +949,8 @@ their configured values.
 ## Equations
 
 Write inline/display math and labeled equations, with DOCX/HTML `where`
-styling, legacy `\rm` support, and `\hat` fixes around font macros.
+styling, optional thesis-style symbol explanations, legacy `\rm` support,
+and `\hat` fixes around font macros.
 
 Use `$...$` for inline math and `$$...$$` for display math. Add an `eq:` label
 to a display equation when you need a numbered cross-reference:
@@ -1007,6 +1008,58 @@ Operands with extra terms or scripts outside the style wrapper, such as
 
 For MathType conversion settings and math font choices, see
 [`style-configuration.md`](style-configuration.md#mathtype-equations).
+
+### Thesis-Style Equation Terms
+
+Use an `.equation-terms` block only when a doctoral thesis or another document
+requires specially aligned “式中” symbol explanations. Ordinary documents should
+explain symbols in normal paragraphs, for example
+`式中，$k$ 为高斯模糊核大小，$\sigma$ 为标准差。`; no special block is needed.
+
+For the aligned layout, write a definition list inside the fenced block:
+
+```markdown
+::: {.equation-terms}
+$M_{\mathrm{soft}}$
+: 软掩码连续权重矩阵，$M_{\mathrm{soft}}\in[0,1]^{1\times H_1\times W_1}$；
+
+$\mathrm{GaussianBlur}(\cdot)$
+: 二维高斯滤波算子；
+
+$k$
+: 高斯模糊核大小；
+
+$\sigma$
+: 标准差，控制平滑范围。
+:::
+```
+
+Each symbol goes on its own line, followed by `: ` and its description on the
+next line. Separate entries with a blank line. Put only definition-list entries
+inside the block and give each symbol exactly one nonempty description;
+malformed blocks stop the build with an error. To continue a description with
+another paragraph or a list, leave a blank line and indent the continuation
+by four spaces. Symbols and descriptions retain inline math, emphasis, links,
+citations, and cross-references. Write punctuation such as `；` and `。`
+yourself; Papper does not insert it.
+
+DOCX and HTML render a borderless four-column layout: “式中” on the first row
+only, right-aligned symbols, centered “——”, and left-aligned descriptions.
+Descriptions wrap within their own column. There is no header row, visible
+caption, or table number. A preceding equation is optional. Column widths adapt
+to each block's contents: “式中” and “——” take only the space they need, the
+symbol column fits the longest symbol, and descriptions use the remaining text
+width. Word and the browser calculate these widths using the rendered content;
+there are no fixed column percentages. For symbols wider than the available
+page area or a required manual column layout, use a
+[borderless table](#custom-table-styles-and-borderless-layouts).
+
+Cell paragraphs use the bundled `式中` text style, with no first-line indent
+or spacing before/after paragraphs. Configure that style under `docxStyle`
+to meet a thesis's font and line-spacing requirements. A custom reference
+DOCX should include the `式中` paragraph style and `TableNoBorder` table style.
+LaTeX output retains an ordinary definition list introduced by “式中”; it does
+not reproduce the four-column layout.
 
 ## Images
 

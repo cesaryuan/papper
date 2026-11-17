@@ -226,6 +226,40 @@ fn autofit(table: &mut Element, mode: &str) -> Result<()> {
     Ok(())
 }
 
+/// Let Word measure the first three columns and give descriptions the remaining page width.
+fn equation_terms_layout(table: &mut Element) {
+    let properties = table.word("w:tblPr");
+    properties.word("w:tblLayout").set("w:type", "autofit");
+    let width = properties.word("w:tblW");
+    width.set("w:type", "pct");
+    width.set("w:w", "5000");
+    // Pandoc seeds the grid with equal widths even without authored column sizes.
+    // Remove those preferences so each block adapts to its own longest symbol.
+    for column in table.word("w:tblGrid").elements_mut() {
+        column.attrs.remove("w:w");
+    }
+    for row in table.elements_mut().filter(|row| row.name == "w:tr") {
+        for (index, cell) in row
+            .elements_mut()
+            .filter(|cell| cell.name == "w:tc")
+            .enumerate()
+        {
+            let properties = cell.word("w:tcPr");
+            let width = properties.word("w:tcW");
+            width.set("w:type", "auto");
+            width.set("w:w", "0");
+            if index < 3 {
+                // Word otherwise breaks CJK labels, dashes, or formulas to
+                // satisfy a narrow initial grid instead of expanding the column.
+                properties.word("w:noWrap");
+                let margin = properties.word("w:tcMar").word("w:right");
+                margin.set("w:type", "dxa");
+                margin.set("w:w", "100");
+            }
+        }
+    }
+}
+
 /// Color direct cell/caption runs for a table revision without recoloring math or hyperlinks.
 fn revision_runs(element: &mut Element) {
     for paragraph in element
@@ -388,6 +422,9 @@ fn table_metadata_in(body: &mut Element) -> Result<()> {
             if let Err(error) = apply {
                 eprintln!("[DOCX] Failed to apply table setting {key}={value}: {error}");
             }
+        }
+        if attributes.get("equation_terms").and_then(Value::as_str) == Some("true") {
+            equation_terms_layout(table);
         }
         if whole_revision {
             // A bilingual table has two caption paragraphs sharing the same revision.

@@ -189,7 +189,10 @@ def test_html_render_matches_visual_snapshot(
     build_case(copied_case_dir, markdown, "html", output)
     baseline = CASE_ROOT / case_name / "snapshots-visual" / VISUAL_PLATFORM / "html.png"
     actual = visual_session.capture(
-        output, {"paragraph_format": verify_local_paragraph_formats}.get(case_name),
+        output, {
+            "paragraph_format": verify_local_paragraph_formats,
+            "equation_terms": verify_equation_terms,
+        }.get(case_name),
     )
     record_visual_changes({baseline.name: actual}, baseline.parent)
     if visual_session.update:
@@ -201,6 +204,38 @@ def test_html_render_matches_visual_snapshot(
         if not baseline.exists():
             raise AssertionError(f"Visual baseline is missing: {baseline}; use --visual-update explicitly")
         _assert_visual(actual, baseline)
+
+
+def verify_equation_terms(page: Page) -> None:
+    """Verify actual cell alignment and wrapping, beyond semantic snapshots without CSS."""
+    tables = page.locator(".equation-terms > table")
+    assert tables.count() == 2
+    for table in tables.all():
+        assert table.evaluate("el => getComputedStyle(el).tableLayout") == "auto"
+        for row in table.locator("tbody > tr").all():
+            for cell, alignment in zip(row.locator("td").all(), ["left", "right", "center", "left"], strict=True):
+                assert cell.evaluate("el => getComputedStyle(el).borderTopStyle") == "none"
+                assert cell.evaluate("el => getComputedStyle(el).verticalAlign") == "top"
+                paragraph = cell.locator("p").first
+                if paragraph.count():
+                    assert paragraph.evaluate("el => getComputedStyle(el).textAlign") == alignment
+                    assert paragraph.evaluate("el => parseFloat(getComputedStyle(el).textIndent)") == 0
+            separator = row.locator("td").nth(2).locator("p")
+            assert separator.evaluate("""el => {
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                return range.getClientRects().length === 1;
+            }""")
+    description = tables.first.locator("tbody > tr").nth(3).locator("td").nth(3).locator("p").first
+    assert description.evaluate("""el => {
+        const style = getComputedStyle(el);
+        return el.getBoundingClientRect().height > parseFloat(style.lineHeight) * 2;
+    }""")
+    # Each block must fit its own symbols: a lone z needs much less space than
+    # GaussianBlur. This catches a return to shared fixed-percentage columns.
+    main_description = tables.first.locator("tbody > tr").first.locator("td").nth(3)
+    short_description = tables.nth(1).locator("tbody > tr > td").nth(3)
+    assert short_description.bounding_box()["x"] < main_description.bounding_box()["x"] - 40
 
 
 def verify_paragraph_borders(page: Page) -> None:

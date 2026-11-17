@@ -429,6 +429,20 @@ recognizes `where` paragraphs after display equations or equation-layout tables
 and marks them with `Para Where`. HTML uses this marker to remove the usual
 first-line indent.
 
+[`equation_terms.lua`](../pandoc/filters/shared/equation_terms.lua) expands
+explicit `.equation-terms` Divs before math normalization, cross-references,
+and citations. It validates definition-list entries and preserves their inline
+symbols and description blocks in a captionless four-column table. The
+generated table sets `TableNoBorder`, the `式中` cell paragraph style, zero cell
+margins, and page-width autofit independently of the ordinary table autofit
+default. DOCX metadata marks these generated tables so native postprocessing
+removes Pandoc's equal-width grid preferences, selects automatic cell widths,
+and prevents wrapping in the first three columns. Word measures their contents
+and gives the remaining width to descriptions. HTML uses automatic table layout
+with narrow, nonwrapping first columns. Both outputs add a 5pt gap after each
+of those columns. LaTeX retains the definition list with an introductory
+“式中” paragraph. Unmarked definition lists are never transformed.
+
 ## MathType Conversion and Preview Geometry
 
 Conversion orchestration and caches are managed by

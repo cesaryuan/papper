@@ -45,6 +45,11 @@ end
 
 local function exported_table_attributes(table)
   local attrs = {}
+  -- Generated equation-term layouts need native nonwrapping cells and automatic
+  -- preferred widths; this marker is internal rather than a user table option.
+  if table.classes:includes("equation-terms-layout") then
+    attrs.equation_terms = "true"
+  end
   for key, value in pairs(table.attributes or {}) do
     if supported_table_keys[key] then
       attrs[normalize_table_key(key)] = tostring(value)

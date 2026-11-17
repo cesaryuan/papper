@@ -1,0 +1,60 @@
+<html xmlns="http://www.w3.org/1999/xhtml"> <head> <meta charset="utf-8"> <meta content="width=device-width, initial-scale=1.0, user-scalable=yes" name="viewport"> <title>Equation terms</title> </head> <body> <main> <header id="title-block-header"> <h1>Equation terms</h1> </header> <h1 id="sec:terms">1 Special thesis layout</h1> <p>
+<span id="eq:terms">
+<span class="display math">y = kx + \sigma\tag{1}</span>
+</span>
+</p> <div id="symbol-explanations"> <table data-autofit="window" data-cell_margin="0cm" data-custom-style="TableNoBorder" data-custom-text-style="式中"> <tbody> <tr> <td>
+<div> <div data-custom-style="式中"> <p>式中</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>
+<span class="inline math">M_{\mathrm{soft}}</span>
+</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>软掩码连续权重矩阵，<span class="inline math">M_{\mathrm{soft}}\in[0,1]^{1\times H_1\times W_1}</span>；</p> </div> </div>
+</td> </tr> <tr> <td>
+<div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>
+<span class="inline math">\mathrm{GaussianBlur}(\cdot)</span>
+</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>二维高斯滤波算子；</p> </div> </div>
+</td> </tr> <tr> <td>
+<div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>
+<span class="inline math">k</span>
+</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>
+<strong>Kernel size</strong>, as used in Equation <a href="#eq:terms">1</a> and Section <a href="#sec:terms">1</a>；</p> </div> </div>
+</td> </tr> <tr> <td>
+<div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>
+<span class="inline math">\sigma</span>
+</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>Standard deviation, controlling the smoothing range. This deliberately longer explanation should wrap in its own column without shifting the symbols or the separators.</p> </div> <div data-custom-style="式中"> <p>A second paragraph retains <em>emphasis</em> and a <a href="https://example.org">link</a>.</p> </div> <ul> <li>
+<div data-custom-style="式中"> <p>A description can contain a list.</p> </div>
+</li> <li>
+<div data-custom-style="式中"> <p>Its mathematical content <span class="inline math">x^{\textrm{T}}</span> stays editable.</p> </div>
+</li> </ul> </div>
+</td> </tr> </tbody> </table> </div> <p>Ordinary prose: 式中，<span class="inline math">k</span> 为核大小，<span class="inline math">\sigma</span> 为标准差。</p> <dl> <dt>Ordinary term</dt> <dd> An unmarked definition list stays an ordinary definition list. </dd> </dl> <div> <table data-autofit="window" data-cell_margin="0cm" data-custom-style="TableNoBorder" data-custom-text-style="式中"> <tbody> <tr> <td>
+<div> <div data-custom-style="式中"> <p>式中</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>
+<span class="inline math">z</span>
+</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>——</p> </div> </div>
+</td> <td>
+<div> <div data-custom-style="式中"> <p>A single-entry block also works without a preceding equation.</p> </div> </div>
+</td> </tr> </tbody> </table> </div> <table id="tbl:ordinary"> <caption>Table 1 Ordinary numbered table.</caption> <colgroup> <col> <col> </colgroup> <thead> <tr> <th>Item</th> <th>Value</th> </tr> </thead> <tbody> <tr> <td>Sample</td> <td>1</td> </tr> </tbody> </table> <div data-custom-style="Para After Table"> <p>See Table <a href="#tbl:ordinary">1</a>.</p> </div> </main> </body> </html>
