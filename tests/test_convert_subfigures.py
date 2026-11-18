@@ -27,7 +27,7 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
     doc = Document()
     section = doc.sections[0]
     section.page_width, section.left_margin, section.right_margin = Inches(8), Inches(1), Inches(1)
-    table = doc.add_table(rows=3, cols=2)
+    table = doc.add_table(rows=5, cols=2)
     table.columns[0].width, table.columns[1].width = Inches(2), Inches(4)
     for index, color in enumerate(("red", "blue")):
         source = tmp_path / f"{color}.png"
@@ -37,11 +37,24 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
             crop = OxmlElement("a:srcRect")
             crop.set("r", "15000")
             picture._inline.graphic.graphicData.pic.blipFill.insert(1, crop)
-        p = table.cell(1, index).paragraphs[0]
-        p.add_run(f"({'ab'[index]}) ")
-        p.add_run(f"Field {color}").bold = True
-    table.cell(2, 0).merge(table.cell(2, 1)).paragraphs[0].add_run().add_picture(str(source), width=Inches(2))
-    doc.add_paragraph("Figure 1 Comparison")
+        label = "ab"[index]
+        table.cell(1, index).text = f"（{label}）测试"
+        translation = table.cell(2, index).paragraphs[0]
+        if index == 0:
+            translation.add_run(f"({label}) ")
+        else:
+            marker = OxmlElement("m:oMath")
+            math_run = OxmlElement("m:r")
+            math_text = OxmlElement("m:t")
+            math_text.text = f"({label})"
+            math_run.append(math_text)
+            marker.append(math_run)
+            translation._p.append(marker)
+            translation.add_run(" ")
+        translation.add_run(f"Field {color}").bold = True
+    table.cell(3, 0).merge(table.cell(3, 1)).paragraphs[0].add_run().add_picture(str(source), width=Inches(2))
+    table.cell(4, 0).merge(table.cell(4, 1)).text = "图 1 比较"
+    doc.add_paragraph("Figure 1. Comparison")
     doc.save(tmp_path / "paper.docx")
     result = subprocess.run([str(rust_executable), "convert", "paper.docx", "-o", "out", "--svg", "--offline"],
                             cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
@@ -52,6 +65,7 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
     svg_path, = out.rglob("subfigure-*.svg")
     assert svg_path == out / "media" / "subfigure-subfig-1.svg"
     assert f"](media/{svg_path.name})" in markdown and "#fig:subfig-1" in markdown
+    assert "图 1 比较" in markdown and 'caption-en="Comparison"' in markdown
     ns = {"s": "http://www.w3.org/2000/svg"}
     svg = ET.parse(svg_path).getroot()
     metadata = json.loads(svg.find("s:metadata", ns).text)
@@ -65,8 +79,17 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
         assert panel["label"] == "ab"[index] and panel["ratio"] == index + 2
         asset = svg_path.parent / image.attrib["href"]
         assert asset.parent == svg_path.parent and asset.read_bytes() == (tmp_path / f"{('red', 'blue')[index]}.png").read_bytes()
-        assert panel["caption"][0]["bold"]
-        assert f"Field {('red', 'blue')[index]}" in "".join(group.itertext())
+        translation = f"Field {('red', 'blue')[index]}"
+        assert "".join(run["text"] for run in panel["caption"]) == f"测试\n{translation}"
+        assert any(run["text"] == translation and run["bold"] for run in panel["caption"])
+        assert translation in "".join(group.itertext())
+    # The original Crossref export also retains both titles in its native caption syntax.
+    crossref = subprocess.run([str(rust_executable), "convert", "paper.docx", "-o", "crossref", "--offline"],
+                              cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
+                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=90)
+    assert crossref.returncode == 0, crossref.stdout + crossref.stderr
+    plain = (tmp_path / "crossref" / "paper.md").read_text(encoding="utf-8")
+    assert 'caption-en="Comparison"' in plain and 'caption-en="**Field blue**"' in plain
     # A later import must not destroy edits made to the SVG in VS Code.
     svg_path.write_text("<svg><!-- manual edit --></svg>", encoding="utf-8")
     retry = subprocess.run(result.args, cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},

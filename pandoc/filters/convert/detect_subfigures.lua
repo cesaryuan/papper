@@ -11,6 +11,8 @@
 --   | (c) C   | (d) D   |       | (b) B   |
 -- Separate caption rows, captions before/after images, merged full-width cells,
 -- full-width （a） markers, ordered-list (a) markers and captionless panels work.
+-- A Chinese (a) row followed by an English (a) row becomes one bilingual panel;
+-- 图2‑3 and Fig. 2‑3 become the primary and translated captions of the same group.
 -- Pipes stranded inside cells by a previous Markdown export are treated as
 -- separators; this cannot reconstruct image syntax already damaged by that export.
 -- Standalone image/(a) caption/image/(b) caption/overall caption sequences work too.
@@ -41,13 +43,7 @@ local used, remapped = {}, {}
 local groups, vertical, conflicts = 0, 0, 0
 local svg_output = os.getenv('PAPPER_CONVERT_SUBFIGURE_SVG') == '1'
 
---- Normalize Word's Unicode dashes before recognizing numbered captions.
-local function normalized(text)
-  for _, dash in ipairs({ '‐', '‑', '‒', '–', '—', '−', '﹣', '－' }) do
-    text = text:gsub(dash, '-')
-  end
-  return text:lower()
-end
+local dashes = { '-', '‐', '‑', '‒', '–', '—', '−', '﹣', '－' }
 
 --- Return the caption number, rejecting incomplete chapter-number suffixes.
 local function caption_number(inlines)
@@ -64,15 +60,20 @@ local function caption_number(inlines)
   -- A paragraph such as "[图3-48](#_Ref...)中所示..." is prose, even
   -- though its visible text begins with a figure number. Never consume it.
   if reference then return nil end
-  local text = normalized(pandoc.utils.stringify(inlines))
+  local text = pandoc.utils.stringify(inlines):lower()
   local number, suffix = text:match('^%s*图%s*(%d+)(.*)$')
+  local language = number and 'zh' or 'en'
   if not number then number, suffix = text:match('^%s*figure%.?%s*(%d+)(.*)$') end
   if not number then number, suffix = text:match('^%s*fig%.?%s*(%d+)(.*)$') end
   if not number then return nil end
-  if suffix:match('^%s*%-') then
-    local chapter, remaining = suffix:match('^%s*%-%s*(%d+)(.*)$')
-    if not chapter then return nil end
-    number, suffix = number .. '-' .. chapter, remaining
+  local tail = suffix:gsub('^%s+', '')
+  for _, dash in ipairs(dashes) do
+    if tail:sub(1, #dash) == dash then
+      local chapter, remaining = tail:sub(#dash + 1):match('^%s*(%d+)(.*)$')
+      if not chapter then return nil end
+      number, suffix = number .. '-' .. chapter, remaining
+      break
+    end
   end
   -- Plain typed references can also start a paragraph. A common prose lead-in
   -- such as "图1-2中所示..." is not an overall caption after a layout table.
@@ -80,7 +81,8 @@ local function caption_number(inlines)
     '^%s+shows%f[%W]', '^%s+illustrates%f[%W]', '^%s+depicts%f[%W]' }) do
     if suffix:match(cue) then return nil end
   end
-  return number
+  local delimiter = language == 'en' and '^%s*[%.:]?%s*' or '^%s*'
+  return number, language, #text - #suffix + #suffix:match(delimiter)
 end
 
 --- Trim spacing and ignore empty bookmark spans when deciding if text exists.
@@ -156,6 +158,60 @@ local function segments(inlines)
   return result
 end
 
+--- Remove a known prefix across formatted runs without flattening the rest of the caption.
+local function drop_prefix(inlines, remaining)
+  local result = {}
+  for _, inline in ipairs(inlines) do
+    local length = #pandoc.utils.stringify(inline)
+    if remaining == 0 or length == 0 then result[#result + 1] = inline
+    elseif remaining >= length then remaining = remaining - length
+    elseif inline.t == 'Str' then
+      result[#result + 1] = pandoc.Str(inline.text:sub(remaining + 1))
+      remaining = 0
+    elseif inline.content then
+      local copy = inline:clone()
+      local content
+      content, remaining = drop_prefix(copy.content, remaining)
+      if not content then return nil end
+      copy.content = content
+      result[#result + 1] = copy
+    else
+      return nil
+    end
+  end
+  return result, remaining
+end
+
+--- Strip the leading letter, including a Word inline equation containing only “(a)”.
+local function subcaption(inlines)
+  local text = pandoc.utils.stringify(inlines)
+  local label, ending = text:match('^%s*%(([A-Za-z])%)()')
+  if not label then label, ending = text:match('^%s*（([A-Za-z])）()') end
+  if not label then return inlines, nil end
+  local cleaned, remaining = drop_prefix(inlines, ending - 1)
+  if not cleaned or remaining ~= 0 then return inlines, nil end
+  return trim(cleaned), label:lower()
+end
+
+--- Identify Han text without depending on the document's declared language.
+local function has_han(text)
+  for _, code in utf8.codes(text) do
+    if (code >= 0x3400 and code <= 0x9fff) or (code >= 0xf900 and code <= 0xfaff)
+      or (code >= 0x20000 and code <= 0x323af) then return true end
+  end
+  return false
+end
+
+--- Pair only the same explicit panel marker with distinct Chinese and English text.
+local function panel_translation(first, second)
+  local primary, label = subcaption(first)
+  local english, other = subcaption(second)
+  if not label or label ~= other then return nil end
+  local primary_text, english_text = pandoc.utils.stringify(primary), pandoc.utils.stringify(english)
+  if not english_text:match('[A-Za-z]') then return nil end
+  return has_han(primary_text) and not has_han(english_text)
+end
+
 --- Parse a cell as images plus caption fragments; never discard structural blocks.
 local function read_cell(cell)
   if cell.row_span ~= 1 then return nil end
@@ -175,7 +231,9 @@ local function read_cell(cell)
       if pandoc.utils.stringify(text):match('%S') then texts[#texts + 1] = text end
     end
   end
-  if #panels > 0 and #texts > 0 then
+  if #panels == 1 and #texts == 2 and panel_translation(texts[1], texts[2]) then
+    panels[1].caption, panels[1].english, texts = texts[1], texts[2], {}
+  elseif #panels > 0 and #texts > 0 then
     -- Both "(a) caption image" and "image (a) caption" are common in Word.
     if #panels ~= #texts then return nil end
     for index, panel in ipairs(panels) do
@@ -217,30 +275,47 @@ local function unique_id(base)
   return id
 end
 
---- Remove an authored panel marker while retaining formatted caption text.
-local function subcaption(inlines)
-  local text = pandoc.utils.stringify(inlines)
-  local label = text:match('^%s*%(([A-Za-z])%)') or text:match('^%s*（([A-Za-z])）')
-  if not label then return inlines, nil end
-  local removed = false
-  local cleaned = pandoc.Span(inlines):walk({ Str = function(str)
-    if not removed then
-      local after, count = str.text:gsub('^%(([A-Za-z])%)', '', 1)
-      if count == 0 then after, count = str.text:gsub('^（([A-Za-z])）', '', 1) end
-      if count > 0 then removed = true; return after ~= '' and pandoc.Str(after) or {} end
+--- Serialize formatted caption text using the existing caption-en Markdown syntax.
+local function caption_markdown(inlines)
+  return pandoc.write(pandoc.Pandoc{pandoc.Plain(inlines)}, 'markdown', {wrap_text='none'}):gsub('%s+$', '')
+end
+
+--- Unify identical titles and pair only same-number Chinese and English overall captions.
+local function overall_caption(candidates)
+  local titles, number = {}, nil
+  for _, candidate in ipairs(candidates) do
+    local current, language, ending = caption_number(candidate)
+    if not current or (number and current ~= number) then return nil end
+    number = current
+    local entry = titles[language]
+    local signature = pandoc.utils.stringify(candidate)
+    if entry and signature ~= entry.signature then return nil end
+    local _, bookmark = take_bookmark(candidate)
+    if not entry or bookmark then
+      titles[language] = {inlines=candidate, ending=ending, signature=signature}
     end
-  end })
-  return trim(cleaned.content), label:lower()
+  end
+  if not titles.zh then return titles.en and titles.en.inlines end
+  return titles.zh.inlines, titles.en
 end
 
 --- Build a crossref Div; normalize irregular rows to prevent dropped panels.
-local function make_group(rows, caption, original_id)
+local function make_group(rows, caption, original_id, english)
   local number = caption_number(caption)
   if not number then return nil end
   local total = 0
   for _, row in ipairs(rows) do total = total + #row end
   if total < 2 then return nil end
   local clean, bookmark = take_bookmark(caption)
+  local translation, english_bookmark
+  if english then
+    local text
+    text, english_bookmark = take_bookmark(english.inlines)
+    text = drop_prefix(text, english.ending)
+    if not text or #text == 0 then return nil end
+    translation = caption_markdown(text)
+  end
+  bookmark = bookmark or english_bookmark
   local base = bookmark and ('fig:' .. bookmark)
     or (original_id and original_id:gsub('^tbl:', 'fig:')) or ('fig:subfig-' .. number)
   if not base:match('^fig:') then return nil end
@@ -248,6 +323,7 @@ local function make_group(rows, caption, original_id)
   if original_id == base then used[base] = nil end
   local parent = unique_id(base)
   if original_id and original_id ~= parent then remapped[original_id] = parent end
+  if english_bookmark then remapped[english_bookmark] = parent end
   local irregular = false
   for _, row in ipairs(rows) do if #row ~= #rows[1] then irregular = true end end
   if irregular and not svg_output then
@@ -278,6 +354,11 @@ local function make_group(rows, caption, original_id)
         remapped[original] = image.identifier
       end
       if label then image.attributes.label = label end
+      if panel.english then
+        local translation, english_anchor = take_bookmark(panel.english)
+        image.attributes['caption-en'] = caption_markdown(subcaption(translation))
+        if english_anchor then remapped[english_anchor] = image.identifier end
+      end
       -- Absolute widths fail in subfigGrid; save source dimensions for review.
       for _, dimension in ipairs({ 'width', 'height' }) do
         if image.attributes[dimension] then
@@ -294,6 +375,7 @@ local function make_group(rows, caption, original_id)
   blocks[#blocks + 1] = pandoc.Para(clean)
   groups = groups + 1
   local div = pandoc.Div(blocks, pandoc.Attr(parent))
+  if translation then div.attributes['caption-en'] = translation end
   -- The SVG writer restores single-column crossref rows if it cannot represent this irregular group.
   if svg_output and irregular then div.attributes['papper-convert-uneven-rows'] = '1' end
   return div
@@ -349,28 +431,20 @@ local function table_group(element, following)
         pending = nil
       elseif pending and #texts == #pending then
         for index, panel in ipairs(pending) do
-          if panel.caption or caption_number(texts[index]) then return nil end
-          panel.caption = texts[index]
+          local text = texts[index]
+          if caption_number(text) then return nil end
+          if not panel.caption then panel.caption = text
+          elseif not panel.english and panel_translation(panel.caption, text) then panel.english = text
+          else return nil end
         end
-        pending = nil
       else return nil end
     end
   end
   if #candidates == 0 then return nil end
-  local signature = pandoc.utils.stringify(candidates[1])
-  for _, candidate in ipairs(candidates) do
-    if pandoc.utils.stringify(candidate) ~= signature then
-      conflicts = conflicts + 1
-      return nil
-    end
-  end
-  -- Prefer the caption with a bookmark so stable Word references remain usable.
-  caption = candidates[1]
-  for _, candidate in ipairs(candidates) do
-    local _, anchor = take_bookmark(candidate)
-    if anchor then caption = candidate end
-  end
-  local group = make_group(rows, caption, element.identifier ~= '' and element.identifier or nil)
+  local english
+  caption, english = overall_caption(candidates)
+  if not caption then conflicts = conflicts + 1; return nil end
+  local group = make_group(rows, caption, element.identifier ~= '' and element.identifier or nil, english)
   return group, group and external ~= nil
 end
 

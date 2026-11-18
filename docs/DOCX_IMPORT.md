@@ -110,6 +110,13 @@ Import recognizes common manuscript layouts:
 
 English caption prefixes are case-insensitive and allow a trailing period. Caption text and supported formatting are retained. Figure grid widths become percentages; original dimensions remain available in `original-width` and `original-height` attributes.
 
+For a bilingual subfigure table, put the English subcaption after the Chinese
+one and repeat the panel letter, for example `(a) 基线` followed by `(a) Baseline`.
+Pair the overall titles with the same figure number, such as `图 2‑3` and `Fig. 2‑3`.
+Crossref export stores the translations as `caption-en`. SVG export places the
+English panel text on a separate editable line and keeps the translated overall
+title in the Markdown.
+
 Use `papper convert paper.docx -o converted --subfigure-svg` (also `--svg`) to
 export recognized groups as editable combination figures. A group with ID
 `fig:comparison` produces `converted/media/subfigure-comparison.svg`. The SVG

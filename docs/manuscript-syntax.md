@@ -1595,6 +1595,13 @@ in `media/`. Hover over the image and choose **Edit subfigure layout**. Supporte
 child references point to the main figure with their panel letter. Groups whose
 subcaptions or source formats cannot be represented retain their crossref layout.
 
+In imported Word subfigure tables, an English subcaption such as `(a) Baseline`
+can follow a Chinese subcaption such as `(a) 基线`. Repeat the same panel letter,
+and use the same number for both overall captions (`图 2‑3` and `Fig. 2‑3`).
+Crossref output keeps the translations in `caption-en`; with `--svg`, each
+translated subcaption becomes a second editable line inside its panel, and the
+English overall caption stays in the manuscript as `caption-en`.
+
 Word's rectangular image crops are retained as editable image attributes by
 default (`--image-crop attributes`), preserving the original image files. For
 example, a 52.014% right crop becomes `crop-right="52.014"` on the image.

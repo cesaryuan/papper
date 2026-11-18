@@ -77,6 +77,14 @@ local function panel(image, index)
   local caption = {}
   if not runs(image.caption, {}, caption) then return nil end
   local a = image.attributes
+  if a['caption-en'] then
+    local translation = pandoc.read(a['caption-en'], 'markdown').blocks
+    local line = translation[1]
+    if #translation ~= 1 or (line.t ~= 'Plain' and line.t ~= 'Para') then return nil end
+    -- One panel letter applies to both lines. Keep the English runs editable.
+    if #caption > 0 then caption[#caption+1] = {text='\n'} end
+    if not runs(line.content, {}, caption) then return nil end
+  end
   local w,h = points(a['original-width']), points(a['original-height'])
   local _, bytes = pandoc.mediabag.lookup(src)
   if bytes then
