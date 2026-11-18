@@ -1587,6 +1587,14 @@ with the same filename receive a content-based suffix and updated Markdown paths
 Existing edited images are preserved too. Reimporting the same document replaces
 its Markdown file; use a separate output directory to keep multiple Markdown versions.
 
+To edit imported subfigure layouts with Papper Tools in VS Code, use
+`papper convert existing-paper.docx -o converted --svg`. A recognized group such
+as `fig:comparison` becomes a Markdown image pointing to `media/subfigure-comparison.svg`,
+with its figure ID and overall caption. Keep the SVG and its source images together
+in `media/`. Hover over the image and choose **Edit subfigure layout**. Supported
+child references point to the main figure with their panel letter. Groups whose
+subcaptions or source formats cannot be represented retain their crossref layout.
+
 Word's rectangular image crops are retained as editable image attributes by
 default (`--image-crop attributes`), preserving the original image files. For
 example, a 52.014% right crop becomes `crop-right="52.014"` on the image.

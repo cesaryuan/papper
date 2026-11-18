@@ -253,6 +253,9 @@ pub struct ConvertArgs {
     /// Infer figure/table/equation references from numbers and plain-text reference phrases.
     #[arg(long)]
     pub fuzzy_crossrefs: bool,
+    /// Export recognized subfigure groups as SVGs editable with the Papper Tools VS Code extension.
+    #[arg(long, visible_alias = "svg")]
+    pub subfigure_svg: bool,
     /// Retain originals with Word crop attributes, or apply crops to exported images.
     #[arg(long, value_enum, default_value = "attributes")]
     pub image_crop: ImageCropMode,

@@ -110,6 +110,17 @@ Import recognizes common manuscript layouts:
 
 English caption prefixes are case-insensitive and allow a trailing period. Caption text and supported formatting are retained. Figure grid widths become percentages; original dimensions remain available in `original-width` and `original-height` attributes.
 
+Use `papper convert paper.docx -o converted --subfigure-svg` (also `--svg`) to
+export recognized groups as editable combination figures. A group with ID
+`fig:comparison` produces `converted/media/subfigure-comparison.svg`. The SVG
+links to the source pictures in the same directory. Keep `media/` together when moving the manuscript.
+Hover over the Markdown image in VS Code and choose **Edit subfigure layout** in
+Papper Tools. The editor restores the panels, labels, editable crops and formatted
+subcaptions. The overall caption and figure ID stay in the manuscript.
+Groups with content outside the editor’s caption or image formats retain their
+crossref layout. A changed existing SVG at the same path is preserved and the
+import reports the conflict. Choose another output directory to keep both versions.
+
 Ambiguous structures remain unchanged. Examples include multiple independent figure numbers in one layout, conflicting overall captions, row spans, and nested tables. Multiple images in an ordinary paragraph are not automatically paired with a following single-figure caption. Images separated from captions by prose are not paired either.
 
 Relative or invalid image widths, images exactly 2 inches wide, and images already presented as separate figures are not moved by the inline-image rule. Ordinary data tables remain tables.

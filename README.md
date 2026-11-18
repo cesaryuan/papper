@@ -120,7 +120,7 @@ Already have a Word draft? Import it into a separate directory:
 papper convert existing-paper.docx -o converted
 ```
 
-This creates `converted/existing-paper.md` and its media. Check the imported content against the original; complex Word layouts may need manual cleanup. [Import examples and recovery limits →](docs/DOCX_IMPORT.md)
+This creates `converted/existing-paper.md` and its media. Add `--svg` to turn supported Word subfigure groups into SVGs you can edit in VS Code with Papper Tools. Check the imported content against the original; complex Word layouts may need manual cleanup. [Import examples and recovery limits →](docs/DOCX_IMPORT.md)
 
 ## Is Papper a good fit?
 

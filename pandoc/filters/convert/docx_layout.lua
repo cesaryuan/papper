@@ -98,6 +98,13 @@ local function collect_sections(body, rels, entries)
       local record = {ending=index, kind=kind, stories={}, refs={},
         differentFirstPage=tostring(xml.enabled(xml.child(props, 'titlePg'))),
         format=number and xml.attr(number, 'fmt') or 'decimal'}
+      if #result == 0 and os.getenv('PAPPER_CONVERT_SUBFIGURE_SVG') == '1' then
+        local size, margins = xml.child(props, 'pgSz'), xml.child(props, 'pgMar')
+        local w = size and tonumber(xml.attr(size, 'w'))
+        local l = margins and tonumber(xml.attr(margins, 'left'))
+        local r = margins and tonumber(xml.attr(margins, 'right'))
+        if w and l and r and w > l + r then record.figureWidth = (w - l - r) / 20 end
+      end
       record.pageStart = number and xml.attr(number, 'start') or nil
       for _, story in ipairs({'header', 'footer'}) do
         record.refs[story] = {}
@@ -197,6 +204,10 @@ function Pandoc(document)
   local rels = relationships('word/document.xml', entries)
   local sections = collect_sections(body, rels, entries)
   if #sections == 0 then return nil end
+  if sections[1].figureWidth then
+    document.meta['papper-subfigure-width'] = tostring(sections[1].figureWidth)
+    sections[1].figureWidth = nil
+  end
   local styles = styles_from(entries['word/styles.xml'])
   local settings = entries['word/settings.xml'] and xml.parse(entries['word/settings.xml'])
   local even = settings and xml.enabled(xml.child(settings, 'evenAndOddHeaders')) or false
@@ -338,7 +349,7 @@ function Pandoc(document)
   end
   local first = sections[1]
   manifest.initial = had_story or #sections > 1 or first.pageStart ~= nil or first.differentFirstPage == 'true'
-  if serial == 0 and not manifest.initial then return nil end
+  if serial == 0 and not manifest.initial then return document end
   manifest.emptyToken = marker({empty=true})
   local initial_token = manifest.initial and marker({section=1}) or nil
   -- Insert before the final sectPr rather than the last XML token: pretty

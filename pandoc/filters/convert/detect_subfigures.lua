@@ -39,6 +39,7 @@
 
 local used, remapped = {}, {}
 local groups, vertical, conflicts = 0, 0, 0
+local svg_output = os.getenv('PAPPER_CONVERT_SUBFIGURE_SVG') == '1'
 
 --- Normalize Word's Unicode dashes before recognizing numbered captions.
 local function normalized(text)
@@ -249,7 +250,7 @@ local function make_group(rows, caption, original_id)
   if original_id and original_id ~= parent then remapped[original_id] = parent end
   local irregular = false
   for _, row in ipairs(rows) do if #row ~= #rows[1] then irregular = true end end
-  if irregular then
+  if irregular and not svg_output then
     local flat = {}
     for _, row in ipairs(rows) do for _, panel in ipairs(row) do flat[#flat + 1] = { panel } end end
     rows = flat
@@ -283,7 +284,7 @@ local function make_group(rows, caption, original_id)
           image.attributes['original-' .. dimension] = image.attributes[dimension]
         end
       end
-      image.attributes.width = string.format('%.6g%%', 100 / #row)
+      image.attributes.width = string.format('%.6g%%', panel.cell_percent or 100 / #row)
       image.attributes.height = nil
       if #inlines > 0 then inlines[#inlines + 1] = pandoc.Space() end
       inlines[#inlines + 1] = image
@@ -292,7 +293,10 @@ local function make_group(rows, caption, original_id)
   end
   blocks[#blocks + 1] = pandoc.Para(clean)
   groups = groups + 1
-  return pandoc.Div(blocks, pandoc.Attr(parent))
+  local div = pandoc.Div(blocks, pandoc.Attr(parent))
+  -- The SVG writer restores single-column crossref rows if it cannot represent this irregular group.
+  if svg_output and irregular then div.attributes['papper-convert-uneven-rows'] = '1' end
+  return div
 end
 
 --- Recover a table only when every nonempty cell has an unambiguous role.
@@ -307,9 +311,21 @@ local function table_group(element, following)
   if external then candidates[#candidates + 1] = external end
   for _, row in ipairs(table_rows(element)) do
     local panels, texts = {}, {}
+    local column = 1
     for _, cell in ipairs(row.cells) do
       local images, fragments = read_cell(cell)
       if not images then return nil end
+      -- SVG rows can represent unequal Word columns and merged horizontal cells.
+      if svg_output and #images == 1 then
+        local share = 0
+        for i = column, column + cell.col_span - 1 do
+          local spec = element.colspecs[i]
+          if not spec or not tonumber(spec[2]) then share = 0; break end
+          share = share + spec[2]
+        end
+        if share > 0 then images[1].cell_percent = share * 100 end
+      end
+      column = column + cell.col_span
       for _, image in ipairs(images) do panels[#panels + 1] = image end
       for _, fragment in ipairs(fragments) do texts[#texts + 1] = fragment end
     end
@@ -404,7 +420,7 @@ function Pandoc(doc)
     Blocks = detect_blocks,
   })
   if groups > 0 then
-    doc.meta.subfigGrid = pandoc.MetaBool(true)
+    if not svg_output then doc.meta.subfigGrid = pandoc.MetaBool(true) end
     doc = doc:walk({ Link = function(link)
       local replacement = remapped[link.target:match('^#(.+)$')]
       if replacement then link.target = '#' .. replacement; return link end

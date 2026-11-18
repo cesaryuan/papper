@@ -740,6 +740,14 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
             .resource("pandoc/filters/convert/media_paths.lua")
             .into_os_string(),
     ]);
+    if args.subfigure_svg {
+        command.extend([
+            "--lua-filter".into(),
+            resources
+                .resource("pandoc/filters/convert/subfigure_svg.lua")
+                .into_os_string(),
+        ]);
+    }
     command.extend([
         "--lua-filter".into(),
         resources
@@ -753,6 +761,10 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     ]);
     let environment = BTreeMap::from([
         ("MATHTYPE_LATEX_MAP".into(), Some(display_path(&map))),
+        (
+            "PAPPER_CONVERT_SUBFIGURE_SVG".into(),
+            args.subfigure_svg.then(|| "1".into()),
+        ),
         (
             "PAPPER_CONVERT_OUTPUT_DIR".into(),
             Some(pandoc_path(&destination)),

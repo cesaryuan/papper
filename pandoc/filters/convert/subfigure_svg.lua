@@ -1,0 +1,264 @@
+-- Export recognized crossref groups as editable Papper Tools v2 SVGs, e.g.
+-- fig:comparison -> media/subfigure-comparison.svg alongside the extracted pictures.
+-- Run after crossref recovery and media_paths: image links must use their final
+-- exported filenames. Stage complete SVGs for the CLI's no-clobber publication.
+-- Unrepresentable captions or assets leave the entire original group intact.
+local resource = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), '../shared/filter_resources.lua'})
+local font = {family='Times New Roman', cjkFamily='SimSun', size=10, color='#000000', align='center'}
+local children, filenames = {}, {}
+local gap, padding, rowgap = 10, 8, 16
+
+--- Escape XML character data, including quotes when used in an attribute.
+local function xml(text, attribute)
+  text = text:gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;')
+  if attribute then text = text:gsub('"', '&quot;') end
+  return text
+end
+
+--- Produce stable, indented JSON; all empty collections in this schema are arrays.
+local function json(value, depth)
+  if type(value) ~= 'table' then return pandoc.json.encode(value) end
+  local keys, parts = {}, {}
+  for key in pairs(value) do keys[#keys+1] = key end
+  if #keys == 0 then return '[]' end
+  table.sort(keys)
+  local array = type(keys[1]) == 'number'
+  local indent = string.rep('  ', depth)
+  for _, key in ipairs(keys) do
+    parts[#parts+1] = indent .. '  ' .. (array and '' or pandoc.json.encode(key) .. ': ') .. json(value[key], depth+1)
+  end
+  return (array and '[\n' or '{\n') .. table.concat(parts, ',\n') .. '\n' .. indent .. (array and ']' or '}')
+end
+
+--- Translate only editable rich-text constructs; never silently flatten a math expression or link.
+local function runs(inlines, style, output)
+  for _, item in ipairs(inlines) do
+    local text = item.t == 'Str' and item.text or (item.t == 'Space' or item.t == 'SoftBreak') and ' '
+      or item.t == 'LineBreak' and '\n'
+    if text then
+      local run = {text=text, bold=style.bold, italic=style.italic, script=style.script}
+      local last = output[#output]
+      if last and last.bold == run.bold and last.italic == run.italic and last.script == run.script then
+        last.text = last.text .. text
+      else output[#output+1] = run end
+    else
+      local next_style = {bold=style.bold, italic=style.italic, script=style.script}
+      if item.t == 'Strong' then next_style.bold = true
+      elseif item.t == 'Emph' then next_style.italic = true
+      elseif item.t == 'Superscript' then next_style.script = 'super'
+      elseif item.t == 'Subscript' then next_style.script = 'sub'
+      else return false end
+      if not runs(item.content, next_style, output) then return false end
+    end
+  end
+  return true
+end
+
+--- Generate the same a..z, aa.. sequence as the editor for panels without Word labels.
+local function letter(n)
+  local label = ''
+  while n > 0 do n = n-1; label = string.char(97+n%26) .. label; n = n//26 end
+  return label
+end
+
+--- Read Word physical sizes in points when an image cannot report its intrinsic dimensions.
+local function points(value)
+  local n, unit = (value or ''):match('^([%d.]+)(%a+)$')
+  local factor = ({['in']=72, cm=72/2.54, mm=72/25.4, pt=1, px=0.75})[unit]
+  return tonumber(n) and factor and tonumber(n)*factor
+end
+
+--- Collect the editable panel model and keep the source URL outside its metadata.
+local function panel(image, index)
+  local src = image.src:gsub('^%./', '')
+  if pandoc.path.is_absolute(src) or src:match('^%a[%w+.-]*:') or src:sub(1,2)=='//' then return nil end
+  local ext = src:lower():match('%.(%w+)$')
+  if not ({png=true,jpg=true,jpeg=true,svg=true,gif=true,bmp=true,avif=true,webp=true})[ext] then return nil end
+  local caption = {}
+  if not runs(image.caption, {}, caption) then return nil end
+  local a = image.attributes
+  local w,h = points(a['original-width']), points(a['original-height'])
+  local _, bytes = pandoc.mediabag.lookup(src)
+  if bytes then
+    local ok, size = pcall(pandoc.image.size, bytes)
+    if ok and size.width > 0 and size.height > 0 then w,h = size.width,size.height end
+  end
+  local weight = a.width and tonumber(a.width:match('^([%d.]+)%%$')) or nil
+  if a.width and not weight or weight and weight <= 0 then return nil end
+  local p = {kind='panel',id='e'..index,name=pandoc.path.filename(src),ratio=w and h and h>0 and w>0 and w/h or 1.5,
+    caption=caption,label=a.label or letter(index),labelPosition='below',gap=5}
+  local crop, any = {}, false
+  for _, side in ipairs({'left','top','right','bottom'}) do
+    local v = tonumber(a['crop-'..side] or '0')
+    if not v or v < 0 then return nil end
+    crop[side], any = v, any or v ~= 0
+  end
+  if crop.left+crop.right >= 100 or crop.top+crop.bottom >= 100 then return nil end
+  if any then p.crop = crop end
+  -- The manuscript addresses sources from its root; the SVG addresses them from media/.
+  local href = src:match('^media/(.+)$') or '../' .. src
+  return {model=p, src=href, crop=crop, child=image.identifier, weight=weight or 1}
+end
+
+--- Render wrapped SVG text while retaining the original unwrapped rich runs for later editing.
+local function caption_svg(p)
+  local lines, spans, used = {}, {}, 0
+  --- Finish the SVG line without injecting whitespace between its tspans.
+  local function flush()
+    lines[#lines+1] = string.format('    <text x="%g" y="%g" text-anchor="middle" font-family="Times New Roman" font-size="10" xml:space="preserve">%s</text>',
+      p.x+p.width/2,p.y+p.height+p.gap+10+#lines*12.5,table.concat(spans))
+    spans,used = {},0
+  end
+  local content = { {text='('..p.label..')'..(#p.caption>0 and ' ' or '')} }
+  for _, run in ipairs(p.caption) do content[#content+1] = run end
+  for _, run in ipairs(content) do
+    local attrs = (run.bold and ' font-weight="bold"' or '') .. (run.italic and ' font-style="italic"' or '')
+      .. (run.script and (' font-size="70%" baseline-shift="' .. (run.script=='super' and '-0.4em' or '0.25em') .. '"') or '')
+    local buffer, face = '', nil
+    --- Emit adjacent characters as one styled run, choosing Song type for Han text.
+    local function emit()
+      if buffer ~= '' then spans[#spans+1] = '<tspan'..(face and ' font-family="SimSun"' or '')..attrs..'>'..xml(buffer)..'</tspan>'; buffer='' end
+    end
+    for offset, cp in utf8.codes(run.text) do
+      local ch, wide = utf8.char(cp), cp >= 0x2e80
+      local advance = (wide and 10 or ch==' ' and 2.5 or 5)*(run.script and .7 or 1)
+      -- Move a Latin word to the next line intact when it fits; split only oversized words.
+      if cp<128 and ch:match('%w') and (offset==1 or not run.text:sub(offset-1,offset-1):match('%w')) then
+        local word = run.text:match('^(%w+)',offset)
+        if word and used>0 and #word*advance<=p.width and used+#word*advance>p.width then emit(); flush() end
+      end
+      if ch=='\n' or used>0 and used+advance>p.width then emit(); flush() end
+      if ch~='\n' then
+        if face~=wide then emit(); face=wide end
+        buffer,used = buffer..ch,used+advance
+      end
+    end
+    emit()
+  end
+  if #spans>0 then flush() end
+  return table.concat(lines,'\n'), #lines*12.5
+end
+
+--- Size each authored row independently and draw its non-destructively cropped source images.
+local function artwork(rows, width)
+  local model={format='papper-subfigure',version=2,width=width,autoHeight=true,embedded=false,autoRenumber=true,
+    background='white',font=font,layout={mode='rows',columns=#rows[1],rows={},weights={},gap=gap,rowGap=rowgap,padding=padding},elements={}}
+  local groups, y = {}, padding
+  for _, row in ipairs(rows) do
+    local total, available = 0, width-2*padding-(#row-1)*gap
+    if available <= 0 then return nil end
+    for _, entry in ipairs(row) do total=total+entry.weight end
+    local x, bottom = padding, y
+    for _, entry in ipairs(row) do
+      local p,c = entry.model,entry.crop
+      p.x,p.y,p.width=x,y,available*entry.weight/total
+      local sw,sh = 1000,1000/p.ratio
+      local vw,vh = sw*(100-c.left-c.right)/100, sh*(100-c.top-c.bottom)/100
+      p.height=p.width*vh/vw
+      local text, textHeight=caption_svg(p)
+      local src=xml(entry.src,true)
+      groups[#groups+1]=string.format('  <g data-element-id="%s">\n    <svg x="%g" y="%g" width="%g" height="%g" viewBox="%g %g %g %g" overflow="hidden">\n      <image width="%g" height="%g" href="%s" xlink:href="%s" preserveAspectRatio="none"/>\n    </svg>\n%s\n  </g>',
+        p.id,x,y,p.width,p.height,sw*c.left/100,sh*c.top/100,vw,vh,sw,sh,src,src,text)
+      model.elements[#model.elements+1]=p
+      model.layout.weights[#model.layout.weights+1]=entry.weight
+      if p.label~=letter(#model.elements) then model.autoRenumber=false end
+      bottom=math.max(bottom,y+p.height+p.gap+textHeight)
+      x=x+p.width+gap
+    end
+    model.layout.rows[#model.layout.rows+1]=#row
+    y=bottom+rowgap
+  end
+  model.height=y-rowgap+padding
+  return string.format('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="%gin" height="%gin" viewBox="0 0 %g %g">\n  <metadata id="papper-subfigure">\n    %s\n  </metadata>\n  <rect width="100%%" height="100%%" fill="white"/>\n%s\n</svg>\n',
+    width/72,model.height/72,width,model.height,xml(json(model,0)):gsub('\n','\n    '),table.concat(groups,'\n'))
+end
+
+--- Replace only image rows followed by one overall caption, never ordinary layout Divs.
+local function convert(div, width)
+  if not div.identifier:match('^fig:.+') or #div.content<2 then return nil end
+  local caption=div.content[#div.content]
+  if caption.t~='Para' and caption.t~='Plain' then return nil end
+  local rows, count={},0
+  for i=1,#div.content-1 do
+    local row, block={},div.content[i]
+    if block.t~='Para' and block.t~='Plain' then return nil end
+    for _, inline in ipairs(block.content) do
+      if inline.t=='Image' then
+        count=count+1
+        local entry=panel(inline,count)
+        if not entry then return nil end
+        row[#row+1]=entry
+      elseif inline.t~='Space' and inline.t~='SoftBreak' then return nil end
+    end
+    if #row==0 then return nil end
+    rows[#rows+1]=row
+  end
+  if count<2 then return nil end
+  local svg=artwork(rows,width)
+  if not svg then return nil end
+  local base='subfigure-'..div.identifier:sub(5):gsub('[<>:"/\\|?*%c]', '-')
+  local filename='media/'..base..'.svg'
+  assert(not filenames[filename:lower()] and not pandoc.mediabag.lookup(filename),
+    'Conflicting subfigure filename: '..filename)
+  filenames[filename:lower()]=true
+  -- --extract-media stages the SVG with its source pictures for the same no-clobber publication.
+  pandoc.mediabag.insert(filename,'image/svg+xml',svg)
+  for _,row in ipairs(rows) do for _,entry in ipairs(row) do
+    if entry.child~='' then children[entry.child]={id=div.identifier,label=entry.model.label} end
+  end end
+  local image=pandoc.Image(caption.content, filename, '', div.attr)
+  image.attributes.width=string.format('%.6gin',width/72)
+  return pandoc.Para{image}
+end
+
+--- Keep parent references valid, including forward Word links recovered as raw Markdown citations.
+function Pandoc(doc)
+  local width = tonumber(pandoc.utils.stringify(doc.meta['papper-subfigure-width'] or '')) or 160*72/25.4
+  doc.meta['papper-subfigure-width']=nil
+  local remaining = false
+  doc=doc:walk({Div=function(div)
+    local uneven=div.attributes['papper-convert-uneven-rows']
+    div.attributes['papper-convert-uneven-rows']=nil
+    local image = convert(div,width)
+    if not image and div.identifier:match('^fig:') then
+      remaining = true
+      resource.warn('Keeping crossref layout for '..div.identifier..': unsupported figure contents')
+      if uneven then
+        local blocks=pandoc.List{}
+        for i=1,#div.content-1 do
+          for _,item in ipairs(div.content[i].content) do
+            if item.t=='Image' then item.attributes.width='100%'; blocks:insert(pandoc.Para{item}) end
+          end
+        end
+        blocks:insert(div.content[#div.content])
+        div.content=blocks
+        return div
+      end
+    end
+    return image
+  end})
+  if remaining and doc.meta.subfigGrid == nil then doc.meta.subfigGrid=pandoc.MetaBool(true) end
+  return doc:walk({
+    RawInline=function(raw)
+      local target=raw.format=='markdown' and children[raw.text:match('^%[@([^%]]+)%]$')]
+      if target then return {pandoc.RawInline('markdown','[@'..target.id..']'),pandoc.Space(),pandoc.Str('('..target.label..')')} end
+    end,
+    Cite=function(cite)
+      for _,citation in ipairs(cite.citations) do
+        local target=children[citation.id]
+        if target then
+          citation.id=target.id
+          if #cite.citations==1 and #citation.prefix==0 and #citation.suffix==0 then
+            return {cite,pandoc.Space(),pandoc.Str('('..target.label..')')}
+          end
+          citation.suffix:insert(1,pandoc.Str('('..target.label..')'))
+          citation.suffix:insert(1,pandoc.Space())
+        end
+      end
+      return cite
+    end,
+    Link=function(link)
+      local target=children[link.target:match('^#(.+)$')]
+      if target then link.target='#'..target.id; return link end
+    end})
+end

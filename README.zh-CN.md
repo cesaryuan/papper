@@ -120,7 +120,7 @@ papper build docx --reference-doc journal-reference.docx
 papper convert existing-paper.docx -o converted
 ```
 
-命令生成 `converted/existing-paper.md` 及其图片资源。导入后请与原稿核对；复杂 Word 布局可能需要手工整理。[查看导入示例与恢复范围 →](docs/DOCX_IMPORT.md)
+命令生成 `converted/existing-paper.md` 及其图片资源。加上 `--svg` 可将识别出的子图组导出为组合图 SVG，之后可在 VS Code 中用 Papper Tools 继续编辑。导入后请与原稿核对；复杂 Word 布局可能需要手工整理。[查看导入示例与恢复范围 →](docs/DOCX_IMPORT.md)
 
 ## 适合怎样的工作方式？
 
