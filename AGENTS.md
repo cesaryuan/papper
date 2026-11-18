@@ -36,4 +36,4 @@ This repository is the `papper` tool, not a manuscript project.
 	- 允许在外部依赖边界使用 mock。
 	- 断言应落在被测逻辑产生的实际行为或结果上，不能只是验证 mock 自己设定的返回值。
 
-- 每当新增一个特殊的 Markdown 语法时，都要添加一个测试快照案例
+- 每当新增一个特殊的 Markdown 语法时，都要添加一个测试快照案例（对于类似的语法，如非必要不要新增测例，而是放在已有类似语法的测例中）
