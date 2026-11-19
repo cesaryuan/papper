@@ -665,6 +665,19 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     atomic_write(&map, &serde_json::to_vec(&decoded)?)?;
     let output_name = format!("{}.md", source.file_stem().unwrap().to_string_lossy());
     let output = temporary.path().join(&output_name);
+    let crossref_report_name = "fuzzy-crossrefs.json";
+    let crossref_report = temporary.path().join(crossref_report_name);
+    let crossref_exclusions = if args.fuzzy_crossrefs_exclude.is_empty() {
+        None
+    } else {
+        // Windows Lua's getenv can replace Unicode dashes or IDs with question marks.
+        let name = "fuzzy-crossref-exclusions.json";
+        atomic_write(
+            &temporary.path().join(name),
+            &serde_json::to_vec(&args.fuzzy_crossrefs_exclude)?,
+        )?;
+        Some(name.into())
+    };
     let zotero_data_dir = args
         .zotero_data_dir
         .as_ref()
@@ -727,20 +740,18 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         );
         command.extend(["--lua-filter".into(), filter.into_os_string()]);
     }
-    if args.fuzzy_crossrefs {
-        let filter = resources.resource("pandoc/filters/convert/crossrefs_fuzz.lua");
-        anyhow::ensure!(
-            filter.is_file(),
-            "Convert filter is missing: {}",
-            filter.display()
-        );
-        command.extend([
-            "--metadata=papper-fuzzy-crossrefs:true".into(),
-            "--lua-filter".into(),
-            filter.into_os_string(),
-        ]);
-        println!("[convert] fuzzy figure/table/equation cross-reference recovery enabled");
-    }
+    // Scan and apply both need the original Word numbers from bookmarked equations.
+    let fuzzy_filter = resources.resource("pandoc/filters/convert/crossrefs_fuzz.lua");
+    anyhow::ensure!(
+        fuzzy_filter.is_file(),
+        "Convert filter is missing: {}",
+        fuzzy_filter.display()
+    );
+    command.extend([
+        "--metadata=papper-fuzzy-crossrefs:true".into(),
+        "--lua-filter".into(),
+        fuzzy_filter.into_os_string(),
+    ]);
     command.extend([
         "--lua-filter".into(),
         resources
@@ -780,6 +791,25 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
             "PAPPER_CONVERT_SVG_RASTERS".into(),
             svg_rasters.as_deref().map(pandoc_path),
         ),
+        (
+            "PAPPER_CONVERT_CROSSREF_REPORT".into(),
+            Some(crossref_report_name.into()),
+        ),
+        (
+            "PAPPER_CONVERT_CROSSREF_MODE".into(),
+            Some(
+                if args.fuzzy_crossrefs {
+                    "apply"
+                } else {
+                    "scan"
+                }
+                .into(),
+            ),
+        ),
+        (
+            "PAPPER_CONVERT_CROSSREF_EXCLUSIONS_FILE".into(),
+            crossref_exclusions,
+        ),
     ]);
     PandocCli::new(discover_engine(&resources.root)?).run(
         &command,
@@ -792,6 +822,7 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         .replace("\r\n", "\n")
         .replace('\r', "\n")
         .replace("](./media/", "](media/");
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&crossref_report)?)?;
     // Do not expose half-built Markdown if decoding or Pandoc fails. Media is
     // published only after conversion succeeds, preserving existing user files.
     std::fs::create_dir_all(&destination)?;
@@ -818,11 +849,28 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         "[convert] Wrote {}",
         destination.join(&output_name).display()
     );
+    print_crossref_report(&report, args.fuzzy_crossrefs);
     println!(
-        "[convert] AI: Read `papper guide syntax cross-references` and `papper guide syntax citations`, then convert figure, table, equation, and heading cross-references in \"{}\" to Papper syntax (@fig:label, @tbl:label, @eq:label, @sec:label), adding matching target labels where needed; convert any remaining plain-text bibliography entries to a .bib file, set bibliography in the manuscript YAML, and convert remaining plain-text in-text citations to matching Pandoc citation keys (e.g. [@smith2023]); preserve the exported .bib file and references and citations that already use Papper format",
-        destination.join(output_name).display()
+        "[convert] AI: Review remaining citations and uncertain references. Read `papper guide syntax cross-references` and `papper guide syntax citations`."
     );
+    if !args.fuzzy_crossrefs {
+        println!(
+            "[convert] Review the candidates, then rerun with --fuzzy-crossrefs to apply. Repeat --fuzzy-crossrefs-exclude <key-or-id> for uncertain targets and their references."
+        );
+    }
     Ok(())
+}
+
+/// Print individual JSON records so terminal users and agents can filter candidates without a sidecar.
+fn print_crossref_report(report: &serde_json::Value, apply: bool) {
+    let mode = if apply { "apply" } else { "scan" };
+    println!("[crossrefs-fuzz] mode {mode}");
+    for (field, record) in [("targets", "target"), ("references", "reference")] {
+        for item in report[field].as_array().into_iter().flatten() {
+            println!("[crossrefs-fuzz] {record} {item}");
+        }
+    }
+    println!("[crossrefs-fuzz] summary {}", report["summary"]);
 }
 
 /// Publish extracted media without replacing any existing file, including concurrent imports.

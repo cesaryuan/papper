@@ -250,9 +250,12 @@ pub struct ConvertArgs {
     /// Directory for the converted Markdown file and extracted media.
     #[arg(short = 'o', long = "output-dir", default_value = "converted")]
     pub output_dir: PathBuf,
-    /// Infer figure/table/equation references from numbers and plain-text reference phrases.
+    /// Apply inferred cross-references; by default, only report possible changes.
     #[arg(long)]
     pub fuzzy_crossrefs: bool,
+    /// Skip a fuzzy target and its references by source key (eq:4-8) or crossref ID; repeatable.
+    #[arg(long, value_name = "TARGET")]
+    pub fuzzy_crossrefs_exclude: Vec<String>,
     /// Export recognized subfigure groups as SVGs editable with the Papper Tools VS Code extension.
     #[arg(long, visible_alias = "svg")]
     pub subfigure_svg: bool,

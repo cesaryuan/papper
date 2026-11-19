@@ -1,5 +1,6 @@
--- Recover typed figure/table/equation references after crossrefs.lua, enabled by
--- `papper convert input.docx --fuzzy-crossrefs`. Word authors sometimes type
+-- Scan for typed figure/table/equation references after crossrefs.lua and only
+-- apply the resulting plan with `papper convert input.docx --fuzzy-crossrefs`.
+-- Word authors sometimes type
 -- "如图1-14所示" instead of inserting a bookmark-linked cross-reference.
 -- Three passes collect numbered captions, assign/reuse IDs for unique targets,
 -- and replace matching references in explicit reference phrases in prose.
@@ -49,6 +50,7 @@
 --   pandoc input.docx -t markdown -L crossrefs.lua -L crossrefs_fuzz.lua
 
 local numbers = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'reference_numbers.lua'})
+local caption_text = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'caption_text.lua'})
 local prefixes = {
   { kind = 'fig', pattern = 'figure%.?', english = true },
   { kind = 'fig', pattern = 'fig%.?', english = true },
@@ -143,12 +145,19 @@ local function equation_target(block)
     if count ~= 1 then return nil end
     text = cleaned
   end
-  local number = numbers.equation(text)
+  local original = text:match('^%s*(.-)%s*$')
+  local number = numbers.equation(original)
+  local already_numbered = false
   if not number and identifier and text:match('^%s*$') then
-    number = equation_numbers[identifier]
+    local record = equation_numbers[identifier]
+    if record then
+      number, original = record.number, record.original
+      already_numbered = math.mathtype == 'DisplayMath'
+    end
   end
   if not number then return nil end
-  return { kind = 'eq', number = number }, {
+  return { kind = 'eq', number = number, original = original, text = math.text,
+    already_numbered = already_numbered }, {
     t = 'Equation', identifier = identifier or '', math = math,
   }
 end
@@ -160,6 +169,8 @@ local function caption_label(caption)
   if label and text:sub(1, label.first - 1):match('^%s*$') then
     label.original = text:sub(label.first, label.last)
     label.cut = label.last + #(text:sub(label.last + 1):match('^%s*'))
+    label.text = text
+    label.caption_after = text:sub(label.cut + 1)
     return label
   end
   return nil
@@ -260,23 +271,44 @@ local function target_for(block)
   return label, owner
 end
 
+--- Visit a table's cells in reading order without treating its caption as body text.
+local function walk_table_cells(element, filter)
+  local row_index = 0
+  local caption = pandoc.utils.stringify(element.caption.long)
+  --- Recurse through each row with the cell location available for review.
+  local function walk_rows(rows)
+    for _, row in ipairs(rows) do
+      row_index = row_index + 1
+      for index, cell in ipairs(row.cells) do
+        local location = { row = row_index, cell = index, caption = caption ~= '' and caption or nil }
+        cell.contents = pandoc.Pandoc(cell.contents):walk(filter(location)).blocks
+      end
+    end
+  end
+  walk_rows(element.head.rows)
+  for _, body in ipairs(element.bodies) do walk_rows(body.head); walk_rows(body.body) end
+  walk_rows(element.foot.rows)
+  return element, false
+end
+
 --- Walk all targets once, skipping Figure internals to avoid duplicate images.
 local function walk_targets(doc, callback)
-  return doc:walk({
-    traverse = 'topdown',
-    -- A subfigure Div owns the final caption; its panels are separate targets
-    -- only when they themselves have numbered captions, not (a)/(b) labels.
-    Div = function(block)
-      if block.identifier:match('^fig:') then
-        return callback(block) or block, false
-      end
-    end,
-    -- Figures own their captions and content; do not index their image twice.
-    Figure = function(block) return callback(block) or block, false end,
-    Table = callback,
-    Para = callback,
-    Plain = callback,
-  })
+  --- Retain a table-cell address when collecting a nested target.
+  local function filter(location)
+    local visit = function(block) return callback(block, location) end
+    return {
+      traverse = 'topdown',
+      -- The final caption owns a subfigure Div's figure number.
+      Div = function(block)
+        if block.identifier:match('^fig:') then return visit(block) or block, false end
+      end,
+      Figure = function(block) return visit(block) or block, false end,
+      Table = function(block) return walk_table_cells(visit(block) or block, filter) end,
+      Para = visit,
+      Plain = visit,
+    }
+  end
+  return doc:walk(filter())
 end
 
 --- Flatten text runs while using opaque barriers for links, citations and code.
@@ -354,26 +386,39 @@ local function reference_cue(text, label)
   return after:match('^%s+shows%f[%A]') ~= nil or after:match('^%s+illustrates%f[%A]') ~= nil
 end
 
---- Replace only complete uniquely matched reference tokens inside a prose block.
-local function rewrite_prose(block, targets, stats)
+--- Report explicit cues with their original context and apply the same accepted matches on request.
+local function scan_prose(block, targets, report, apply, location)
   local parts = {}
   for _, inline in ipairs(block.content) do parts[#parts + 1] = inline_text(inline) end
   local text, matches, cursor = table.concat(parts), {}, 1
+  local context
   local previous, previous_reference = nil, false
   while cursor <= #text do
     local label = next_label(text, cursor)
     if not label then break end
-    local target = targets[label.kind .. ':' .. label.number]
+    local key = label.kind .. ':' .. label.number
+    local target = targets[key]
     local is_reference = reference_cue(text, label) or (previous_reference
       and reference_connector(text:sub(previous.last + 1, label.first - 1)))
-    if target and target.id and is_reference then
-      label.id = target.id
-      matches[#matches + 1] = label
+    if is_reference then
+      context = context or caption_text.markdown(block.content)
+      local accepted = target and target.status == 'available'
+      local replacement = accepted and '[@' .. target.id .. ']' or nil
+      report.references:insert({
+        key = key, text = text:sub(label.first, label.last), context = context,
+        status = accepted and 'proposed' or (target and target.status or 'missing-target'),
+        replacement = replacement, table_cell = location,
+      })
+      if accepted then
+        report.summary.reference_changes = report.summary.reference_changes + 1
+        label.id = target.id
+        matches[#matches + 1] = label
+      end
     end
     previous, previous_reference = label, is_reference
     cursor = label.last + 1
   end
-  if #matches == 0 then return block end
+  if not apply or #matches == 0 then return block end
   local result, kept_from = {}, 1
   for _, label in ipairs(matches) do
     for _, inline in ipairs(slice_inlines(block.content, kept_from, label.first - 1)) do
@@ -384,34 +429,50 @@ local function rewrite_prose(block, targets, stats)
   end
   for _, inline in ipairs(slice_inlines(block.content, kept_from, #text)) do result[#result + 1] = inline end
   block.content = result
-  stats.references = stats.references + #matches
   return block
 end
 
---- Rewrite cell prose recursively while excluding a table's caption definition.
-local function rewrite_table(table_element, filter)
-  local rows = {}
-  for _, row in ipairs(table_element.head.rows) do rows[#rows + 1] = row end
-  for _, body in ipairs(table_element.bodies) do
-    for _, row in ipairs(body.head) do rows[#rows + 1] = row end
-    for _, row in ipairs(body.body) do rows[#rows + 1] = row end
+--- Match normalized number keys, existing IDs or the exact generated ID shown in the report.
+local function exclude_targets(ordered)
+  local path = os.getenv('PAPPER_CONVERT_CROSSREF_EXCLUSIONS_FILE')
+  if not path then return end
+  local file <close> = assert(io.open(path, 'rb'))
+  local requested = pandoc.json.decode(assert(file:read('*a')))
+  for _, selector in ipairs(requested) do
+    local kind = selector:match('^(%a+):')
+    local number, ending
+    if kind then number, ending = numbers.read(selector, #kind + 2) end
+    local key = number and ending == #selector and kind .. ':' .. number or selector
+    local matched = false
+    for _, target in ipairs(ordered) do
+      local matches = target.key == key or target.id == selector
+      if not matches then
+        for _, definition in ipairs(target.definitions) do
+          if definition.existing_id == selector then matches = true; break end
+        end
+      end
+      if matches then
+        target.status, target.action = 'excluded', nil
+        matched = true
+      end
+    end
+    if not matched then error('No fuzzy cross-reference target matches --fuzzy-crossrefs-exclude ' .. selector) end
   end
-  for _, row in ipairs(table_element.foot.rows) do rows[#rows + 1] = row end
-  for _, row in ipairs(rows) do
-    for _, cell in ipairs(row.cells) do cell.contents = pandoc.Pandoc(cell.contents):walk(filter).blocks end
-  end
-  return table_element, false
 end
 
---- Recover typed references after stable bookmark conversion without guessing duplicates.
+--- Scan and optionally apply a single plan after stable Word bookmark conversion.
 function Pandoc(doc)
-  local targets, ordered, used = {}, {}, {}
-  local stats = { ids = 0, references = 0, ambiguous = 0 }
+  local apply = os.getenv('PAPPER_CONVERT_CROSSREF_MODE') ~= 'scan'
+  local report_path = os.getenv('PAPPER_CONVERT_CROSSREF_REPORT')
+  local stats = { target_changes = 0, reference_changes = 0, ambiguous_targets = 0, excluded_targets = 0 }
+  local report = { targets = pandoc.List(), references = pandoc.List(), summary = stats }
+  local targets, ordered, used = {}, report.targets, {}
   equation_numbers = {}
   for _, record in ipairs(doc.meta['papper-equation-labels'] or {}) do
-    local number = numbers.equation(pandoc.utils.stringify(record.label))
+    local original = pandoc.utils.stringify(record.label):match('^%s*(.-)%s*$')
+    local number = numbers.equation(original)
     if number then
-      equation_numbers[pandoc.utils.stringify(record.id)] = number
+      equation_numbers[pandoc.utils.stringify(record.id)] = { number = number, original = original }
     end
   end
   doc.meta['papper-equation-labels'], doc.meta['papper-fuzzy-crossrefs'] = nil, nil
@@ -431,67 +492,80 @@ function Pandoc(doc)
     end,
   })
   -- Index all targets before resolving duplicates, including forward references.
-  walk_targets(doc, function(block)
+  walk_targets(doc, function(block, location)
     local label, owner = target_for(block)
     if not label then return nil end
     local key = label.kind .. ':' .. label.number
-    if targets[key] then
-      targets[key].duplicate = true
-    else
-      local target = { key = key, kind = label.kind, number = label.number, authored_id = owner.identifier }
+    local target = targets[key]
+    if not target then
+      target = { key = key, definitions = pandoc.List(),
+        action = label.kind ~= 'eq' and 'move-caption-number'
+          or (not label.already_numbered and 'number-equation' or nil) }
       targets[key] = target
-      ordered[#ordered + 1] = target
+      ordered:insert(target)
     end
+    target.definitions:insert({ original_number = label.original, text = label.text, table_cell = location,
+      caption_after = label.caption_after, existing_id = owner.identifier ~= '' and owner.identifier or nil })
   end)
   for _, target in ipairs(ordered) do
-    if target.duplicate then
-      stats.ambiguous = stats.ambiguous + 1
-    elseif target.authored_id == '' then
-      local base = target.kind .. ':fuzz-' .. target.number
+    local existing = target.definitions[1].existing_id
+    local kind, number = target.key:match('^(%a+):(.+)$')
+    if #target.definitions > 1 then
+      target.status, target.action = 'ambiguous', nil
+      stats.ambiguous_targets = stats.ambiguous_targets + 1
+    elseif not existing then
+      local base = kind .. ':fuzz-' .. number
       local id, suffix = base, 2
       while used[id] do id, suffix = base .. '-' .. suffix, suffix + 1 end
-      used[id], target.id = 1, id
-      stats.ids = stats.ids + 1
-    elseif target.authored_id:sub(1, #target.kind + 1) == target.kind .. ':'
-      and used[target.authored_id] == 1 then
-      target.id = target.authored_id
+      used[id], target.id, target.status = 1, id, 'available'
+    elseif existing:sub(1, #kind + 1) == kind .. ':' and used[existing] == 1 then
+      target.id, target.status = existing, 'available'
+    else
+      target.status, target.action = 'id-conflict', nil
     end
   end
-  -- Assign the final ID only after uniqueness and authored-ID collisions are known.
-  doc = walk_targets(doc, function(block)
-    local label, owner = target_for(block)
-    local target = label and targets[label.kind .. ':' .. label.number]
-    if target and target.id and owner.t == 'Equation' then
-      -- Only confirmed standalone numbered formulas are promoted. The authored
-      -- number is intentionally discarded so pandoc-crossref sees a bare ID.
-      block.content = { pandoc.Math('DisplayMath', owner.math.text),
-        pandoc.RawInline('markdown', ' {#' .. target.id .. '}') }
-      return block
+  -- Allocate IDs before excluding anything so proposed IDs match on the next run.
+  exclude_targets(ordered)
+  for _, target in ipairs(ordered) do
+    if target.action then stats.target_changes = stats.target_changes + 1 end
+    if target.status == 'excluded' then stats.excluded_targets = stats.excluded_targets + 1 end
+  end
+  --- Inspect paragraph text once; captions and headings do not supply reference phrases.
+  local function prose_filter(location)
+    local function visit(block)
+      return scan_prose(block, targets, report, apply, location), false
     end
-    if target and target.id then
-      if owner.identifier == '' then owner.identifier = target.id end
-      block = preserve_caption_number(block, owner, label)
-      return block
-    end
-  end)
-  local filter
-  filter = {
-    traverse = 'topdown',
-    -- Caption definitions and headings never supply prose reference phrases.
-    Figure = function(block) return block, false end,
+    return {
+      traverse = 'topdown',
+      Figure = function(block) return block, false end,
       Div = function(block)
         if block.identifier:match('^fig:') then return block, false end
       end,
-    Header = function(block) return block, false end,
-    Table = function(block) return rewrite_table(block, filter) end,
-    -- Process the whole paragraph once so a label split across Word runs matches.
-    Para = function(block) return rewrite_prose(block, targets, stats), false end,
-    Plain = function(block) return rewrite_prose(block, targets, stats), false end,
-  }
-  doc = doc:walk(filter)
-  if stats.ids + stats.references + stats.ambiguous > 0 then
-    io.stderr:write('[crossrefs-fuzz] generated ' .. stats.ids .. ' ID(s), converted '
-      .. stats.references .. ' text reference(s), skipped ' .. stats.ambiguous .. ' ambiguous number(s)\n')
+      Header = function(block) return block, false end,
+      Table = function(block) return walk_table_cells(block, prose_filter) end,
+      Para = visit,
+      Plain = visit,
+    }
+  end
+  doc = doc:walk(prose_filter())
+  if apply then
+    doc = walk_targets(doc, function(block)
+      local label, owner = target_for(block)
+      local target = label and targets[label.kind .. ':' .. label.number]
+      if not target or not target.action then return nil end
+      if owner.t == 'Equation' then
+        block.content = { pandoc.Math('DisplayMath', owner.math.text),
+          pandoc.RawInline('markdown', ' {#' .. target.id .. '}') }
+        return block
+      end
+      if owner.identifier == '' then owner.identifier = target.id end
+      return preserve_caption_number(block, owner, label)
+    end)
+  end
+  if report_path then
+    local file = assert(io.open(report_path, 'wb'))
+    assert(file:write(pandoc.json.encode(report)))
+    assert(file:close())
   end
   return doc
 end

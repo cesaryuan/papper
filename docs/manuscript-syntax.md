@@ -1676,9 +1676,19 @@ number, such as `(4‑6)` or `（4‑6）`, is removed so the build can assign t
 equation number. Descriptive labels are retained. A matching bookmark link
 becomes `[@eq:_Ref123]`, which remains resolvable in later builds.
 Without a bookmark, formulas recovered from equation layout tables keep their
-original labels by default. Add `--fuzzy-crossrefs` to recover standalone
-equations with unique numbers and link explicit text references such as
-`如式 (4‑8) 所示` to the recovered equations.
+original labels by default. The terminal output lists detected figure, table
+and equation numbers, possible plain-text references such as `如式 (4‑8) 所示`,
+and proposed changes. Review the report, then rerun with `--fuzzy-crossrefs`
+to apply the changes. Repeat `--fuzzy-crossrefs-exclude <key-or-id>` to skip
+uncertain targets and any inferred references to them:
+
+```powershell
+papper convert existing-paper.docx -o converted --fuzzy-crossrefs --fuzzy-crossrefs-exclude eq:4-8
+```
+
+Exclusions affect only inferred edits. Confirmed Word bookmark links are
+still converted. An exclusion that matches no candidate stops conversion
+before it writes output.
 Ordinary inline formulas and formulas embedded in prose keep their original
 context. Unrecognized equation previews remain images.
 

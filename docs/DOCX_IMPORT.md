@@ -94,7 +94,7 @@ If the style cannot be recovered, obtain the original `.csl` and set manuscript
 
 Supported MathType OLE objects and WMF previews carrying MathType equation data become LaTeX math, including formulas with explicit MathType spacing and multiline subscripts. A supported preview can also recover a formula when its OLE object is missing or damaged. Unrecognized or undecodable equations retain their preview images.
 
-Recognizable Word bookmark links become figure, table, equation, or section references, using the target labels recovered during import. Unknown links remain as imported by Pandoc. A bookmarked standalone equation loses its original numeric suffix, including numbers such as `(4‑6)` with a Word nonbreaking hyphen, so the build can renumber it. Without a bookmark, the source number is kept unless [`--fuzzy-crossrefs`](#optional-recovery-of-typed-references) recovers the equation. For the detailed behavior, see [Importing Word Documents](manuscript-syntax.md#importing-word-documents).
+Recognizable Word bookmark links become figure, table, equation, or section references, using the target labels recovered during import. Unknown links remain as imported by Pandoc. A bookmarked standalone equation loses its original numeric suffix, including numbers such as `(4‑6)` with a Word nonbreaking hyphen, so the build can renumber it. Without a bookmark, the source number is kept unless [`--fuzzy-crossrefs`](#reviewing-and-recovering-typed-references) recovers the equation. For the detailed behavior, see [Importing Word Documents](manuscript-syntax.md#importing-word-documents).
 
 Import does not require you to decode every formula successfully before inspecting the Markdown. Check warnings and retained images when reviewing a document with many equations.
 
@@ -157,15 +157,32 @@ Ambiguous structures remain unchanged. Examples include multiple independent fig
 
 Relative or invalid image widths, images exactly 2 inches wide, and images already presented as separate figures are not moved by the inline-image rule. Ordinary data tables remain tables.
 
-## Optional recovery of typed references
+## Reviewing and recovering typed references
 
-When a document uses plain text such as “see Fig. 2” instead of Word bookmark links, add:
+`papper convert` scans for numbered figures, tables and formulas, and for plain
+text that may refer to them, such as `如图1-14所示` or `as in Eq. (4-43)`.
+It prints the candidates to the terminal; the inferred edits are not applied
+to Markdown by default. Existing Word bookmark links are still converted.
+
+Each `[crossrefs-fuzz] target` line contains one JSON record with a `key` such as
+`eq:4-43`, the original text, and any proposed edit. A `reference` line shows the
+matched phrase, its paragraph context, and the proposed citation when available.
+`ambiguous`, `missing-target`, and `id-conflict` entries are left as they are.
+Review the candidates before applying them: even a unique number can refer to
+another publication.
+
+Rerun with `--fuzzy-crossrefs` to apply the proposed edits. Repeat
+`--fuzzy-crossrefs-exclude` for any target you want to leave alone:
 
 ```bash
-papper convert existing-paper.docx -o converted --fuzzy-crossrefs
+papper convert existing-paper.docx -o converted --fuzzy-crossrefs \
+  --fuzzy-crossrefs-exclude fig:2 --fuzzy-crossrefs-exclude eq:4-8
 ```
 
-This option is disabled by default. It matches explicit reference phrases to uniquely numbered captions, including `如图1-14所示`, `如表1-3所示`, `如式4-43所示`, `see Fig. 2`, and `as in Eq. (4-43)`.
+Use the report's `key` or `id` as the exclusion value. Excluding a target
+skips both its inferred edit and any inferred references to it. It does not
+undo Word bookmark links that were directly recovered. An exclusion that
+matches no candidate stops the conversion before it writes output.
 
 Recovered references reuse existing target labels when possible. For example:
 

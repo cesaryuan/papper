@@ -1,8 +1,8 @@
 """Verify optional figure/table/equation reference recovery with real Pandoc and DOCX.
 
 Snapshots cover mixed stable/text references, Unicode numbering, formatting,
-ambiguous labels and ID collisions. Public CLI tests protect the default-off
-contract and confirm that captions receive usable IDs only when opted in.
+ambiguous labels and ID collisions. Public CLI tests cover the review/apply
+workflow, including exclusions and usable crossref IDs.
 """
 
 from __future__ import annotations
@@ -46,11 +46,11 @@ def test_fuzzy_crossrefs_snapshot(tmp_path: Path, snapshot_update: bool) -> None
     assert_snapshot(result.stdout, fixture / "snapshots-content/fuzzy_crossrefs.md", update=snapshot_update)
 
 
-@pytest.mark.parametrize("enabled", [False, True], ids=["default-off", "opt-in"])
+@pytest.mark.parametrize("mode", ["scan", "apply", "exclude", "unknown-exclusion"])
 def test_convert_fuzzy_crossrefs_option(
-    tmp_path: Path, rust_executable: Path, snapshot_update: bool, enabled: bool,
+    tmp_path: Path, rust_executable: Path, snapshot_update: bool, mode: str,
 ) -> None:
-    """Recover figure/table/equation references together, preserving default-off behavior."""
+    """Review pending edits, apply the same plan, and exclude selected definitions and references."""
     from docx import Document
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -131,21 +131,57 @@ def test_convert_fuzzy_crossrefs_option(
     document.save(source)
     output = tmp_path / "converted"
     command = [str(rust_executable), "convert", str(source), "-o", str(output)]
-    if enabled:
+    if mode != "scan":
         command.append("--fuzzy-crossrefs")
+    if mode == "exclude":
+        for selector in ("fig:1‑14", "eq:fuzz-4-43", "eq:_RefEquation"):
+            command.extend(["--fuzzy-crossrefs-exclude", selector])
+    if mode == "unknown-exclusion":
+        command.extend(["--fuzzy-crossrefs-exclude", "fig:99"])
     result = subprocess.run(
         command, cwd=tmp_path,
         env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT), "PAPPER_HOME": str(tmp_path / "home")},
         capture_output=True, text=True, encoding="utf-8", timeout=90,
     )
+    if mode == "unknown-exclusion":
+        assert result.returncode != 0
+        assert "No fuzzy cross-reference target matches --fuzzy-crossrefs-exclude fig:99" in result.stderr
+        assert not (output / "references.md").exists()
+        return
     assert result.returncode == 0, result.stdout + result.stderr
+    prefix = "[crossrefs-fuzz] "
+    records = [line.removeprefix(prefix).split(" ", 1) for line in result.stdout.splitlines()
+               if line.startswith(prefix)]
+    targets = {item["key"]: item for kind, data in records if kind == "target" for item in [json.loads(data)]}
+    references = [json.loads(data) for kind, data in records if kind == "reference"]
+    counts = next(json.loads(data) for kind, data in records if kind == "summary")
+    assert ["mode", "scan" if mode == "scan" else "apply"] in records
+    assert targets["tbl:1-3"]["definitions"][0]["caption_after"] == "基于复杂网络理论的鲁棒性度量"
+    assert targets["eq:4-44"]["definitions"][0]["original_number"] == "(4‑44)"
+    assert targets["eq:4-44"]["id"] == "eq:_RefEquation"
     markdown = (output / "references.md").read_text(encoding="utf-8")
     assert "#fig:_RefMixed" in markdown and "[@fig:_RefMixed]" in markdown
     assert "#eq:_RefEquation" in markdown and "[@eq:_RefEquation]" in markdown
     assert '$$u = v$$ {#eq:_RefEquation}\n' in markdown
     assert '(4‑44)' not in markdown
     assert "papper-fuzzy-crossrefs" not in markdown and "papper-equation-labels" not in markdown
-    if enabled:
+    if mode == "exclude":
+        keys = {"fig:1-14", "eq:4-43", "eq:4-44"}
+        assert counts["excluded_targets"] == 3
+        assert all(targets[key]["status"] == "excluded" and "action" not in targets[key] for key in keys)
+        assert {item["key"] for item in references if item["status"] == "excluded"} == keys
+        assert all("replacement" not in item for item in references if item["key"] in keys)
+        assert "如图1-14所示" in markdown and "![图1‑14 不同失效策略下的脆弱性曲线]" in markdown
+        assert "As in Eq. (4-43)" in markdown and '$x = y$ (4‑43)' in markdown
+        assert "如式 4-44" in markdown
+        assert "shown in [@tbl:fuzz-1-3]" in markdown and "see [@fig:_RefMixed]" in markdown
+        return
+    assert counts["target_changes"] == 4 and counts["reference_changes"] == 5
+    assert targets["fig:1-14"]["action"] == "move-caption-number"
+    assert targets["eq:4-43"]["action"] == "number-equation"
+    assert any(item["context"].startswith("As in Eq. (4-43)") and item["replacement"] == "[@eq:fuzz-4-43]"
+               for item in references if item["key"] == "eq:4-43")
+    if mode == "apply":
         assert "如[@fig:fuzz-1-14]所示" in markdown
         assert "shown in [@tbl:fuzz-1-3]" in markdown
         assert "see [@fig:_RefMixed]" in markdown
@@ -186,13 +222,15 @@ def test_convert_fuzzy_crossrefs_option(
         assert {"#fig:fuzz-1-14", "#tbl:fuzz-1-3", "#fig:_RefMixed",
                 "#eq:fuzz-4-43", "#eq:_RefEquation"} <= links
     else:
+        assert "rerun with --fuzzy-crossrefs" in result.stdout
+        assert not list(output.glob("*.json"))
         assert "如图1-14所示" in markdown
         assert "shown in Tbl. 1-3" in markdown
         assert "see Fig. 2" in markdown
         assert "Eq. (4-43)" in markdown and "如式 4-44" in markdown
         assert '$x = y$ (4‑43)' in markdown
         assert "fuzz-" not in markdown
-    name = "enabled.md" if enabled else "default.md"
+    name = "enabled.md" if mode == "apply" else "default.md"
     assert_snapshot(
         markdown, ROOT / "tests/snapshot_cases_convert/fuzzy_crossrefs/snapshots-content" / name,
         update=snapshot_update,
