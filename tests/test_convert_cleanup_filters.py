@@ -240,6 +240,68 @@ def test_convert_pairs_word_table_caption(
     )
 
 
+@pytest.mark.parametrize(("chinese", "layout", "expected"), [
+    ("表 4‑2", "separate", "表 4‑2"),
+    ("表 4‑2", "detached-bookmark", "表 4‑2"),
+    ("表 ‑2", "native-caption", "表 4-2"),
+    ("表 4‑3", "separate", None),
+])
+def test_convert_pairs_bilingual_word_table_captions(
+    tmp_path: Path, rust_executable: Path, chinese: str, layout: str, expected: str | None,
+) -> None:
+    """Combine matching table titles, without stealing an adjacent title of another number."""
+    from docx import Document
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    document = Document()
+    style = "Caption" if layout == "native-caption" else "Normal"
+    detached = document.add_paragraph() if layout == "detached-bookmark" else None
+    for index, (prefix, paragraph_style, text) in enumerate((
+        (chinese, "Normal", "各事件样本数"),
+        ("Table 4‑2.", style, "Sample counts"),
+    ), 1):
+        caption = document.add_paragraph(style=paragraph_style)
+        anchor = f"_Ref12345{index}"
+        for tag in ("bookmarkStart", "bookmarkEnd"):
+            mark = OxmlElement(f"w:{tag}")
+            mark.set(qn("w:id"), str(index))
+            if tag == "bookmarkStart":
+                mark.set(qn("w:name"), anchor)
+            owner = detached if index == 1 and detached is not None else caption
+            owner._p.append(mark)
+        caption.add_run(f"{prefix} ")
+        caption.add_run(text).bold = True
+    table = document.add_table(rows=2, cols=2)
+    table.cell(0, 0).text, table.cell(0, 1).text = "Event", "Count"
+    table.cell(1, 0).text, table.cell(1, 1).text = "A", "185"
+    reference = document.add_paragraph("See ")
+    for index in (1, 2):
+        link = OxmlElement("w:hyperlink")
+        link.set(qn("w:anchor"), f"_Ref12345{index}")
+        link.append(reference.add_run(f"Reference {index}")._r)
+        reference._p.append(link)
+        reference.add_run(". ")
+    source = tmp_path / "bilingual-table.docx"
+    document.save(source)
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(source), "-o", "out", "--offline"],
+        cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stderr
+    markdown = (tmp_path / "out/bilingual-table.md").read_text(encoding="utf-8")
+    assert "185" in markdown
+    if expected:
+        assert f': {expected} **各事件样本数** {{#tbl:_Ref123451 caption-en="**Sample counts**"}}' in markdown
+        assert markdown.count("[@tbl:_Ref123451]") == 2
+        assert markdown.count("各事件样本数") == 1
+    else:
+        assert f"{chinese} **各事件样本数**" in markdown
+        assert ": Table 4‑2. **Sample counts** {#tbl:_Ref123452}" in markdown
+        assert 'caption-en=' not in markdown
+
+
 @pytest.mark.parametrize("field_layout", ["spanning", "nested_mathtype"])
 def test_convert_preserves_numbered_paragraphs_inside_word_fields(
     tmp_path: Path, rust_executable: Path, field_layout: str,

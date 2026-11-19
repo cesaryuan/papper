@@ -107,6 +107,10 @@ Import recognizes common manuscript layouts:
 
 - A numbered `Figure`, `Fig.`, or `图` caption immediately after a single bare image.
 - A numbered `Table`, `Tbl.`, or `表` caption immediately before a captionless table.
+- Adjacent Chinese and English table captions above the same table. When their
+  numbers agree, the Chinese title becomes the main caption and the English
+  title is saved as `caption-en`. A missing Chinese chapter number can be
+  recovered from the English caption if the remaining table number matches.
 - One-column image/caption layout tables and supported multi-panel figure tables.
 - Sequential images and child captions with a unique numbered overall caption.
 - Inline images wider than 2 inches, which are moved after their paragraph as separate figures.
@@ -126,13 +130,18 @@ becomes a normal Markdown figure with `caption-en`. In a multi-image table,
 element centered below the pictures it describes. For adjacent full-width
 overall captions, import can recover a missing Word number field such as
 `图 ‑14` or `Fig. ‑.` from the other language's complete chapter and figure
-number when any remaining digits agree. Conflicting panel letters or figure
-numbers leave the table intact.
+number when any remaining digits agree. In a grid whose images and two caption
+rows align column by column, `--svg` can pair the captions despite one differing
+English panel letter in the row. The Chinese letter remains the panel label and
+the original English letter stays in the editable English text. Figure tables
+whose captions cannot be matched unambiguously remain intact.
 
 Use `papper convert paper.docx -o converted --subfigure-svg` (also `--svg`) to
 export recognized groups as editable combination figures. A group with ID
 `fig:comparison` produces `converted/media/subfigure-comparison.svg`. The SVG
 links to the source pictures in the same directory. Keep `media/` together when moving the manuscript.
+TIFF subfigure sources use PNG copies of the first image at its original
+pixel dimensions so the panels display and remain editable in the SVG.
 Hover over the Markdown image in VS Code and choose **Edit subfigure layout** in
 Papper Tools. The editor restores the panels, labels, editable crops and formatted
 subcaptions. The overall caption and figure ID stay in the manuscript.

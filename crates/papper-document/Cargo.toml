@@ -21,10 +21,12 @@ fancy-regex.workspace = true
 # Reply line lookup uses native PDF text extraction without rendering or OCR.
 pdf_oxide = { version = "=0.3.78", default-features = false }
 sha2.workspace = true
+sha1.workspace = true
 tempfile.workspace = true
 encoding_rs = "0.8"
 # Bake imported Word crops without relying on an external image editor.
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp"] }
+tiff = "0.11.3"
 # Read SVG viewport units without rewriting paths, text, or embedded resources.
 usvg.workspace = true
 

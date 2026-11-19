@@ -1,73 +1,142 @@
--- Attach a separately authored numbered caption to the immediately following
--- captionless Table. Word authors often put a table title in an ordinary
--- paragraph above the table; this filter moves that paragraph into Table.caption.
--- Recognized prefixes: 表2, 表2-1, 表 2‑1, Table2, Table 2-1, Tbl. 2 and tbl 2-1.
--- English prefixes are case-insensitive and allow an optional trailing period.
--- Common Unicode hyphens/dashes are accepted; chapter numbering is
--- optional. The original caption inlines, formatting, links and bookmark spans
--- are preserved, as are table attributes, widths, alignments and merged cells.
--- Example input:
---   []{#_Ref202795830 .anchor}表2‑1 武汉市车辆类型组成
---
---   | 车型组成 | 车型占比/% |
---   |----------|-----------|
---   | 两轴车   | 83.51     |
--- Output when written as Markdown:
---   | 车型组成 | 车型占比/% |
---   |----------|-----------|
---   | 两轴车   | 83.51     |
---
---   : []{#_Ref202795830 .anchor}表2‑1 武汉市车辆类型组成
--- Both Para and Plain captions are supported, including pairs inside lists,
--- quotes and table cells. Already captioned tables, headings, non-numbered
--- titles, titles below tables and pairs separated by another block are retained.
--- A dash without a following number is not accepted as a table number.
--- Run after detect_figure.lua (which removes picture layout tables) and TOC
--- cleanup, before crossrefs.lua:
---   pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/detect_table.lua
+-- Attach Word titles above tables to their numbered table. For example:
+--   表 4-2 各事件样本数
+--   Table 4-2 Sample counts by event
+--   [table]
+-- becomes one table with the Chinese title and caption-en="Sample counts by event".
+-- Single-language titles continue to work. Keep unmatched titles and intervening
+-- prose in place. Run after removing layout tables and before bookmark recovery.
 
-local paired_count = 0
+local caption_text = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'caption_text.lua'})
+local dashes = { '-', '‐', '‑', '‒', '–', '—', '−', '﹣', '－' }
+local paired, bilingual, used, aliases = 0, 0, {}, {}
 
---- Recognize numbered table titles without changing their original inlines.
-local function is_caption(block)
-  if block.t ~= 'Para' and block.t ~= 'Plain' then return false end
+--- Read a number and the original byte boundary of the caption prefix.
+local function title(block)
+  if not block or (block.t ~= 'Para' and block.t ~= 'Plain') then return nil end
   local text = pandoc.utils.stringify(block.content):lower()
-  -- Word's nonbreaking hyphen is multibyte; normalize literal dashes instead
-  -- of using a byte-oriented Lua character class that can corrupt Unicode.
-  for _, dash in ipairs({ '‐', '‑', '‒', '–', '—', '−', '﹣', '－' }) do
-    text = text:gsub(dash, '-')
+  local body = text:match('^%s*表%s*(.*)$')
+  local language = body and 'zh' or 'en'
+  body = body or text:match('^%s*table%.?%s*(.*)$') or text:match('^%s*tbl%.?%s*(.*)$')
+  if not body then return nil end
+  local number, suffix = body:match('^(%d+)(.*)$')
+  local tail = (suffix or body):gsub('^%s+', '')
+  for _, dash in ipairs(dashes) do
+    if tail:sub(1, #dash) == dash then
+      local part, rest = tail:sub(#dash + 1):match('^%s*(%d+)(.*)$')
+      -- A blank Word chapter field can leave a leading dash and a figure/table index.
+      if not part then return nil end
+      number, suffix = (number or '') .. '-' .. part, rest
+      break
+    end
   end
-  local suffix = text:match('^%s*表%s*%d+(.*)$')
-    or text:match('^%s*table%.?%s*%d+(.*)$')
-    or text:match('^%s*tbl%.?%s*%d+(.*)$')
-  if not suffix then return false end
-  if suffix:match('^%s*%-') then return suffix:match('^%s*%-%s*%d+') ~= nil end
+  if not number then return nil end
+  local delimiter = language == 'en' and '^%s*[%.:]?%s*' or '^%s*'
+  return {number=number, language=language, inlines=block.content,
+    prefix=#text - #suffix + #suffix:match(delimiter)}
+end
+
+--- Find an unambiguous Word cross-reference anchor without altering other spans.
+local function bookmark(inlines)
+  local found
+  for _, inline in ipairs(inlines) do
+    if inline.t == 'Span' and #inline.content == 0 and inline.identifier:match('^_Ref[%w_]+$') then
+      if found and found.identifier ~= inline.identifier then return nil, false end
+      found = inline
+    end
+  end
+  return found, true
+end
+
+--- Word may detach the caption's bookmark into an otherwise empty paragraph.
+local function preceding_bookmark(block)
+  if block.t ~= 'Para' and block.t ~= 'Plain' then return nil end
+  local anchor, valid = bookmark(block.content)
+  if not valid or not anchor then return nil end
+  for _, inline in ipairs(block.content) do
+    if inline.t ~= 'Space' and inline.t ~= 'SoftBreak' and inline.identifier ~= anchor.identifier then return nil end
+  end
+  return anchor
+end
+
+--- Build one numbered table caption, retaining formatting and both languages' references.
+local function attach_pair(tbl, first, second, detached)
+  if first.language == second.language or tbl.attributes['caption-en'] then return false end
+  local zh, en = first, second
+  if zh.language ~= 'zh' then zh, en = en, zh end
+  local missing = zh.number:sub(1, 1) == '-'
+  if zh.number ~= en.number and not (missing and en.number:match('^%d+(%-%d+)$') == zh.number) then return false end
+  if en.number:sub(1, 1) == '-' then return false end
+  local primary_anchor, primary_valid = bookmark(zh.inlines)
+  local english_anchor, english_valid = bookmark(en.inlines)
+  if not primary_valid or not english_valid then return false end
+  local translation = caption_text.drop_prefix(en.inlines, en.prefix)
+  if not translation then return false end
+  translation = translation:filter(function(inline)
+    return not english_anchor or inline.identifier ~= english_anchor.identifier
+  end)
+  if not pandoc.utils.stringify(translation):match('%S') then return false end
+  local primary = pandoc.List(zh.inlines)
+  if missing then
+    local rest = caption_text.drop_prefix(primary, zh.prefix)
+    if not rest then return false end
+    primary = pandoc.List{pandoc.Str('表'), pandoc.Space(), pandoc.Str(en.number), pandoc.Space()}
+    primary:extend(rest)
+  end
+  local target = primary_anchor or detached or english_anchor
+  if target then
+    if not primary_anchor then primary:insert(1, target) end
+    if english_anchor then aliases[english_anchor.identifier] = target.identifier end
+    if detached then aliases[detached.identifier] = target.identifier end
+  else
+    if tbl.identifier == '' then
+      local base = 'tbl:table-' .. en.number
+      local id, suffix = base, 2
+      while used[id] do id, suffix = base .. '-' .. suffix, suffix + 1 end
+      tbl.identifier, used[id] = id, true
+    elseif not tbl.identifier:match('^tbl:') then return false end
+  end
+  tbl.caption = pandoc.Caption({pandoc.Plain(primary)})
+  tbl.attributes['caption-en'] = caption_text.markdown(translation)
+  bilingual = bilingual + 1
   return true
 end
 
---- Move only adjacent numbered titles into tables that have no caption.
-function Blocks(blocks)
+--- Consider both adjacent titles before falling back to a single caption.
+local function pair_blocks(blocks)
   local result, index = {}, 1
   while index <= #blocks do
-    local block, next_block = blocks[index], blocks[index + 1]
-    if is_caption(block) and next_block and next_block.t == 'Table'
+    local detached = preceding_bookmark(blocks[index])
+    local start = detached and index + 1 or index
+    local first, next_block, after = title(blocks[start]), blocks[start + 1], blocks[start + 2]
+    local second = first and title(next_block)
+    local embedded = first and next_block and next_block.t == 'Table' and #next_block.caption.long == 1
+      and title(next_block.caption.long[1])
+    if first and after and after.t == 'Table' and #after.caption.long == 0 and not after.caption.short
+      and second and attach_pair(after, first, second, detached) then
+      result[#result + 1], index = after, start + 3
+    elseif embedded and not next_block.caption.short and attach_pair(next_block, first, embedded, detached) then
+      result[#result + 1], index = next_block, start + 2
+    elseif not detached and first and first.number:sub(1, 1) ~= '-' and next_block and next_block.t == 'Table'
       and #next_block.caption.long == 0 and not next_block.caption.short then
-      next_block.caption = pandoc.Caption({ pandoc.Plain(block.content) })
-      result[#result + 1] = next_block
-      paired_count = paired_count + 1
-      index = index + 2
+      next_block.caption = pandoc.Caption({pandoc.Plain(first.inlines)})
+      result[#result + 1], index = next_block, index + 2
+      paired = paired + 1
     else
-      result[#result + 1] = block
-      index = index + 1
+      result[#result + 1], index = blocks[index], index + 1
     end
   end
   return result
 end
 
---- Report paired titles once after all block lists have been processed.
+--- Reserve authored IDs and redirect translation bookmarks before Word reference recovery.
 function Pandoc(doc)
-  if paired_count > 0 then
-    io.stderr:write('[detect-table] paired ' .. paired_count .. ' table caption(s)\n')
+  doc:walk({Table = function(tbl) used[tbl.identifier] = true end})
+  doc = doc:walk({Blocks = pair_blocks})
+  if paired + bilingual > 0 then
+    io.stderr:write('[detect-table] paired ' .. paired .. ' single-language and ' .. bilingual .. ' bilingual table caption(s)\n')
   end
-  return doc
+  return doc:walk({Link = function(link)
+    local primary = aliases[link.target:match('^#(.+)$')]
+    if primary then link.target = '#' .. primary; return link end
+  end})
 end

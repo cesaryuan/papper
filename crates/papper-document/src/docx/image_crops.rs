@@ -10,6 +10,7 @@ use std::io::Cursor;
 use std::ops::Range;
 use std::path::Path;
 
+mod palette_tiff;
 mod vector;
 
 const DRAWING: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -29,7 +30,12 @@ struct CropRecord {
 }
 
 /// Prepare an isolated DOCX only when pictures need cropping or attribute recovery.
-pub fn prepare_image_crops(input: &Path, output: &Path, attributes: bool) -> Result<bool> {
+pub fn prepare_image_crops(
+    input: &Path,
+    output: &Path,
+    attributes: bool,
+    svg_rasters: Option<&Path>,
+) -> Result<bool> {
     let mut importer = CropImporter {
         package: Package::open(input)?,
         attributes,
@@ -45,6 +51,9 @@ pub fn prepare_image_crops(input: &Path, output: &Path, attributes: bool) -> Res
         .collect();
     for part in parts {
         importer.prepare_part(&part)?;
+    }
+    if let Some(directory) = svg_rasters {
+        stage_tiff_panels(&importer.package, directory)?;
     }
     if importer.count == 0 {
         return Ok(false);
@@ -87,6 +96,49 @@ pub fn prepare_image_crops(input: &Path, output: &Path, attributes: bool) -> Res
         }
     );
     Ok(true)
+}
+
+/// Stage lossless browser-readable variants without replacing the original Word images.
+fn stage_tiff_panels(package: &Package, directory: &Path) -> Result<()> {
+    use sha1::Digest as _;
+
+    for (part, bytes) in &package.entries {
+        if !part.starts_with("word/media/")
+            || !Path::new(part).extension().is_some_and(|extension| {
+                extension.eq_ignore_ascii_case("tiff") || extension.eq_ignore_ascii_case("tif")
+            })
+        {
+            continue;
+        }
+        let digest = format!("{:x}", sha1::Sha1::digest(bytes));
+        let path = directory.join(format!("{digest}.png"));
+        if path.is_file() {
+            continue;
+        }
+        // Only the SVG exporter will publish a variant, if this image belongs to a group.
+        let result = (|| -> Result<Vec<u8>> {
+            let image = decode_tiff(bytes)?;
+            let mut output = Cursor::new(Vec::new());
+            image.write_to(&mut output, ImageFormat::Png)?;
+            Ok(output.into_inner())
+        })();
+        match result {
+            Ok(png) => {
+                std::fs::create_dir_all(directory)?;
+                std::fs::write(path, png)?;
+            }
+            Err(error) => eprintln!("[WARN] Cannot prepare TIFF {part} for SVG export: {error:#}"),
+        }
+    }
+    Ok(())
+}
+
+/// Decode standard TIFFs and expand indexed colors when the generic decoder cannot.
+fn decode_tiff(bytes: &[u8]) -> Result<DynamicImage> {
+    match ImageReader::with_format(Cursor::new(bytes), ImageFormat::Tiff).decode() {
+        Ok(image) => Ok(image),
+        Err(error) => palette_tiff::decode(bytes)?.ok_or_else(|| error.into()),
+    }
 }
 
 /// Keep original package media intact when separate pictures share one image relationship.

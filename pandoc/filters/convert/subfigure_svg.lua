@@ -4,6 +4,9 @@
 -- exported filenames. Stage complete SVGs for the CLI's no-clobber publication.
 -- Unrepresentable captions or assets leave the entire original group intact.
 local resource = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), '../shared/filter_resources.lua'})
+local raster_directory = resource.getenv('PAPPER_CONVERT_SVG_RASTERS')
+local destination = resource.getenv('PAPPER_CONVERT_OUTPUT_DIR')
+local raster_assets = {}
 local font = {family='Times New Roman', cjkFamily='SimSun', size=10, color='#000000', align='center'}
 local children, filenames = {}, {}
 local gap, padding, rowgap = 10, 8, 16
@@ -68,12 +71,41 @@ local function points(value)
   return tonumber(n) and factor and tonumber(n)*factor
 end
 
+--- Select a staged PNG and give it a stable name that preserves existing media.
+local function tiff_variant(src, bytes)
+  if not raster_directory or not bytes then return nil end
+  local original_digest = pandoc.utils.sha1(bytes)
+  if raster_assets[original_digest] then return raster_assets[original_digest] end
+  local png = resource.read(pandoc.path.join {raster_directory, original_digest .. '.png'})
+  if not png then return nil end
+  local stem = pandoc.path.split_extension(pandoc.path.filename(src))
+  local base = 'media/' .. stem .. '-svg-' .. pandoc.utils.sha1(png)
+  local filename, suffix = base .. '.png', 1
+  while true do
+    local _, staged = pandoc.mediabag.lookup(filename)
+    local disk = destination and resource.read(pandoc.path.join {destination, filename})
+    if (not staged or staged == png) and (not disk or disk == png) then break end
+    filename, suffix = base .. '-' .. suffix .. '.png', suffix + 1
+  end
+  local variant = {filename=filename, png=png}
+  raster_assets[original_digest] = variant
+  return variant
+end
+
 --- Collect the editable panel model and keep the source URL outside its metadata.
 local function panel(image, index)
   local src = image.src:gsub('^%./', '')
   if pandoc.path.is_absolute(src) or src:match('^%a[%w+.-]*:') or src:sub(1,2)=='//' then return nil end
   local ext = src:lower():match('%.(%w+)$')
-  if not ({png=true,jpg=true,jpeg=true,svg=true,gif=true,bmp=true,avif=true,webp=true})[ext] then return nil end
+  local _, bytes = pandoc.mediabag.lookup(src)
+  local variant
+  if ext == 'tif' or ext == 'tiff' then
+    variant = tiff_variant(src, bytes)
+    if not variant then return nil end
+    src, bytes = variant.filename, variant.png
+  elseif not ({png=true,jpg=true,jpeg=true,svg=true,gif=true,bmp=true,avif=true,webp=true})[ext] then
+    return nil
+  end
   local caption = {}
   if not runs(image.caption, {}, caption) then return nil end
   local a = image.attributes
@@ -86,7 +118,6 @@ local function panel(image, index)
     if not runs(line.content, {}, caption) then return nil end
   end
   local w,h = points(a['original-width']), points(a['original-height'])
-  local _, bytes = pandoc.mediabag.lookup(src)
   if bytes then
     local ok, size = pcall(pandoc.image.size, bytes)
     if ok and size.width > 0 and size.height > 0 then w,h = size.width,size.height end
@@ -105,7 +136,7 @@ local function panel(image, index)
   if any then p.crop = crop end
   -- The manuscript addresses sources from its root; the SVG addresses them from media/.
   local href = src:match('^media/(.+)$') or '../' .. src
-  return {model=p, src=href, crop=crop, child=image.identifier, weight=weight or 1}
+  return {model=p, src=href, crop=crop, child=image.identifier, weight=weight or 1, variant=variant}
 end
 
 --- Render wrapped SVG text while retaining the original unwrapped rich runs for later editing.
@@ -234,6 +265,9 @@ local function convert(div, width)
   -- --extract-media stages the SVG with its source pictures for the same no-clobber publication.
   pandoc.mediabag.insert(filename,'image/svg+xml',svg)
   for _,row in ipairs(rows) do for _,entry in ipairs(row) do
+    if entry.variant then
+      pandoc.mediabag.insert(entry.variant.filename, 'image/png', entry.variant.png)
+    end
     if entry.child~='' then children[entry.child]={id=div.identifier,label=entry.model.label} end
   end end
   local image=pandoc.Image(caption.content, filename, '', div.attr)

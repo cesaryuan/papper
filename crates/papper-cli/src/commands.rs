@@ -647,13 +647,20 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         .prefix("papper-convert-")
         .tempdir()?;
     let cropped_source = temporary.path().join("image-crops.docx");
+    let svg_rasters = args
+        .subfigure_svg
+        .then(|| temporary.path().join("svg-rasters"));
     let crop_attributes = matches!(args.image_crop, crate::ImageCropMode::Attributes);
-    let import_source =
-        if papper_document::docx::prepare_image_crops(&source, &cropped_source, crop_attributes)? {
-            &cropped_source
-        } else {
-            &source
-        };
+    let import_source = if papper_document::docx::prepare_image_crops(
+        &source,
+        &cropped_source,
+        crop_attributes,
+        svg_rasters.as_deref(),
+    )? {
+        &cropped_source
+    } else {
+        &source
+    };
     let map = temporary.path().join("equations.json");
     atomic_write(&map, &serde_json::to_vec(&decoded)?)?;
     let output_name = format!("{}.md", source.file_stem().unwrap().to_string_lossy());
@@ -768,6 +775,10 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         (
             "PAPPER_CONVERT_OUTPUT_DIR".into(),
             Some(pandoc_path(&destination)),
+        ),
+        (
+            "PAPPER_CONVERT_SVG_RASTERS".into(),
+            svg_rasters.as_deref().map(pandoc_path),
         ),
     ]);
     PandocCli::new(discover_engine(&resources.root)?).run(

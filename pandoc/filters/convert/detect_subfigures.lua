@@ -44,6 +44,8 @@
 local used, remapped = {}, {}
 local groups, vertical, conflicts, singles = 0, 0, 0, 0
 local svg_output = os.getenv('PAPPER_CONVERT_SUBFIGURE_SVG') == '1'
+local caption_text = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'caption_text.lua'})
+local drop_prefix, caption_markdown = caption_text.drop_prefix, caption_text.markdown
 
 local dashes = { '-', '‐', '‑', '‒', '–', '—', '−', '﹣', '－' }
 
@@ -165,30 +167,6 @@ local function segments(inlines)
   return result
 end
 
---- Remove a known prefix across formatted runs without flattening the rest of the caption.
-local function drop_prefix(inlines, remaining)
-  local result = {}
-  for _, inline in ipairs(inlines) do
-    local length = #pandoc.utils.stringify(inline)
-    if remaining == 0 or length == 0 then result[#result + 1] = inline
-    elseif remaining >= length then remaining = remaining - length
-    elseif inline.t == 'Str' then
-      result[#result + 1] = pandoc.Str(inline.text:sub(remaining + 1))
-      remaining = 0
-    elseif inline.content then
-      local copy = inline:clone()
-      local content
-      content, remaining = drop_prefix(copy.content, remaining)
-      if not content then return nil end
-      copy.content = content
-      result[#result + 1] = copy
-    else
-      return nil
-    end
-  end
-  return result, remaining
-end
-
 --- Strip the leading letter, including a Word inline equation containing only “(a)”.
 local function subcaption(inlines)
   local text = pandoc.utils.stringify(inlines)
@@ -209,14 +187,44 @@ local function has_han(text)
   return false
 end
 
---- Pair only the same explicit panel marker with distinct Chinese and English text.
-local function panel_translation(first, second)
+--- Compare explicit markers on distinct Chinese and English text.
+local function panel_markers(first, second)
   local primary, label = subcaption(first)
   local english, other = subcaption(second)
-  if not label or label ~= other then return nil end
+  if not label or not other then return nil end
   local primary_text, english_text = pandoc.utils.stringify(primary), pandoc.utils.stringify(english)
   if not english_text:match('[A-Za-z]') then return nil end
-  return has_han(primary_text) and not has_han(english_text)
+  if has_han(primary_text) and not has_han(english_text) then return label, other end
+end
+
+--- Outside a complete row pair, only equal markers establish a translation.
+local function panel_translation(first, second)
+  local label, other = panel_markers(first, second)
+  return label and label == other
+end
+
+--- Resolve one differing letter when adjacent caption rows align with the image columns.
+local function align_panel_translations(panels, texts, columns, previous_row)
+  if not svg_output or #panels < 2 then return false end
+  local seen_primary, seen_english, conflict = {}, {}, nil
+  for index, panel in ipairs(panels) do
+    if not panel.caption or panel.english or not panel.column or panel.column ~= columns[index]
+      or panel.image_row ~= previous_row - 1
+      or panel.caption_column ~= columns[index] or panel.caption_row ~= previous_row then return false end
+    local label, other = panel_markers(panel.caption, texts[index])
+    if not label or seen_primary[label] or seen_english[other] then return false end
+    seen_primary[label], seen_english[other] = true, true
+    if label ~= other then
+      if conflict then return false end
+      conflict = index
+    end
+  end
+  if not conflict then return false end
+  for index, panel in ipairs(panels) do
+    panel.english = texts[index]
+    panel.keep_english_marker = index == conflict
+  end
+  return true
 end
 
 --- Parse a cell as images plus caption fragments; never discard structural blocks.
@@ -280,11 +288,6 @@ local function unique_id(base)
   while used[id] do id = base .. '-' .. suffix; suffix = suffix + 1 end
   used[id] = true
   return id
-end
-
---- Serialize formatted caption text using the existing caption-en Markdown syntax.
-local function caption_markdown(inlines)
-  return pandoc.write(pandoc.Pandoc{pandoc.Plain(inlines)}, 'markdown', {wrap_text='none'}):gsub('%s+$', '')
 end
 
 --- Pair translated titles, using a complete number to fill a missing Word field.
@@ -372,6 +375,7 @@ local function make_group(rows, caption, original_id, english)
     vertical = vertical + 1
   end
   local blocks, index = {}, 0
+  local label_conflict = false
   for _, row in ipairs(rows) do
     local inlines = {}
     for column, panel in ipairs(row) do
@@ -395,7 +399,17 @@ local function make_group(rows, caption, original_id, english)
       if label then image.attributes.label = label end
       if panel.english then
         local translation, english_anchor = take_bookmark(panel.english)
-        image.attributes['caption-en'] = caption_markdown(subcaption(translation))
+        if panel.keep_english_marker then
+          -- The grid establishes which picture owns the English title; keep its
+          -- authored letter as text rather than silently changing it.
+          local english_caption, english_label = subcaption(translation)
+          translation = pandoc.List{pandoc.Str('(' .. english_label .. ')'), pandoc.Space()}
+          translation:extend(english_caption)
+          label_conflict = true
+        else
+          translation = subcaption(translation)
+        end
+        image.attributes['caption-en'] = caption_markdown(translation)
         if english_anchor then remapped[english_anchor] = image.identifier end
       end
       if row.shared and column == 1 then
@@ -419,6 +433,9 @@ local function make_group(rows, caption, original_id, english)
   groups = groups + 1
   local div = pandoc.Div(blocks, pandoc.Attr(parent))
   if translation then div.attributes['caption-en'] = translation end
+  if label_conflict then
+    io.stderr:write('[detect-subfigures] ' .. parent .. ': kept differing panel letters in their original languages\n')
+  end
   -- The SVG writer restores single-column crossref rows if it cannot represent this irregular group.
   if svg_output and irregular then div.attributes['papper-convert-uneven-rows'] = '1' end
   return div
@@ -435,7 +452,7 @@ local function table_group(element, following)
   if caption then candidates[#candidates + 1] = {inlines=caption} end
   if external then candidates[#candidates + 1] = {inlines=external} end
   for row_index, row in ipairs(table_rows(element)) do
-    local panels, texts = {}, {}
+    local panels, texts, text_columns = {}, {}, {}
     local column = 1
     for _, cell in ipairs(row.cells) do
       local images, fragments = read_cell(cell)
@@ -450,9 +467,15 @@ local function table_group(element, following)
         end
         if share > 0 then images[1].cell_percent = share * 100 end
       end
+      for _, image in ipairs(images) do
+        if #images == 1 and cell.col_span == 1 then image.column, image.image_row = column, row_index end
+        panels[#panels + 1] = image
+      end
+      for _, fragment in ipairs(fragments) do
+        texts[#texts + 1] = fragment
+        if #fragments == 1 and cell.col_span == 1 then text_columns[#texts] = column end
+      end
       column = column + cell.col_span
-      for _, image in ipairs(images) do panels[#panels + 1] = image end
-      for _, fragment in ipairs(fragments) do texts[#texts + 1] = fragment end
     end
     if #panels > 0 then
       if #texts > 0 then return nil end
@@ -492,12 +515,15 @@ local function table_group(element, following)
         end
       elseif pending and #texts == #pending then
         if pending.shared then return nil end
-        for index, panel in ipairs(pending) do
-          local text = texts[index]
-          if caption_number(text) then return nil end
-          if not panel.caption then panel.caption = text
-          elseif not panel.english and panel_translation(panel.caption, text) then panel.english = text
-          else return nil end
+        if not align_panel_translations(pending, texts, text_columns, row_index - 1) then
+          for index, panel in ipairs(pending) do
+            local text = texts[index]
+            if caption_number(text) then return nil end
+            if not panel.caption then
+              panel.caption, panel.caption_column, panel.caption_row = text, text_columns[index], row_index
+            elseif not panel.english and panel_translation(panel.caption, text) then panel.english = text
+            else return nil end
+          end
         end
       else return nil end
     end

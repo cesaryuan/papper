@@ -1608,7 +1608,16 @@ layout table. With `--svg`, a merged bilingual panel caption spanning a row of
 pictures stays centered below that row as editable text. If one of two adjacent
 full-width overall captions is missing its Word numbering field, import uses the
 other caption's complete chapter and figure number when any remaining digits
-agree. Tables with conflicting panel labels or figure numbers are left intact.
+agree. When the pictures and both caption rows align by column, `--svg` can
+keep a single differing English panel letter as editable text alongside the
+Chinese panel label. TIFF subfigures use PNG copies in the SVG. Ambiguous
+layouts remain tables for review.
+
+Two adjacent captions such as `表 4‑2 各事件样本数` and
+`Table 4‑2 Sample counts by event` above one Word table become one numbered
+table with the Chinese title and `caption-en="Sample counts by event"`.
+The English number can fill a missing Chinese chapter number when the table
+index agrees. When present, Word caption bookmarks still resolve to that table.
 
 Word's rectangular image crops are retained as editable image attributes by
 default (`--image-crop attributes`), preserving the original image files. For

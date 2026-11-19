@@ -187,6 +187,57 @@ def test_convert_shared_row_titles_and_single_figure(
     assert rows[0][2]["y"] + 25 < rows[1][0]["y"]
 
 
+def test_convert_tiff_panels_with_a_mismatched_english_letter(
+    tmp_path: Path, rust_executable: Path,
+) -> None:
+    """Recover the aligned bilingual TIFF grid without changing either authored letter."""
+    document = Document()
+    source_image = tmp_path / "source.tiff"
+    indexed = Image.new("P", (40, 30), 1)
+    indexed.putpalette([0, 240, 40, 220, 20, 170] + [0] * 762)
+    indexed.paste(0, (0, 0, 8, 9))
+    indexed.save(source_image, compression="tiff_lzw")
+    table = document.add_table(rows=5, cols=3)
+    for index, (label, other, primary, translation) in enumerate((
+        ("d", "c", "突变", "Mutation"),
+        ("e", "e", "次小值", "Minor"),
+        ("f", "f", "趋势", "Trend"),
+    )):
+        table.cell(0, index).paragraphs[0].add_run().add_picture(str(source_image), width=Inches(2))
+        table.cell(1, index).text = f"({label}) {primary}"
+        table.cell(2, index).text = f"({other}) {translation}"
+    table.cell(3, 0).merge(table.cell(3, 2)).text = "图 2‑8 各类工况对比"
+    table.cell(4, 0).merge(table.cell(4, 2)).text = "Fig. 2‑8 Comparison of different cases"
+    document.add_picture(str(source_image), width=Inches(1))
+    document.add_paragraph("图 2‑9 单独图片")
+    source = tmp_path / "tiff-panels.docx"
+    document.save(source)
+    output = tmp_path / "converted"
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(source), "-o", str(output), "--svg", "--offline"],
+        cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stderr
+    markdown = (output / "tiff-panels.md").read_text(encoding="utf-8")
+    svg_path, = (output / "media").glob("subfigure-*.svg")
+    assert f"![图 2‑8 各类工况对比](media/{svg_path.name})" in markdown
+    assert 'caption-en="Comparison of different cases"' in markdown
+    original, = (output / "media").glob("*.tiff")
+    assert f"](media/{original.name})" in markdown and original.read_bytes() == source_image.read_bytes()
+    ns = {"s": "http://www.w3.org/2000/svg"}
+    svg = ET.parse(svg_path).getroot()
+    figure = json.loads(svg.find("s:metadata", ns).text)
+    assert [panel["label"] for panel in figure["elements"]] == ["d", "e", "f"]
+    assert "".join(run["text"] for run in figure["elements"][0]["caption"]) == "突变\n(c) Mutation"
+    assert "".join(run["text"] for run in figure["elements"][1]["caption"]) == "次小值\nMinor"
+    hrefs = [image.attrib["href"] for image in svg.findall(".//s:image", ns)]
+    assert len(hrefs) == 3 and len(set(hrefs)) == 1
+    with Image.open(svg_path.parent / hrefs[0]) as png, Image.open(source_image) as tiff:
+        assert png.format == "PNG" and png.size == tiff.size
+        assert png.convert("RGB").tobytes() == tiff.convert("RGB").tobytes()
+
+
 def run_pandoc(source: Path, *options: str) -> subprocess.CompletedProcess:
     """Run the retained engine with the real convert filters and crossref support."""
     pandoc = native_pandoc_executable()
