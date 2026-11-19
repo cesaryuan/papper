@@ -124,8 +124,8 @@ aligned with its column. A manual line break (Shift+Enter in Word) can also
 separate the two captions within a cell.
 Pair the overall titles with the same figure number, such as `图 2‑3` and `Fig. 2‑3`.
 Crossref export stores the translations as `caption-en`. SVG export places the
-English panel text on a separate editable line and keeps the translated overall
-title in the Markdown.
+English panel text on a separate editable line with its panel letter, and keeps
+the translated overall title in the Markdown.
 Text drawn into a source picture stays part of that picture.
 
 A single image with matching Chinese and English captions in a layout table
@@ -146,8 +146,10 @@ export recognized groups as editable combination figures. A group with ID
 links to the source pictures in the same directory. Keep `media/` together when moving the manuscript.
 TIFF subfigure sources use PNG copies of the first image at its original
 pixel dimensions so the panels display and remain editable in the SVG.
-Hover over the Markdown image in VS Code and choose **Edit subfigure layout** in
-Papper Tools. The editor restores the panels, labels, editable crops and formatted
+In VS Code, use a Papper Tools build that includes the combination figure
+editor. Hover over the Markdown image and choose **Edit subfigure layout**, or
+open the SVG with **Reopen Editor With… > Papper Combination Figure Editor**. The editor
+restores the panels, labels, editable crops and formatted
 subcaptions. The overall caption and figure ID stay in the manuscript.
 Groups with content outside the editor’s caption or image formats retain their
 crossref layout. A changed existing SVG at the same path is preserved and the
@@ -165,14 +167,18 @@ It prints the candidates to the terminal; the inferred edits are not applied
 to Markdown by default. Existing Word bookmark links are still converted.
 
 Each `[crossrefs-fuzz] target` line contains one JSON record with a `key` such as
-`eq:4-43`, the original text, and any proposed edit. A `reference` line shows the
-matched phrase, its paragraph context, and the proposed citation when available.
+`eq:4-43`, the original text, and any inferred edit. A `reference` line shows the
+matched phrase, its paragraph context, and the replacement citation when available.
+With `--fuzzy-crossrefs`, the same report marks changes made to the Markdown as
+`applied`. A target already usable as a reference can remain `available` while
+new references to it are marked `applied`.
 `ambiguous`, `missing-target`, and `id-conflict` entries are left as they are.
-Review the candidates before applying them: even a unique number can refer to
-another publication.
+Review the candidates or applied changes: even a unique number can refer to another
+publication.
 
-Rerun with `--fuzzy-crossrefs` to apply the proposed edits. Repeat
-`--fuzzy-crossrefs-exclude` for any target you want to leave alone:
+Rerun from the original DOCX with `--fuzzy-crossrefs` to apply the proposed edits
+or correct an earlier run. Repeat `--fuzzy-crossrefs-exclude` for any target
+you want to leave alone:
 
 ```bash
 papper convert existing-paper.docx -o converted --fuzzy-crossrefs \

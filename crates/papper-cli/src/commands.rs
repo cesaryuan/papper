@@ -853,7 +853,11 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     println!(
         "[convert] AI: Review remaining citations and uncertain references. Read `papper guide syntax cross-references` and `papper guide syntax citations`."
     );
-    if !args.fuzzy_crossrefs {
+    if args.fuzzy_crossrefs {
+        println!(
+            "[convert] Review records with status \"applied\". To skip an incorrect target and its inferred references, rerun from the original DOCX with the same options and add --fuzzy-crossrefs-exclude <key-or-id> (repeat for each target)."
+        );
+    } else {
         println!(
             "[convert] Review the candidates, then rerun with --fuzzy-crossrefs to apply. Repeat --fuzzy-crossrefs-exclude <key-or-id> for uncertain targets and their references."
         );

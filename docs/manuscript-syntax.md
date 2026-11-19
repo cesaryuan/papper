@@ -1607,7 +1607,7 @@ when both captions share the image's cell or sit in consecutive rows aligned
 with its column. A manual line break (Shift+Enter) can separate the captions
 within a cell. Use the same number for both overall captions (`图 2‑3` and `Fig. 2‑3`).
 Crossref output keeps the translations in `caption-en`; with `--svg`, each
-translated subcaption becomes a second editable line inside its panel, and the
+translated subcaption becomes a second editable line with its panel letter, and the
 English overall caption stays in the manuscript as `caption-en`.
 Text drawn into the source pictures stays part of the pictures.
 
@@ -1678,9 +1678,11 @@ becomes `[@eq:_Ref123]`, which remains resolvable in later builds.
 Without a bookmark, formulas recovered from equation layout tables keep their
 original labels by default. The terminal output lists detected figure, table
 and equation numbers, possible plain-text references such as `如式 (4‑8) 所示`,
-and proposed changes. Review the report, then rerun with `--fuzzy-crossrefs`
-to apply the changes. Repeat `--fuzzy-crossrefs-exclude <key-or-id>` to skip
-uncertain targets and any inferred references to them:
+and proposed changes. Rerun with `--fuzzy-crossrefs` to apply the changes.
+This also prints the report, with actual edits marked `applied` for review.
+If an edit looks wrong, rerun on the original DOCX and repeat
+`--fuzzy-crossrefs-exclude <key-or-id>` to skip each target and any inferred
+references to it:
 
 ```powershell
 papper convert existing-paper.docx -o converted --fuzzy-crossrefs --fuzzy-crossrefs-exclude eq:4-8

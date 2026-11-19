@@ -156,6 +156,7 @@ def test_convert_fuzzy_crossrefs_option(
     references = [json.loads(data) for kind, data in records if kind == "reference"]
     counts = next(json.loads(data) for kind, data in records if kind == "summary")
     assert ["mode", "scan" if mode == "scan" else "apply"] in records
+    assert not list(output.glob("*.json"))
     assert targets["tbl:1-3"]["definitions"][0]["caption_after"] == "基于复杂网络理论的鲁棒性度量"
     assert targets["eq:4-44"]["definitions"][0]["original_number"] == "(4‑44)"
     assert targets["eq:4-44"]["id"] == "eq:_RefEquation"
@@ -179,9 +180,15 @@ def test_convert_fuzzy_crossrefs_option(
     assert counts["target_changes"] == 4 and counts["reference_changes"] == 5
     assert targets["fig:1-14"]["action"] == "move-caption-number"
     assert targets["eq:4-43"]["action"] == "number-equation"
-    assert any(item["context"].startswith("As in Eq. (4-43)") and item["replacement"] == "[@eq:fuzz-4-43]"
-               for item in references if item["key"] == "eq:4-43")
+    target_status = "applied" if mode == "apply" else "available"
+    reference_status = "applied" if mode == "apply" else "proposed"
+    assert all(item["status"] == target_status for item in targets.values() if "action" in item)
+    assert targets["eq:4-44"]["status"] == "available" and "action" not in targets["eq:4-44"]
+    assert all(item["status"] == reference_status for item in references if "replacement" in item)
+    assert any(item["context"].startswith("As in Eq. (4-43)") and item["text"] == "Eq. (4-43)"
+               and item["replacement"] == "[@eq:fuzz-4-43]" for item in references if item["key"] == "eq:4-43")
     if mode == "apply":
+        assert 'status "applied"' in result.stdout and "rerun from the original DOCX" in result.stdout
         assert "如[@fig:fuzz-1-14]所示" in markdown
         assert "shown in [@tbl:fuzz-1-3]" in markdown
         assert "see [@fig:_RefMixed]" in markdown
@@ -223,7 +230,6 @@ def test_convert_fuzzy_crossrefs_option(
                 "#eq:fuzz-4-43", "#eq:_RefEquation"} <= links
     else:
         assert "rerun with --fuzzy-crossrefs" in result.stdout
-        assert not list(output.glob("*.json"))
         assert "如图1-14所示" in markdown
         assert "shown in Tbl. 1-3" in markdown
         assert "see Fig. 2" in markdown

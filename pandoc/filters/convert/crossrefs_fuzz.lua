@@ -406,7 +406,7 @@ local function scan_prose(block, targets, report, apply, location)
       local replacement = accepted and '[@' .. target.id .. ']' or nil
       report.references:insert({
         key = key, text = text:sub(label.first, label.last), context = context,
-        status = accepted and 'proposed' or (target and target.status or 'missing-target'),
+        status = accepted and (apply and 'applied' or 'proposed') or (target and target.status or 'missing-target'),
         replacement = replacement, table_cell = location,
       })
       if accepted then
@@ -553,6 +553,8 @@ function Pandoc(doc)
       local label, owner = target_for(block)
       local target = label and targets[label.kind .. ':' .. label.number]
       if not target or not target.action then return nil end
+      -- Existing targets with no inferred edit remain available, even when we use them in new references.
+      target.status = 'applied'
       if owner.t == 'Equation' then
         block.content = { pandoc.Math('DisplayMath', owner.math.text),
           pandoc.RawInline('markdown', ' {#' .. target.id .. '}') }

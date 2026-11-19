@@ -250,7 +250,7 @@ pub struct ConvertArgs {
     /// Directory for the converted Markdown file and extracted media.
     #[arg(short = 'o', long = "output-dir", default_value = "converted")]
     pub output_dir: PathBuf,
-    /// Apply inferred cross-references; by default, only report possible changes.
+    /// Apply and report inferred cross-references; by default, only report possible changes.
     #[arg(long)]
     pub fuzzy_crossrefs: bool,
     /// Skip a fuzzy target and its references by source key (eq:4-8) or crossref ID; repeatable.

@@ -179,7 +179,7 @@ def test_convert_shared_row_titles_and_single_figure(
     figure = json.loads(svg.find("s:metadata", ns).text)
     assert len(svg.findall(".//s:image", ns)) == 4
     rows = [figure["elements"][:3], figure["elements"][3:]]
-    for (left, right, title), expected in zip(rows, ("(g) 甲桥\nBridge A", "(g) 乙桥\nBridge B"), strict=True):
+    for (left, right, title), expected in zip(rows, ("(g) 甲桥\n(g) Bridge A", "(g) 乙桥\n(g) Bridge B"), strict=True):
         assert title["kind"] == "text" and "".join(run["text"] for run in title["runs"]) == expected
         assert abs(title["width"] - left["width"] - right["width"] - 10) < 0.01
         assert title["y"] > max(panel["y"] + panel["height"] for panel in (left, right))
@@ -231,6 +231,10 @@ def test_convert_tiff_panels_with_a_mismatched_english_letter(
     assert [panel["label"] for panel in figure["elements"]] == ["d", "e", "f"]
     assert "".join(run["text"] for run in figure["elements"][0]["caption"]) == "突变\n(c) Mutation"
     assert "".join(run["text"] for run in figure["elements"][1]["caption"]) == "次小值\nMinor"
+    assert [
+        ["".join(line.itertext()) for line in group.findall("s:text", ns)]
+        for group in svg.findall("s:g", ns)
+    ] == [["(d) 突变", "(c) Mutation"], ["(e) 次小值", "(e) Minor"], ["(f) 趋势", "(f) Trend"]]
     hrefs = [image.attrib["href"] for image in svg.findall(".//s:image", ns)]
     assert len(hrefs) == 3 and len(set(hrefs)) == 1
     with Image.open(svg_path.parent / hrefs[0]) as png, Image.open(source_image) as tiff:
@@ -275,7 +279,7 @@ def test_convert_unmarked_bilingual_subcaptions(tmp_path: Path, rust_executable:
         svg.findall("s:g", ns), ("正常", "突变"), ("Normal", "Mutation"), strict=True,
     )):
         lines = group.findall("s:text", ns)
-        assert ["".join(line.itertext()) for line in lines] == [f"({'ab'[i]}) {primary}", translation]
+        assert ["".join(line.itertext()) for line in lines] == [f"({'ab'[i]}) {primary}", f"({'ab'[i]}) {translation}"]
         assert lines[1].find("s:tspan[@font-weight='bold']", ns) is not None
         assert float(lines[0].attrib["y"]) < float(lines[1].attrib["y"]) < float(svg.attrib["viewBox"].split()[3])
 

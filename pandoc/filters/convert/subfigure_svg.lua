@@ -4,6 +4,7 @@
 -- exported filenames. Stage complete SVGs for the CLI's no-clobber publication.
 -- Unrepresentable captions or assets leave the entire original group intact.
 local resource = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), '../shared/filter_resources.lua'})
+local caption_text = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'caption_text.lua'})
 local raster_directory = resource.getenv('PAPPER_CONVERT_SVG_RASTERS')
 local destination = resource.getenv('PAPPER_CONVERT_OUTPUT_DIR')
 local raster_assets = {}
@@ -109,13 +110,23 @@ local function panel(image, index)
   local caption = {}
   if not runs(image.caption, {}, caption) then return nil end
   local a = image.attributes
+  local label, repeat_label = a.label or letter(index), false
   if a['caption-en'] and a['caption-en']:match('%S') then
     local translation = pandoc.read(a['caption-en'], 'markdown').blocks
     local line = translation[1]
     if #translation ~= 1 or (line.t ~= 'Plain' and line.t ~= 'Para') then return nil end
-    -- One panel letter applies to both lines. Keep the English runs editable.
-    if #caption > 0 then caption[#caption+1] = {text='\n'} end
-    if not runs(line.content, {}, caption) then return nil end
+    local marker, ending = pandoc.utils.stringify(line.content):match('^%s*%(([A-Za-z]+)%)%s+()')
+    local inlines = line.content
+    if marker == label then
+      inlines = caption_text.drop_prefix(inlines, ending - 1)
+      if not inlines then return nil end
+    end
+    -- An authored conflicting letter is already present in the English text.
+    if #caption > 0 then
+      repeat_label = not marker or marker == label
+      caption[#caption+1] = {text='\n'}
+    end
+    if not runs(inlines, {}, caption) then return nil end
   end
   local w,h = points(a['original-width']), points(a['original-height'])
   if bytes then
@@ -125,7 +136,7 @@ local function panel(image, index)
   local weight = a.width and tonumber(a.width:match('^([%d.]+)%%$')) or nil
   if a.width and not weight or weight and weight <= 0 then return nil end
   local p = {kind='panel',id='e'..index,name=pandoc.path.filename(src),ratio=w and h and h>0 and w>0 and w/h or 1.5,
-    caption=caption,label=a.label or letter(index),labelPosition='below',gap=5}
+    caption=caption,label=label,labelPosition='below',repeatLabel=repeat_label or nil,gap=5}
   local crop, any = {}, false
   for _, side in ipairs({'left','top','right','bottom'}) do
     local v = tonumber(a['crop-'..side] or '0')
@@ -176,10 +187,24 @@ local function caption_svg(x, y, width, content)
   return table.concat(lines,'\n'), #lines*12.5
 end
 
---- Prefix a visible caption with its authored panel or row letter.
+--- Prefix each language with the panel letter without storing it in the editable caption.
 local function labelled_runs(panel)
-  local content = {{text='('..panel.label..')'..(#panel.caption>0 and ' ' or '')}}
-  for _, run in ipairs(panel.caption) do content[#content+1] = run end
+  local prefix = '('..panel.label..')'..(#panel.caption>0 and ' ' or '')
+  local content = {{text=prefix}}
+  local repeat_label = panel.repeatLabel
+  for _, run in ipairs(panel.caption) do
+    local split = repeat_label and run.text:find('\n',1,true)
+    if split then
+      content[#content+1] = {text=run.text:sub(1,split),bold=run.bold,italic=run.italic,script=run.script}
+      content[#content+1] = {text=prefix}
+      if split < #run.text then
+        content[#content+1] = {text=run.text:sub(split+1),bold=run.bold,italic=run.italic,script=run.script}
+      end
+      repeat_label = false
+    else
+      content[#content+1] = run
+    end
+  end
   return content
 end
 
@@ -217,7 +242,7 @@ local function artwork(rows, width)
       local title = {kind='text',id='row'..(#model.layout.rows+1),x=padding,y=bottom+5,
         width=width-2*padding,runs=labelled_runs(row[1].model)}
       for _, entry in ipairs(row) do
-        entry.model.labelPosition, entry.model.caption = 'none', {}
+        entry.model.labelPosition, entry.model.caption, entry.model.repeatLabel = 'none', {}, nil
         entry.model.label = row[1].model.label
       end
       local text, height = caption_svg(title.x,title.y,title.width,title.runs)
