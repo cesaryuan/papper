@@ -94,7 +94,7 @@ If the style cannot be recovered, obtain the original `.csl` and set manuscript
 
 Supported MathType OLE objects and WMF previews carrying MathType equation data become LaTeX math, including formulas with explicit MathType spacing and multiline subscripts. A supported preview can also recover a formula when its OLE object is missing or damaged. Unrecognized or undecodable equations retain their preview images.
 
-Recognizable Word bookmark links become figure, table, equation, or section references, using the target labels recovered during import. Unknown links remain as imported by Pandoc. Supported equation layout tables are flattened, and confirmed numbered standalone formulas can become numbered display equations. For the detailed behavior, see [Importing Word Documents](manuscript-syntax.md#importing-word-documents).
+Recognizable Word bookmark links become figure, table, equation, or section references, using the target labels recovered during import. Unknown links remain as imported by Pandoc. A bookmarked standalone equation loses its original numeric suffix, including numbers such as `(4‑6)` with a Word nonbreaking hyphen, so the build can renumber it. Without a bookmark, the source number is kept unless [`--fuzzy-crossrefs`](#optional-recovery-of-typed-references) recovers the equation. For the detailed behavior, see [Importing Word Documents](manuscript-syntax.md#importing-word-documents).
 
 Import does not require you to decode every formula successfully before inspecting the Markdown. Check warnings and retained images when reviewing a document with many equations.
 

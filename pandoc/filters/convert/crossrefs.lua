@@ -35,6 +35,8 @@
 -- Run after the earlier filters in the Convert chain:
 --   pandoc input.docx -f docx -t markdown -L pandoc/filters/convert/crossrefs.lua
 
+local numbers = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'reference_numbers.lua'})
+
 --- Return a Word-generated bookmark identifier carried by an empty Span.
 local function anchor_id(inline)
   if inline.t == 'Span' and inline.identifier:match('^_Ref[%w_]+$') and #inline.content == 0 then
@@ -119,7 +121,9 @@ end
 --- Detect a plain displayed number which pandoc-crossref will regenerate.
 local function is_manual_number(inlines)
   local text = pandoc.utils.stringify(inlines)
-  return text:match('^%s*%(%d+[%.%d%-]*%)%s*$') ~= nil
+  -- Word emits nonbreaking hyphens in chapter-based numbers. Preserve the
+  -- existing cleanup of dotted labels for confirmed bookmarks as well.
+  return numbers.equation(text) ~= nil or text:match('^%s*%(%d+[%.%d%-]*%)%s*$') ~= nil
 end
 
 --- Attach a known equation identifier and remove its old numeric label.

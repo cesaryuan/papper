@@ -30,7 +30,7 @@ $$E=mc^2$$ []{#_RefEquation .anchor}(7)
 
 [Inline equation](#_RefInlineEquation) and [layout equation](#_RefLayoutEquation).
 
-$a^2+b^2=c^2$ []{#_RefInlineEquation .anchor}(8)
+$a^2+b^2=c^2$ []{#_RefInlineEquation .anchor}(4‑8)
 
 $x+y=z$ []{#_RefDescribedEquation .anchor}**energy balance**
 
@@ -41,7 +41,7 @@ Before $x=1$ []{#_RefProseEquation .anchor}after.
 [Equation in prose](#_RefProseEquation)
 
 +----------+------------------------------------------+
-| $$u=v$$  | []{#_RefLayoutEquation .anchor}(9)         |
+| $$u=v$$  | []{#_RefLayoutEquation .anchor}（4 – 9）  |
 +----------+------------------------------------------+
 
 $x$ and $y$ []{#_RefMultipleMath .anchor}(10)

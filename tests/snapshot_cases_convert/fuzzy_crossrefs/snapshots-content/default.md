@@ -20,7 +20,7 @@ A plain text reference to an anchored picture: see Fig. 2.
 
 As in Eq. (4-43), the variables agree. 如式 4-44 所示。
 
-$x = y$ (4-43)
+$x = y$ (4‑43)
 
 $$u = v$$ {#eq:_RefEquation}
 

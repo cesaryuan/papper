@@ -48,7 +48,7 @@
 -- Direct usage:
 --   pandoc input.docx -t markdown -L crossrefs.lua -L crossrefs_fuzz.lua
 
-local dashes = { '-', '‐', '‑', '‒', '–', '—', '−', '﹣', '－' }
+local numbers = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'reference_numbers.lua'})
 local prefixes = {
   { kind = 'fig', pattern = 'figure%.?', english = true },
   { kind = 'fig', pattern = 'fig%.?', english = true },
@@ -66,31 +66,6 @@ local containers = {
   Emph = true, Strong = true, Underline = true, Strikeout = true,
   Superscript = true, Subscript = true, SmallCaps = true, Span = true,
 }
-
---- Read an original-text number, retaining byte offsets across Unicode dashes.
-local function read_number(text, position)
-  local first, ending = text:match('^%s*(%d+)()', position)
-  if not first then return nil end
-  local tail = text:sub(ending)
-  local spaces = tail:match('^%s*')
-  local number = first
-  for _, dash in ipairs(dashes) do
-    if tail:sub(#spaces + 1, #spaces + #dash) == dash then
-      local second, second_end = text:match('^%s*(%d+)()', ending + #spaces + #dash)
-      if not second then return nil end
-      number, ending = first .. '-' .. second, second_end
-      break
-    end
-  end
-  -- Do not match a shorter label inside 1-14-2, 1.14 or an English word.
-  tail = text:sub(ending)
-  local trimmed = tail:gsub('^%s*', '')
-  for _, dash in ipairs(dashes) do
-    if trimmed:sub(1, #dash) == dash then return nil end
-  end
-  if tail:match('^%.%d') or tail:match('^[%w_]') then return nil end
-  return number, ending - 1
-end
 
 --- Allow another label in the same explicit reference list, without crossing prose.
 local function reference_connector(text)
@@ -122,7 +97,7 @@ local function next_label(text, position)
           number_start, closing = number_start + 3, '）'
         end
       end
-      local number, ending = read_number(text, number_start)
+      local number, ending = numbers.read(text, number_start)
       if number and closing then
         local tail = text:sub(ending + 1)
         local spaces = tail:match('^%s*')
@@ -138,19 +113,6 @@ local function next_label(text, position)
     end
   end
   return best
-end
-
---- Read a complete parenthesized formula number, including Word Unicode variants.
-local function equation_number(text)
-  text = text:gsub('^%s+', ''):gsub('%s+$', '')
-  local opening, closing = text:sub(1, 1), ')'
-  if text:sub(1, 3) == '（' then opening, closing = '（', '）' end
-  if opening ~= '(' and opening ~= '（' then return nil end
-  local number, ending = read_number(text, #opening + 1)
-  if number and text:sub(ending + 1):match('^%s*' .. (closing == ')' and '%)' or closing) .. '$') then
-    return number
-  end
-  return nil
 end
 
 --- Read only a standalone equation definition, retaining an existing eq: ID.
@@ -175,13 +137,13 @@ local function equation_target(block)
   local text = table.concat(suffix)
   local identifier = text:match('{#(eq:[%w_:%.%-]+)}')
   if identifier then
-    -- crossrefs.lua retains Unicode/descriptive suffixes after the ID when its
-    -- manual-number check cannot remove them, so the ID may precede the number.
+    -- Accept an authored ID before or after the number; a Word bookmark may
+    -- already have had its numeric suffix removed by crossrefs.lua.
     local cleaned, count = text:gsub('%s*{#eq:[%w_:%.%-]+}', '')
     if count ~= 1 then return nil end
     text = cleaned
   end
-  local number = equation_number(text)
+  local number = numbers.equation(text)
   if not number and identifier and text:match('^%s*$') then
     number = equation_numbers[identifier]
   end
@@ -447,7 +409,7 @@ function Pandoc(doc)
   local stats = { ids = 0, references = 0, ambiguous = 0 }
   equation_numbers = {}
   for _, record in ipairs(doc.meta['papper-equation-labels'] or {}) do
-    local number = equation_number(pandoc.utils.stringify(record.label))
+    local number = numbers.equation(pandoc.utils.stringify(record.label))
     if number then
       equation_numbers[pandoc.utils.stringify(record.id)] = number
     end

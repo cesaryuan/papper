@@ -1671,12 +1671,14 @@ Convert also extracts available Zotero CSL information from the DOCX and restore
 the corresponding citation style when it can be obtained.
 
 An independent formula with a confirmed Word bookmark and a numeric equation
-label becomes a display equation such as `$$x=y$$ {#eq:_Ref123}`. Formulas recovered
-from equation layout tables are exported as inline math beside their labels;
-when a formula starts its paragraph and has a confirmed Word bookmark, it becomes
-a display equation, including formulas with descriptive labels. Those labels are
-retained after the formula. A matching
-bookmark link becomes `[@eq:_Ref123]`, which remains resolvable in later builds.
+label becomes a display equation such as `$$x=y$$ {#eq:_Ref123}`. The original
+number, such as `(4‑6)` or `（4‑6）`, is removed so the build can assign the
+equation number. Descriptive labels are retained. A matching bookmark link
+becomes `[@eq:_Ref123]`, which remains resolvable in later builds.
+Without a bookmark, formulas recovered from equation layout tables keep their
+original labels by default. Add `--fuzzy-crossrefs` to recover standalone
+equations with unique numbers and link explicit text references such as
+`如式 (4‑8) 所示` to the recovered equations.
 Ordinary inline formulas and formulas embedded in prose keep their original
 context. Unrecognized equation previews remain images.
 

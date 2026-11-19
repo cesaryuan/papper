@@ -94,7 +94,7 @@ def test_convert_fuzzy_crossrefs_option(
     document.add_paragraph("As in Eq. (4-43), the variables agree. 如式 4-44 所示。")
 
     def add_formula(number: str, bookmark: bool = False) -> None:
-        """Create a standalone Word inline equation and its typed numeric suffix."""
+        """Create a standalone Word equation with a Word nonbreaking hyphen in its number."""
         paragraph = document.add_paragraph()
         math = OxmlElement("m:oMath")
         run = OxmlElement("m:r")
@@ -111,7 +111,10 @@ def test_convert_fuzzy_crossrefs_option(
             end = OxmlElement("w:bookmarkEnd")
             end.set(qn("w:id"), "2")
             paragraph._p.append(end)
-        paragraph.add_run(f" ({number})")
+        chapter, index = number.split("-")
+        number_run = paragraph.add_run(f" ({chapter}")
+        number_run._r.append(OxmlElement("w:noBreakHyphen"))
+        number_run.add_text(f"{index})")
 
     add_formula("4-43")
     add_formula("4-44", bookmark=True)
@@ -139,6 +142,8 @@ def test_convert_fuzzy_crossrefs_option(
     markdown = (output / "references.md").read_text(encoding="utf-8")
     assert "#fig:_RefMixed" in markdown and "[@fig:_RefMixed]" in markdown
     assert "#eq:_RefEquation" in markdown and "[@eq:_RefEquation]" in markdown
+    assert '$$u = v$$ {#eq:_RefEquation}\n' in markdown
+    assert '(4‑44)' not in markdown
     assert "papper-fuzzy-crossrefs" not in markdown and "papper-equation-labels" not in markdown
     if enabled:
         assert "如[@fig:fuzz-1-14]所示" in markdown
@@ -147,12 +152,11 @@ def test_convert_fuzzy_crossrefs_option(
         assert "如[@eq:_RefEquation]" in markdown
         assert "As in [@eq:fuzz-4-43]" in markdown
         assert '$$x = y$$ {#eq:fuzz-4-43}' in markdown
-        assert '$$u = v$$ {#eq:_RefEquation}' in markdown
         assert '![不同失效策略下的脆弱性曲线]' in markdown
         assert 'original-number="图1‑14"' in markdown
         assert 'original-number="表1‑3"' in markdown
         assert '<!-- original-number:' not in markdown
-        assert '(4-43)' not in markdown and '(4-44)' not in markdown
+        assert '(4-43)' not in markdown and '(4‑43)' not in markdown
         # A Markdown snapshot alone can miss a citation whose target ID was not
         # published correctly. Resolve the output using the real downstream filter.
         pandoc = native_pandoc_executable()
@@ -186,6 +190,7 @@ def test_convert_fuzzy_crossrefs_option(
         assert "shown in Tbl. 1-3" in markdown
         assert "see Fig. 2" in markdown
         assert "Eq. (4-43)" in markdown and "如式 4-44" in markdown
+        assert '$x = y$ (4‑43)' in markdown
         assert "fuzz-" not in markdown
     name = "enabled.md" if enabled else "default.md"
     assert_snapshot(
