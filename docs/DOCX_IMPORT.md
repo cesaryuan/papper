@@ -20,6 +20,11 @@ converted/
 
 Only images still needed by the Markdown are saved. MathType recovery does not require a MathType installation.
 
+Word headings without automatic numbering get `.unnumbered`, so rebuilding the
+Markdown keeps headings such as an abstract unnumbered even when section
+numbering is enabled. Convert preserves heading anchors and any numbering typed
+as part of the heading text.
+
 Word's rectangular image crops are retained as editable image attributes by
 default (`--image-crop attributes`). Original image files are preserved, and
 the resulting Markdown uses attributes such as `crop-right="52.014"`. Values

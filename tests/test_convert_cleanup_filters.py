@@ -18,6 +18,78 @@ from native_support import ROOT, native_pandoc_executable
 from snapshot_utils import assert_snapshot
 
 
+def test_convert_preserves_heading_numbering_choices(tmp_path: Path, rust_executable: Path) -> None:
+    """Mixed Word headings preserve direct and inherited numbering even without any numbered body list."""
+    from docx import Document
+    from docx.enum.style import WD_STYLE_TYPE
+    from docx.oxml import OxmlElement, parse_xml
+    from docx.oxml.ns import nsdecls, qn
+
+    document = Document()
+    numbering = document.part.numbering_part.element
+    definition = parse_xml(f"""
+      <w:abstractNum {nsdecls("w")} w:abstractNumId="50">
+        <w:multiLevelType w:val="multilevel"/>
+        <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1"/></w:lvl>
+        <w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1.%2"/></w:lvl>
+        <w:lvl w:ilvl="2"><w:start w:val="1"/><w:numFmt w:val="none"/><w:lvlText w:val=""/></w:lvl>
+      </w:abstractNum>""")
+    numbering.insert(0, definition)
+    numbering.append(parse_xml(f'<w:num {nsdecls("w")} w:numId="50"><w:abstractNumId w:val="50"/></w:num>'))
+    style = document.styles.add_style("无编号章标题", WD_STYLE_TYPE.PARAGRAPH)
+    style.base_style = document.styles["Heading 1"]
+    abstract = document.add_paragraph("摘  要", style)
+    start, end = OxmlElement("w:bookmarkStart"), OxmlElement("w:bookmarkEnd")
+    start.set(qn("w:name"), "_Toc1234")
+    for anchor in (start, end):
+        anchor.set(qn("w:id"), "5")
+    abstract._p.insert(1, start)
+    abstract._p.append(end)
+    paragraph = document.add_paragraph()
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("w:anchor"), "_Toc1234")
+    link.append(paragraph.add_run("看摘要")._r)
+    paragraph._p.append(link)
+    document.add_page_break()
+    chapter = document.add_heading("正文", level=1)
+    explicit = chapter._p.get_or_add_pPr().get_or_add_numPr()
+    explicit.get_or_add_numId().val = 50
+    explicit.get_or_add_ilvl().val = 0
+    numbered_style = document.styles["Heading 2"].element.get_or_add_pPr().get_or_add_numPr()
+    numbered_style.get_or_add_numId().val = 50
+    numbered_style.get_or_add_ilvl().val = 1
+    document.add_heading("沿用样式编号", level=2)
+    unnumbered_style = document.styles.add_style("Without numbering", WD_STYLE_TYPE.PARAGRAPH)
+    unnumbered_style.base_style = document.styles["Heading 2"]
+    unnumbered_style.element.get_or_add_pPr().get_or_add_numPr().get_or_add_numId().val = 0
+    document.add_paragraph("样式取消编号", unnumbered_style)
+    disabled = document.add_heading("单独取消编号", level=2)
+    disabled._p.get_or_add_pPr().get_or_add_numPr().get_or_add_numId().val = 0
+    hidden = document.add_heading("空编号格式", level=3)
+    hidden_num = hidden._p.get_or_add_pPr().get_or_add_numPr()
+    hidden_num.get_or_add_numId().val = 50
+    hidden_num.get_or_add_ilvl().val = 2
+    document.add_heading("1. 手写章节号", level=1)
+    source = tmp_path / "headings.docx"
+    document.save(source)
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(source), "-o", "converted", "--offline"],
+        cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    markdown = (tmp_path / "converted" / "headings.md").read_text(encoding="utf-8")
+    assert "# 摘 要 {#摘-要 .无编号章标题 .unnumbered}" in markdown
+    assert "[看摘要](#摘-要)" in markdown
+    headings = [line for line in markdown.splitlines() if line.startswith("#")]
+    for title in ("正文", "沿用样式编号"):
+        line, = [line for line in headings if title in line]
+        assert ".unnumbered" not in line
+    for title in ("单独取消编号", "样式取消编号", "空编号格式", "1. 手写章节号"):
+        line, = [line for line in headings if title in line]
+        assert ".unnumbered" in line
+
+
 @pytest.mark.parametrize(("case", "filter_name"), [
     ("toc_cleanup", "remove_toc_anchors"),
     ("inline_images", "extract_inline_images"),

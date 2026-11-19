@@ -24,7 +24,7 @@ title: Layout specimen
 
 []{t="sectionBreak" kind="continuous" differentFirstPage="true" headerDistance="28.0pt" footerDistance="32.0pt" headerEven="Even header" headerFirst="Opening header" headerAlignment="left" footerEven="Even footer" footerFirst="" footerAlignment="left"}
 
-# Chapter 4
+# Chapter 4 {#chapter-4 .unnumbered}
 
 First section
 

@@ -5,6 +5,7 @@
   "source_sha256": "b37833ca08e7bf58ce4cf7901d358d8dd401213250309824fdb8045fc51788ed",
   "overrides": [
     "src/Text/Pandoc/Readers.hs",
+    "src/Text/Pandoc/Readers/Docx.hs",
     "src/Text/Pandoc/Readers/Docx/Parse.hs",
     "src/Text/Pandoc/Writers.hs"
   ],

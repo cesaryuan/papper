@@ -780,6 +780,10 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     let environment = BTreeMap::from([
         ("MATHTYPE_LATEX_MAP".into(), Some(display_path(&map))),
         (
+            "PAPPER_CONVERT_PRESERVE_UNNUMBERED_HEADINGS".into(),
+            Some("1".into()),
+        ),
+        (
             "PAPPER_CONVERT_SUBFIGURE_SVG".into(),
             args.subfigure_svg.then(|| "1".into()),
         ),

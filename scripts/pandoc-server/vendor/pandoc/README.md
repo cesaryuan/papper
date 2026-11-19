@@ -13,8 +13,10 @@ The registry changes remove unused Reader/Writer entries. The DOCX parser also
 flushes open field contents at explicit numbered paragraph boundaries, matching
 its existing handling of ordinary paragraphs. Without this fix, MathType or other
 open fields can leave empty list items and numbered headings while moving their
-text into later paragraphs or table cells. Upstream exported functions,
-extensions, templates and dependencies remain intact.
+text into later paragraphs or table cells. For `papper convert`, the DOCX reader
+also preserves unnumbered headings using per-paragraph numbering information
+even if Pandoc's document-wide heuristic detects no numbered paragraphs.
+Upstream exported functions, extensions, templates and dependencies remain intact.
 All upstream modules still compile; fewer formats are reachable from the registry,
 so the executable linker can discard their implementations. Bibliography readers
 remain necessary for citeproc, while HTML/LaTeX readers and plain/Markdown writers

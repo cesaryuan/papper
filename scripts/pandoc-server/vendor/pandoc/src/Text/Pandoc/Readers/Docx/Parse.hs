@@ -1391,9 +1391,11 @@ elemToParagraphStyle ns element sty numbering
         pStyle' = mapMaybe (`M.lookup` sty) style
     in ParagraphStyle
       {pStyle = pStyle'
+      -- Word's numId 0 cancels numbering, including when a custom style
+      -- disables the list inherited from its parent heading style.
       , numbered = case getNumInfo ns element of
-          Just (numId, lvl) -> isJust $ lookupLevel numId lvl numbering
-          Nothing -> isJust $ getParStyleField numInfo pStyle'
+          Just (numId, lvl) -> numId /= "0" && isJust (lookupLevel numId lvl numbering)
+          Nothing -> maybe False ((/= "0") . fst) $ getParStyleField numInfo pStyle'
       , justification =
           case findChildByName ns "w" "jc" pPr >>= findAttrByName ns "w" "val" of
             Nothing -> Nothing

@@ -1593,6 +1593,10 @@ with the same filename receive a content-based suffix and updated Markdown paths
 Existing edited images are preserved too. Reimporting the same document replaces
 its Markdown file; use a separate output directory to keep multiple Markdown versions.
 
+Word headings without automatic numbering are marked `.unnumbered` so a later
+build does not add a section number. Heading links still work, and section
+numbers typed directly into the heading text are kept as text.
+
 To edit imported subfigure layouts with Papper Tools in VS Code, use
 `papper convert existing-paper.docx -o converted --svg`. A recognized group such
 as `fig:comparison` becomes a Markdown image pointing to `media/subfigure-comparison.svg`,

@@ -212,7 +212,7 @@ def test_convert_output_matches_snapshot(
     )
     # These authored pictures have no OLE; the snapshot must exercise WMF MTEF
     # recovery rather than silently accepting leaked formula preview images.
-    wmf_section = markdown.split("# 仅有WMF的公式\n", 1)[1].split("[^1]:", 1)[0]
+    wmf_section = markdown.split("# 仅有WMF的公式", 1)[1].split("\n", 1)[1].split("[^1]:", 1)[0]
     assert wmf_section.count("$") == 14 and "![](" not in wmf_section
     assert "![](media/undecodable.wmf)" in markdown
     assert "![](media/non-equation.wmf)" in markdown

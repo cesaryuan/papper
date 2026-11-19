@@ -4,7 +4,7 @@ csl: comprehensive.csl
 zotero-style-id: "http://www.zotero.org/styles/elsevier-vancouver-nodoi"
 ---
 
-# Comprehensive DOCX import
+# Comprehensive DOCX import {#comprehensive-docx-import .unnumbered}
 
 下面是个公式
 
@@ -32,7 +32,7 @@ $$\sqrt{b^2-4ac}$$ {#eq:_Ref241620691}
 
 如[@longRegionawareNeuralRadiance2026]所见
 
-# Word content
+# Word content {#word-content .unnumbered}
 
 Formatting: **bold**, *italic*, [underlined]{.underline}, ~~deleted~~, H~2~O and x^2^; 中文内容与 English text.
 
@@ -60,11 +60,11 @@ Code block:
     result = a + b
     print(result)
 
-## Native Word equation
+## Native Word equation {#native-word-equation .unnumbered}
 
 OMML remains a formula: $a + b = c$
 
-# Equation layouts and references
+# Equation layouts and references {#equation-layouts-and-references .unnumbered}
 
 Two-column equation with a Word bookmark:
 
@@ -94,7 +94,7 @@ A multirow table is not an equation layout:
 
 References: [@eq:_RefConvertTwoCell] and [@eq:_RefConvertTextLabel]; unknown target stays a link: [unknown](#_RefConvertUnknown)
 
-## Ordinary table
+## Ordinary table {#ordinary-table .unnumbered}
 
 +-------------------------------------------+-----------------------------------+
 | Item[]{#_RefConvertOrdinaryTable .anchor} | Value                             |
@@ -106,7 +106,7 @@ References: [@eq:_RefConvertTwoCell] and [@eq:_RefConvertTextLabel]; unknown tar
 
 Ordinary table bookmark stays a link: [Table 1](#_RefConvertOrdinaryTable)
 
-# Figures and references
+# Figures and references {#figures-and-references .unnumbered}
 
 ![Figure 3. Caption bookmark with 中文.](media/image4.png){#fig:_RefConvertCaption width="1in" height="0.33835in"}
 
@@ -118,11 +118,11 @@ An ordinary picture has no caption:
 
 Figure references: [@fig:_RefConvertCaption] and [@fig:_RefConvertPreceding]
 
-## Section bookmark
+## Section bookmark {#section-bookmark .unnumbered}
 
 A section link remains a link: [Section bookmark](#section-bookmark)
 
-# Preview fallbacks
+# Preview fallbacks {#preview-fallbacks .unnumbered}
 
 Undecodable MathType retains its preview:
 
@@ -138,11 +138,11 @@ An unrelated OLE object is not a MathType formula:
 
 ![](media/non-equation.wmf)
 
-# Footnote
+# Footnote {#footnote .unnumbered}
 
 Text with a formula footnote[^1]
 
-# 仅有WMF的公式
+# 仅有WMF的公式 {#仅有wmf的公式 .unnumbered}
 
 在本节中，$\hat{y}_i$表示预测得到的节点温度$T_i$、应力$\sigma _i$或位移$u_i$，$f_{de}$仍然为3层MLP。为了通过反向传播来训练GNN，均方误差（MSE）被用作损失函数：
 
