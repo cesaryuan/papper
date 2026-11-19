@@ -73,6 +73,9 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
     metadata = json.loads(svg.find("s:metadata", ns).text)
     assert metadata["version"] == 2 and metadata["width"] == 432 and metadata["layout"]["rows"] == [2, 1]
     left, right, bottom = metadata["elements"]
+    assert metadata.get("showPanelLabels", True)
+    assert not metadata["autoRenumber"] and bottom["label"] == ""
+    assert not svg.find(f"s:g[@data-element-id='{bottom['id']}']", ns).findall("s:text", ns)
     assert abs(right["width"] / left["width"] - 2) < 0.001 and bottom["width"] > right["width"]
     assert left["crop"]["right"] == 15
     for index, panel in enumerate((left, right)):
@@ -242,16 +245,17 @@ def test_convert_tiff_panels_with_a_mismatched_english_letter(
         assert png.convert("RGB").tobytes() == tiff.convert("RGB").tobytes()
 
 
-@pytest.mark.parametrize("layout", ["caption-rows", "line-break", "image-cell"])
-def test_convert_unmarked_bilingual_subcaptions(tmp_path: Path, rust_executable: Path, layout: str) -> None:
-    """Keep both languages visible when Word supplies no explicit panel letters."""
+@pytest.mark.parametrize("layout", ["image-only-rows", "caption-rows", "line-break", "image-cell"])
+def test_convert_unnumbered_subfigure_layouts(tmp_path: Path, rust_executable: Path, layout: str) -> None:
+    """Preserve unnumbered layouts, with or without authored bilingual subcaptions."""
     document = Document()
     source = tmp_path / "panel.png"
     Image.new("RGB", (40, 30), "green").save(source)
-    rows = {"caption-rows": 4, "line-break": 3, "image-cell": 2}[layout]
-    table = document.add_table(rows=rows, cols=2)
+    image_only = layout == "image-only-rows"
+    rows = {"image-only-rows": 7, "caption-rows": 4, "line-break": 3, "image-cell": 2}[layout]
+    table = document.add_table(rows=rows, cols=1 if image_only else 2)
     for index, (primary, translation) in enumerate((("正常", "Normal"), ("突变", "Mutation"))):
-        cell = table.cell(0, index)
+        cell = table.cell(index, 0) if image_only else table.cell(0, index)
         cell.paragraphs[0].add_run().add_picture(str(source), width=Inches(2))
         if layout == "caption-rows":
             table.cell(1, index).text = primary
@@ -260,10 +264,16 @@ def test_convert_unmarked_bilingual_subcaptions(tmp_path: Path, rust_executable:
             caption = table.cell(1, index).paragraphs[0]
             caption.add_run(primary).add_break()
             caption.add_run(translation).bold = True
-        else:
+        elif layout == "image-cell":
             cell.add_paragraph(primary)
             cell.add_paragraph().add_run(translation).bold = True
-    table.cell(rows - 1, 0).merge(table.cell(rows - 1, 1)).text = "图 2‑8 各类工况对比"
+    if image_only:
+        for row in table.rows[2:5]:
+            row.cells[0].paragraphs[0].add_run().add_picture(str(source), width=Inches(2))
+        table.cell(5, 0).text = "图 5‑9 实桥GPS位移监测数据在不同缺失工况下的重构结果"
+        table.cell(6, 0).text = "Fig. 5‑9 Reconstruction results of real bridge GPS displacement monitoring data"
+    else:
+        table.cell(rows - 1, 0).merge(table.cell(rows - 1, 1)).text = "图 2‑8 各类工况对比"
     input_docx = tmp_path / "caption-layout.docx"
     document.save(input_docx)
     result = subprocess.run(
@@ -275,11 +285,20 @@ def test_convert_unmarked_bilingual_subcaptions(tmp_path: Path, rust_executable:
     svg_path, = (tmp_path / "out/media").glob("subfigure-*.svg")
     ns = {"s": "http://www.w3.org/2000/svg"}
     svg = ET.parse(svg_path).getroot()
-    for i, (group, primary, translation) in enumerate(zip(
+    figure = json.loads(svg.find("s:metadata", ns).text)
+    assert figure["showPanelLabels"] is False and all(not panel["label"] for panel in figure["elements"])
+    if image_only:
+        assert figure["layout"]["rows"] == [1, 1, 1, 1, 1]
+        assert len(svg.findall(".//s:image", ns)) == 5 and not svg.findall(".//s:text", ns)
+        markdown = (tmp_path / "out/caption-layout.md").read_text(encoding="utf-8")
+        assert f"![图 5‑9 实桥GPS位移监测数据在不同缺失工况下的重构结果](media/{svg_path.name})" in markdown
+        assert 'caption-en="Reconstruction results of real bridge GPS displacement monitoring data"' in markdown
+        return
+    for group, primary, translation in zip(
         svg.findall("s:g", ns), ("正常", "突变"), ("Normal", "Mutation"), strict=True,
-    )):
+    ):
         lines = group.findall("s:text", ns)
-        assert ["".join(line.itertext()) for line in lines] == [f"({'ab'[i]}) {primary}", f"({'ab'[i]}) {translation}"]
+        assert ["".join(line.itertext()) for line in lines] == [primary, translation]
         assert lines[1].find("s:tspan[@font-weight='bold']", ns) is not None
         assert float(lines[0].attrib["y"]) < float(lines[1].attrib["y"]) < float(svg.attrib["viewBox"].split()[3])
 
@@ -300,11 +319,12 @@ def test_svg_rewrites_child_references_and_preserves_unsupported_groups(tmp_path
     """A converted child has no Markdown anchor; edits must not affect an unconverted sibling group."""
     source = tmp_path / "paper.md"
     source.write_text(
-        "See [@fig:a], and [panel B](#fig:b). Literal: `@fig:a`.\n\n"
-        "::: {#fig:pair}\n![left](a.png){#fig:a width=\"40%\"} ![right](b.png){#fig:b width=\"60%\"}\n\nPair.\n:::\n\n"
+        "See [@fig:a], and [panel B](#fig:b). Literal: `@fig:a`. See [@fig:b].\n\n"
+        "::: {#fig:pair}\n![left](a.png){#fig:a width=\"40%\" label=\"a\"} ![right](b.png){#fig:b width=\"60%\"}\n\nPair.\n:::\n\n"
         "::: {#fig:math}\n![$x^2$](c.png){#fig:c} ![d](d.png)\n\nMath.\n:::\n\nSee [@fig:c].\n", encoding="utf-8")
     result = run_pandoc(source, "-t", "markdown", "--wrap=none", "-L", str(ROOT / "pandoc/filters/convert/subfigure_svg.lua"))
     assert "[@fig:pair] (a)" in result.stdout and "[panel B](#fig:pair)" in result.stdout and "`@fig:a`" in result.stdout
+    assert "See [@fig:pair]." in result.stdout
     assert "subfigure-pair.svg" in result.stdout and "subfigure-math.svg" not in result.stdout
     assert "[@fig:c]" in result.stdout and "#fig:math" in result.stdout
 

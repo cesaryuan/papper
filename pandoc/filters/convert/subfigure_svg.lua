@@ -58,7 +58,7 @@ local function runs(inlines, style, output)
   return true
 end
 
---- Generate the same a..z, aa.. sequence as the editor for panels without Word labels.
+--- Check whether authored labels match the editor's automatic numbering order.
 local function letter(n)
   local label = ''
   while n > 0 do n = n-1; label = string.char(97+n%26) .. label; n = n//26 end
@@ -110,7 +110,9 @@ local function panel(image, index)
   local caption = {}
   if not runs(image.caption, {}, caption) then return nil end
   local a = image.attributes
-  local label, repeat_label = a.label or letter(index), false
+  -- The detector sets label only when it found a marker in Word. A table used
+  -- only for positioning pictures must not gain new labels on SVG export.
+  local label, repeat_label = a.label or '', false
   if a['caption-en'] and a['caption-en']:match('%S') then
     local translation = pandoc.read(a['caption-en'], 'markdown').blocks
     local line = translation[1]
@@ -123,7 +125,7 @@ local function panel(image, index)
     end
     -- An authored conflicting letter is already present in the English text.
     if #caption > 0 then
-      repeat_label = not marker or marker == label
+      repeat_label = label ~= '' and (not marker or marker == label)
       caption[#caption+1] = {text='\n'}
     end
     if not runs(inlines, {}, caption) then return nil end
@@ -189,6 +191,7 @@ end
 
 --- Prefix each language with the panel letter without storing it in the editable caption.
 local function labelled_runs(panel)
+  if panel.label == '' then return panel.caption end
   local prefix = '('..panel.label..')'..(#panel.caption>0 and ' ' or '')
   local content = {{text=prefix}}
   local repeat_label = panel.repeatLabel
@@ -212,6 +215,7 @@ end
 local function artwork(rows, width)
   local model={format='papper-subfigure',version=2,width=width,autoHeight=true,embedded=false,autoRenumber=true,
     background='white',font=font,layout={mode='rows',columns=#rows[1],rows={},weights={},gap=gap,rowGap=rowgap,padding=padding},elements={}}
+  local has_labels, sequential = false, true
   local groups, y = {}, padding
   for _, row in ipairs(rows) do
     local total, available = 0, width-2*padding-(#row-1)*gap
@@ -231,7 +235,8 @@ local function artwork(rows, width)
         p.id,x,y,p.width,p.height,sw*c.left/100,sh*c.top/100,vw,vh,sw,sh,src,src,text)
       model.elements[#model.elements+1]=p
       model.layout.weights[#model.layout.weights+1]=entry.weight
-      if p.label~=letter(#model.layout.weights) then model.autoRenumber=false end
+      has_labels = has_labels or p.label ~= ''
+      sequential = sequential and p.label == letter(#model.layout.weights)
       bottom=math.max(bottom,y+p.height+(textHeight>0 and p.gap+textHeight or 0))
       x=x+p.width+gap
     end
@@ -253,6 +258,8 @@ local function artwork(rows, width)
     model.layout.rows[#model.layout.rows+1]=#row
     y=bottom+rowgap
   end
+  if not has_labels then model.showPanelLabels = false end
+  model.autoRenumber = model.autoRenumber and sequential
   model.height=y-rowgap+padding
   return string.format('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="%gin" height="%gin" viewBox="0 0 %g %g">\n  <metadata id="papper-subfigure">\n    %s\n  </metadata>\n  <rect width="100%%" height="100%%" fill="white"/>\n%s\n</svg>\n',
     width/72,model.height/72,width,model.height,xml(json(model,0)):gsub('\n','\n    '),table.concat(groups,'\n'))
@@ -343,18 +350,23 @@ function Pandoc(doc)
   return doc:walk({
     RawInline=function(raw)
       local target=raw.format=='markdown' and children[raw.text:match('^%[@([^%]]+)%]$')]
-      if target then return {pandoc.RawInline('markdown','[@'..target.id..']'),pandoc.Space(),pandoc.Str('('..target.label..')')} end
+      if not target then return nil end
+      local parent = pandoc.RawInline('markdown','[@'..target.id..']')
+      if target.label == '' then return parent end
+      return {parent,pandoc.Space(),pandoc.Str('('..target.label..')')}
     end,
     Cite=function(cite)
       for _,citation in ipairs(cite.citations) do
         local target=children[citation.id]
         if target then
           citation.id=target.id
-          if #cite.citations==1 and #citation.prefix==0 and #citation.suffix==0 then
-            return {cite,pandoc.Space(),pandoc.Str('('..target.label..')')}
+          if target.label ~= '' then
+            if #cite.citations==1 and #citation.prefix==0 and #citation.suffix==0 then
+              return {cite,pandoc.Space(),pandoc.Str('('..target.label..')')}
+            end
+            citation.suffix:insert(1,pandoc.Str('('..target.label..')'))
+            citation.suffix:insert(1,pandoc.Space())
           end
-          citation.suffix:insert(1,pandoc.Str('('..target.label..')'))
-          citation.suffix:insert(1,pandoc.Space())
         end
       end
       return cite

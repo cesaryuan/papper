@@ -151,6 +151,9 @@ editor. Hover over the Markdown image and choose **Edit subfigure layout**, or
 open the SVG with **Reopen Editor With… > Papper Combination Figure Editor**. The editor
 restores the panels, labels, editable crops and formatted
 subcaptions. The overall caption and figure ID stay in the manuscript.
+Word tables used only to arrange images export without added panel numbers.
+Unnumbered subcaptions stay unnumbered, and references to unnumbered panels
+point to the overall figure without a panel letter.
 Groups with content outside the editor’s caption or image formats retain their
 crossref layout. A changed existing SVG at the same path is preserved and the
 import reports the conflict. Choose another output directory to keep both versions.

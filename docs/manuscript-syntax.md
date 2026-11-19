@@ -1598,8 +1598,10 @@ To edit imported subfigure layouts with Papper Tools in VS Code, use
 as `fig:comparison` becomes a Markdown image pointing to `media/subfigure-comparison.svg`,
 with its figure ID and overall caption. Keep the SVG and its source images together
 in `media/`. Hover over the image and choose **Edit subfigure layout**. Supported
-child references point to the main figure with their panel letter. Groups whose
-subcaptions or source formats cannot be represented retain their crossref layout.
+child references point to the main figure, with a panel letter when the Word
+panel has one. A table used only to arrange images exports without panel numbers.
+Groups whose subcaptions or source formats cannot be represented retain their
+crossref layout.
 
 In imported Word subfigure tables, an English subcaption such as `(a) Baseline`
 can follow a Chinese subcaption such as `(a) 基线`. Panel letters can be omitted
@@ -1607,8 +1609,9 @@ when both captions share the image's cell or sit in consecutive rows aligned
 with its column. A manual line break (Shift+Enter) can separate the captions
 within a cell. Use the same number for both overall captions (`图 2‑3` and `Fig. 2‑3`).
 Crossref output keeps the translations in `caption-en`; with `--svg`, each
-translated subcaption becomes a second editable line with its panel letter, and the
-English overall caption stays in the manuscript as `caption-en`.
+translated subcaption becomes a second editable line. Existing panel letters are
+kept and unnumbered panels stay unnumbered. The English overall caption stays in
+the manuscript as `caption-en`.
 Text drawn into the source pictures stays part of the pictures.
 
 This also preserves both captions on a standalone picture in a one-column
