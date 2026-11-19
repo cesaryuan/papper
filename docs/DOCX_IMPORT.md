@@ -92,11 +92,14 @@ language; it is applied to the exported CSL without changing manuscript `lang`.
 If the style cannot be recovered, obtain the original `.csl` and set manuscript
 `csl` before building to preserve its citation formatting.
 
-Supported MathType OLE objects and WMF previews carrying MathType equation data become LaTeX math. A supported preview can also recover a formula when its OLE object is missing or damaged. Unrecognized or undecodable equations retain their preview images.
+Supported MathType OLE objects and WMF previews carrying MathType equation data become LaTeX math, including formulas with explicit MathType spacing and multiline subscripts. A supported preview can also recover a formula when its OLE object is missing or damaged. Unrecognized or undecodable equations retain their preview images.
 
 Recognizable Word bookmark links become figure, table, equation, or section references, using the target labels recovered during import. Unknown links remain as imported by Pandoc. Supported equation layout tables are flattened, and confirmed numbered standalone formulas can become numbered display equations. For the detailed behavior, see [Importing Word Documents](manuscript-syntax.md#importing-word-documents).
 
 Import does not require you to decode every formula successfully before inspecting the Markdown. Check warnings and retained images when reviewing a document with many equations.
+
+Thesis symbol tables become editable equation-term lists. The label can be
+`式中，`, and repeated hyphens such as `------` also work as the separator.
 
 ## Figures, tables, and captions
 
@@ -116,6 +119,15 @@ Pair the overall titles with the same figure number, such as `图 2‑3` and `Fi
 Crossref export stores the translations as `caption-en`. SVG export places the
 English panel text on a separate editable line and keeps the translated overall
 title in the Markdown.
+
+A single image with matching Chinese and English captions in a layout table
+becomes a normal Markdown figure with `caption-en`. In a multi-image table,
+`--svg` can keep a bilingual `(a)` caption in a merged row as one editable text
+element centered below the pictures it describes. For adjacent full-width
+overall captions, import can recover a missing Word number field such as
+`图 ‑14` or `Fig. ‑.` from the other language's complete chapter and figure
+number when any remaining digits agree. Conflicting panel letters or figure
+numbers leave the table intact.
 
 Use `papper convert paper.docx -o converted --subfigure-svg` (also `--svg`) to
 export recognized groups as editable combination figures. A group with ID

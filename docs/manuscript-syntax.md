@@ -1092,7 +1092,8 @@ not reproduce the four-column layout.
 `papper convert` restores matching Word symbol-explanation tables to this
 syntax. It recognizes “式中 / symbol / —— / description” columns, including a
 vertically merged “式中” cell or blank label cells after the first row. The
-separator may also begin the description cell, and “式中” or “式中：” may be a
+separator can be repeated hyphens such as `------` and may also begin the
+description cell. The “式中” label may end with a colon or comma, and may be a
 standalone paragraph immediately before a table of symbols and explanations.
 Every row must contain a symbol, a separator, and a nonempty description.
 Formulas, emphasis, links, pictures, and description paragraphs/lists are
@@ -1601,6 +1602,13 @@ and use the same number for both overall captions (`图 2‑3` and `Fig. 2‑3`)
 Crossref output keeps the translations in `caption-en`; with `--svg`, each
 translated subcaption becomes a second editable line inside its panel, and the
 English overall caption stays in the manuscript as `caption-en`.
+
+This also preserves both captions on a standalone picture in a one-column
+layout table. With `--svg`, a merged bilingual panel caption spanning a row of
+pictures stays centered below that row as editable text. If one of two adjacent
+full-width overall captions is missing its Word numbering field, import uses the
+other caption's complete chapter and figure number when any remaining digits
+agree. Tables with conflicting panel labels or figure numbers are left intact.
 
 Word's rectangular image crops are retained as editable image attributes by
 default (`--image-crop attributes`), preserving the original image files. For

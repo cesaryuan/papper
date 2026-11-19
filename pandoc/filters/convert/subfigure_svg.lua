@@ -109,16 +109,14 @@ local function panel(image, index)
 end
 
 --- Render wrapped SVG text while retaining the original unwrapped rich runs for later editing.
-local function caption_svg(p)
+local function caption_svg(x, y, width, content)
   local lines, spans, used = {}, {}, 0
   --- Finish the SVG line without injecting whitespace between its tspans.
   local function flush()
     lines[#lines+1] = string.format('    <text x="%g" y="%g" text-anchor="middle" font-family="Times New Roman" font-size="10" xml:space="preserve">%s</text>',
-      p.x+p.width/2,p.y+p.height+p.gap+10+#lines*12.5,table.concat(spans))
+      x+width/2,y+10+#lines*12.5,table.concat(spans))
     spans,used = {},0
   end
-  local content = { {text='('..p.label..')'..(#p.caption>0 and ' ' or '')} }
-  for _, run in ipairs(p.caption) do content[#content+1] = run end
   for _, run in ipairs(content) do
     local attrs = (run.bold and ' font-weight="bold"' or '') .. (run.italic and ' font-style="italic"' or '')
       .. (run.script and (' font-size="70%" baseline-shift="' .. (run.script=='super' and '-0.4em' or '0.25em') .. '"') or '')
@@ -133,9 +131,9 @@ local function caption_svg(p)
       -- Move a Latin word to the next line intact when it fits; split only oversized words.
       if cp<128 and ch:match('%w') and (offset==1 or not run.text:sub(offset-1,offset-1):match('%w')) then
         local word = run.text:match('^(%w+)',offset)
-        if word and used>0 and #word*advance<=p.width and used+#word*advance>p.width then emit(); flush() end
+        if word and used>0 and #word*advance<=width and used+#word*advance>width then emit(); flush() end
       end
-      if ch=='\n' or used>0 and used+advance>p.width then emit(); flush() end
+      if ch=='\n' or used>0 and used+advance>width then emit(); flush() end
       if ch~='\n' then
         if face~=wide then emit(); face=wide end
         buffer,used = buffer..ch,used+advance
@@ -145,6 +143,13 @@ local function caption_svg(p)
   end
   if #spans>0 then flush() end
   return table.concat(lines,'\n'), #lines*12.5
+end
+
+--- Prefix a visible caption with its authored panel or row letter.
+local function labelled_runs(panel)
+  local content = {{text='('..panel.label..')'..(#panel.caption>0 and ' ' or '')}}
+  for _, run in ipairs(panel.caption) do content[#content+1] = run end
+  return content
 end
 
 --- Size each authored row independently and draw its non-destructively cropped source images.
@@ -163,15 +168,31 @@ local function artwork(rows, width)
       local sw,sh = 1000,1000/p.ratio
       local vw,vh = sw*(100-c.left-c.right)/100, sh*(100-c.top-c.bottom)/100
       p.height=p.width*vh/vw
-      local text, textHeight=caption_svg(p)
+      local caption = not row.shared and labelled_runs(p) or {}
+      local text, textHeight=caption_svg(p.x,p.y+p.height+p.gap,p.width,caption)
       local src=xml(entry.src,true)
       groups[#groups+1]=string.format('  <g data-element-id="%s">\n    <svg x="%g" y="%g" width="%g" height="%g" viewBox="%g %g %g %g" overflow="hidden">\n      <image width="%g" height="%g" href="%s" xlink:href="%s" preserveAspectRatio="none"/>\n    </svg>\n%s\n  </g>',
         p.id,x,y,p.width,p.height,sw*c.left/100,sh*c.top/100,vw,vh,sw,sh,src,src,text)
       model.elements[#model.elements+1]=p
       model.layout.weights[#model.layout.weights+1]=entry.weight
-      if p.label~=letter(#model.elements) then model.autoRenumber=false end
-      bottom=math.max(bottom,y+p.height+p.gap+textHeight)
+      if p.label~=letter(#model.layout.weights) then model.autoRenumber=false end
+      bottom=math.max(bottom,y+p.height+(textHeight>0 and p.gap+textHeight or 0))
       x=x+p.width+gap
+    end
+    if row.shared then
+      -- Shared text is an editable element with its own position, so use free layout
+      -- to prevent the editor's panel-only reflow from covering it with the next row.
+      model.layout.mode, model.autoRenumber = 'free', false
+      local title = {kind='text',id='row'..(#model.layout.rows+1),x=padding,y=bottom+5,
+        width=width-2*padding,runs=labelled_runs(row[1].model)}
+      for _, entry in ipairs(row) do
+        entry.model.labelPosition, entry.model.caption = 'none', {}
+        entry.model.label = row[1].model.label
+      end
+      local text, height = caption_svg(title.x,title.y,title.width,title.runs)
+      groups[#groups+1] = string.format('  <g data-element-id="%s">\n%s\n  </g>',title.id,text)
+      model.elements[#model.elements+1] = title
+      bottom = title.y+height
     end
     model.layout.rows[#model.layout.rows+1]=#row
     y=bottom+rowgap
@@ -195,6 +216,7 @@ local function convert(div, width)
         count=count+1
         local entry=panel(inline,count)
         if not entry then return nil end
+        if inline.attributes['papper-convert-shared-row']=='title' then row.shared=true end
         row[#row+1]=entry
       elseif inline.t~='Space' and inline.t~='SoftBreak' then return nil end
     end
@@ -231,6 +253,18 @@ function Pandoc(doc)
     if not image and div.identifier:match('^fig:') then
       remaining = true
       resource.warn('Keeping crossref layout for '..div.identifier..': unsupported figure contents')
+      -- Keep the title on the first picture if a linked asset or caption prevents SVG export.
+      for i=1,#div.content-1 do
+        local block = div.content[i]
+        if block.t=='Para' or block.t=='Plain' then
+          local inlines = block.content
+          for _, item in ipairs(inlines) do
+            if item.t=='Image' then item.attributes['papper-convert-shared-row']=nil end
+          end
+          block.content = inlines
+          div.content[i] = block
+        end
+      end
       if uneven then
         local blocks=pandoc.List{}
         for i=1,#div.content-1 do
@@ -242,6 +276,7 @@ function Pandoc(doc)
         div.content=blocks
         return div
       end
+      return div
     end
     return image
   end})

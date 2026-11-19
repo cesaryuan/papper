@@ -34,7 +34,7 @@ def convert(executable: Path, source: Path, output: Path) -> str:
 
 @pytest.mark.parametrize("layout", [
     "four-columns", "merged-label", "repeated-label",
-    "combined-description", "external-label", "external-combined",
+    "combined-description", "external-label", "external-combined", "comma-and-hyphens",
 ])
 def test_convert_word_term_layouts(
     layout: str, tmp_path: Path, rust_executable: Path, snapshot_update: bool,
@@ -51,7 +51,8 @@ def test_convert_word_term_layouts(
     for index, symbol in enumerate(["x", "σ"]):
         offset = 0 if external else 1
         if not external:
-            table.cell(index, 0).text = "式中" if index == 0 or layout == "repeated-label" else ""
+            label = "式中，" if layout == "comma-and-hyphens" else "式中"
+            table.cell(index, 0).text = label if index == 0 or layout == "repeated-label" else ""
         # An actual Word OMML formula verifies that math remains editable inline
         # syntax rather than becoming plain text or a separate display equation.
         math = OxmlElement("m:oMath")
@@ -63,7 +64,7 @@ def test_convert_word_term_layouts(
         display.append(math)
         table.cell(index, offset).paragraphs[0]._p.append(display)
         if not combined:
-            table.cell(index, offset + 1).text = "——"
+            table.cell(index, offset + 1).text = "------" if layout == "comma-and-hyphens" else "——"
         description = table.cell(index, columns - 1)
         paragraph = description.paragraphs[0]
         if combined:

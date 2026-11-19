@@ -4,7 +4,7 @@
 --   $k$
 --   : Kernel size
 --   :::
--- Also accept a vertically merged label, a separate preceding 式中 paragraph,
+-- Also accept 式中，, a row of ASCII hyphens, a vertically merged label, a separate preceding 式中 paragraph,
 -- and a separator at the start of the description cell instead of its own column.
 -- Run after MathType recovery and table-caption pairing, before cross-references.
 -- Every row must match; captioned tables and other merged cells remain tables.
@@ -33,7 +33,7 @@ end
 local function is_label(blocks)
   if #blocks ~= 1 or (blocks[1].t ~= 'Para' and blocks[1].t ~= 'Plain') then return false end
   local text = compact(pandoc.utils.stringify(blocks))
-  return text == '式中' or text == '式中：' or text == '式中:'
+  return text == '式中' or text == '式中：' or text == '式中:' or text == '式中，' or text == '式中,'
 end
 
 --- Distinguish blank Word paragraphs from content, including pictures with no alt text.
@@ -69,6 +69,7 @@ end
 local function is_separator(blocks)
   if #blocks ~= 1 or (blocks[1].t ~= 'Para' and blocks[1].t ~= 'Plain') then return false end
   local text = compact(pandoc.utils.stringify(blocks))
+  if text:match('^%-%-+$') then return true end
   for _, separator in ipairs(separators) do
     if text == separator then return true end
   end
@@ -82,7 +83,9 @@ local function description_without_separator(blocks)
   local text = pandoc.utils.stringify(first.content)
   local leading = text:match('^%s*')
   local rest, length = text:sub(#leading + 1), nil
+  local hyphens = rest:match('^%-%-+')
   for _, separator in ipairs(separators) do
+    if separator == '--' and hyphens then separator = hyphens end
     if rest:sub(1, #separator) == separator then
       local following = rest:sub(#separator + 1):match('^%s*')
       length = #leading + #separator + #following

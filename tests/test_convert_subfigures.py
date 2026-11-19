@@ -13,8 +13,10 @@ import subprocess
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+import pytest
 from docx import Document
 from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 from docx.shared import Inches
 from PIL import Image
 
@@ -110,6 +112,79 @@ def ast_elements(value: object, kind: str) -> list[dict]:
         for child in value:
             result.extend(ast_elements(child, kind))
     return result
+
+
+@pytest.mark.parametrize(("chinese", "english", "panel_letter", "expected"), [
+    ("图 3‑9 对比图", "Fig. 3‑9 Comparison", "g", "图 3‑9 对比图"),
+    ("图 3‑9 对比图", "Fig. ‑. Comparison", "g", "图 3‑9 对比图"),
+    ("图 ‑9 对比图", "Fig. 3‑9 Comparison", "g", "图 3-9 对比图"),
+    ("图 ‑8 对比图", "Fig. 3‑9 Comparison", "g", None),
+    ("图 3‑9 对比图", "Fig. 3‑9 Comparison", "d", None),
+])
+def test_convert_shared_row_titles_and_single_figure(
+    tmp_path: Path, rust_executable: Path, chinese: str, english: str, panel_letter: str,
+    expected: str | None,
+) -> None:
+    """Keep merged bilingual titles across each picture pair and recover the standalone figure."""
+    document = Document()
+    source_image = tmp_path / "sample.png"
+    Image.new("RGB", (40, 30), "red").save(source_image)
+    single = document.add_table(rows=3, cols=1)
+    single.cell(0, 0).paragraphs[0].add_run().add_picture(str(source_image), width=Inches(2))
+    caption = single.cell(1, 0).paragraphs[0]
+    start, end = OxmlElement("w:bookmarkStart"), OxmlElement("w:bookmarkEnd")
+    start.set(qn("w:name"), "_Ref123456")
+    for anchor in (start, end):
+        anchor.set(qn("w:id"), "1")
+    caption._p.append(start)
+    caption.add_run("图 2‑1 方法流程图")
+    caption._p.append(end)
+    single.cell(2, 0).text = "Fig. 2‑1 Workflow of the proposed method"
+    reference = document.add_paragraph("See ")
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("w:anchor"), "_Ref123456")
+    link.append(reference.add_run("图 2‑1")._r)
+    reference._p.append(link)
+    pairs = document.add_table(rows=8, cols=2)
+    for index, (primary, translation) in enumerate((("甲桥", "Bridge A"), ("乙桥", "Bridge B"))):
+        for cell in pairs.rows[index * 3].cells:
+            cell.paragraphs[0].add_run().add_picture(str(source_image), width=Inches(2))
+        pairs.cell(index * 3 + 1, 0).merge(pairs.cell(index * 3 + 1, 1)).text = f"(g) {primary}"
+        label = panel_letter if index == 0 else "g"
+        pairs.cell(index * 3 + 2, 0).merge(pairs.cell(index * 3 + 2, 1)).text = f"({label}) {translation}"
+    pairs.cell(6, 0).merge(pairs.cell(6, 1)).text = chinese
+    pairs.cell(7, 0).merge(pairs.cell(7, 1)).text = english
+    source = tmp_path / "thesis-layout.docx"
+    document.save(source)
+    output = tmp_path / "converted"
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(source), "-o", str(output), "--svg", "--offline"],
+        cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stderr
+    manuscript = (output / "thesis-layout.md").read_text(encoding="utf-8")
+    assert "![图 2‑1 方法流程图](media/" in manuscript and "#fig:_Ref123456" in manuscript
+    assert "See [@fig:_Ref123456]" in manuscript
+    assert 'caption-en="Workflow of the proposed method"' in manuscript
+    if expected is None:
+        assert not list((output / "media").glob("subfigure-*.svg"))
+        assert chinese in manuscript and english in manuscript
+        assert f"\\({panel_letter}\\) Bridge A" in manuscript
+        return
+    assert expected in manuscript and 'caption-en="Comparison"' in manuscript
+    svg_path, = (output / "media").glob("subfigure-*.svg")
+    ns = {"s": "http://www.w3.org/2000/svg"}
+    svg = ET.parse(svg_path).getroot()
+    figure = json.loads(svg.find("s:metadata", ns).text)
+    assert len(svg.findall(".//s:image", ns)) == 4
+    rows = [figure["elements"][:3], figure["elements"][3:]]
+    for (left, right, title), expected in zip(rows, ("(g) 甲桥\nBridge A", "(g) 乙桥\nBridge B"), strict=True):
+        assert title["kind"] == "text" and "".join(run["text"] for run in title["runs"]) == expected
+        assert abs(title["width"] - left["width"] - right["width"] - 10) < 0.01
+        assert title["y"] > max(panel["y"] + panel["height"] for panel in (left, right))
+        assert all(panel["labelPosition"] == "none" for panel in (left, right))
+    assert rows[0][2]["y"] + 25 < rows[1][0]["y"]
 
 
 def run_pandoc(source: Path, *options: str) -> subprocess.CompletedProcess:
