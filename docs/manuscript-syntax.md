@@ -956,6 +956,11 @@ panel's letter without adding another figure number:
 The same attributes work on an HTML `<div id="fig:..." caption-en="...">`
 group. Enable `subfigGrid` as described in [Subfigure Layouts](#subfigure-layouts).
 Panel translations accept the same inline Markdown as ordinary captions.
+When you convert the group to an editable SVG in Papper Tools, the English
+overall caption stays on the Markdown image. Each supported English panel
+caption becomes a new editable line inside its panel and shares its letter.
+The SVG editor supports basic formatting such as bold, italics, superscript
+and subscript in panel captions.
 
 In DOCX, main captions use `Image Caption` for figures or `Table Caption` for
 tables. Additional English captions use `Image Caption EN` or `Table Caption EN`,
@@ -1597,11 +1602,14 @@ child references point to the main figure with their panel letter. Groups whose
 subcaptions or source formats cannot be represented retain their crossref layout.
 
 In imported Word subfigure tables, an English subcaption such as `(a) Baseline`
-can follow a Chinese subcaption such as `(a) 基线`. Repeat the same panel letter,
-and use the same number for both overall captions (`图 2‑3` and `Fig. 2‑3`).
+can follow a Chinese subcaption such as `(a) 基线`. Panel letters can be omitted
+when both captions share the image's cell or sit in consecutive rows aligned
+with its column. A manual line break (Shift+Enter) can separate the captions
+within a cell. Use the same number for both overall captions (`图 2‑3` and `Fig. 2‑3`).
 Crossref output keeps the translations in `caption-en`; with `--svg`, each
 translated subcaption becomes a second editable line inside its panel, and the
 English overall caption stays in the manuscript as `caption-en`.
+Text drawn into the source pictures stays part of the pictures.
 
 This also preserves both captions on a standalone picture in a one-column
 layout table. With `--svg`, a merged bilingual panel caption spanning a row of

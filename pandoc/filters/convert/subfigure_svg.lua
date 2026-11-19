@@ -109,7 +109,7 @@ local function panel(image, index)
   local caption = {}
   if not runs(image.caption, {}, caption) then return nil end
   local a = image.attributes
-  if a['caption-en'] then
+  if a['caption-en'] and a['caption-en']:match('%S') then
     local translation = pandoc.read(a['caption-en'], 'markdown').blocks
     local line = translation[1]
     if #translation ~= 1 or (line.t ~= 'Plain' and line.t ~= 'Para') then return nil end

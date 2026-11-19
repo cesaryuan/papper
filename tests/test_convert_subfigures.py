@@ -238,6 +238,48 @@ def test_convert_tiff_panels_with_a_mismatched_english_letter(
         assert png.convert("RGB").tobytes() == tiff.convert("RGB").tobytes()
 
 
+@pytest.mark.parametrize("layout", ["caption-rows", "line-break", "image-cell"])
+def test_convert_unmarked_bilingual_subcaptions(tmp_path: Path, rust_executable: Path, layout: str) -> None:
+    """Keep both languages visible when Word supplies no explicit panel letters."""
+    document = Document()
+    source = tmp_path / "panel.png"
+    Image.new("RGB", (40, 30), "green").save(source)
+    rows = {"caption-rows": 4, "line-break": 3, "image-cell": 2}[layout]
+    table = document.add_table(rows=rows, cols=2)
+    for index, (primary, translation) in enumerate((("正常", "Normal"), ("突变", "Mutation"))):
+        cell = table.cell(0, index)
+        cell.paragraphs[0].add_run().add_picture(str(source), width=Inches(2))
+        if layout == "caption-rows":
+            table.cell(1, index).text = primary
+            table.cell(2, index).paragraphs[0].add_run(translation).bold = True
+        elif layout == "line-break":
+            caption = table.cell(1, index).paragraphs[0]
+            caption.add_run(primary).add_break()
+            caption.add_run(translation).bold = True
+        else:
+            cell.add_paragraph(primary)
+            cell.add_paragraph().add_run(translation).bold = True
+    table.cell(rows - 1, 0).merge(table.cell(rows - 1, 1)).text = "图 2‑8 各类工况对比"
+    input_docx = tmp_path / "caption-layout.docx"
+    document.save(input_docx)
+    result = subprocess.run(
+        [str(rust_executable), "convert", str(input_docx), "-o", "out", "--svg", "--offline"],
+        cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},
+        capture_output=True, text=True, encoding="utf-8", timeout=90,
+    )
+    assert result.returncode == 0, result.stderr
+    svg_path, = (tmp_path / "out/media").glob("subfigure-*.svg")
+    ns = {"s": "http://www.w3.org/2000/svg"}
+    svg = ET.parse(svg_path).getroot()
+    for i, (group, primary, translation) in enumerate(zip(
+        svg.findall("s:g", ns), ("正常", "突变"), ("Normal", "Mutation"), strict=True,
+    )):
+        lines = group.findall("s:text", ns)
+        assert ["".join(line.itertext()) for line in lines] == [f"({'ab'[i]}) {primary}", translation]
+        assert lines[1].find("s:tspan[@font-weight='bold']", ns) is not None
+        assert float(lines[0].attrib["y"]) < float(lines[1].attrib["y"]) < float(svg.attrib["viewBox"].split()[3])
+
+
 def run_pandoc(source: Path, *options: str) -> subprocess.CompletedProcess:
     """Run the retained engine with the real convert filters and crossref support."""
     pandoc = native_pandoc_executable()

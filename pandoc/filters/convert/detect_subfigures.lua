@@ -187,20 +187,34 @@ local function has_han(text)
   return false
 end
 
---- Compare explicit markers on distinct Chinese and English text.
-local function panel_markers(first, second)
+--- Check the language order and return the authored panel markers, if any.
+local function panel_languages(first, second)
   local primary, label = subcaption(first)
   local english, other = subcaption(second)
-  if not label or not other then return nil end
   local primary_text, english_text = pandoc.utils.stringify(primary), pandoc.utils.stringify(english)
-  if not english_text:match('[A-Za-z]') then return nil end
-  if has_han(primary_text) and not has_han(english_text) then return label, other end
+  return has_han(primary_text) and english_text:match('[A-Za-z]') ~= nil and not has_han(english_text), label, other
 end
 
---- Outside a complete row pair, only equal markers establish a translation.
-local function panel_translation(first, second)
-  local label, other = panel_markers(first, second)
-  return label and label == other
+--- Permit an absent letter only when the cell or column already identifies the panel.
+local function panel_translation(first, second, same_cell_or_column)
+  local bilingual, label, other = panel_languages(first, second)
+  return bilingual and (label and label == other or same_cell_or_column and (not label or not other))
+end
+
+--- Word often separates both captions with Shift+Enter in the same cell paragraph.
+local function split_panel_caption(inlines)
+  local first, second
+  for index, inline in ipairs(inlines) do
+    if inline.t == 'LineBreak' then
+      if first then return inlines end
+      first, second = trim({table.unpack(inlines, 1, index - 1)}), trim({table.unpack(inlines, index + 1)})
+    end
+  end
+  if first and not caption_number(first, true) and not caption_number(second, true)
+    and panel_translation(first, second, true) then
+    return first, second
+  end
+  return inlines
 end
 
 --- Resolve one differing letter when adjacent caption rows align with the image columns.
@@ -211,8 +225,8 @@ local function align_panel_translations(panels, texts, columns, previous_row)
     if not panel.caption or panel.english or not panel.column or panel.column ~= columns[index]
       or panel.image_row ~= previous_row - 1
       or panel.caption_column ~= columns[index] or panel.caption_row ~= previous_row then return false end
-    local label, other = panel_markers(panel.caption, texts[index])
-    if not label or seen_primary[label] or seen_english[other] then return false end
+    local bilingual, label, other = panel_languages(panel.caption, texts[index])
+    if not bilingual or not label or not other or seen_primary[label] or seen_english[other] then return false end
     seen_primary[label], seen_english[other] = true, true
     if label ~= other then
       if conflict then return false end
@@ -246,14 +260,15 @@ local function read_cell(cell)
       if pandoc.utils.stringify(text):match('%S') then texts[#texts + 1] = text end
     end
   end
-  if #panels == 1 and #texts == 2 and panel_translation(texts[1], texts[2]) then
+  if #panels == 1 and #texts == 2 and not caption_number(texts[1], true)
+    and not caption_number(texts[2], true) and panel_translation(texts[1], texts[2], true) then
     panels[1].caption, panels[1].english, texts = texts[1], texts[2], {}
   elseif #panels > 0 and #texts > 0 then
     -- Both "(a) caption image" and "image (a) caption" are common in Word.
     if #panels ~= #texts then return nil end
     for index, panel in ipairs(panels) do
       if caption_number(texts[index]) then return nil end
-      panel.caption = texts[index]
+      panel.caption, panel.english = split_panel_caption(texts[index])
     end
     texts = {}
   end
@@ -384,6 +399,10 @@ local function make_group(rows, caption, original_id, english)
       local child_caption, anchor = take_bookmark(panel.caption or image.caption)
       local label
       child_caption, label = subcaption(child_caption)
+      if not label and panel.english then
+        local _, english_label = subcaption(panel.english)
+        label = english_label
+      end
       image.caption = child_caption
       if image.identifier == '' then
         -- Child labels are valid pandoc-crossref subfigure labels. Reusing the
@@ -520,8 +539,11 @@ local function table_group(element, following)
             local text = texts[index]
             if caption_number(text) then return nil end
             if not panel.caption then
-              panel.caption, panel.caption_column, panel.caption_row = text, text_columns[index], row_index
-            elseif not panel.english and panel_translation(panel.caption, text) then panel.english = text
+              panel.caption, panel.english = split_panel_caption(text)
+              panel.caption_column, panel.caption_row = text_columns[index], row_index
+            elseif not panel.english and panel_translation(panel.caption, text, panel.column
+              and panel.column == text_columns[index] and panel.caption_column == panel.column
+              and panel.caption_row == row_index - 1) then panel.english = text
             else return nil end
           end
         end

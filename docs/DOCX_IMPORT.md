@@ -118,11 +118,15 @@ Import recognizes common manuscript layouts:
 English caption prefixes are case-insensitive and allow a trailing period. Caption text and supported formatting are retained. Figure grid widths become percentages; original dimensions remain available in `original-width` and `original-height` attributes.
 
 For a bilingual subfigure table, put the English subcaption after the Chinese
-one and repeat the panel letter, for example `(a) 基线` followed by `(a) Baseline`.
+one, for example `(a) 基线` followed by `(a) Baseline`. Panel letters may be omitted
+when both captions share the image's cell or appear in consecutive caption rows
+aligned with its column. A manual line break (Shift+Enter in Word) can also
+separate the two captions within a cell.
 Pair the overall titles with the same figure number, such as `图 2‑3` and `Fig. 2‑3`.
 Crossref export stores the translations as `caption-en`. SVG export places the
 English panel text on a separate editable line and keeps the translated overall
 title in the Markdown.
+Text drawn into a source picture stays part of that picture.
 
 A single image with matching Chinese and English captions in a layout table
 becomes a normal Markdown figure with `caption-en`. In a multi-image table,
