@@ -1677,6 +1677,14 @@ plain-text citations and bibliographies still need review.
 Convert also extracts available Zotero CSL information from the DOCX and restores
 the corresponding citation style when it can be obtained.
 
+Word cross-references to numbered headings become section references such as
+`[-@sec:methods]`. The reference displays the current section number on each
+build. For example, `See section 2.1` can become `See section [-@sec:methods]`.
+Convert preserves surrounding text such as `第` and `章`. This applies to Word
+fields that display a complete decimal section number. References that show
+only a local number or the heading text retain their displayed wording. Typed
+section numbers and table-of-contents page numbers retain their original values.
+
 An independent formula with a confirmed Word bookmark and a numeric equation
 label becomes a display equation such as `$$x=y$$ {#eq:_Ref123}`. The original
 number, such as `(4‑6)` or `（4‑6）`, is removed so the build can assign the

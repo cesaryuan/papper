@@ -23,7 +23,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from lxml import etree
 
-from native_support import ROOT
+from native_support import ROOT, native_pandoc_executable
 from snapshot_utils import assert_snapshot
 
 
@@ -67,6 +67,163 @@ def run_papper(executable: Path, directory: Path, *arguments: str) -> subprocess
     )
     assert result.returncode == 0, result.stdout + result.stderr
     return result
+
+
+def add_outline_numbering(document) -> int:
+    """Create a three-level decimal outline for headings in the Word fixture."""
+    numbering = document.part.numbering_part.element
+    definition = OxmlElement("w:abstractNum")
+    definition.set(qn("w:abstractNumId"), "42")
+    for index in range(3):
+        level = OxmlElement("w:lvl")
+        level.set(qn("w:ilvl"), str(index))
+        outline_label = ".".join(f"%{i + 1}" for i in range(index + 1))
+        for name, value in [("start", "1"), ("numFmt", "decimal"), ("lvlText", outline_label)]:
+            prop = OxmlElement(f"w:{name}")
+            prop.set(qn("w:val"), value)
+            level.append(prop)
+        definition.append(level)
+    numbering.insert(0, definition)
+    return numbering.add_num(42).numId
+
+
+def add_numbered_heading(document, title: str, level: int, number_id: int):
+    """Attach an outline level to an actual Word heading paragraph."""
+    heading = document.add_heading(title, level)
+    properties = heading._p.get_or_add_pPr().get_or_add_numPr()
+    properties.get_or_add_numId().val = number_id
+    properties.get_or_add_ilvl().val = level - 1
+    return heading
+
+
+def add_bookmark(paragraph, name: str, bookmark_id: int) -> None:
+    """Bookmark the text run so REF fields can point to this Word paragraph."""
+    start, end = OxmlElement("w:bookmarkStart"), OxmlElement("w:bookmarkEnd")
+    start.set(qn("w:name"), name)
+    start.set(qn("w:id"), str(bookmark_id))
+    end.set(qn("w:id"), str(bookmark_id))
+    run = paragraph.runs[0]._r
+    run.addprevious(start)
+    run.addnext(end)
+
+
+def convert_heading_fixture(document, tmp_path: Path, executable: Path, *options: str) -> str:
+    """Import a generated Word document through the public Convert command."""
+    source = tmp_path / "headings.docx"
+    document.save(source)
+    output = tmp_path / "converted"
+    run_papper(executable, tmp_path, "convert", str(source), "-o", str(output), *options)
+    return (output / "headings.md").read_text(encoding="utf-8")
+
+
+def render_heading_references(markdown: str):
+    """Resolve the converted Markdown and expose the rendered link text and targets."""
+    pandoc = native_pandoc_executable()
+    assert pandoc is not None
+    resolved = subprocess.run(
+        [str(pandoc), "--from=markdown", "--to=html", "--filter=pandoc-crossref",
+         "-M", "numberSections=true", "-M", "linkReferences=true"],
+        input=markdown, capture_output=True, text=True, encoding="utf-8", timeout=30,
+    )
+    assert resolved.returncode == 0, resolved.stderr
+    return etree.HTML(resolved.stdout)
+
+
+def test_convert_numbered_heading_references(tmp_path: Path, rust_executable: Path) -> None:
+    """Recover forward REF fields and keep their destinations and displayed wrappers after renumbering."""
+    document = Document()
+    reference = document.add_paragraph("参见")
+    add_field(reference, r"REF _RefMethods \r \h", "5.4.2")
+    reference.add_run("节。")
+    chapter_ref = document.add_paragraph("另见 ")
+    add_field(chapter_ref, r'REF "_RefChapter" \n \h \* MERGEFORMAT', "第 5 章", simple=True)
+    heading_text = document.add_paragraph("标题 ")
+    add_field(heading_text, r"REF _RefMethods \h", "实桥算例")
+    local_number = document.add_paragraph("末级编号 ")
+    add_field(local_number, r"REF _RefMethods \n \h", "2")
+    page = document.add_paragraph("页码 ")
+    add_field(page, r"PAGEREF _RefMethods \h", "104")
+    document.add_paragraph("旧稿第5章的原文。")
+    number_id = add_outline_numbering(document)
+    add_bookmark(add_numbered_heading(document, "案例", 1, number_id), "_RefChapter", 1)
+    add_numbered_heading(document, "实验", 2, number_id)
+    add_bookmark(add_numbered_heading(document, "实桥算例", 3, number_id), "_RefMethods", 2)
+    markdown = convert_heading_fixture(document, tmp_path, rust_executable)
+    assert "[-@sec:实桥算例]" in markdown
+    assert "第 [-@sec:案例] 章" in markdown
+    assert "[**实桥算例**](#sec:实桥算例)" in markdown
+    assert "[**2**](#sec:实桥算例)" in markdown
+    assert "[**104**](#sec:实桥算例)" in markdown
+    assert "旧稿第5章的原文。" in markdown
+
+    renumbered = markdown.replace("# 案例", "# 新增章节\n\n# 案例", 1)
+    html = render_heading_references(renumbered)
+    assert ["".join(a.itertext()) for a in html.xpath('//a[@href="#sec:实桥算例"]')] == ["2.1.1", "实桥算例", "2", "104"]
+    assert ["".join(a.itertext()) for a in html.xpath('//a[@href="#sec:案例"]')] == ["2"]
+
+
+def test_convert_refs_distinguish_duplicate_heading_titles(tmp_path: Path, rust_executable: Path) -> None:
+    """Resolve same-named headings by bookmark and group aliases under one destination."""
+    document = Document()
+    number_id = add_outline_numbering(document)
+    forward = document.add_paragraph("Forward ")
+    add_field(forward, r"REF _RefSecond \w \h \t", "7.1.", simple=True)
+    add_numbered_heading(document, "First chapter", 1, number_id)
+    first = add_numbered_heading(document, "Methods", 2, number_id)
+    add_bookmark(first, "_RefFirst", 1)
+    add_bookmark(first, "_RefFirstAlias", 2)
+    add_numbered_heading(document, "Second chapter", 1, number_id)
+    second = add_numbered_heading(document, "Methods", 2, number_id)
+    add_bookmark(second, "_RefSecond", 3)
+    backward = document.add_paragraph("Backward ")
+    add_field(backward, r"REF _RefFirst \r \h", "6.1")
+    backward.add_run(" and ")
+    add_field(backward, r"REF _RefFirstAlias \w \h", "6.1")
+    backward.add_run(" or ")
+    add_field(backward, r"REF _RefFirstAlias \h", "Methods")
+
+    html = render_heading_references(convert_heading_fixture(document, tmp_path, rust_executable))
+    first_id, second_id = html.xpath('//h2[contains(., "Methods")]/@id')
+    assert first_id != second_id
+    forward_paragraph = html.xpath('//p[starts-with(., "Forward")]')[0]
+    assert "".join(forward_paragraph.itertext()) == "Forward 2.1."
+    assert forward_paragraph.xpath('./a/@href') == [f"#{second_id}"]
+    backward_links = html.xpath('//p[starts-with(., "Backward")]//a')
+    assert [(a.get("href"), "".join(a.itertext())) for a in backward_links] == [
+        (f"#{first_id}", "1.1"), (f"#{first_id}", "1.1"), (f"#{first_id}", "Methods"),
+    ]
+
+
+def test_convert_heading_refs_keep_unsupported_word_results(tmp_path: Path, rust_executable: Path) -> None:
+    """Keep cached text for unsupported fields even alongside a recovered heading reference."""
+    document = Document()
+    number_id = add_outline_numbering(document)
+    add_bookmark(add_numbered_heading(document, "Methods", 1, number_id), "_RefMethods", 1)
+    add_bookmark(document.add_heading("Preface", 1), "_RefPreface", 2)
+    add_bookmark(document.add_paragraph("Ordinary paragraph"), "_RefOrdinary", 3)
+    cases = [
+        ("Numbered", r"REF _RefMethods \w \h", "9", "1"),
+        ("Relative", r"REF _RefMethods \r \p \h", "9 above", "9 above"),
+        ("Unnumbered", r"REF _RefPreface \r \h", "8", "8"),
+        ("Nonheading", r"REF _RefOrdinary \r \h", "7", "7"),
+        ("Roman", r"REF _RefMethods \n \h", "IX", "IX"),
+    ]
+    for label, instruction, cached, _ in cases:
+        add_field(document.add_paragraph(label + " "), instruction, cached)
+
+    markdown = convert_heading_fixture(document, tmp_path, rust_executable, "--fuzzy-crossrefs")
+    html = render_heading_references(markdown)
+    for label, _, _, expected in cases:
+        paragraph = html.xpath('//p[starts-with(., $label)]', label=label + " ")[0]
+        assert "".join(paragraph.itertext()) == f"{label} {expected}"
+    methods_id = html.xpath('//h1[contains(., "Methods")]/@id')[0]
+    preface_id = html.xpath('//h1[.="Preface"]/@id')[0]
+    ordinary_id = html.xpath('//p[.="Ordinary paragraph"]/span/@id')[0]
+    for label, target_id in [
+        ("Numbered", methods_id), ("Relative", methods_id), ("Unnumbered", preface_id),
+        ("Nonheading", ordinary_id), ("Roman", methods_id),
+    ]:
+        assert html.xpath('//p[starts-with(., $label)]//a/@href', label=label + " ") == [f"#{target_id}"]
 
 
 def test_convert_layout_snapshot_and_rebuild(

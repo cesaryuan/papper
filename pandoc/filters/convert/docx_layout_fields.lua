@@ -52,15 +52,21 @@ local function text_node(context, text)
 end
 
 --- Replace supported fields while retaining surrounding Word runs and typography.
-function fields.prepare(root, format, all_fields, marker)
+function fields.prepare(root, format, all_fields, marker, recover_ref)
   local stack, sensitive = {}, false
+  --- Preserve numbered heading REF semantics before Pandoc reads the cached text.
+  local function replacement(record)
+    local reference = recover_ref and recover_ref(record)
+    if reference then return reference end
+    return fragment(record, format, all_fields)
+  end
   -- Field instructions may span several runs. Identify the complete field
   -- before editing its cached result; malformed/unclosed fields remain intact.
   local function scan(node)
     node._layout_owner = stack[#stack]
     if xml.is(node, 'fldSimple') then
       local record = {instruction=xml.attr(node, 'instr') or '', result=xml.text(node)}
-      node._layout_fragment, node._layout_sensitive = fragment(record, format, all_fields)
+      node._layout_fragment, node._layout_sensitive = replacement(record)
       sensitive = sensitive or node._layout_sensitive or false
       return
     end
@@ -73,7 +79,7 @@ function fields.prepare(root, format, all_fields, marker)
         stack[#stack].separated = true
       elseif kind == 'end' and stack[#stack] then
         local record = table.remove(stack)
-        record.replacement, record.sensitive = fragment(record, format, all_fields)
+        record.replacement, record.sensitive = replacement(record)
         sensitive = sensitive or record.sensitive or false
       end
     elseif xml.is(node, 'instrText') and stack[#stack] then

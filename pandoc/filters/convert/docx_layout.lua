@@ -1,4 +1,5 @@
--- Import Word pagination and page stories before the ordinary Convert filters.
+-- Import Word pagination, page stories, and numbered heading references before
+-- the ordinary Convert filters.
 -- For example, a Word page break becomes []{t="pageBreak"}, and the following
 -- section's footer becomes sectionBreak footerDefault="...". A temporary ZIP
 -- is built entirely in memory and reread once with Pandoc, retaining formatted
@@ -8,6 +9,7 @@
 local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
 local xml = dofile(pandoc.path.join {directory, 'docx_layout_xml.lua'})
 local fields = dofile(pandoc.path.join {directory, 'docx_layout_fields.lua'})
+local heading_refs = dofile(pandoc.path.join {directory, 'heading_refs.lua'})
 local R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 --- Resolve internal package targets relative to their source part.
@@ -164,7 +166,17 @@ local function recover_markers(document, prefix, records)
       if first > position then result:insert(pandoc.Str(str.text:sub(position, first - 1))) end
       local token = str.text:sub(first, last)
       local record = records[token]
-      result:insert(record and record.inline and pandoc.RawInline('markdown', record.inline) or pandoc.Str(token))
+      if record and record.secId then
+        if record.before ~= '' then result:insert(pandoc.Str(record.before)) end
+        result:insert(pandoc.RawInline('markdown', '[-@' .. record.secId .. ']'))
+        if record.after ~= '' then result:insert(pandoc.Str(record.after)) end
+      elseif record and record.inline then
+        result:insert(pandoc.RawInline('markdown', record.inline))
+      elseif record and record.link then
+        result:insert(pandoc.Link({pandoc.Str(record.result)}, record.link))
+      else
+        result:insert(pandoc.Str(token))
+      end
       position = last + 1
     end
     if position <= #str.text then result:insert(pandoc.Str(str.text:sub(position))) end
@@ -179,7 +191,7 @@ local function recover_markers(document, prefix, records)
   return document:walk({Para=paragraph, Plain=paragraph})
 end
 
---- Rebuild only DOCX imports containing pagination or page stories.
+--- Reread DOCX imports when fields, pagination, or page stories need recovery.
 function Pandoc(document)
   local source = PANDOC_STATE.input_files[1]
   if not source or not source:lower():match('%.docx$') then return nil end
@@ -209,6 +221,25 @@ function Pandoc(document)
     sections[1].figureWidth = nil
   end
   local styles = styles_from(entries['word/styles.xml'])
+  local references = {}
+  local heading_bookmarks = heading_refs.bookmarks(body, function(paragraph)
+    local outline = property(paragraph, 'outlineLvl', styles)
+    local level = outline and tonumber(xml.attr(outline, 'val'))
+    return level and level >= 0 and level < 9 and level + 1 or nil
+  end)
+  --- Select Word fields that refer to a heading's number in the main document.
+  local function recover_reference(record)
+    return heading_refs.reference(record, heading_bookmarks)
+  end
+
+  --- Allocate markers for both page fields and numbered heading references.
+  local function body_field_marker(fragment)
+    if type(fragment) == 'table' then
+      references[#references + 1] = fragment
+      return marker(fragment)
+    end
+    return marker({inline=fragment})
+  end
   local settings = entries['word/settings.xml'] and xml.parse(entries['word/settings.xml'])
   local even = settings and xml.enabled(xml.child(settings, 'evenAndOddHeaders')) or false
   local manifest = {records=records, sections=sections, stories={}, globals={}}
@@ -322,7 +353,7 @@ function Pandoc(document)
         end
       end)
       node = fields.prepare(node, sections[section_index].format, false,
-        function(fragment) return marker({inline=fragment}) end)
+        body_field_marker, recover_reference)
       prepare_paragraphs(node, styles, marker)
     end
     rewritten[#rewritten + 1] = node
@@ -340,7 +371,7 @@ function Pandoc(document)
           -- PAGE fields in notes use the section containing the note reference,
           -- including Roman-numbered preliminary matter.
           notes.children[index] = fields.prepare(note, note_formats[kind][xml.attr(note, 'id')] or 'decimal',
-            false, function(fragment) return marker({inline=fragment}) end)
+            false, body_field_marker, recover_reference)
         end
       end
       prepare_paragraphs(notes, styles, marker)
@@ -350,8 +381,10 @@ function Pandoc(document)
   local first = sections[1]
   manifest.initial = had_story or #sections > 1 or first.pageStart ~= nil or first.differentFirstPage == 'true'
   if serial == 0 and not manifest.initial then return document end
-  manifest.emptyToken = marker({empty=true})
+  local has_layout = manifest.initial or serial > #references
+  if has_layout then manifest.emptyToken = marker({empty=true}) end
   local initial_token = manifest.initial and marker({section=1}) or nil
+  if #references > 0 then appended[#appended + 1] = heading_refs.probe(body, references, marker) end
   -- Insert before the final sectPr rather than the last XML token: pretty
   -- printed packages can end their body with whitespace after that element.
   local combined, inserted = {}, false
@@ -373,11 +406,12 @@ function Pandoc(document)
   -- otherwise restored page breaks turn citation fields back into formatted text.
   local parsed = pandoc.read(pandoc.zip.Archive(zip_entries):bytestring(), 'docx+citations', PANDOC_READER_OPTIONS)
   for name, value in pairs(document.meta) do parsed.meta[name] = value end
+  if #references > 0 then parsed = heading_refs.resolve(parsed, references) end
   -- A leading Word paragraph marker interrupts Pandoc's Title/Author metadata
   -- recognition and duplicates that text in the body. Insert initial settings
   -- into the AST after the reader has extracted its normal metadata instead.
   if initial_token then parsed.blocks:insert(1, pandoc.Para {pandoc.Str(initial_token)}) end
   parsed = recover_markers(parsed, prefix, records)
-  parsed.meta['papper-convert-layout'] = pandoc.MetaString(pandoc.json.encode(manifest))
+  if has_layout then parsed.meta['papper-convert-layout'] = pandoc.MetaString(pandoc.json.encode(manifest)) end
   return parsed
 end
