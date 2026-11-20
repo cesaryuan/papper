@@ -2555,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "papper-cli"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2585,7 +2585,7 @@ dependencies = [
 
 [[package]]
 name = "papper-core"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "regex",
@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "papper-dev"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2620,7 +2620,7 @@ dependencies = [
 
 [[package]]
 name = "papper-document"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "encoding_rs",
@@ -2647,7 +2647,7 @@ dependencies = [
 
 [[package]]
 name = "papper-engine"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "papper-core",
@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "papper-platform"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "latex2wmf",
@@ -2676,7 +2676,7 @@ dependencies = [
 
 [[package]]
 name = "papper-server"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "docxide-pdf",
@@ -2698,7 +2698,7 @@ dependencies = [
 
 [[package]]
 name = "papper-svg"
-version = "0.11.8"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "clap",
