@@ -5,6 +5,7 @@
 
 local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
 local fields = dofile(pandoc.path.join {directory, 'docx_layout_fields.lua'})
+local borders = dofile(pandoc.path.join {directory, 'docx_layout_borders.lua'})
 local writer = 'markdown-simple_tables-multiline_tables'
 
 --- Serialize story content without adding local paragraph-alignment blocks.
@@ -45,8 +46,9 @@ end
 
 --- Detach imported stories and turn their boundaries into public Papper configuration.
 function Pandoc(document)
+  document = borders.restore(document)
   local metadata = document.meta['papper-convert-layout']
-  if not metadata then return nil end
+  if not metadata then return document end
   document.meta['papper-convert-layout'] = nil
   local manifest = pandoc.json.decode(pandoc.utils.stringify(metadata), false)
   local stories, body, active = {}, pandoc.Blocks {}, nil

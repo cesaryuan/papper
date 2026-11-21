@@ -226,6 +226,49 @@ def test_convert_heading_refs_keep_unsupported_word_results(tmp_path: Path, rust
         assert html.xpath('//p[starts-with(., $label)]//a/@href', label=label + " ") == [f"#{target_id}"]
 
 
+def test_convert_paragraph_bottom_borders(tmp_path: Path, rust_executable: Path) -> None:
+    """Keep Word borders on body and even-header paragraphs through a Convert/Build round trip."""
+    document = Document()
+    document.settings.odd_and_even_pages_header_footer = True
+    body = document.add_paragraph("Bordered body paragraph")
+    header = document.sections[0].even_page_header.paragraphs[0]
+    header.add_run("Even-page heading: ")
+    add_field(header, " STYLEREF 1 ", "Sample section", simple=True)
+    cases = [
+        (body, "dashed", "6", "305F80", "4"),
+        (header, "thinThickSmallGap", "24", "auto", "1"),
+    ]
+    for paragraph, style, size, color, space in cases:
+        group, bottom = OxmlElement("w:pBdr"), OxmlElement("w:bottom")
+        for name, value in [("val", style), ("sz", size), ("color", color), ("space", space)]:
+            bottom.set(qn(f"w:{name}"), value)
+        group.append(bottom)
+        paragraph._p.get_or_add_pPr().append(group)
+    document.add_paragraph("Unbordered body paragraph")
+    source = tmp_path / "borders.docx"
+    document.save(source)
+    output = tmp_path / "converted"
+    run_papper(rust_executable, tmp_path, "convert", str(source), "-o", str(output))
+    markdown = (output / "borders.md").read_text(encoding="utf-8")
+    assert markdown.count("borders.bottom=") == 2
+    assert "------------------------------------------------------------------------" not in markdown
+
+    rebuilt = output / "rebuilt.docx"
+    run_papper(rust_executable, output, "build", "docx", "borders.md", "--no-mathtype", "-o", str(rebuilt))
+    reopened = Document(rebuilt)
+    even_header = reopened.sections[0].even_page_header
+    for paragraphs, (original, style, size, color, space) in zip(
+        [reopened.paragraphs, even_header.paragraphs], cases, strict=True,
+    ):
+        paragraph = next(p for p in paragraphs if p.text.startswith(original.runs[0].text))
+        bottom = paragraph._p.find(f".//{qn('w:bottom')}")
+        assert bottom is not None
+        assert tuple(bottom.get(qn(f"w:{key}")) for key in ("val", "sz", "color", "space")) == (style, size, color, space)
+    assert [field.text for field in even_header._element.iter(qn("w:instrText"))] == ["STYLEREF 1"]
+    control = next(p for p in reopened.paragraphs if p.text == "Unbordered body paragraph")
+    assert control._p.find(f".//{qn('w:bottom')}") is None
+
+
 def test_convert_layout_snapshot_and_rebuild(
     tmp_path: Path, rust_executable: Path, snapshot_update: bool,
 ) -> None:

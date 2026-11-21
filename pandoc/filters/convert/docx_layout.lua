@@ -10,6 +10,7 @@ local directory = pandoc.path.directory(PANDOC_SCRIPT_FILE)
 local xml = dofile(pandoc.path.join {directory, 'docx_layout_xml.lua'})
 local fields = dofile(pandoc.path.join {directory, 'docx_layout_fields.lua'})
 local heading_refs = dofile(pandoc.path.join {directory, 'heading_refs.lua'})
+local borders = dofile(pandoc.path.join {directory, 'docx_layout_borders.lua'})
 local R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 --- Resolve internal package targets relative to their source part.
@@ -143,16 +144,21 @@ local function marker_paragraph(context, token)
   return paragraph
 end
 
---- Replace authored body/note page breaks before Pandoc discards their layout semantics.
-local function prepare_paragraphs(root, styles, marker)
+--- Capture paragraph borders and body/note page breaks before Pandoc reads them.
+local function prepare_paragraphs(root, styles, marker, page_breaks)
+  local border_count = 0
   xml.walk(root, function(node)
-    if xml.is(node, 'br') and xml.attr(node, 'type') == 'page' then
+    if page_breaks and xml.is(node, 'br') and xml.attr(node, 'type') == 'page' then
       node.name = node.name:gsub('br$', 't')
       node.attrs, node.children, node.dirty = {}, {marker({inline='[]{t="pageBreak"}'})}, true
-    elseif xml.is(node, 'p') and xml.enabled(property(node, 'pageBreakBefore', styles)) then
-      insert_marker(node, marker({inline='[]{t="pageBreak"}'}))
+    elseif xml.is(node, 'p') then
+      if borders.prepare(node, insert_marker, marker) then border_count = border_count + 1 end
+      if page_breaks and xml.enabled(property(node, 'pageBreakBefore', styles)) then
+        insert_marker(node, marker({inline='[]{t="pageBreak"}'}))
+      end
     end
   end)
+  return border_count
 end
 
 --- Split markers out of merged Str nodes without changing surrounding punctuation or emphasis.
@@ -174,6 +180,8 @@ local function recover_markers(document, prefix, records)
         result:insert(pandoc.RawInline('markdown', record.inline))
       elseif record and record.link then
         result:insert(pandoc.Link({pandoc.Str(record.result)}, record.link))
+      elseif record and record.border then
+        result:insert(pandoc.Span({}, pandoc.Attr('', {borders.marker_class}, record.border)))
       else
         result:insert(pandoc.Str(token))
       end
@@ -284,6 +292,7 @@ function Pandoc(document)
     end)
     local sensitive
     story, sensitive = fields.prepare(story, format, true, function(fragment) return marker({inline=fragment}) end)
+    prepare_paragraphs(story, styles, marker, false)
     local id = tostring(#manifest.stories + 1)
     local begin_token, end_token = marker({storyBegin=id}), marker({storyEnd=id})
     manifest.stories[#manifest.stories + 1] = {beginToken=begin_token, endToken=end_token, alignment=base_alignment}
@@ -340,7 +349,7 @@ function Pandoc(document)
     previous_first = section.differentFirstPage == 'true'
   end
 
-  local rewritten, section_index = {}, 1
+  local rewritten, section_index, border_count = {}, 1, 0
   local note_formats = {footnote={}, endnote={}}
   for index, node in ipairs(body.children) do
     if type(node) == 'table' and not xml.is(node, 'sectPr') then
@@ -354,7 +363,7 @@ function Pandoc(document)
       end)
       node = fields.prepare(node, sections[section_index].format, false,
         body_field_marker, recover_reference)
-      prepare_paragraphs(node, styles, marker)
+      border_count = border_count + prepare_paragraphs(node, styles, marker, true)
     end
     rewritten[#rewritten + 1] = node
     if section_index < #sections and index == sections[section_index].ending then
@@ -374,14 +383,14 @@ function Pandoc(document)
             false, body_field_marker, recover_reference)
         end
       end
-      prepare_paragraphs(notes, styles, marker)
+      border_count = border_count + prepare_paragraphs(notes, styles, marker, true)
       entries[part] = xml.write(notes)
     end
   end
   local first = sections[1]
   manifest.initial = had_story or #sections > 1 or first.pageStart ~= nil or first.differentFirstPage == 'true'
   if serial == 0 and not manifest.initial then return document end
-  local has_layout = manifest.initial or serial > #references
+  local has_layout = manifest.initial or serial > #references + border_count
   if has_layout then manifest.emptyToken = marker({empty=true}) end
   local initial_token = manifest.initial and marker({section=1}) or nil
   if #references > 0 then appended[#appended + 1] = heading_refs.probe(body, references, marker) end

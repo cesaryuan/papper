@@ -184,7 +184,8 @@ def test_convert_shared_row_titles_and_single_figure(
     rows = [figure["elements"][:3], figure["elements"][3:]]
     for (left, right, title), expected in zip(rows, ("(g) 甲桥\n(g) Bridge A", "(g) 乙桥\n(g) Bridge B"), strict=True):
         assert title["kind"] == "text" and "".join(run["text"] for run in title["runs"]) == expected
-        assert abs(title["width"] - left["width"] - right["width"] - 10) < 0.01
+        assert title["x"] == pytest.approx(left["x"], abs=0.01)
+        assert title["x"] + title["width"] == pytest.approx(right["x"] + right["width"], abs=0.01)
         assert title["y"] > max(panel["y"] + panel["height"] for panel in (left, right))
         assert all(panel["labelPosition"] == "none" for panel in (left, right))
     assert rows[0][2]["y"] + 25 < rows[1][0]["y"]

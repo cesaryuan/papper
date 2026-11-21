@@ -1604,6 +1604,9 @@ with its figure ID and overall caption. Keep the SVG and its source images toget
 in `media/`. Hover over the image and choose **Edit subfigure layout**. Supported
 child references point to the main figure, with a panel letter when the Word
 panel has one. A table used only to arrange images exports without panel numbers.
+New combination SVGs use 4 pt between panels, 6 pt between rows, and 2 pt of
+padding. To preview the figure without editing guides, toggle the eye icon in
+the Papper Tools editor toolbar.
 Groups whose subcaptions or source formats cannot be represented retain their
 crossref layout.
 
@@ -1752,8 +1755,12 @@ are written explicitly when layout is imported so build defaults do not add a
 header or footer that the source did not contain.
 
 Story content retains supported Markdown formatting, paragraphs, tables, links,
-images, and math. Import focuses on content and does not generate local paragraph
-formatting blocks such as `::: {alignment="left"}`. Global stories use their first
+images, and math. A supported bottom border applied directly to an ordinary Word
+paragraph, including in a header or footer, becomes a [paragraph border block](#paragraph-borders).
+For example, `::: {borders.bottom="3pt thinThickSmallGap auto" borders.space="1pt"}`
+keeps a double line attached to the paragraph and preserves its distance from
+the text. Other local formatting such as paragraph alignment is not imported
+this way. Global stories use their first
 paragraph's alignment as the overall setting. Section overrides use one shared
 alignment per header/footer kind, preferring the supplied normal variant, then
 even, then first. Differences in individual paragraph or variant alignment are

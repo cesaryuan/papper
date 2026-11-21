@@ -10,7 +10,7 @@ local destination = resource.getenv('PAPPER_CONVERT_OUTPUT_DIR')
 local raster_assets = {}
 local font = {family='Times New Roman', cjkFamily='SimSun', size=10, color='#000000', align='center'}
 local children, filenames = {}, {}
-local gap, padding, rowgap = 10, 8, 16
+local gap, padding, rowgap = 4, 2, 6
 
 --- Escape XML character data, including quotes when used in an attribute.
 local function xml(text, attribute)

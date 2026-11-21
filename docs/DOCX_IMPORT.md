@@ -149,6 +149,7 @@ Use `papper convert paper.docx -o converted --subfigure-svg` (also `--svg`) to
 export recognized groups as editable combination figures. A group with ID
 `fig:comparison` produces `converted/media/subfigure-comparison.svg`. The SVG
 links to the source pictures in the same directory. Keep `media/` together when moving the manuscript.
+New SVG layouts use 4 pt between panels, 6 pt between rows, and 2 pt of padding.
 TIFF subfigure sources use PNG copies of the first image at its original
 pixel dimensions so the panels display and remain editable in the SVG.
 In VS Code, use a Papper Tools build that includes the combination figure
