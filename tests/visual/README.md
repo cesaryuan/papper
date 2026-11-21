@@ -52,8 +52,9 @@ cargo install --git https://github.com/sverrejb/docxide-pdf.git --rev 3936b809c2
 uv run --no-sync pytest tests/test_docx_visual.py --visual
 ```
 
-The visual CLI and embedded preview library are pinned to the same upstream
-commit, `3936b809c2cdbf50b81cf283a02b79ff7ce784d5` (package version 0.21.3).
+The visual CLI is pinned to upstream commit
+`3936b809c2cdbf50b81cf283a02b79ff7ce784d5` (package version 0.21.3) for these
+baselines. The embedded preview library follows a separate pin.
 The tool installation is ignored by Git and is not a Papper runtime dependency.
 `PAPPER_DOCXIDE_RENDERER` can point at another Cargo-installed executable; retain
 its `.crates2.json` in the installation root. `PAPPER_DOCXIDE_TIMEOUT` controls the

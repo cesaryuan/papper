@@ -14,14 +14,15 @@ The editor integration starts `papper __docx_preview_server --token <hex> --work
 the manuscript project. It announces `papper-docx-preview-v1` and its ephemeral
 loopback URL on stdout. Authenticated `POST /preview` accepts `source` and
 `source_text`, runs the same retained DOCX builder, and returns PDF bytes plus
-DOCX/PDF timing and worker-PID headers. The renderer is `docxide-pdf` 0.21.3 at
-commit `3936b809c2cdbf50b81cf283a02b79ff7ce784d5`, matching the visual CLI, linked
-into `papper-server` with its CLI feature disabled. Neither a separate Docxide
-executable nor arbitrary request-selected output paths are involved. The service
-owns its DOCX work file under the editor's temporary root; the extension owns
-revision-specific PDF files and removes crash leftovers after native exit. Stdin
-EOF closes the service and its native worker. A build error returns HTTP 422 and
-leaves the service usable; authentication errors return HTTP 401.
+DOCX/PDF timing and worker-PID headers. The renderer is the crates.io release
+`docxide-pdf` 0.21.4, linked into `papper-server` with its CLI feature disabled.
+The visual test CLI has its own pin for the recorded baselines. Neither a
+separate Docxide executable nor arbitrary request-selected output paths are
+involved. The service owns its DOCX work file under the editor's temporary root;
+the extension owns revision-specific PDF files and removes crash leftovers after
+native exit. Stdin EOF closes the service and its native worker. A build error
+returns HTTP 422 and leaves the service usable; authentication errors return HTTP
+401.
 
 The resident builder is private to this preview service. Both the Lua environment
 and final DOCX postprocessing disable native Word cross-references whenever this
