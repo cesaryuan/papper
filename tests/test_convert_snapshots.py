@@ -59,13 +59,9 @@ def test_convert_detects_chinese_language_from_document_text(
     markdown = (output / "language.md").read_bytes().decode("utf-8")
     assert "\r" not in markdown
     assert not list(output.glob("*.bib")), "Documents without citation data must not produce an empty bibliography"
-    if expected_language:
-        assert markdown.startswith("---\n")
-        header, body = markdown[4:].split("\n---\n", 1)
-        assert yaml.safe_load(header)["lang"] == expected_language
-    else:
-        assert not markdown.startswith("---\n")
-        body = markdown
+    assert markdown.startswith("---\n")
+    header, body = markdown[4:].split("\n---\n", 1)
+    assert yaml.safe_load(header).get("lang") == expected_language
     # Pandoc may escape punctuation or normalize spaces; authored letters and
     # numbers must still survive the new standalone output mode in order.
     assert "".join(c for c in body if c.isalnum()) == "".join(c for c in text if c.isalnum())

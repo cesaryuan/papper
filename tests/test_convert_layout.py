@@ -69,7 +69,7 @@ def run_papper(executable: Path, directory: Path, *arguments: str) -> subprocess
     return result
 
 
-def add_outline_numbering(document) -> int:
+def add_outline_numbering(document, chapter_format: str = "%1") -> int:
     """Create a three-level decimal outline for headings in the Word fixture."""
     numbering = document.part.numbering_part.element
     definition = OxmlElement("w:abstractNum")
@@ -77,7 +77,7 @@ def add_outline_numbering(document) -> int:
     for index in range(3):
         level = OxmlElement("w:lvl")
         level.set(qn("w:ilvl"), str(index))
-        outline_label = ".".join(f"%{i + 1}" for i in range(index + 1))
+        outline_label = chapter_format if index == 0 else ".".join(f"%{i + 1}" for i in range(index + 1))
         for name, value in [("start", "1"), ("numFmt", "decimal"), ("lvlText", outline_label)]:
             prop = OxmlElement(f"w:{name}")
             prop.set(qn("w:val"), value)
@@ -85,6 +85,68 @@ def add_outline_numbering(document) -> int:
         definition.append(level)
     numbering.insert(0, definition)
     return numbering.add_num(42).numId
+
+
+def test_convert_page_settings_and_chapter_header(
+    tmp_path: Path, rust_executable: Path, snapshot_update: bool,
+) -> None:
+    """Rebuild section layout, real chapter numbering, and a chapter-linked page header."""
+    document = Document()
+    document.settings.odd_and_even_pages_header_footer = True
+    first = document.sections[0]
+    first.top_margin, first.left_margin = 2098 * 635, 1701 * 635
+    first.header_distance = 1531 * 635
+    chapter = add_outline_numbering(document, "第 %1 章")
+    add_numbered_heading(document, "绪论", 1, chapter)
+    add_numbered_heading(document, "背景", 2, chapter)
+    document.add_paragraph("First section")
+    second = document.add_section(WD_SECTION_START.NEW_PAGE)
+    second.top_margin = 2155 * 635
+    lines = OxmlElement("w:lnNumType")
+    lines.set(qn("w:countBy"), "1")
+    lines.set(qn("w:restart"), "newSection")
+    second._sectPr.append(lines)
+    second.even_page_header.is_linked_to_previous = False
+    header = second.even_page_header.paragraphs[0]
+    add_field(header, r'STYLEREF "Heading 1" \n \* MERGEFORMAT', "第 2 章")
+    header.add_run(" ")
+    add_field(header, r'STYLEREF "自定义样式" \* MERGEFORMAT', "自定义标题")
+    add_numbered_heading(document, "方法", 1, chapter)
+    third = document.add_section(WD_SECTION_START.NEW_PAGE)
+    third.top_margin = 2098 * 635
+    third._sectPr.remove(third._sectPr.find(qn("w:lnNumType")))
+    document.add_paragraph("Third section")
+
+    markdown = convert_heading_fixture(document, tmp_path, rust_executable)
+    metadata = yaml.safe_load(markdown[4:].split("\n---\n", 1)[0])
+    assert metadata["papperSettings"]["docxShowLineNumbers"] is False
+    assert metadata["papperSettings"]["docxPageMargins"]["top"] == "104.9pt"
+    section_directives = [line for line in markdown.splitlines() if line.startswith('[]{t="sectionBreak"')]
+    assert_snapshot(
+        "\n".join(section_directives) + "\n",
+        ROOT / "tests/snapshot_cases_convert/page_layout/snapshots-content/chapter-sections.md",
+        update=snapshot_update,
+    )
+    output = tmp_path / "converted"
+    rebuilt = output / "rebuilt.docx"
+    run_papper(rust_executable, output, "build", "docx", "headings.md", "--no-mathtype", "-o", str(rebuilt))
+    reopened = Document(rebuilt)
+    assert [section.top_margin.twips for section in reopened.sections] == [2098, 2155, 2098]
+    assert all(section.left_margin.twips == 1701 and section.header_distance.twips == 1531
+               for section in reopened.sections)
+    assert [None if (lines := s._sectPr.find(qn("w:lnNumType"))) is None else lines.get(qn("w:restart"))
+            for s in reopened.sections] == [None, "newSection", None]
+    header = reopened.sections[1].even_page_header
+    assert header.paragraphs[0].text == "第 2 章 自定义标题"
+    assert [field.text for field in header._element.iter(qn("w:instrText"))] == [r"STYLEREF 1 \n \* MERGEFORMAT"]
+    numbering = reopened.part.numbering_part.element
+    number_id = reopened.paragraphs[0]._p.pPr.numPr.numId.val
+    instance = next(num for num in numbering.findall(qn("w:num")) if num.get(qn("w:numId")) == str(number_id))
+    abstract_id = instance.find(qn("w:abstractNumId")).get(qn("w:val"))
+    outline = next(num for num in numbering.findall(qn("w:abstractNum")) if num.get(qn("w:abstractNumId")) == abstract_id)
+    assert [level.find(qn("w:lvlText")).get(qn("w:val")) for level in outline.findall(qn("w:lvl"))[:2]] == [
+        "第 %1 章", "%1.%2",
+    ]
 
 
 def add_numbered_heading(document, title: str, level: int, number_id: int):
@@ -472,7 +534,10 @@ def test_convert_layout_retains_comprehensive_import_contract(
         original_header, original_content = expected[4:].split("\n---\n", 1)
         original_metadata = yaml.safe_load(original_header)
     metadata = yaml.safe_load(header)
-    assert metadata.pop("papperSettings")["docxFooter"]["content"] == ""
+    imported_settings = metadata.pop("papperSettings")
+    assert imported_settings.pop("docxFooter")["content"] == ""
+    imported_settings.pop("docxHeader")
+    assert imported_settings == original_metadata.pop("papperSettings")
     assert metadata == original_metadata
     assert (output / metadata["csl"]).read_bytes() == (
         case / "snapshots-content" / metadata["csl"]

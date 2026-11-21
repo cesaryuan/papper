@@ -95,6 +95,10 @@ local function section(span)
   section_count = section_count + 1
   local record = {id = section_count, kind = kind, pageStart = attrs.pageStart,
     headerDistance = attrs.headerDistance, footerDistance = attrs.footerDistance}
+  for _, side in ipairs({'Top', 'Bottom', 'Left', 'Right'}) do
+    record['margin' .. side] = attrs['margin' .. side]
+  end
+  record.lineNumbers = attrs.lineNumbers
   -- Convert uses a leading continuous break to configure the first section.
   -- There is no preceding body content to close, so avoid creating an empty section.
   record.initial = initial_section and section_count == 1

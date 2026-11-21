@@ -15,10 +15,10 @@ local section_formats = {
   decimalEnclosedDash=true, ordinal=true, cardinalText=true, ordinalText=true, hex=true,
 }
 
---- Quote attributes using entities so quotes, line breaks, and ampersands round-trip.
+--- Quote attributes using entities so nested Markdown doesn't consume Word field switches.
 function fields.quote(value)
   return '"' .. tostring(value):gsub('&', '&amp;'):gsub('"', '&quot;')
-    :gsub('\r', '&#13;'):gsub('\n', '&#10;'):gsub('\t', '&#9;') .. '"'
+    :gsub('\\', '&#92;'):gsub('\r', '&#13;'):gsub('\n', '&#10;'):gsub('\t', '&#9;') .. '"'
 end
 
 --- Express a field in supported Papper syntax, preserving unsupported PAGE switches generically.
@@ -52,11 +52,11 @@ local function text_node(context, text)
 end
 
 --- Replace supported fields while retaining surrounding Word runs and typography.
-function fields.prepare(root, format, all_fields, marker, recover_ref)
+function fields.prepare(root, format, all_fields, marker, recover_ref, recover_style_ref)
   local stack, sensitive = {}, false
   --- Preserve numbered heading REF semantics before Pandoc reads the cached text.
   local function replacement(record)
-    local reference = recover_ref and recover_ref(record)
+    local reference = (recover_ref and recover_ref(record)) or (recover_style_ref and recover_style_ref(record))
     if reference then return reference end
     return fragment(record, format, all_fields)
   end

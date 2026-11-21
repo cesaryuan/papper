@@ -23,7 +23,8 @@ end
 --- Render one section's supported options in a stable, readable order.
 local function section_fragment(section, index, manifest, stories)
   local options = {'t="sectionBreak"', 'kind=' .. fields.quote(index == 1 and 'continuous' or section.kind)}
-  for _, key in ipairs({'pageStart', 'differentFirstPage', 'headerDistance', 'footerDistance'}) do
+  for _, key in ipairs({'pageStart', 'differentFirstPage', 'headerDistance', 'footerDistance',
+    'marginTop', 'marginBottom', 'marginLeft', 'marginRight', 'lineNumbers'}) do
     if section[key] ~= nil then options[#options + 1] = key .. '=' .. fields.quote(section[key]) end
   end
   for _, kind in ipairs({'header', 'footer'}) do
@@ -69,7 +70,7 @@ function Pandoc(document)
   document.blocks = body
   local has_empty = false
   if manifest.initial or next(manifest.records) then
-    local settings = {}
+    local settings = document.meta.papperSettings or {}
     for _, kind in ipairs({'header', 'footer'}) do
       local id = manifest.globals[kind]
       local definition = id and manifest.stories[tonumber(id)] or {alignment='left'}

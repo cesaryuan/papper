@@ -120,6 +120,11 @@
           "differentFirstPage": {"description": "本节是否首页不同；提供 First 内容时自动 true，false 与 First 内容冲突；省略时沿用前节设置", "valueType": "boolean", "values": ["true", "false"]},
           "headerDistance": {"description": "本节页眉距纸张顶边的非负长度，支持 pt、cm、mm、in，无单位为 pt；省略时沿用前节", "valueType": "length", "suggestions": ["3cm", "0pt"]},
           "footerDistance": {"description": "本节页脚距纸张底边的非负长度，支持 pt、cm、mm、in，无单位为 pt；省略时沿用前节", "valueType": "length", "suggestions": ["2.3cm", "0pt"]},
+          "marginTop": {"description": "本节正文上边距；省略时沿用前节", "valueType": "length"},
+          "marginBottom": {"description": "本节正文下边距；省略时沿用前节", "valueType": "length"},
+          "marginLeft": {"description": "本节正文左边距；省略时沿用前节", "valueType": "length"},
+          "marginRight": {"description": "本节正文右边距；省略时沿用前节", "valueType": "length"},
+          "lineNumbers": {"description": "本节行号模式：关闭、连续、每页重编、每节重编；省略时沿用前节", "valueType": "string", "values": ["false", "continuous", "restart-page", "restart-section"]},
           "headerAlignment": {"description": "本节新提供的各类页眉水平对齐，默认 center；必须提供任一页眉内容", "valueType": "string", "values": ["left", "center", "right"]},
           "footerAlignment": {"description": "本节新提供的各类页脚水平对齐，默认 center；必须提供任一页脚内容", "valueType": "string", "values": ["left", "center", "right"]}
         }

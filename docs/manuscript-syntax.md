@@ -543,6 +543,8 @@ This section starts on an odd page and has empty headers and footers.
 | `differentFirstPage` | `true` enables different-first-page mode; `false` disables it and cannot be combined with `headerFirst` or `footerFirst`. Omitted: retain the preceding section's mode, unless first-page content is supplied. |
 | `headerAlignment`, `footerAlignment` | `center` for all newly supplied content of that kind; also accepts `left` and `right`. Requires at least one corresponding content option. Local paragraph alignment in multiline Markdown can override it. |
 | `headerDistance`, `footerDistance` | Nonnegative distance from the physical top/bottom edge of the paper to the header/footer. Accepts `pt`, `cm`, `mm`, and `in`; numbers without units mean points. Zero is allowed. Omitted: retain the preceding section's distance. |
+| `marginTop`, `marginBottom`, `marginLeft`, `marginRight` | Nonnegative body margins for the following section. Use the same length units as `headerDistance`. Omitted sides retain the preceding section's value. |
+| `lineNumbers` | `false`, `continuous`, `restart-page`, or `restart-section`. Omitted: retain the preceding section's mode. |
 
 Content supports the same Pandoc Markdown as `docxHeader.content` and
 `docxFooter.content`, including page, date, and custom Word fields. When neither
@@ -556,7 +558,7 @@ For different headers but a common footer, supply two header variants and one
 shared footer. These options apply after the break:
 
 ```markdown
-[]{t="sectionBreak" headerDefault="**Chapter title**" headerEven="University doctoral dissertation" footer='- []{t="pageNum"} -' headerDistance="3cm" footerDistance="2.3cm"}
+[]{t="sectionBreak" headerDefault="**Chapter title**" headerEven="University doctoral dissertation" footer='- []{t="pageNum"} -' headerDistance="3cm" footerDistance="2.3cm" marginTop="3.7cm" lineNumbers="false"}
 ```
 
 Supply all six options to give the first, normal, and even pages their own
@@ -1727,6 +1729,14 @@ Convert also imports authored pagination and DOCX page stories:
 | Current-page field in body text, tables, notes, headers, or footers | Dynamic `[]{t="pageNum"}`; supported Roman, letter, and other explicit formats are retained |
 | First section's normal header/footer | `papperSettings.docxHeader` and `papperSettings.docxFooter` in the generated YAML header |
 | Section-specific and active first/even-page stories | `headerDefault`/`headerFirst`/`headerEven` and matching footer options on the section directive |
+| Body margins and line numbering | `papperSettings.docxPageMargins` and `papperSettings.docxShowLineNumbers` for the first section; later differences use `sectionBreak` |
+| Decimal heading outlines, such as `第 1 章`, `1.1`, and `1.1.1` | Heading numbering metadata when the source chapters share a supported format |
+
+Convert preserves dynamic Word heading references in headers when it can
+rebuild the target. For references to a custom Word style that is not
+imported, it retains the field's last displayed text.
+Line numbering import preserves the switch and restart mode; custom starting
+values and intervals are not retained.
 
 For example, a document with a common centered footer and a new section
 restarting at page 1 can produce:

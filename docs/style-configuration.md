@@ -620,6 +620,13 @@ can configure these options for the first section without creating an extra
 section. Imported Markdown uses the same configuration precedence and content
 support described here; it does not modify a project's `style.yml`.
 
+Convert also imports the first section's body margins and whether its line
+numbers are off, continuous, restarted on each page, or restarted in each
+section. Later sections use `marginTop`, `marginBottom`, `marginLeft`,
+`marginRight`, and `lineNumbers` on `sectionBreak` when a setting changes.
+These margin options adjust the body area; `headerDistance` and
+`footerDistance` separately measure from the paper edge to the page story.
+
 `alignment` accepts `left`, `center`, or `right` and applies to paragraphs outside
 tables. Table cells retain their Markdown column alignment; list numbering and
 explicit custom text styles are retained. The bundled default is a centered

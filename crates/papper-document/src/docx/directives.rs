@@ -275,20 +275,36 @@ fn sections(
         if let Some(start) = record["pageStart"].as_str() {
             current.word("w:pgNumType").set("w:start", start);
         }
-        for kind in ["header", "footer"] {
-            let key = format!("{kind}Distance");
-            if !record[&key].is_null() {
-                let distance = length_twips(&record[&key])
+        for (key, side) in [
+            ("headerDistance", "header"),
+            ("footerDistance", "footer"),
+            ("marginTop", "top"),
+            ("marginBottom", "bottom"),
+            ("marginLeft", "left"),
+            ("marginRight", "right"),
+        ] {
+            if !record[key].is_null() {
+                let distance = length_twips(&record[key])
                     .with_context(|| format!("Invalid sectionBreak {key}"))?;
                 if !(0..=u32::MAX as i64).contains(&distance)
-                    || papper_core::style_values::parse_length(&record[&key], &key)?.0 < 0
+                    || papper_core::style_values::parse_length(&record[key], key)?.0 < 0
                 {
                     bail!("sectionBreak {key} must be a nonnegative Word length");
                 }
                 current
                     .word("w:pgMar")
-                    .set(&format!("w:{kind}"), distance.to_string());
+                    .set(&format!("w:{side}"), distance.to_string());
             }
+        }
+        if let Some(mode) = record["lineNumbers"].as_str() {
+            let restart = match mode {
+                "false" => None,
+                "continuous" => Some("continuous"),
+                "restart-page" => Some("newPage"),
+                "restart-section" => Some("newSection"),
+                _ => bail!("Unsupported sectionBreak lineNumbers: {mode}"),
+            };
+            super::formatting::set_line_numbers(&mut current, restart);
         }
         let was_first = current
             .child("w:titlePg")

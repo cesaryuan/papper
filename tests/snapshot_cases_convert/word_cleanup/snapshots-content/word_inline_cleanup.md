@@ -1,5 +1,12 @@
 ---
 lang: zh-CN
+papperSettings:
+  docxPageMargins:
+    bottom: 72.0pt
+    left: 90.0pt
+    right: 90.0pt
+    top: 72.0pt
+  docxShowLineNumbers: false
 ---
 
 对桥隧基本信息进行预处理，建立区域

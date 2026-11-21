@@ -358,12 +358,21 @@ pub(crate) fn apply_line_numbers(document: &mut Element, settings: &PmtSettings)
     };
     document.visit_mut(&mut |element| {
         if element.name == "w:sectPr" {
-            let numbering = element.word("w:lnNumType");
-            numbering.set("w:countBy", "1");
-            numbering.set("w:restart", restart);
+            set_line_numbers(element, Some(restart));
         }
     });
     Ok(())
+}
+
+/// Set a section's line numbering mode, or remove explicit line numbering.
+pub(crate) fn set_line_numbers(section: &mut Element, restart: Option<&str>) {
+    if let Some(restart) = restart {
+        let numbering = section.word("w:lnNumType");
+        numbering.set("w:countBy", "1");
+        numbering.set("w:restart", restart);
+    } else {
+        section.remove("w:lnNumType");
+    }
 }
 
 /// Apply the named equation paragraph style only to top-level tab-layout equations.

@@ -1,3 +1,13 @@
+---
+papperSettings:
+  docxPageMargins:
+    bottom: 72.0pt
+    left: 90.0pt
+    right: 90.0pt
+    top: 72.0pt
+  docxShowLineNumbers: false
+---
+
 如图1-14所示。The table is shown in Tbl. 1-3.
 
 ![图1‑14 不同失效策略下的脆弱性曲线](media/image1.png){width="1in" height="0.58333in"}

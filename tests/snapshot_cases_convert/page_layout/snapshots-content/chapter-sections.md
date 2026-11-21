@@ -1,0 +1,3 @@
+[]{t="sectionBreak" kind="continuous" differentFirstPage="false" headerDistance="76.55pt" footerDistance="36.0pt" headerEven="" headerAlignment="left" footerEven="" footerAlignment="left"}
+[]{t="sectionBreak" kind="nextPage" differentFirstPage="false" headerDistance="76.55pt" footerDistance="36.0pt" marginTop="107.75pt" lineNumbers="restart-section" headerEven="**[]{t=&quot;field&quot; instruction=&quot;STYLEREF 1 &amp;#92;n &amp;#92;* MERGEFORMAT&quot; result=&quot;第 2 章&quot;}** **自定义标题**" headerAlignment="left"}
+[]{t="sectionBreak" kind="nextPage" differentFirstPage="false" headerDistance="76.55pt" footerDistance="36.0pt" marginTop="104.9pt" lineNumbers="false"}

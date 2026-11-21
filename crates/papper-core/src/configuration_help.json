@@ -277,6 +277,18 @@
           "description": "段后间距，例如 6pt"
         }
       }
+    },
+    "borders": {
+      "description": "段落边框，例如 0.75pt solid #666666；使用 none 清除边框",
+      "children": {
+        "all": {"description": "设置段落的四边"},
+        "top": {"description": "段落上边框"},
+        "bottom": {"description": "段落下边框"},
+        "left": {"description": "段落左边框"},
+        "right": {"description": "段落右边框"},
+        "between": {"description": "相邻段落之间的边框"},
+        "space": {"description": "段落文字与边框的距离，例如 3pt"}
+      }
     }
   },
   "manuscriptFrontmatter": {

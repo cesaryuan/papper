@@ -263,13 +263,13 @@ fn postprocess_package(
     let mut document = package.xml("word/document.xml")?;
     let mut styles = package.xml("word/styles.xml")?;
     footer::apply(package, &mut document, &styles, &effective.pmt_settings)?;
+    formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
     directives::apply(package, &mut document, &mut styles)?;
     note_marks::apply(package, &mut document)?;
     if options.native_crossrefs {
         native::finalize(package, &mut document, &mut styles)?;
     }
     lists::bracketed(package, &mut document, &mut styles)?;
-    formatting::apply_line_numbers(&mut document, &effective.pmt_settings)?;
     tables::convert_table_text_styles(&mut document, &styles);
     tables::equation_metadata(&mut document);
     tables::table_metadata(&mut document)?;

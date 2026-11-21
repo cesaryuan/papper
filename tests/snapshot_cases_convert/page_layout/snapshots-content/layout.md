@@ -1,4 +1,5 @@
 ---
+numberSections: false
 papperSettings:
   docxFooter:
     alignment: center
@@ -19,6 +20,12 @@ papperSettings:
       Chapter: **[]{t="field" instruction="STYLEREF 1" result="Chapter 4"}**
 
       $x$
+  docxPageMargins:
+    bottom: 72.0pt
+    left: 90.0pt
+    right: 90.0pt
+    top: 72.0pt
+  docxShowLineNumbers: false
 title: Layout specimen
 ---
 

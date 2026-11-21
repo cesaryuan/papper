@@ -1,3 +1,13 @@
+---
+papperSettings:
+  docxPageMargins:
+    bottom: 72.0pt
+    left: 90.0pt
+    right: 90.0pt
+    top: 72.0pt
+  docxShowLineNumbers: false
+---
+
 Before the terms.
 
 ::: equation-terms

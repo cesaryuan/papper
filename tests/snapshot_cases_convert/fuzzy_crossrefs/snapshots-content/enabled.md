@@ -1,3 +1,13 @@
+---
+papperSettings:
+  docxPageMargins:
+    bottom: 72.0pt
+    left: 90.0pt
+    right: 90.0pt
+    top: 72.0pt
+  docxShowLineNumbers: false
+---
+
 如[@fig:fuzz-1-14]所示。The table is shown in [@tbl:fuzz-1-3].
 
 ![不同失效策略下的脆弱性曲线](media/image1.png){#fig:fuzz-1-14 width="1in" height="0.58333in" original-number="图1‑14"}

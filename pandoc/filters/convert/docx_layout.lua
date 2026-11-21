@@ -11,6 +11,7 @@ local xml = dofile(pandoc.path.join {directory, 'docx_layout_xml.lua'})
 local fields = dofile(pandoc.path.join {directory, 'docx_layout_fields.lua'})
 local heading_refs = dofile(pandoc.path.join {directory, 'heading_refs.lua'})
 local borders = dofile(pandoc.path.join {directory, 'docx_layout_borders.lua'})
+local outline = dofile(pandoc.path.join {directory, 'docx_layout_outline.lua'})
 local R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
 
 --- Resolve internal package targets relative to their source part.
@@ -101,8 +102,18 @@ local function collect_sections(body, rels, entries)
       local record = {ending=index, kind=kind, stories={}, refs={},
         differentFirstPage=tostring(xml.enabled(xml.child(props, 'titlePg'))),
         format=number and xml.attr(number, 'fmt') or 'decimal'}
+      local margins, lines = xml.child(props, 'pgMar'), xml.child(props, 'lnNumType')
+      record.margins = {}
+      for _, side in ipairs({'top', 'bottom', 'left', 'right'}) do
+        local value = margins and tonumber(xml.attr(margins, side))
+        if value and value >= 0 then record.margins[side] = tostring(value / 20) .. 'pt' end
+      end
+      local restart = lines and (xml.attr(lines, 'restart') or 'newPage')
+      local count = lines and tonumber(xml.attr(lines, 'countBy') or '0')
+      record.lineNumbers = count and count > 0
+        and ({continuous='continuous', newPage='restart-page', newSection='restart-section'})[restart] or 'false'
       if #result == 0 and os.getenv('PAPPER_CONVERT_SUBFIGURE_SVG') == '1' then
-        local size, margins = xml.child(props, 'pgSz'), xml.child(props, 'pgMar')
+        local size = xml.child(props, 'pgSz')
         local w = size and tonumber(xml.attr(size, 'w'))
         local l = margins and tonumber(xml.attr(margins, 'left'))
         local r = margins and tonumber(xml.attr(margins, 'right'))
@@ -119,7 +130,6 @@ local function collect_sections(body, rels, entries)
             record.refs[story][xml.attr(ref, 'type') or 'default'] = part
           end
         end
-        local margins = xml.child(props, 'pgMar')
         local distance = margins and tonumber(xml.attr(margins, story))
         if distance then record[story .. 'Distance'] = tostring(distance / 20) .. 'pt' end
       end
@@ -127,6 +137,25 @@ local function collect_sections(body, rels, entries)
     end
   end
   return result
+end
+
+--- Put document defaults in YAML and retain changes at later section boundaries.
+local function import_page_settings(meta, sections)
+  local settings = meta.papperSettings or {}
+  local first = sections[1]
+  if next(first.margins) then settings.docxPageMargins = pandoc.MetaMap(first.margins) end
+  settings.docxShowLineNumbers = first.lineNumbers ~= 'false' and first.lineNumbers or false
+  meta.papperSettings = pandoc.MetaMap(settings)
+  for index = #sections, 2, -1 do
+    local section, previous = sections[index], sections[index - 1]
+    for side, value in pairs(section.margins) do
+      if value ~= previous.margins[side] then
+        section['margin' .. side:sub(1, 1):upper() .. side:sub(2)] = value
+      end
+    end
+    if section.lineNumbers == previous.lineNumbers then section.lineNumbers = nil end
+  end
+  first.lineNumbers = nil
 end
 
 --- Insert a marker run after paragraph properties, keeping it outside hyperlinks.
@@ -229,6 +258,10 @@ function Pandoc(document)
     sections[1].figureWidth = nil
   end
   local styles = styles_from(entries['word/styles.xml'])
+  import_page_settings(document.meta, sections)
+  local numbered = outline.import(document.meta, body, entries['word/numbering.xml'], function(paragraph, name)
+    return property(paragraph, name, styles)
+  end)
   local references = {}
   local heading_bookmarks = heading_refs.bookmarks(body, function(paragraph)
     local outline = property(paragraph, 'outlineLvl', styles)
@@ -255,6 +288,26 @@ function Pandoc(document)
   local document_rels = xml.parse(assert(entries['word/_rels/document.xml.rels'], 'DOCX relationships are missing'))
   local relation_serial = 0
   local had_story = false
+
+  --- Preserve portable STYLEREF fields; use cached text if the target cannot be rebuilt.
+  local function recover_style_ref(record)
+    local command, argument = record.instruction:match('^%s*(%a+)%s+(.+)$')
+    if not command or command:upper() ~= 'STYLEREF' then return end
+    local target, switches = argument:match('^"([^"]+)"(.*)$')
+    if not target then target, switches = argument:match('^(%S+)(.*)$') end
+    local level = target and (target:match('^[1-9]$') or target:lower():match('^heading%s+([1-9])$'))
+    local needs_number = switches and switches:match('\\[nrwNRW]%f[%W]')
+    if level and (not needs_number or numbered) then
+      -- A numeric style identifier resolves in Word regardless of its display language.
+      record.instruction = 'STYLEREF ' .. level .. switches
+      if needs_number then document.meta.papperSettings.docxNativeCrossref = true end
+      return
+    end
+    -- Convert does not import arbitrary Word styles, so their STYLEREF targets
+    -- would disappear on rebuild and Word would replace the cached title with an error.
+    return pandoc.write(pandoc.Pandoc({pandoc.Para {pandoc.Str(record.result)}}),
+      'markdown', {wrap_text='none'}):gsub('\n+$', '')
+  end
 
   --- Import one page story once per numbering format and remap its resource relationships.
   local function import_story(part, format)
@@ -291,7 +344,8 @@ function Pandoc(document)
       end
     end)
     local sensitive
-    story, sensitive = fields.prepare(story, format, true, function(fragment) return marker({inline=fragment}) end)
+    story, sensitive = fields.prepare(story, format, true, function(fragment) return marker({inline=fragment}) end,
+      nil, recover_style_ref)
     prepare_paragraphs(story, styles, marker, false)
     local id = tostring(#manifest.stories + 1)
     local begin_token, end_token = marker({storyBegin=id}), marker({storyEnd=id})
