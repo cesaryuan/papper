@@ -761,8 +761,8 @@ reference copy before generating the document, and `--export-reference-doc`
 includes the configured styles. The source reference is left unchanged, and
 text style settings still apply when page margins are retained with
 `docxPageMargins: null`. Set `docxStyle: null` to retain all reference text styles.
-The bundled reference DOCX explicitly sets `Normal`
-to `12pt` (小四). The default body style has a two-character first-line
+The bundled reference DOCX sets `Normal`, `Heading 1`, and `Heading 2`
+to `12pt` (小四). Its `Body Text` style has a two-character first-line
 indent and no spacing before or after paragraphs.
 
 HTML uses the same supported text style settings for its corresponding
