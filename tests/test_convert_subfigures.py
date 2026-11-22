@@ -24,7 +24,8 @@ from native_support import ROOT, native_pandoc_executable
 from snapshot_utils import assert_snapshot
 
 
-def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -> None:
+@pytest.mark.parametrize("merged_last_row", [True, False])
+def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path, merged_last_row: bool) -> None:
     """Convert a real Word layout and verify the visible artwork matches its editable v2 panels."""
     doc = Document()
     section = doc.sections[0]
@@ -54,7 +55,10 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
             translation._p.append(marker)
             translation.add_run(" ")
         translation.add_run(f"Field {color}").bold = True
-    table.cell(3, 0).merge(table.cell(3, 1)).paragraphs[0].add_run().add_picture(str(source), width=Inches(2))
+    last_cell = table.cell(3, 0)
+    if merged_last_row:
+        last_cell = last_cell.merge(table.cell(3, 1))
+    last_cell.paragraphs[0].add_run().add_picture(str(source), width=Inches(2))
     table.cell(4, 0).merge(table.cell(4, 1)).text = "图 1 比较"
     doc.add_paragraph("Figure 1. Comparison")
     doc.save(tmp_path / "paper.docx")
@@ -76,11 +80,21 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
     assert metadata.get("showPanelLabels", True)
     assert not metadata["autoRenumber"] and bottom["label"] == ""
     assert not svg.find(f"s:g[@data-element-id='{bottom['id']}']", ns).findall("s:text", ns)
-    assert abs(right["width"] / left["width"] - 2) < 0.001 and bottom["width"] > right["width"]
+    assert right["width"] / left["width"] == pytest.approx(2, abs=0.001)
+    if merged_last_row:
+        assert bottom["x"] + bottom["width"] == pytest.approx(right["x"] + right["width"])
+    else:
+        assert (bottom["x"], bottom["width"]) == pytest.approx((left["x"], left["width"]))
+        assert metadata["layout"]["tree"]["children"][-1]["widthFraction"] < 1
+    rendered_bottom = svg.find(f"s:g[@data-element-id='{bottom['id']}']/s:svg", ns)
+    assert float(rendered_bottom.get("width")) == pytest.approx(bottom["width"], abs=0.001)
     assert left["crop"]["right"] == 15
+    assert left["height"] != pytest.approx(right["height"])
+    baselines = []
     for index, panel in enumerate((left, right)):
         group = svg.find(f"s:g[@data-element-id='{panel['id']}']", ns)
         image = group.find("s:svg/s:image", ns)
+        baselines.append([float(line.get("y")) for line in group.findall("s:text", ns)])
         assert panel["label"] == "ab"[index] and panel["ratio"] == index + 2
         asset = svg_path.parent / image.attrib["href"]
         assert asset.parent == svg_path.parent and asset.read_bytes() == (tmp_path / f"{('red', 'blue')[index]}.png").read_bytes()
@@ -88,6 +102,9 @@ def test_convert_editable_svg_from_docx(rust_executable: Path, tmp_path: Path) -
         assert "".join(run["text"] for run in panel["caption"]) == f"测试\n{translation}"
         assert any(run["text"] == translation and run["bold"] for run in panel["caption"])
         assert translation in "".join(group.itertext())
+    assert baselines[0] == baselines[1]
+    assert baselines[0][0] > max(panel["y"] + panel["height"] for panel in (left, right))
+    assert bottom["y"] > baselines[0][-1]
     # The original Crossref export also retains both titles in its native caption syntax.
     crossref = subprocess.run([str(rust_executable), "convert", "paper.docx", "-o", "crossref", "--offline"],
                               cwd=tmp_path, env={**os.environ, "PAPPER_RESOURCE_ROOT": str(ROOT)},

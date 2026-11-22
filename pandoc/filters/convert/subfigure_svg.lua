@@ -3,6 +3,7 @@
 -- Run after crossref recovery and media_paths: image links must use their final
 -- exported filenames. Stage complete SVGs for the CLI's no-clobber publication.
 -- Unrepresentable captions or assets leave the entire original group intact.
+-- A short row such as A | empty | empty keeps its occupied width in the panel tree.
 local resource = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), '../shared/filter_resources.lua'})
 local caption_text = dofile(pandoc.path.join {pandoc.path.directory(PANDOC_SCRIPT_FILE), 'caption_text.lua'})
 local raster_directory = resource.getenv('PAPPER_CONVERT_SVG_RASTERS')
@@ -216,36 +217,50 @@ local function artwork(rows, width)
   local model={format='papper-subfigure',version=2,width=width,autoHeight=true,embedded=false,autoRenumber=true,
     background='white',font=font,layout={mode='rows',columns=#rows[1],rows={},weights={},gap=gap,rowGap=rowgap,padding=padding},elements={}}
   local has_labels, sequential = false, true
-  local groups, y = {}, padding
-  for _, row in ipairs(rows) do
-    local total, available = 0, width-2*padding-(#row-1)*gap
-    if available <= 0 then return nil end
+  local groups, tree_rows, narrow, y = {}, {}, false, padding
+  for row_index, row in ipairs(rows) do
+    local total, inner = 0, width-2*padding
     for _, entry in ipairs(row) do total=total+entry.weight end
-    local x, bottom = padding, y
+    local row_width = inner
+    if row.occupied_columns and inner > (row.total_columns-1)*gap then
+      row_width = math.min(inner, (inner-(row.total_columns-1)*gap)*total/100+(row.occupied_columns-1)*gap)
+    end
+    local available = row_width-(#row-1)*gap
+    if available <= 0 then return nil end
+    local tree_row = {kind='split',id='s'..row_index,axis='x',children={},weights={}}
+    local x, image_bottom = padding, y
+    -- Word columns can give the images different heights; place captions after the tallest.
     for _, entry in ipairs(row) do
       local p,c = entry.model,entry.crop
       p.x,p.y,p.width=x,y,available*entry.weight/total
+      p.height=p.width*(100-c.top-c.bottom)/(p.ratio*(100-c.left-c.right))
+      image_bottom=math.max(image_bottom,y+p.height)
+      x=x+p.width+gap
+    end
+    local bottom = image_bottom
+    for _, entry in ipairs(row) do
+      local p,c = entry.model,entry.crop
+      local caption = not row.shared and labelled_runs(p) or {}
+      local text, textHeight=caption_svg(p.x,image_bottom+p.gap,p.width,caption)
       local sw,sh = 1000,1000/p.ratio
       local vw,vh = sw*(100-c.left-c.right)/100, sh*(100-c.top-c.bottom)/100
-      p.height=p.width*vh/vw
-      local caption = not row.shared and labelled_runs(p) or {}
-      local text, textHeight=caption_svg(p.x,p.y+p.height+p.gap,p.width,caption)
       local src=xml(entry.src,true)
       groups[#groups+1]=string.format('  <g data-element-id="%s">\n    <svg x="%g" y="%g" width="%g" height="%g" viewBox="%g %g %g %g" overflow="hidden">\n      <image width="%g" height="%g" href="%s" xlink:href="%s" preserveAspectRatio="none"/>\n    </svg>\n%s\n  </g>',
-        p.id,x,y,p.width,p.height,sw*c.left/100,sh*c.top/100,vw,vh,sw,sh,src,src,text)
+        p.id,p.x,p.y,p.width,p.height,sw*c.left/100,sh*c.top/100,vw,vh,sw,sh,src,src,text)
       model.elements[#model.elements+1]=p
       model.layout.weights[#model.layout.weights+1]=entry.weight
+      tree_row.children[#tree_row.children+1] = {kind='panel',id=p.id}
+      tree_row.weights[#tree_row.weights+1] = entry.weight
       has_labels = has_labels or p.label ~= ''
       sequential = sequential and p.label == letter(#model.layout.weights)
-      bottom=math.max(bottom,y+p.height+(textHeight>0 and p.gap+textHeight or 0))
-      x=x+p.width+gap
+      if textHeight > 0 then bottom=math.max(bottom,image_bottom+p.gap+textHeight) end
     end
     if row.shared then
       -- Shared text is an editable element with its own position, so use free layout
       -- to prevent the editor's panel-only reflow from covering it with the next row.
       model.layout.mode, model.autoRenumber = 'free', false
       local title = {kind='text',id='row'..(#model.layout.rows+1),x=padding,y=bottom+5,
-        width=width-2*padding,runs=labelled_runs(row[1].model)}
+        width=row_width,runs=labelled_runs(row[1].model)}
       for _, entry in ipairs(row) do
         entry.model.labelPosition, entry.model.caption, entry.model.repeatLabel = 'none', {}, nil
         entry.model.label = row[1].model.label
@@ -256,7 +271,16 @@ local function artwork(rows, width)
       bottom = title.y+height
     end
     model.layout.rows[#model.layout.rows+1]=#row
+    if #row == 1 then tree_row = tree_row.children[1] end
+    if row_width < inner then
+      tree_row.widthFraction, narrow = row_width/inner, true
+    end
+    tree_rows[#tree_rows+1] = tree_row
     y=bottom+rowgap
+  end
+  if narrow and model.layout.mode == 'rows' then
+    model.layout.mode = 'panels'
+    model.layout.tree = #tree_rows == 1 and tree_rows[1] or {kind='split',id='s0',axis='y',children=tree_rows}
   end
   if not has_labels then model.showPanelLabels = false end
   model.autoRenumber = model.autoRenumber and sequential
@@ -280,6 +304,10 @@ local function convert(div, width)
         local entry=panel(inline,count)
         if not entry then return nil end
         if inline.attributes['papper-convert-shared-row']=='title' then row.shared=true end
+        if #row == 0 then
+          local occupied, columns = (inline.attributes['papper-convert-row-columns'] or ''):match('^(%d+)/(%d+)$')
+          row.occupied_columns, row.total_columns = tonumber(occupied), tonumber(columns)
+        end
         row[#row+1]=entry
       elseif inline.t~='Space' and inline.t~='SoftBreak' then return nil end
     end
@@ -325,7 +353,10 @@ function Pandoc(doc)
         if block.t=='Para' or block.t=='Plain' then
           local inlines = block.content
           for _, item in ipairs(inlines) do
-            if item.t=='Image' then item.attributes['papper-convert-shared-row']=nil end
+            if item.t=='Image' then
+              item.attributes['papper-convert-shared-row']=nil
+              item.attributes['papper-convert-row-columns']=nil
+            end
           end
           block.content = inlines
           div.content[i] = block

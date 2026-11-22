@@ -1609,6 +1609,9 @@ panel has one. A table used only to arrange images exports without panel numbers
 New combination SVGs use 4 pt between panels, 6 pt between rows, and 2 pt of
 padding. To preview the figure without editing guides, toggle the eye icon in
 the Papper Tools editor toolbar.
+A Word row with empty columns after its last picture stays left aligned and
+uses only the occupied width. You can adjust the row using its right-edge
+handle in the SVG editor.
 Groups whose subcaptions or source formats cannot be represented retain their
 crossref layout.
 
@@ -1632,6 +1635,9 @@ agree. When the pictures and both caption rows align by column, `--svg` can
 keep a single differing English panel letter as editable text alongside the
 Chinese panel label. TIFF subfigures use PNG copies in the SVG. Ambiguous
 layouts remain tables for review.
+
+In the SVG output, subcaptions in the same row start on a common baseline
+below the tallest picture, even if their pictures have different heights.
 
 Two adjacent captions such as `表 4‑2 各事件样本数` and
 `Table 4‑2 Sample counts by event` above one Word table become one numbered

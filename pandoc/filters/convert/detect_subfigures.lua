@@ -10,6 +10,7 @@
 --   | image C | image D |       | image B |   | 图1‑13 Overall caption |
 --   | (c) C   | (d) D   |       | (b) B   |
 -- Separate caption rows, captions before/after images, merged full-width cells,
+-- SVG export also keeps the space from trailing empty cells (e.g. A | empty | empty).
 -- full-width （a） markers, ordered-list (a) markers and captionless panels work.
 -- A Chinese (a) row followed by an English (a) row becomes one bilingual panel;
 -- 图2‑3 and Fig. 2‑3 become the primary and translated captions of the same group.
@@ -442,6 +443,9 @@ local function make_group(rows, caption, original_id, english)
         end
       end
       image.attributes.width = string.format('%.6g%%', panel.cell_percent or 100 / #row)
+      if column == 1 and row.occupied_columns then
+        image.attributes['papper-convert-row-columns'] = row.occupied_columns .. '/' .. row.total_columns
+      end
       image.attributes.height = nil
       if #inlines > 0 then inlines[#inlines + 1] = pandoc.Space() end
       inlines[#inlines + 1] = image
@@ -468,23 +472,33 @@ local function table_group(element, following)
   local external = following and paragraph(following)
   if external and not caption_number(external) then external = nil end
   local candidates, rows, pending = {}, {}, nil
+  local shares, total = {}, 0
+  if svg_output then
+    for index, spec in ipairs(element.colspecs) do
+      shares[index] = tonumber(spec[2])
+      if not shares[index] or shares[index] <= 0 then shares = {}; break end
+      total = total + shares[index]
+    end
+  end
   if caption then candidates[#candidates + 1] = {inlines=caption} end
   if external then candidates[#candidates + 1] = {inlines=external} end
   for row_index, row in ipairs(table_rows(element)) do
     local panels, texts, text_columns = {}, {}, {}
-    local column = 1
+    local column, occupied, contiguous = 1, 0, true
     for _, cell in ipairs(row.cells) do
       local images, fragments = read_cell(cell)
       if not images then return nil end
       -- SVG rows can represent unequal Word columns and merged horizontal cells.
       if svg_output and #images == 1 then
         local share = 0
-        for i = column, column + cell.col_span - 1 do
-          local spec = element.colspecs[i]
-          if not spec or not tonumber(spec[2]) then share = 0; break end
-          share = share + spec[2]
+        for index = column, column + cell.col_span - 1 do
+          share = share + (shares[index] or 1)
         end
-        if share > 0 then images[1].cell_percent = share * 100 end
+        images[1].cell_percent = share * 100 / (#shares > 0 and total or #element.colspecs)
+        contiguous = contiguous and column == occupied + 1
+        occupied = column + cell.col_span - 1
+      elseif #images > 1 then
+        contiguous = false
       end
       for _, image in ipairs(images) do
         if #images == 1 and cell.col_span == 1 then image.column, image.image_row = column, row_index end
@@ -510,6 +524,10 @@ local function table_group(element, following)
         rows[#rows + 1] = line_row
         pending = panels
       else
+        -- A prefix of occupied columns gives a left-aligned row width without inventing empty images.
+        if svg_output and contiguous and occupied > 0 and occupied < #element.colspecs then
+          panels.occupied_columns, panels.total_columns = occupied, #element.colspecs
+        end
         rows[#rows + 1] = panels
         pending = panels
       end
