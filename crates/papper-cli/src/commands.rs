@@ -179,23 +179,6 @@ fn build(mut args: BuildArgs) -> Result<()> {
         );
     }
     let resources = ResourcePaths::discover()?;
-    if let Some(export) = &args.export_reference_doc {
-        let export = crate::docx_pipeline::resolved_destination(&absolute(export, &project))?;
-        let reference = args
-            .reference_doc
-            .as_deref()
-            .map(|path| absolute(path, &project))
-            .unwrap_or_else(|| resources.resource("pandoc/manuscript-template/reference-doc.docx"));
-        // Exporting over the manuscript, selected template or final DOCX would
-        // destroy an input or replace the build result with the template itself.
-        for protected in [&source, &output, &reference] {
-            anyhow::ensure!(
-                export != crate::docx_pipeline::resolved_destination(protected)?,
-                "Reference export must not overwrite the manuscript, reference input or DOCX output: {}",
-                export.display()
-            );
-        }
-    }
     if args.logging.verbose {
         eprintln!(
             "[DEBUG] Native input: {}; output: {}",
@@ -314,20 +297,48 @@ pub(crate) fn build_other_with_worker(
         allow_missing_header: true,
         lang_override: args.lang.clone(),
         reply: reply.is_some(),
+        docx: args.target == BuildTarget::Docx,
         resource_roots: roots,
         ..MetadataOptions::default()
     };
     let mut effective = load_effective_metadata_text(&text, source, &options)?;
+    let selected_reference = args
+        .reference_doc
+        .as_deref()
+        .map(|path| absolute(path, project))
+        .or_else(|| effective.pmt_settings.fields().docx_reference_doc.clone());
+    if args.target == BuildTarget::Docx {
+        let reference = selected_reference
+            .clone()
+            .unwrap_or_else(|| resources.resource("pandoc/manuscript-template/reference-doc.docx"));
+        anyhow::ensure!(
+            reference.is_file(),
+            "Reference DOCX file not found: {}",
+            reference.display()
+        );
+        let reference = crate::docx_pipeline::resolved_destination(&reference)?;
+        if let Some(export) = &args.export_reference_doc {
+            let export = crate::docx_pipeline::resolved_destination(&absolute(export, project))?;
+            for protected in [source, output, &reference] {
+                anyhow::ensure!(
+                    export != crate::docx_pipeline::resolved_destination(protected)?,
+                    "Reference export must not overwrite the manuscript, reference input or DOCX output: {}",
+                    export.display()
+                );
+            }
+        } else {
+            anyhow::ensure!(
+                reference != crate::docx_pipeline::resolved_destination(output)?,
+                "DOCX output must not overwrite the reference document"
+            );
+        }
+    }
     if let Some(export) = &args.export_reference_doc {
         effective = papper_document::docx::prepare_docx_metadata(&effective)?;
-        let reference = args
-            .reference_doc
-            .as_deref()
-            .map(|path| absolute(path, project));
         let reference = crate::docx_pipeline::prepare_reference(
             resources,
             &effective,
-            reference.as_deref(),
+            selected_reference.as_deref(),
             temporary.path(),
         )?;
         let export = absolute(export, project);
@@ -538,15 +549,11 @@ pub(crate) fn build_other_with_worker(
         command.extend(["--to".into(), "json".into()]);
     }
     if args.target == BuildTarget::Docx {
-        let reference = args
-            .reference_doc
-            .as_deref()
-            .map(|path| absolute(path, project));
         crate::docx_pipeline::append_reference(
             &mut command,
             resources,
             &effective,
-            reference.as_deref(),
+            selected_reference.as_deref(),
             temporary.path(),
         )?;
         crate::docx_pipeline::append_output_filters(&mut command, resources);
@@ -642,6 +649,28 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     let source = PathBuf::from(display_path(&source.canonicalize()?));
     let destination = absolute(&args.output_dir, &project);
     let resources = ResourcePaths::discover()?;
+    let reference_template = resources.resource("pandoc/manuscript-template/reference-doc.docx");
+    let reference_export = args
+        .export_reference_doc
+        .as_ref()
+        .map(|path| crate::docx_pipeline::resolved_destination(&absolute(path, &project)))
+        .transpose()?;
+    if let Some(export) = &reference_export {
+        anyhow::ensure!(
+            export
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("docx")),
+            "--export-reference-doc requires a .docx output path"
+        );
+        for protected in [&source, &reference_template] {
+            let protected = crate::docx_pipeline::resolved_destination(protected)?;
+            anyhow::ensure!(
+                relative_reference_path(&protected, export) != ".",
+                "Reference export must not overwrite the source or bundled reference DOCX: {}",
+                export.display()
+            );
+        }
+    }
     let decoded = papper_platform::native::decode_documents(std::slice::from_ref(&source))?;
     let temporary = tempfile::Builder::new()
         .prefix("papper-convert-")
@@ -822,11 +851,43 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
     )?;
     // Pandoc emits CRLF on Windows; the original importer published portable LF
     // Markdown, so preserve that user-visible format when leaving Python.
-    let markdown = std::fs::read_to_string(&output)?
+    let mut markdown = std::fs::read_to_string(&output)?
         .replace("\r\n", "\n")
         .replace('\r', "\n")
         .replace("](./media/", "](media/");
     let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&crossref_report)?)?;
+    if let Some(export) = &reference_export {
+        let destination_path = crate::docx_pipeline::resolved_destination(&destination)?;
+        let reference_path = relative_reference_path(&destination_path, export);
+        let setting = format!(
+            "  docxReferenceDoc: {}\n",
+            serde_json::to_string(&reference_path)?
+        );
+        // Insert the path without reserializing the page-story Markdown in YAML.
+        if let Some((header, _)) = markdown
+            .strip_prefix("---\n")
+            .and_then(|text| text.split_once("\n---\n"))
+        {
+            if let Some(index) = header
+                .match_indices("papperSettings:\n")
+                .find_map(|(index, _)| {
+                    (index == 0 || header.as_bytes()[index - 1] == b'\n').then_some(index)
+                })
+            {
+                markdown.insert_str(4 + index + "papperSettings:\n".len(), &setting);
+            } else {
+                markdown.insert_str(4, &format!("papperSettings:\n{setting}"));
+            }
+        } else {
+            markdown.insert_str(0, &format!("---\npapperSettings:\n{setting}---\n\n"));
+        }
+        let matches =
+            papper_document::docx::export_reference_styles(&source, &reference_template, export)?;
+        for (style, imported) in matches {
+            println!("[convert] Reference style {style} <- {imported}");
+        }
+        println!("[convert] Wrote {}", export.display());
+    }
     // Do not expose half-built Markdown if decoding or Pandoc fails. Media is
     // published only after conversion succeeds, preserving existing user files.
     std::fs::create_dir_all(&destination)?;
@@ -867,6 +928,34 @@ fn convert_docx(args: crate::ConvertArgs) -> Result<()> {
         );
     }
     Ok(())
+}
+
+/// Write a path relative to the Markdown directory, or an absolute path on another drive.
+fn relative_reference_path(directory: &Path, reference: &Path) -> String {
+    let base: Vec<_> = directory.components().collect();
+    let target: Vec<_> = reference.components().collect();
+    let common = base
+        .iter()
+        .zip(&target)
+        .take_while(|(a, b)| {
+            a == b || (cfg!(windows) && a.as_os_str().eq_ignore_ascii_case(b.as_os_str()))
+        })
+        .count();
+    if common == 0 {
+        return pandoc_path(reference);
+    }
+    let path: PathBuf = std::iter::repeat_n(std::ffi::OsStr::new(".."), base.len() - common)
+        .chain(
+            target[common..]
+                .iter()
+                .map(|component| component.as_os_str()),
+        )
+        .collect();
+    if path.as_os_str().is_empty() {
+        ".".into()
+    } else {
+        pandoc_path(&path)
+    }
 }
 
 /// Print individual JSON records so terminal users and agents can filter candidates without a sidecar.

@@ -115,6 +115,9 @@
         }
       }
     },
+    "docxReferenceDoc": {
+      "description": "用于构建 Word 的参考 DOCX 路径，相对于声明它的 Markdown 或样式文件"
+    },
     "docxPageWidth": {
       "description": "DOCX 页面宽度，例如 21cm；null 保留参考文档宽度"
     },

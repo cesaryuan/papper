@@ -129,6 +129,7 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         bundled_style_dir: resources.resource("defaults"),
         allow_missing_header: true,
         reply: true,
+        docx: extension == "docx",
         resource_roots: vec![
             reply.parent().unwrap().to_path_buf(),
             project.clone(),
@@ -205,13 +206,30 @@ pub fn build(args: &crate::ReplyArgs) -> Result<()> {
         let generated = temporary.path().join("raw.docx");
         let defaults =
             papper_document::reply::reply_defaults(&resources, temporary.path(), "docx")?;
-        let reference = args.reference_doc.as_deref().map(|path| {
-            if path.is_absolute() {
-                path.to_path_buf()
-            } else {
-                project.join(path)
-            }
-        });
+        let reference = args
+            .reference_doc
+            .clone()
+            .or_else(|| std::env::var_os("PMT_REFERENCE_DOC").map(PathBuf::from))
+            .or_else(|| effective.pmt_settings.fields().docx_reference_doc.clone())
+            .map(|path| {
+                if path.is_absolute() {
+                    path
+                } else {
+                    project.join(path)
+                }
+            });
+        if let Some(reference) = &reference {
+            anyhow::ensure!(
+                reference.is_file(),
+                "Reference DOCX file not found: {}",
+                reference.display()
+            );
+            anyhow::ensure!(
+                crate::docx_pipeline::resolved_destination(reference)?
+                    != crate::docx_pipeline::resolved_destination(&output)?,
+                "DOCX output must not overwrite the reference document"
+            );
+        }
         let resource_path = [reply.parent().unwrap(), project.as_path()]
             .iter()
             .map(|path| pandoc_path(path))

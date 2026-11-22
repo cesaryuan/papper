@@ -1738,6 +1738,26 @@ imported, it retains the field's last displayed text.
 Line numbering import preserves the switch and restart mode; custom starting
 values and intervals are not retained.
 
+Use `--export-reference-doc PATH` to detect matching Word styles and export a
+reference for future DOCX builds. The option covers headings, body text, and
+other styles shared by the source and Papper, such as headers, footers and
+captions. Papper prints the matches and writes `papperSettings.docxReferenceDoc`
+to the converted Markdown. The output option's path is relative to the current
+working directory. The YAML path is relative to the Markdown when possible.
+
+```powershell
+papper convert paper.docx -o converted --export-reference-doc converted/styles/paper.docx
+```
+
+The resulting reference uses Papper's template content and imports only styles
+used in the source. An unstyled text paragraph counts as using Word's default
+paragraph style. When the main text uses a recognized custom body style such as
+`正文内容`, Papper can map it to `Body Text`. For matched styles, Papper
+preserves inherited formatting, including zero spacing before or after
+paragraphs when that is the source default. An unused source definition does
+not replace a template style on its own. Local formatting applied to individual
+paragraphs or runs is outside the reference export.
+
 For example, a document with a common centered footer and a new section
 restarting at page 1 can produce:
 

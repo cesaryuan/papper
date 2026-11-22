@@ -259,6 +259,9 @@ pub struct ConvertArgs {
     /// Export recognized subfigure groups as SVGs editable with the Papper Tools VS Code extension.
     #[arg(long, visible_alias = "svg")]
     pub subfigure_svg: bool,
+    /// Export styles detected in the source to PATH and link it from the converted Markdown.
+    #[arg(long, value_name = "PATH")]
+    pub export_reference_doc: Option<PathBuf>,
     /// Retain originals with Word crop attributes, or apply crops to exported images.
     #[arg(long, value_enum, default_value = "attributes")]
     pub image_crop: ImageCropMode,

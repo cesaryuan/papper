@@ -12,6 +12,7 @@ mod native;
 mod note_marks;
 mod package;
 mod paragraph_format;
+mod reference_import;
 mod syntax;
 mod tables;
 mod xml;
@@ -28,6 +29,7 @@ pub use mathtype::{
     MathTypeConversionResult, check_mathtype_available, convert_marked_docx,
     convert_marked_docx_with_work_dir,
 };
+pub use reference_import::export_reference_styles;
 
 /// Control manuscript/reply formatting without changing shared metadata state.
 #[derive(Clone, Debug, Default)]

@@ -195,18 +195,6 @@ impl PreviewBuilder {
                 selected.display()
             );
         }
-        let reference = args
-            .reference_doc
-            .as_ref()
-            .map(|path| self.project.join(path))
-            .unwrap_or_else(|| {
-                self.resources
-                    .resource("pandoc/manuscript-template/reference-doc.docx")
-            });
-        anyhow::ensure!(
-            output != crate::docx_pipeline::resolved_destination(&reference)?,
-            "DOCX output must not overwrite the reference document"
-        );
         let project = self.project.clone();
         let resources = self.resources.clone();
         crate::commands::build_other_with_worker(

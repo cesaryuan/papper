@@ -359,7 +359,7 @@ fn attribute_edit(
 }
 
 /// Resolve OPC-relative media targets without allowing traversal outside the package.
-fn resolve_part(part: &str, target: &str) -> Result<String> {
+pub(super) fn resolve_part(part: &str, target: &str) -> Result<String> {
     let path = if let Some(absolute) = target.strip_prefix('/') {
         absolute.to_owned()
     } else {

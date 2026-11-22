@@ -50,6 +50,7 @@ pub struct MetadataOptions {
     pub bundled_style_dir: PathBuf,
     pub allow_missing_header: bool,
     pub reply: bool,
+    pub docx: bool,
     pub lang_override: Option<String>,
     pub resource_roots: Vec<PathBuf>,
 }
@@ -62,6 +63,7 @@ impl Default for MetadataOptions {
             bundled_style_dir: PathBuf::from("defaults"),
             allow_missing_header: false,
             reply: false,
+            docx: false,
             lang_override: None,
             resource_roots: Vec::new(),
         }
@@ -544,6 +546,10 @@ fn validate_field(name: &str, value: &Value) -> Result<Value> {
         }
         "docxPageWidth" if value.is_boolean() => Ok(json!(u8::from(value.as_bool().unwrap()))),
         "docxPageWidth" => bail!("docxPageWidth must be a length value"),
+        "docxReferenceDoc" if value.as_str().is_some_and(|path| !path.trim().is_empty()) => {
+            Ok(value.clone())
+        }
+        "docxReferenceDoc" => bail!("docxReferenceDoc must be a nonempty path or null"),
         "docxStyle" => {
             let Some(mapping) = value.as_object() else {
                 bail!("docxStyle must be a mapping")
@@ -607,7 +613,16 @@ fn split_style_mapping(
                 source.display()
             )
         }
-        settings.insert(name.clone(), value.clone());
+        let value = match (name.as_str(), value.as_str()) {
+            ("docxReferenceDoc", Some(raw)) if !raw.trim().is_empty() => {
+                let path = expand_home(raw);
+                json!(absolute_path(
+                    &source.parent().unwrap_or(Path::new(".")).join(path)
+                )?)
+            }
+            _ => value.clone(),
+        };
+        settings.insert(name.clone(), value);
     }
     Ok((settings, pandoc_metadata, reply))
 }
@@ -1063,21 +1078,17 @@ pub fn load_effective_metadata_text(
         bail!("Only `--lang zh-cn` and `--lang zhcn` are currently supported for builds.")
     }
     let defaults = bundled_settings(is_chinese_language(&selected_language), options)?;
-    let mut settings_mapping = defaults.to_mapping(true);
+    let mut layers = Vec::new();
     let mut pandoc_defaults = defaults.pandoc_metadata.clone();
     let bundled_csl = pandoc_defaults.get("csl").cloned();
     if let Some(project) = &project_settings {
-        settings_mapping = merge_settings(&settings_mapping, &project.to_mapping(true));
+        layers.push((project.to_mapping(true), false));
         pandoc_defaults = merge_metadata(&pandoc_defaults, &project_metadata);
     }
     if options.reply && !clears_reply {
-        for settings in [Some(&defaults), project_settings.as_ref()]
-            .into_iter()
-            .flatten()
-        {
-            if let Some(reply) = &settings.reply {
-                settings_mapping =
-                    merge_settings(&settings_mapping, &reply.pmt_overrides.to_mapping());
+        for (settings, bundled) in [(Some(&defaults), true), (project_settings.as_ref(), false)] {
+            if let Some(reply) = settings.and_then(|settings| settings.reply.as_ref()) {
+                layers.push((reply.pmt_overrides.to_mapping(), bundled));
                 pandoc_defaults = merge_metadata(&pandoc_defaults, &reply.pandoc_metadata);
             }
         }
@@ -1085,23 +1096,39 @@ pub fn load_effective_metadata_text(
     if let Some(inline) = &inline_settings {
         // Apply the manuscript layer after file-based reply styles too, so its
         // explicit values win even when the selected style contains a reply section.
-        settings_mapping = merge_settings(
-            &settings_mapping,
-            &provided_settings_mapping(&inline.fields, &inline.provided),
-        );
+        layers.push((
+            provided_settings_mapping(&inline.fields, &inline.provided),
+            false,
+        ));
         pandoc_defaults = merge_metadata(&pandoc_defaults, &inline_metadata);
         if options.reply
             && let Some(reply) = &inline.reply
         {
-            settings_mapping = merge_settings(
-                &settings_mapping,
-                &provided_settings_mapping(
+            layers.push((
+                provided_settings_mapping(
                     &reply.pmt_overrides.fields,
                     &reply.pmt_overrides.provided,
                 ),
-            );
+                false,
+            ));
             pandoc_defaults = merge_metadata(&pandoc_defaults, &reply.pandoc_metadata);
         }
+    }
+    let mut settings_mapping = Map::new();
+    layers.insert(0, (defaults.to_mapping(true), true));
+    let uses_reference = options.docx
+        && layers
+            .iter()
+            .rev()
+            .find_map(|(layer, _)| layer.get("docxReferenceDoc"))
+            .is_some_and(Value::is_string);
+    for (mut layer, bundled) in layers {
+        // A configured reference supplies the base typography, but explicit
+        // project, reply and manuscript style overrides still apply over it.
+        if uses_reference && bundled {
+            layer.remove("docxStyle");
+        }
+        settings_mapping = merge_settings(&settings_mapping, &layer);
     }
     let pmt_settings = PmtSettings::from_mapping(&settings_mapping)?;
     // Project metadata was already applied before reply overrides. Reapplying it here

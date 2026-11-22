@@ -115,7 +115,8 @@ fn setting_schema(field: SettingField, help: &FieldHelp, text_style: &Value) -> 
         | SettingField::DocxFooter
         | SettingField::DocxHeader
         | SettingField::DocxPageMargins
-        | SettingField::DocxPageWidth => ("layout", vec!["docx"]),
+        | SettingField::DocxPageWidth
+        | SettingField::DocxReferenceDoc => ("layout", vec!["docx"]),
     };
     schema["x-papper-section"] = json!(section);
     schema["x-papper-targets"] = json!(targets);

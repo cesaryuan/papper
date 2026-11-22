@@ -17,10 +17,12 @@ from zipfile import ZipFile
 import pytest
 import yaml
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.section import WD_SECTION_START
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.shared import Pt
 from lxml import etree
 
 from native_support import ROOT, native_pandoc_executable
@@ -85,6 +87,103 @@ def add_outline_numbering(document, chapter_format: str = "%1") -> int:
         definition.append(level)
     numbering.insert(0, definition)
     return numbering.add_num(42).numId
+
+
+def test_convert_exports_reference_styles_for_build(tmp_path: Path, rust_executable: Path) -> None:
+    """Opt in to an editable reference, then build from its relative YAML path."""
+    document = Document()
+    # Match Word sources that omit default spacing, even though Papper's
+    # reference has a nonzero default after paragraphs.
+    default_spacing = document.styles.element.find(
+        f"{qn('w:docDefaults')}/{qn('w:pPrDefault')}/{qn('w:pPr')}/{qn('w:spacing')}"
+    )
+    default_spacing.getparent().remove(default_spacing)
+    for level in range(1, 5):
+        heading = document.styles[f"Heading {level}"]
+        heading.font.size = Pt(24 - level)
+        heading.paragraph_format.space_after = Pt(8)
+        document.add_heading(f"Level {level}", level)
+    body = document.styles.add_style("正文内容", WD_STYLE_TYPE.PARAGRAPH)
+    body.base_style = document.styles["Body Text"]
+    body.base_style.font.size = Pt(16)
+    body.base_style.paragraph_format.space_after = None
+    document.styles["Normal"].font.size = Pt(38)
+    document.styles["Heading 5"].font.size = Pt(39)
+    body.paragraph_format.line_spacing = 1.75
+    body.paragraph_format.first_line_indent = Pt(13)
+    document.add_paragraph("Manuscript text only", style=body)
+    document.add_paragraph("Second body paragraph", style=body)
+    document.styles["Header"].paragraph_format.line_spacing = 1.4
+    document.sections[0].header.paragraphs[0].text = "Imported header"
+    document.styles["Footer"].font.size = Pt(40)
+    document.sections[0].even_page_footer.paragraphs[0].text = "Disabled even footer"
+    source = tmp_path / "paper.docx"
+    document.save(source)
+
+    output = tmp_path / "converted"
+    run_papper(rust_executable, tmp_path, "convert", str(source), "-o", str(output))
+    markdown = output / "paper.md"
+    assert "docxReferenceDoc" not in markdown.read_text(encoding="utf-8")
+    assert not list(output.rglob("*.docx"))
+    result = run_papper(
+        rust_executable, tmp_path, "convert", str(source), "-o", str(output),
+        "--export-reference-doc", "styles/论文 [字体].docx",
+    )
+    assert "Body Text <- 正文内容" in result.stdout
+    metadata = yaml.safe_load(markdown.read_text(encoding="utf-8")[4:].split("\n---\n", 1)[0])
+    assert metadata["papperSettings"]["docxReferenceDoc"] == "../styles/论文 [字体].docx"
+    reference = tmp_path / "styles/论文 [字体].docx"
+    reference_document = Document(reference)
+    bundled = Document(ROOT / "pandoc/manuscript-template/reference-doc.docx")
+    for name in ("Normal", "Heading 5", "Footer"):
+        assert reference_document.styles[name].font.size == bundled.styles[name].font.size
+    assert all("Manuscript text only" not in paragraph.text for paragraph in reference_document.paragraphs)
+    assert abs(reference_document.styles["Header"].paragraph_format.line_spacing - 1.4) < 0.01
+
+    # Build outside the Markdown directory. A project stylesheet can add its
+    # own override without restoring the bundled font sizes.
+    (tmp_path / "style.yml").write_text("docxStyle:\n  Body Text: {fontSize: 17pt}\n", encoding="utf-8")
+    rebuilt = tmp_path / "rebuilt.docx"
+    run_papper(rust_executable, tmp_path, "build", "docx", str(markdown), "--no-mathtype", "-o", str(rebuilt))
+    reopened = Document(rebuilt)
+    for level in range(1, 5):
+        paragraph = next(p for p in reopened.paragraphs if p.text.endswith(f"Level {level}"))
+        assert paragraph.style.font.size.pt == 24 - level
+        assert paragraph.style.paragraph_format.space_after.pt == 8
+    imported_body = reopened.styles["Body Text"]
+    assert reference_document.styles["Body Text"].font.size.pt == 16
+    assert imported_body.font.size.pt == 17
+    assert imported_body.paragraph_format.first_line_indent.pt == 13
+    assert imported_body.paragraph_format.line_spacing == 1.75
+    assert imported_body.paragraph_format.space_before == Pt(0)
+    assert imported_body.paragraph_format.space_after == Pt(0)
+    body_paragraph = next(p for p in reopened.paragraphs if p.text == "Second body paragraph")
+    assert body_paragraph.style.name == "Body Text"
+    assert reopened.sections[0].header.paragraphs[0].text == "Imported header"
+
+    # The same relative setting also works in style.yml with no Markdown override.
+    (tmp_path / "style.yml").write_text('docxReferenceDoc: "styles/论文 [字体].docx"\n', encoding="utf-8")
+    style_only = tmp_path / "style-only.docx"
+    run_papper(rust_executable, tmp_path, "build", "docx", "--export-reference-doc", str(style_only))
+    assert Document(style_only).styles["Heading 1"].font.size.pt == 23
+
+
+def test_convert_exports_implicitly_used_default_body_style(tmp_path: Path, rust_executable: Path) -> None:
+    """A real paragraph with no explicit style still uses Word's default paragraph style."""
+    document = Document()
+    normal = document.styles["Normal"]
+    normal.font.size = Pt(15)
+    normal.paragraph_format.line_spacing = 1.8
+    document.styles["Body Text"].font.size = Pt(30)
+    document.add_paragraph("Plain prose uses the default paragraph style.")
+    source = tmp_path / "plain.docx"
+    document.save(source)
+    reference = tmp_path / "ref.docx"
+    run_papper(rust_executable, tmp_path, "convert", str(source), "--export-reference-doc", str(reference))
+    reopened = Document(reference)
+    assert reopened.styles["Normal"].font.size.pt == 15
+    assert reopened.styles["Body Text"].font.size.pt == 15
+    assert abs(reopened.styles["Body Text"].paragraph_format.line_spacing - 1.8) < 0.01
 
 
 def test_convert_page_settings_and_chapter_header(

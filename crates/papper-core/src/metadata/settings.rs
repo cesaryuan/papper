@@ -101,12 +101,13 @@ pub enum SettingField {
     DocxHeader,
     DocxPageMargins,
     DocxPageWidth,
+    DocxReferenceDoc,
     DocxStyle,
 }
 
 impl SettingField {
     /// Enumerate owned settings without treating arbitrary Pandoc metadata as fields.
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 20] = [
         Self::Mathtype,
         Self::MathtypeConversionMethod,
         Self::MathtypeSvgBackend,
@@ -125,6 +126,7 @@ impl SettingField {
         Self::DocxHeader,
         Self::DocxPageMargins,
         Self::DocxPageWidth,
+        Self::DocxReferenceDoc,
         Self::DocxStyle,
     ];
 
@@ -154,6 +156,7 @@ impl SettingField {
             Self::DocxHeader => "docxHeader",
             Self::DocxPageMargins => "docxPageMargins",
             Self::DocxPageWidth => "docxPageWidth",
+            Self::DocxReferenceDoc => "docxReferenceDoc",
             Self::DocxStyle => "docxStyle",
         }
     }
@@ -425,6 +428,7 @@ pub struct SettingsValues {
     pub docx_header: Option<DocxFooter>,
     pub docx_page_margins: Option<BTreeMap<String, LengthInput>>,
     pub docx_page_width: Option<LengthInput>,
+    pub docx_reference_doc: Option<std::path::PathBuf>,
     pub docx_style: Option<DocxStyles>,
 }
 
@@ -450,6 +454,7 @@ impl Default for SettingsValues {
             docx_header: None,
             docx_page_margins: None,
             docx_page_width: None,
+            docx_reference_doc: None,
             docx_style: None,
         }
     }
@@ -482,6 +487,7 @@ impl SettingsValues {
             SettingField::DocxHeader => assign!(docx_header),
             SettingField::DocxPageMargins => assign!(docx_page_margins),
             SettingField::DocxPageWidth => assign!(docx_page_width),
+            SettingField::DocxReferenceDoc => assign!(docx_reference_doc),
             SettingField::DocxStyle => assign!(docx_style),
         }
         Ok(())
@@ -510,6 +516,7 @@ impl SettingsValues {
             SettingField::DocxHeader => json!(self.docx_header),
             SettingField::DocxPageMargins => json!(self.docx_page_margins),
             SettingField::DocxPageWidth => json!(self.docx_page_width),
+            SettingField::DocxReferenceDoc => json!(self.docx_reference_doc),
             SettingField::DocxStyle => json!(self.docx_style),
         }
     }

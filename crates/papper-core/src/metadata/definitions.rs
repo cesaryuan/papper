@@ -93,7 +93,7 @@ impl SettingField {
             Self::DocxSvgToPngDpi | Self::DocxSvgToPngScale => {
                 PositiveNumber(self::PositiveNumber::Decimal)
             }
-            Self::CitationNumberRangeDelimiter => NullableString,
+            Self::CitationNumberRangeDelimiter | Self::DocxReferenceDoc => NullableString,
             Self::DocxShowLineNumbers => BooleanOrString,
             Self::DocxShowPageNumbers => NullableBoolean,
             Self::DocxFooter | Self::DocxHeader | Self::DocxPageMargins | Self::DocxStyle => {

@@ -673,14 +673,25 @@ papper build docx --lang zh-cn
 The command-line value has higher priority than `style.yml`. These flags apply
 only to `papper build docx`.
 
-Use `--reference-doc PATH` to select a custom Word reference DOCX, for example
-one containing a journal's paragraph styles. Without this option, Papper uses
-`PMT_REFERENCE_DOC` when set, otherwise its bundled reference. Relative paths
-are resolved from the current project directory; missing files are errors.
-Papper applies effective `docxStyle` settings and page margins to a temporary
-reference copy before generating the DOCX; the selected source file is left
-unchanged. To keep the custom reference's margins, set `docxPageMargins: null`
-in `style.yml`. To keep all its text styles too, set `docxStyle: null`.
+Set `docxReferenceDoc` in `style.yml` to use a Word reference document for the
+project. Set `papperSettings.docxReferenceDoc` in Markdown to override it for a
+single manuscript. A relative path starts at the file that declares it.
+
+```yaml
+docxReferenceDoc: styles/journal.docx
+```
+
+Papper selects the reference in this order: `--reference-doc PATH`,
+`PMT_REFERENCE_DOC`, `docxReferenceDoc`, then the bundled reference. CLI and
+environment paths are relative to the current working directory. A missing
+selected file is an error. `docxReferenceDoc: null` clears an inherited YAML path.
+
+With `docxReferenceDoc` set, Word builds use the selected reference's
+typography as the base and apply explicit `docxStyle` overrides from the project
+or manuscript. When selecting a reference only through the CLI or environment,
+set `docxStyle: null` to keep the reference's typography in place of Papper's
+bundled style overrides. Set `docxPageMargins: null` to keep the reference's
+margins.
 
 Use `--export-reference-doc [PATH]` to save the effective reference DOCX and
 skip the actual manuscript build. Omitting `PATH` writes `reference-doc.docx`
