@@ -846,6 +846,8 @@ fn prepare_macos(
                     .arg(&component.staged),
             )?;
         }
+        // Rewritten dependencies use @loader_path directly. A replacement rpath
+        // is unnecessary and may not fit in small Mach-O headers (rsvg-convert).
         for rpath in macos_rpaths(&component.original)? {
             output(
                 Command::new("install_name_tool")
@@ -853,15 +855,6 @@ fn prepare_macos(
                     .arg(&component.staged),
             )?;
         }
-        let relative = relative_to(
-            component.staged.parent().unwrap(),
-            &stage.join("bin/native-libs"),
-        )?;
-        output(
-            Command::new("install_name_tool")
-                .args(["-add_rpath", &format!("@loader_path/{relative}")])
-                .arg(&component.staged),
-        )?;
         if install_id.is_some() {
             output(
                 Command::new("install_name_tool")
