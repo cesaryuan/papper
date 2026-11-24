@@ -65,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-14]
+        os: [windows-latest, macos-15]
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/.pmt/native-target
@@ -84,8 +84,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          # Prevent a newer macOS SDK from producing helpers that macOS 14.6
-          # cannot load when the floating macos-latest image advances.
+          # Keep bundled helpers compatible with macOS 14.6 when building on a newer image.
           echo "MACOSX_DEPLOYMENT_TARGET=14.0" >> "$GITHUB_ENV"
 
       # Cargo fetches Git dependencies in its own cache, outside checkout's

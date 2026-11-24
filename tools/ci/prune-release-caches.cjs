@@ -5,11 +5,11 @@
  * legacy snapshots are included so migration does not retain multiple multi-GB copies.
  */
 
-/** Group release cache generations without touching unrelated workflows or tag scopes. */
+/** Group release cache generations, including both runner images for macOS ARM64. */
 function cacheGroup(cache) {
   if (cache.ref !== 'refs/heads/main') return undefined;
-  const native = /^native-v[123]-(windows-latest-X64|macos-14-ARM64|manylinux_2_28-x86_64)-rust-/.exec(cache.key);
-  if (native) return `rust:${native[1]}`;
+  const native = /^native-v[123]-(windows-latest-X64|macos-(?:14|15)-ARM64|manylinux_2_28-x86_64)-rust-/.exec(cache.key);
+  if (native) return `rust:${native[1].startsWith('macos-') ? 'macos-ARM64' : native[1]}`;
   const worker = /^pandoc-worker-v[123]-(Windows-X64|macOS-ARM64|manylinux_2_28-x86_64)-ghc-/.exec(cache.key);
   if (worker) return `worker:${worker[1]}`;
   const toolchain = /^release-toolchain-v[12]-(macOS-ARM64|manylinux_2_28-x86_64)-/.exec(cache.key);

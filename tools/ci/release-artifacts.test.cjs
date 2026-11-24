@@ -128,7 +128,7 @@ test('a stuck main build reaches the bounded wait failure', async () => {
   assert.equal(service.outputs['artifact-run-id'], '');
 });
 
-/** Layout migration must discard incomplete toolchains while preserving current snapshots and tag scopes. */
+/** Runner and layout migrations must retire old main snapshots without pruning tag scopes. */
 test('cache pruning retains one newest snapshot per kind and platform', async () => {
   let stored = [
     { id: 1, key: 'native-v2-macos-14-ARM64-rust-1.98.0-old', ref: 'refs/heads/main', created_at: '2026-10-01T00:00:00Z', size_in_bytes: 100 },
@@ -143,6 +143,7 @@ test('cache pruning retains one newest snapshot per kind and platform', async ()
     { id: 10, key: 'release-toolchain-v1-manylinux_2_28-x86_64-rust-1.98.0-ghc-9.14.1-cabal-3.18.1.0-old', ref: 'refs/heads/main', created_at: '2026-10-01T00:00:00Z', size_in_bytes: 100 },
     { id: 11, key: 'release-toolchain-v2-manylinux_2_28-x86_64-rust-1.98.0-ghc-9.14.1-cabal-3.18.1.0-new', ref: 'refs/heads/main', created_at: '2026-10-02T00:00:00Z', size_in_bytes: 100 },
     { id: 12, key: 'release-toolchain-v1-macOS-ARM64-ghc-9.14.1-cabal-3.18.1.0', ref: 'refs/tags/v1', created_at: '2026-10-01T00:00:00Z', size_in_bytes: 100 },
+    { id: 13, key: 'native-v3-macos-15-ARM64-rust-1.98.0-current', ref: 'refs/heads/main', created_at: '2026-10-03T00:00:00Z', size_in_bytes: 100 },
   ];
   const service = releaseService();
   /** Return actual cache service state, independent of the retention implementation. */
@@ -156,5 +157,5 @@ test('cache pruning retains one newest snapshot per kind and platform', async ()
   await prune(service);
   const retained = [];
   for (const cache of stored) retained.push(cache.id);
-  assert.deepEqual(retained, [2, 3, 4, 5, 7, 9, 11, 12]);
+  assert.deepEqual(retained, [3, 4, 5, 7, 9, 11, 12, 13]);
 });
