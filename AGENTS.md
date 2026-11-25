@@ -5,8 +5,9 @@ This repository is the `papper` tool, not a manuscript project.
 - Template content for generated paper projects lives in `template/`.
 - Bundled build defaults live in `defaults/`; project override templates remain in `template/`.
 - 用户提到的 t 片段时，指的是可用在 md 中的一种语法,形如：`[]{t="SOME_TYPE" some-attribute="SOME_VALUE" ...}`，可用于插入特殊内容或控制渲染行为。
+- 该项目的孪生项目：一个用于辅助写论文的 VS Code 扩展 Papper Tools 代码位于 E:\research\article\vscode-pandoc-crossref-helper
 
-### 用户文档职责与同步更新
+## 用户文档职责与同步更新
 
 - `docs/manuscript-syntax.md` 和 `docs/style-configuration.md` 是提供给 Papper 用户及其 AI Agent 的使用指南，编译时嵌入 CLI，分别通过 `papper guide syntax` 和 `papper guide style` 获取，不随模板复制到生成的稿件项目。
 - `papper guide` 默认输出章节目录与首段简介，按 `<topic>` 读取该章节的正文及子小节目录，按 `章节/小节` 读取更细内容，`--full` 输出全文。标题是章节地址来源；每个章节应以简短说明段落开头，避免直接以代码示例开头。
@@ -18,7 +19,7 @@ This repository is the `papper` tool, not a manuscript project.
 - 文档路径、章节或职责变化时，同步更新 `template/AGENTS.md`、`template/CLAUDE.md` 和中英文 README 中受影响的入口与链接，避免留下过时指引。
 - 你添加的每个 filter 都要在前面清楚的注释其所干的事情，尽量举例
 
-### 测试规范
+## 测试规范
 
 - **测试目标**：独立验证稳定、用户可见且有实际回归风险的行为，例如：
 	- 实际输出。
